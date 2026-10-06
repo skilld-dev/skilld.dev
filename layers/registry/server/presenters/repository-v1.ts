@@ -28,9 +28,8 @@ function byLastChange(left: ProfileSkill, right: ProfileSkill): number {
 /**
  * One Repository profile.
  *
- * `source` is where the Repository lives on GitHub now. The registry keeps the
- * identity it first indexed (ADR-0002), and the two differ after a rename or
- * a transfer.
+ * `source` is where the Repository lives on GitHub now. After a rename or a
+ * transfer the two differ until sync moves the registry rows (ADR-0013).
  */
 export function presentRepository(
   profile: LegacyOwnerProfile,

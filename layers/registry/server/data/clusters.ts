@@ -153,7 +153,7 @@ export const CLUSTERS: Cluster[] = [
       'ibelick/ui-skills/fixing-accessibility',
       'ibelick/ui-skills/baseline-ui',
       'nutlope/hallmark/hallmark',
-      'shadcn/ui/shadcn',
+      'shadcn-ui/ui/shadcn',
     ],
   },
   {
@@ -200,7 +200,7 @@ export const CLUSTERS: Cluster[] = [
     pinnedExamples: [
       'dmmulroy/anti-slop/install-anti-slop',
       'cursor/plugins/thermo-nuclear-code-quality-review',
-      'brianlovin/claude-config/deslop',
+      'brianlovin/agent-config/deslop',
       'cursor/plugins/deslop',
       'davila7/claude-code-templates/deslop',
       // Registry identity follows `docs/SKILL.md`; its frontmatter name
@@ -264,7 +264,7 @@ export const CLUSTERS: Cluster[] = [
       'pbakaus/agent-reviews/resolve-agent-reviews',
       'obra/superpowers/requesting-code-review',
       'obra/superpowers/receiving-code-review',
-      'brianlovin/claude-config/fix-sentry-issues',
+      'brianlovin/agent-config/fix-sentry-issues',
       'dimillian/skills/review-and-simplify-changes',
       'github/awesome-copilot/refactor',
     ],
@@ -594,7 +594,7 @@ export const FRAMEWORK_PINNED_SKILLS: string[] = [
   // /frameworks/react and /frameworks/nextjs
   'vercel-labs/agent-skills/react-best-practices',
   'vercel-labs/agent-skills/composition-patterns',
-  'vercel-labs/vercel-plugin/nextjs',
+  'vercel/vercel-plugin/nextjs',
   'deckardger/tanstack-agent-skills/tanstack-query',
   'vercel/next.js/next-cache-components-optimizer',
 ]

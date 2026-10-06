@@ -83,4 +83,6 @@ See [ADR-0007](../adr/0007-contract-in-the-cli-repository.md).
 | Framework page | `/frameworks/[name]` |
 | Comparison | `/compare/<slug>` |
 
+A Repository that GitHub renamed or transferred moves to its new name, and every `/gh` URL under the old name answers 301 to the same path under the new one ([ADR-0013](../adr/0013-follow-moved-repositories.md)).
+
 The legacy `/people/[handle]` and `/people/[handle]/collections/[slug]` URLs are 410 Gone (with a 301 special-case for `/people/harlanzw.com → /@harlanzw`).

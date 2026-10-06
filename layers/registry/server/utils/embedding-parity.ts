@@ -328,6 +328,10 @@ export async function runEmbeddingParityCheck(
  * hashes owner/repo/name with no sha in it, so any skill still carrying an
  * `embedding` marker while failing the eligibility predicate is exactly one
  * strandable vector, addressable by id without reading the index at all.
+ *
+ * A marker with no Skill row at all is one too. A Repository move leaves the
+ * marker under the old name on purpose (`repository-move.ts`), because the
+ * vector ID still hashes that name.
  */
 const PRUNE_CANDIDATE_SQL = `
   SELECT s.owner, s.repo, s.name
@@ -345,7 +349,15 @@ const PRUNE_CANDIDATE_SQL = `
     AND s.rendered_status = 'ok'
     AND s.seo_indexable = 1
   )
-  ORDER BY s.owner ASC, s.repo ASC, s.name ASC
+  UNION ALL
+  SELECT marker.owner, marker.repo, marker.name
+  FROM skill_generated marker
+  WHERE marker.kind = 'embedding'
+    AND NOT EXISTS (
+      SELECT 1 FROM skills s
+      WHERE s.owner = marker.owner AND s.repo = marker.repo AND s.name = marker.name
+    )
+  ORDER BY owner ASC, repo ASC, name ASC
 `
 
 /**

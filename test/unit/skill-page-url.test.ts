@@ -1,5 +1,6 @@
 import type { SqliteD1 } from './helpers/d1-sqlite'
 // @vitest-environment node
+import { readFileSync } from 'node:fs'
 import { IncomingMessage, ServerResponse } from 'node:http'
 import { Socket } from 'node:net'
 import { createEvent, fetchWithEvent, getResponseHeader } from 'h3'
@@ -16,6 +17,8 @@ function db() {
       owner TEXT, repo TEXT, name TEXT,
       rendered_skill_path TEXT, source_resolved INTEGER DEFAULT 1
     )`)
+    harness.raw.exec('CREATE TABLE repos (owner TEXT, repo TEXT)')
+    harness.raw.exec(readFileSync('migrations/0144_repository_moves.sql', 'utf8'))
   }
   return harness
 }

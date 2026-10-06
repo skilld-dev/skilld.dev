@@ -18,6 +18,10 @@ export interface OfficialRepo {
  * Org entries seeded from skills.sh/official on 2026-03-30. User entries
  * seeded from registry on 2026-04-25, then maintained as a reviewed list.
  * Maintained manually.
+ *
+ * A Repository GitHub moved keeps its old name here beside the new one, so
+ * its Skills stay official on both sides of the registry move (ADR-0013).
+ * Delete an old name once no registry row carries it.
  */
 export const officialRepos: OfficialRepo[] = [
   { owner: 'anthropics', repo: 'skills', kind: 'org' },
@@ -29,7 +33,9 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'base', repo: 'skills', kind: 'org' },
   { owner: 'better-auth', repo: 'skills', kind: 'org' },
   { owner: 'bitwarden', repo: 'ai-plugins', kind: 'org' },
+  // Old name. ADR-0013 moves its rows to the entry below.
   { owner: 'box', repo: 'box-for-ai', kind: 'org' },
+  { owner: 'box', repo: 'skills', kind: 'org' },
   { owner: 'brave', repo: 'brave-search-skills', kind: 'org' },
   { owner: 'browser-use', repo: 'browser-use', kind: 'org' },
   { owner: 'browserbase', repo: 'skills', kind: 'org' },
@@ -46,11 +52,15 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'elevenlabs', repo: 'skills', kind: 'org' },
   { owner: 'encoredev', repo: 'skills', kind: 'org' },
   { owner: 'expo', repo: 'skills', kind: 'org' },
+  // Old name. ADR-0013 moves its rows to the entry below.
   { owner: 'facebook', repo: 'react', kind: 'org' },
+  { owner: 'react', repo: 'react', kind: 'org' },
   { owner: 'figma', repo: 'mcp-server-guide', kind: 'org' },
   { owner: 'firebase', repo: 'agent-skills', kind: 'org' },
   { owner: 'firecrawl', repo: 'cli', kind: 'org' },
+  // Old name. ADR-0013 moves its rows to the entry below.
   { owner: 'flutter', repo: 'skills', kind: 'org' },
+  { owner: 'flutter', repo: 'agent-plugins', kind: 'org' },
   { owner: 'getsentry', repo: 'skills', kind: 'org' },
   { owner: 'github', repo: 'awesome-copilot', kind: 'org' },
   { owner: 'google-gemini', repo: 'gemini-skills', kind: 'org' },
@@ -61,7 +71,9 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'kotlin', repo: 'kotlin-agent-skills', kind: 'org' },
   { owner: 'langchain-ai', repo: 'langchain-skills', kind: 'org' },
   { owner: 'langfuse', repo: 'skills', kind: 'org' },
+  // Old name. ADR-0013 moves its rows to the entry below.
   { owner: 'launchdarkly', repo: 'agent-skills', kind: 'org' },
+  { owner: 'launchdarkly', repo: 'ai-tooling', kind: 'org' },
   { owner: 'livekit', repo: 'agent-skills', kind: 'org' },
   { owner: 'makenotion', repo: 'claude-code-notion-plugin', kind: 'org' },
   { owner: 'mapbox', repo: 'mapbox-agent-skills', kind: 'org' },
@@ -90,7 +102,9 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'streamlit', repo: 'agent-skills', kind: 'org' },
   { owner: 'stripe', repo: 'ai', kind: 'org' },
   { owner: 'supabase', repo: 'agent-skills', kind: 'org' },
+  // Old name. ADR-0013 moves its rows to the entry below.
   { owner: 'sveltejs', repo: 'mcp', kind: 'org' },
+  { owner: 'sveltejs', repo: 'ai-tools', kind: 'org' },
   { owner: 'vuejs-ai', repo: 'skills', kind: 'org' },
   { owner: 'vueuse', repo: 'skills', kind: 'org' },
   { owner: 'tavily-ai', repo: 'skills', kind: 'org' },
@@ -101,7 +115,9 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'vercel', repo: 'ai', kind: 'org' },
   { owner: 'vercel', repo: 'next.js', kind: 'org' },
   { owner: 'vercel-labs', repo: 'agent-skills', kind: 'org' },
+  // Old name. ADR-0013 moves its rows to the entry below.
   { owner: 'vercel-labs', repo: 'vercel-plugin', kind: 'org' },
+  { owner: 'vercel', repo: 'vercel-plugin', kind: 'org' },
   { owner: 'vercel-labs', repo: 'agent-browser', kind: 'org' },
   { owner: 'webflow', repo: 'webflow-skills', kind: 'org' },
   { owner: 'wix', repo: 'skills', kind: 'org' },
@@ -118,9 +134,12 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'addyosmani', repo: 'web-quality-skills', kind: 'user' },
   { owner: 'mattpocock', repo: 'skills', kind: 'user' },
   { owner: 'ibelick', repo: 'ui-skills', kind: 'user' },
+  // Old name. ADR-0013 moves its rows to the entry below.
   { owner: 'brianlovin', repo: 'claude-config', kind: 'user' },
+  { owner: 'brianlovin', repo: 'agent-config', kind: 'user' },
   { owner: 'dimillian', repo: 'skills', kind: 'user' },
   { owner: 'onmax', repo: 'nuxt-skills', kind: 'user' },
+  // Old name. ADR-0013 merges its rows into vuejs-ai/skills above.
   { owner: 'hyf0', repo: 'vue-skills', kind: 'user' },
   { owner: 'emilkowalski', repo: 'skills', kind: 'user' },
   { owner: 'nutlope', repo: 'hallmark', kind: 'user' },

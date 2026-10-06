@@ -1,3 +1,5 @@
+import { findRepositoryAlias } from './repository-aliases'
+
 export interface SkillRunIdentityQuery {
   owner: string
   repository: string
@@ -31,8 +33,28 @@ interface IdentityRow {
  * the registry keeps the case it first admitted. A row whose case matches
  * exactly wins. A row with no rendered path, or whose source is gone, has no
  * identity to run.
+ *
+ * A Repository that moved keeps answering under its old name, so a run
+ * command printed before the move resolves the identity the page shows now.
  */
 export async function findSkillRunIdentity(
+  db: D1Database,
+  query: SkillRunIdentityQuery,
+): Promise<SkillRunIdentity | null> {
+  const identity = await findAdmittedIdentity(db, query)
+  if (identity)
+    return identity
+  const alias = await findRepositoryAlias(db, { owner: query.owner, repo: query.repository })
+  if (!alias)
+    return null
+  return await findAdmittedIdentity(db, {
+    owner: alias.targetOwner,
+    repository: alias.targetRepo,
+    name: alias.rootSkill === query.name.toLowerCase() && alias.targetRootSkill ? alias.targetRootSkill : query.name,
+  })
+}
+
+async function findAdmittedIdentity(
   db: D1Database,
   query: SkillRunIdentityQuery,
 ): Promise<SkillRunIdentity | null> {

@@ -208,6 +208,7 @@ export async function getRepo(
 
 interface RepoSummaryGqlResponse {
   repository: {
+    databaseId: number | null
     name: string
     nameWithOwner: string
     url: string
@@ -228,6 +229,11 @@ interface RepoSummaryGqlResponse {
 
 export interface RepoSummary {
   meta: RepoMeta
+  /**
+   * GitHub's numeric Repository ID. It survives every rename and transfer, so
+   * it confirms that an old name and a new name are one Repository.
+   */
+  repositoryId: number
   headTreeSha: string | null
 }
 
@@ -248,7 +254,7 @@ export async function getRepoSummary(
 ): Promise<FetchOutcome<RepoSummary>> {
   const query = `query($owner:String!,$repo:String!){
     repository(owner:$owner,name:$repo){
-      name nameWithOwner url owner{login}
+      databaseId name nameWithOwner url owner{login}
       description stargazerCount forkCount pushedAt createdAt isArchived isFork
       defaultBranchRef{name target{... on Commit{oid tree{oid}}}}
     }
@@ -279,6 +285,10 @@ export async function getRepoSummary(
   const r = body.data?.repository
   if (!r)
     return { status: 404, data: null, rateLimit, notModified: false }
+  // The schema allows a null ID. A Repository without one cannot be followed
+  // across a move, so the read fails like any other malformed answer.
+  if (typeof r.databaseId !== 'number')
+    return { status: 502, data: null, rateLimit, notModified: false }
 
   const branch = r.defaultBranchRef?.name || 'main'
   const meta: RepoMeta = {
@@ -297,7 +307,7 @@ export async function getRepoSummary(
   }
   return {
     status: 200,
-    data: { meta, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null },
+    data: { meta, repositoryId: r.databaseId, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null },
     rateLimit,
     notModified: false,
   }
