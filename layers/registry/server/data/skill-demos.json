@@ -135,6 +135,36 @@
       ],
       "authorName": "Jakub Krehel",
       "sourceUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/main/skills/make-interfaces-feel-better/SKILL.md"
+    },
+    {
+      "owner": "latent-spaces",
+      "repo": "brag",
+      "name": "brag",
+      "authorName": "Latent Spaces",
+      "sourceUrl": "https://github.com/latent-spaces/brag/blob/main/skills/brag/SKILL.md",
+      "prompt": "/brag: make a short launch video for this project. Save the final video as launch.mp4 in this folder.",
+      "setup": "The folder held the Tidepool landing page from the frontend-design demo, and a one-line README.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "c893c5ed52aed84e3e2ee56787de869fccdae6b0",
+      "recordedAt": "2026-10-06",
+      "video": {
+        "file": "video.mp4",
+        "poster": "poster.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 21
+      },
+      "shots": [
+        {
+          "file": "poster.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: /brag: make a short launch video for this project. Save the final video as launch.mp4 in this folder."
+        }
+      ]
     }
   ]
 }
