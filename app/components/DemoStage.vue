@@ -9,15 +9,21 @@ import SkillCard from './SkillCard.vue'
  * One demo on show: how it was recorded, the output in a window one screen
  * tall (a page that scrolls inside it, or a film that plays while on screen),
  * and the Skill's row with its run command. `showPrompt` adds the prompt in
- * full, for a list that names the demos without their prompts.
+ * full, for a list that names the demos without their prompts. `live` puts a
+ * page demo's real output in the window, in a frame with no same-origin
+ * access; the route serves it under a CSP sandbox too.
  */
-const { demo, surface = 'demos', eager = false, showPrompt = false } = defineProps<{
+const { demo, surface = 'demos', eager = false, showPrompt = false, live = false } = defineProps<{
   demo: HomeDemoItem
   /** The analytics surface for the run chip, such as `home-demos`. */
   surface?: string
   eager?: boolean
   showPrompt?: boolean
+  live?: boolean
 }>()
+
+/** The output page itself, when this stage shows it live. A film always plays as video. */
+const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 </script>
 
 <template>
@@ -30,19 +36,29 @@ const { demo, surface = 'demos', eager = false, showPrompt = false } = definePro
       </NuxtLink>
     </div>
     <p v-if="showPrompt" class="demo-stage__prompt">
-      <span class="data-label mr-2">You say</span>{{ demo.prompt }}
+      <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
     <div
       class="demo-stage__window"
       :data-phone="demoHasPhoneFrame(demo) ? '' : undefined"
-      :style="{ '--phone-ratio': demoPhoneRatio(demo) }"
+      :style="demo.video
+        ? { '--video-w': demo.video.width, '--video-h': demo.video.height }
+        : { '--phone-ratio': demoPhoneRatio(demo) }"
       :data-film="demo.video ? '' : undefined"
-      tabindex="0"
+      :data-live="liveUrl ? '' : undefined"
+      :tabindex="liveUrl ? undefined : 0"
       role="group"
       :aria-label="demo.video ? `The film the Agent made with /${demo.name}.` : `What the Agent made with /${demo.name}. Scroll to see the whole page.`"
     >
-      <DemoMedia :demo :eager play="visible" />
+      <iframe
+        v-if="liveUrl"
+        :src="liveUrl"
+        sandbox="allow-scripts"
+        :title="`Live output of /${demo.name}`"
+        class="demo-stage__frame"
+      />
+      <DemoMedia v-else :demo :eager play="visible" />
     </div>
     <div class="demo-stage__id">
       <SkillCard
@@ -112,9 +128,16 @@ const { demo, surface = 'demos', eager = false, showPrompt = false } = definePro
   --demo-height: auto;
 }
 
-/* A film keeps its 16:9 frame. */
+/*
+ * A film keeps its own frame: its aspect ratio, never wider than it was
+ * rendered, and short enough to fit the screen. Centred when it is narrower
+ * than the stage.
+ */
 .demo-stage__window[data-film] {
-  block-size: min(56.25cqi, 72svh);
+  block-size: auto;
+  aspect-ratio: var(--video-w) / var(--video-h);
+  inline-size: min(100%, calc(var(--video-w) * 1px), calc(72svh * var(--video-w) / var(--video-h)));
+  margin-inline: auto;
   overflow: hidden;
   --demo-height: 100%;
 }
@@ -124,6 +147,19 @@ const { demo, surface = 'demos', eager = false, showPrompt = false } = definePro
     block-size: auto;
     aspect-ratio: var(--phone-ratio, 4 / 5);
   }
+}
+
+/* The live page scrolls inside its own frame. */
+.demo-stage__window[data-live] {
+  overflow: hidden;
+  background: #fff;
+}
+
+.demo-stage__frame {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
 }
 
 .demo-stage__window:focus-visible {

@@ -124,7 +124,7 @@ defineOgImage('Page.takumi', {
 
     <div id="demos-stage" ref="stage" class="demos-stage scroll-mt-24">
       <Transition name="demos-swap" mode="out-in">
-        <DemoStage v-if="current" :key="currentKey" :demo="current" show-prompt eager surface="demos-page" />
+        <DemoStage v-if="current" :key="currentKey" :demo="current" show-prompt live eager surface="demos-page" />
       </Transition>
       <p v-if="!current" class="text-sm text-muted">
         No demos are published yet.

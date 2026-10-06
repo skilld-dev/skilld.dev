@@ -126,7 +126,8 @@ const duration = computed(() => formatDemoDuration(video.durationSeconds))
   inset: 0;
   inline-size: 100%;
   block-size: 100%;
-  object-fit: cover;
+  /* The frame already matches the film, so nothing is cropped or stretched. */
+  object-fit: contain;
   object-position: center;
 }
 

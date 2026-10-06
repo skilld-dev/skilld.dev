@@ -68,7 +68,7 @@ function author(demo: HomeDemoItem): string {
                 <span class="demo-index__by">{{ author(demo) }}</span>
               </span>
               <span class="demo-index__say line-clamp-2">
-                <span class="sr-only">You say: </span>{{ demo.prompt }}
+                <span class="sr-only">Prompt: </span>{{ demo.prompt }}
               </span>
             </button>
             <!-- Phones: the stage opens under the picked prompt. -->
