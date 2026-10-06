@@ -5,7 +5,7 @@ minimumReleaseAgeExclude:
   - '@harlan-zw/nuxt-checkin@0.4.1'
   - '@harlan-zw/nuxt-use-query@0.3.0'
   - '@harlan-zw/nuxt-wide-events@0.2.0'
-  - 'nuxt@4.6.0'
+  - nuxt@4.6.0
   - '@harlan-zw/jev@0.3.0'
   - '@harlan-zw/nuxt-cloudflare@0.5.1'
   - '@harlan-zw/nuxt-dx@0.3.0'
@@ -108,9 +108,6 @@ autoInstallPeers: false
 
 trustPolicy: no-downgrade
 
-packages:
-  - workers/*
-
 # The site root is a workspace project too, so `pnpm pipeline` can run its
 # tasks. Every task that names no inputs hashes every tracked file, which is
 # why lint carries no inputs: `eslint .` reads the whole repository. The
@@ -191,6 +188,41 @@ pipelines:
   test: [dev:prepare, test]
 
   typecheck: [dev:prepare, typecheck]
+# npm provenance identifies cssnano/cssnano commit 9a4f2516. Nuxt 4.6 requires this version.
+trustPolicyExclude:
+  - cssnano@9.2.2
+  - cssnano-preset-default@9.2.2
+  - stylehacks@9.0.7
+  - cssnano-utils@8.1.0
+  - postcss-colormin@9.0.6
+  - postcss-convert-values@9.0.7
+  - postcss-discard-comments@9.0.6
+  - postcss-discard-duplicates@9.0.5
+  - postcss-discard-empty@9.0.5
+  - postcss-discard-overridden@9.0.5
+  - postcss-merge-longhand@9.2.0
+  - postcss-merge-rules@9.0.8
+  - postcss-minify-font-values@9.0.7
+  - postcss-minify-gradients@9.0.6
+  - postcss-minify-params@9.0.6
+  - postcss-minify-selectors@9.0.6
+  - postcss-normalize-charset@9.0.5
+  - postcss-normalize-display-values@9.0.5
+  - postcss-normalize-positions@9.0.6
+  - postcss-normalize-repeat-style@9.0.5
+  - postcss-normalize-string@9.0.5
+  - postcss-normalize-timing-functions@9.0.5
+  - postcss-normalize-unicode@9.0.5
+  - postcss-normalize-url@9.0.5
+  - postcss-normalize-whitespace@9.0.5
+  - postcss-ordered-values@9.0.6
+  - postcss-reduce-initial@9.0.6
+  - postcss-reduce-transforms@9.0.4
+  - postcss-svgo@9.0.4
+  - postcss-unique-selectors@9.0.5
+packages:
+  - workers/*
+
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.1.1.patch
@@ -280,8 +312,6 @@ ignoredBuiltDependencies:
   - esbuild
   - unrs-resolver
   - vue-demi.
-onlyBuiltDependencies:
-  - better-sqlite3
 trustPolicyIgnoreAfter: 262800
 allowBuilds:
   '@parcel/watcher': true
@@ -294,35 +324,5 @@ allowBuilds:
   vue-demi: true
   workerd: true
 
-# npm provenance identifies cssnano/cssnano commit 9a4f2516. Nuxt 4.6 requires this version.
-trustPolicyExclude:
-  - cssnano@9.2.2
-  - cssnano-preset-default@9.2.2
-  - stylehacks@9.0.7
-  - cssnano-utils@8.1.0
-  - postcss-colormin@9.0.6
-  - postcss-convert-values@9.0.7
-  - postcss-discard-comments@9.0.6
-  - postcss-discard-duplicates@9.0.5
-  - postcss-discard-empty@9.0.5
-  - postcss-discard-overridden@9.0.5
-  - postcss-merge-longhand@9.2.0
-  - postcss-merge-rules@9.0.8
-  - postcss-minify-font-values@9.0.7
-  - postcss-minify-gradients@9.0.6
-  - postcss-minify-params@9.0.6
-  - postcss-minify-selectors@9.0.6
-  - postcss-normalize-charset@9.0.5
-  - postcss-normalize-display-values@9.0.5
-  - postcss-normalize-positions@9.0.6
-  - postcss-normalize-repeat-style@9.0.5
-  - postcss-normalize-string@9.0.5
-  - postcss-normalize-timing-functions@9.0.5
-  - postcss-normalize-unicode@9.0.5
-  - postcss-normalize-url@9.0.5
-  - postcss-normalize-whitespace@9.0.5
-  - postcss-ordered-values@9.0.6
-  - postcss-reduce-initial@9.0.6
-  - postcss-reduce-transforms@9.0.4
-  - postcss-svgo@9.0.4
-  - postcss-unique-selectors@9.0.5
+onlyBuiltDependencies:
+  - better-sqlite3
