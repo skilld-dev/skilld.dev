@@ -15,6 +15,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | source status | lockfile, skilld.dev API | Artifact 1—1 source status | "Verified", "Unverified", "Local" |
 | run | skilld CLI | Skill 1—1 run command | "run" |
 | demo | Skill page, homepage | Skill 1—N demo | "demo" |
+| preview | lifecycle step, launch and pitch copy | demo 1—1 preview step | "Preview" |
 | install | skilld CLI | Skill 1—1 install command | "install" |
 | fork | Agent, Skill page | Skill 1—N local copy | "fork" |
 | lockfile | skilld CLI | project 1—1 lockfile | "lockfile" |
@@ -37,6 +38,7 @@ Collisions
 
 - "Verified" names a source status only. Never a safety claim, never a sync time.
 - "curator" and "author" both surface on profile pages. A curator assembles collections. An author writes a Skill.
+- "Preview" names watching a demo. "Preview the weekly" names an email preview. Neither is ever a run.
 
 ## Terms
 
@@ -82,7 +84,7 @@ Collisions
 
 **Marketing phrase:** "run once off", in pitch copy such as "No more skill bloat: run once off, fork, or install". It names the same path. UI labels and commands keep "run".
 
-**Never:** try, preview, use once, ephemeral.
+**Never:** try, use once, ephemeral. Preview is the demo step, never a run.
 
 ### demo
 
@@ -90,11 +92,21 @@ Collisions
 
 **Use for:** the Demo panel on the Skill page, the homepage demo section, and "live demo" for the sandboxed output page.
 
-**Never:** preview, example output, showcase, sample. "Preview" is already a banned synonym for run.
+**Never:** example output, showcase, sample. Preview names the step of watching a demo, never the demo itself.
 
 **Rule:** a demo shows the Agent's output, never the Skill author's work. It always names how it was recorded.
 
 **Groups:** demos group by what the Skill makes, on `/skills/demos`: films and launch videos, landing pages, UI components, and diagrams and explainers. A group is not a track: tracks sort Skills by kind of work.
+
+### preview
+
+**Is:** the step of watching a Skill's demo before running it. A preview never executes a Skill.
+
+**Use for:** the lifecycle step label (Find, Preview, Run, Watch) in launch, pitch, and social copy. UI panels keep "Demo".
+
+**Never:** a synonym for run, try, or dry run.
+
+**Collides with:** demo and the weekly email preview. A demo is the recorded run. Preview is the step of watching it. "Preview the weekly" links to `/weekly/preview`, an email preview. That route is frozen.
 
 ### install
 
@@ -326,7 +338,7 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 | --- | --- | --- |
 | follow | watch | One Loop 2 verb |
 | sync (user-facing) | import (stars), "Checked GitHub {ago}" (freshness) | Internal jargon; say what happened |
-| use once, try, preview | run ("run once off" in pitch copy) | One name for the transient path |
+| use once, try | run ("run once off" in pitch copy) | One name for the transient path |
 | showcase, sample, example output | demo | One name for a recorded run |
 | add (CLI verb) | run or install | v2 grammar |
 | popular, install count | starred, stars | Installs never rank or trust |
