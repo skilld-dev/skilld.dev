@@ -1,12 +1,13 @@
 import type { H3Event } from 'h3'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
+import type { GithubBindings } from '../../utils/github-client'
 import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
 import type { SkillCommitSourceRow } from '../../utils/skill-commit-source'
 import type { CachedRelated } from '../../utils/skill-related'
 import { readCache, readThroughCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
-import { GITHUB_PAGE_READ_TIMEOUT_MS } from '../../utils/github-client'
+import { getGithubJson, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../utils/github-client'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
 import { skillCommitSourceFromRow } from '../../utils/skill-commit-source'
 import {
@@ -76,7 +77,7 @@ export default defineApiHandler({
 
         const [commits, related, coOccurrenceNeighbors, embeddingNeighbors] = await Promise.all([
           source
-            ? getSkillCommits(source.owner, source.repo, source.path)
+            ? getSkillCommits(source.owner, source.repo, source.path, resolveGithubBindings(platform.env))
             : Promise.resolve([]),
           findRelatedSkills(event, { owner: skill.owner, repo: skill.repo, excludeName: skill.name, limit: 6 }),
           getCoOccurrenceNeighbors(platform.db, skill.name),
@@ -166,26 +167,32 @@ interface GhCommitResponse {
   author: { login: string, avatar_url: string } | null
 }
 
-async function getSkillCommits(owner: string, repo: string, path: string): Promise<SkillCommit[]> {
+async function getSkillCommits(owner: string, repo: string, path: string, bindings: GithubBindings): Promise<SkillCommit[]> {
   const cacheKey = `skills:commits:v2:${owner}/${repo}:${path}`
   const cached = await readCache<SkillCommit[]>(useStorage('edge-cache'), cacheKey)
   if (cached)
     return cached
 
-  const data = await $fetch<GhCommitResponse[]>(`https://api.github.com/repos/${owner}/${repo}/commits`, {
-    query: { path, per_page: 5 },
-    headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'skilld.dev' },
-    // ofetch retries a GET once on its own. The commit list is optional
-    // decoration, so a slow GitHub costs the list, never the page.
-    retry: 0,
-    timeout: GITHUB_PAGE_READ_TIMEOUT_MS,
-  }).catch(() => {
-    emitOperationalEvent(createWideEvent({ operation: 'skill-related-commits-fetch', outcome: 'failed' }))
+  // Authenticated and conditional: an unchanged history answers 304 from the
+  // ETag cache for free. Anonymous, this read shared the Worker IP's 60
+  // requests an hour with every other Cloudflare tenant, and about 330 a day
+  // failed (2026-10-06). The commit list is optional decoration, so a slow
+  // GitHub costs the list, never the page.
+  const query = new URLSearchParams({ path, per_page: '5' })
+  const response = await getGithubJson<GhCommitResponse[]>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?${query.toString()}`,
+    bindings,
+    { timeoutMs: GITHUB_PAGE_READ_TIMEOUT_MS },
+  ).catch((error: unknown) => {
+    emitOperationalEvent(createWideEvent({ operation: 'skill-related-commits-fetch', outcome: 'failed', reason: error instanceof Error ? error.message : String(error) }))
     return null
   })
-
-  if (!Array.isArray(data))
+  const data = response?.data
+  if (!Array.isArray(data)) {
+    if (response)
+      emitOperationalEvent(createWideEvent({ 'operation': 'skill-related-commits-fetch', 'outcome': 'failed', 'upstream.status': response.status }))
     return []
+  }
 
   const commits: SkillCommit[] = data.map(c => ({
     sha: c.sha,

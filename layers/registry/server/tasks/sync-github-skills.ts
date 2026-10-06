@@ -8,6 +8,8 @@ import {
   SUBSCRIBED_REPO_STALE_SECONDS,
 } from '~~/server/utils/sync-thresholds'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
+import { resolveGithubBindings } from '../utils/github-client'
+import { githubSyncPermit } from '../utils/github-sync-control'
 import {
   appendRepoReverificationCandidates,
   DISCOVERY_SYNC_CANDIDATES_SQL,
@@ -18,6 +20,7 @@ import {
   STAGE_HISTORICAL_DISCOVERY_CANDIDATES_SQL,
   SUBSCRIBED_SYNC_CANDIDATES_SQL,
 } from '../utils/sync-candidates'
+import { prefetchUnchangedRepos } from '../utils/sync-prefetch'
 
 const MAX_REPOS_PER_RUN = 250
 const MAX_HISTORICAL_CANDIDATES_PER_RUN = 250
@@ -106,26 +109,47 @@ export default defineScheduledTask({
         { limit: MAX_REPOS_PER_RUN, maxReverified: MAX_REVERIFIED_REPOS_PER_RUN },
       )
 
-      if (queue.length === 0) {
+      const reverified = queue.length - ordered.length
+      const candidates = queue.map(({ owner, repo, ownerVerified }) => ({
+        owner,
+        repo,
+        ownerVerified,
+        claimDiscovery: discoveryKeys.has(`${owner}/${repo}`),
+      }))
+      // While the sync is paused, every job would release itself unread, so
+      // a prefetch would only spend the quota the pause is saving.
+      const permit = await githubSyncPermit(db, now)
+      const prefetch = permit._tag === 'paused'
+        ? { _tag: 'unread' as const, queue: candidates, reason: 'sync-paused' }
+        : await prefetchUnchangedRepos({ db, bindings: resolveGithubBindings(env), now }, candidates)
+            .catch((error: unknown) => {
+              // The jobs read every repository themselves, as before the
+              // prefetch existed, so the run still completes.
+              emitOperationalEvent(createWideEvent({
+                operation: 'sync-github-skills-prefetch',
+                outcome: 'failed',
+                reason: error instanceof Error ? error.message : String(error),
+              }))
+              return { _tag: 'unread' as const, queue: candidates, reason: 'prefetch-threw' }
+            })
+      const prefetched = prefetch._tag === 'prefetched'
+        ? { unchanged: prefetch.unchanged, graphqlRequests: prefetch.requests }
+        : { unread: prefetch.reason }
+
+      if (prefetch.queue.length === 0) {
         await reportJobRun(db, 'sync-github-skills', {
           cron: CRON,
           status: 'ok',
           durationMs: Date.now() - startedAt,
         })
-        return { result: { queued: 0, deferred, stagedHistorical, reverified: 0 } }
+        return { result: { queued: 0, deferred, stagedHistorical, reverified, prefetched } }
       }
 
       const batch = await createRegistryJobBatch(
         env as Cloudflare.Env & Record<string, unknown>,
         {
           name: `registry-sync:${now}`,
-          jobs: queue.map(({ owner, repo, ownerVerified }) => ({
-            operation: 'sync',
-            owner,
-            repo,
-            ownerVerified,
-            claimDiscovery: discoveryKeys.has(`${owner}/${repo}`),
-          })),
+          jobs: prefetch.queue.map(candidate => ({ operation: 'sync' as const, ...candidate })),
         },
       )
       const dispatchFailed = batch.dispatched.filter(result => result.status !== 'sent')
@@ -145,7 +169,8 @@ export default defineScheduledTask({
           queued: batch.jobIds.length,
           deferred,
           stagedHistorical,
-          reverified: queue.length - ordered.length,
+          reverified,
+          prefetched,
           dispatchFailed: dispatchFailed.length,
         },
       }
