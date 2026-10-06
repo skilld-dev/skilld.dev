@@ -17,8 +17,9 @@ export async function readSkillgenOptIns(input: {
   fetch: typeof fetch
 }): Promise<{ _tag: 'Ok', repositories: Set<string> } | { _tag: 'Unavailable', status: number }> {
   const optedIn = new Set<string>()
+  const fetcher = input.fetch
   for (let start = 0; start < input.repositories.length; start += BATCH) {
-    const response = await input.fetch(new URL('/api/internal/skillgen/opt-ins', input.siteUrl), {
+    const response = await fetcher(new URL('/api/internal/skillgen/opt-ins', input.siteUrl), {
       method: 'POST',
       redirect: 'manual',
       signal: AbortSignal.timeout(10_000),
