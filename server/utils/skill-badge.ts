@@ -2,6 +2,7 @@
 
 import type { SkillBadgeTheme } from '../../shared/skill-badge'
 import type { TrendingAward } from '../../shared/trending-award'
+import { BRAND_DARK, BRAND_LIGHT, markGeometry } from '../../shared/brand-mark'
 import { skillBadgeAwardTextWidth, skillBadgeAwardWidth } from '../../shared/skill-badge'
 import { headlineTrendingAward, trendingAwardBadgeLabel, trendingAwardLabel } from '../../shared/trending-award'
 
@@ -17,25 +18,92 @@ export type SkillBadgeTarget
 
 const BADGE_SEGMENT = /^[\w.-]{1,100}$/
 
+/** `flat` matches shields.io's default badge, so a skilld badge can sit in a row of them. */
+export type SkillBadgeStyle = 'skilld' | 'flat'
+
+/** Colour overrides, named after the shields.io parameters. Each is a `#rrggbb` hex. */
+export interface SkillBadgeColors {
+  /** The category segment. */
+  label?: string
+  /** The skilld segment. */
+  brand?: string
+  /** The caret and the dot together, for a one-colour mark. */
+  logo?: string
+}
+
 export interface SkillBadgeAppearance {
   theme: SkillBadgeTheme
   showLabel: boolean
+  style: SkillBadgeStyle
+  colors: SkillBadgeColors
 }
 
 export interface SkillBadgeResponseInput {
   target: SkillBadgeTarget
   theme?: SkillBadgeTheme
   showLabel?: boolean
+  style?: SkillBadgeStyle
+  colors?: SkillBadgeColors
   likeCount?: number
   /** Undefined when not asked for. Null when asked for and none was earned. */
   award?: TrendingAward | null
 }
 
-export function parseSkillBadgeAppearance(query: { theme?: unknown, label?: unknown }): SkillBadgeAppearance {
+const HEX_COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i
+
+/** A shields-style colour value (`16152b`, `#16152b` or `fff`) as `#rrggbb`. Anything else is ignored. */
+function parseHexColor(value: unknown): string | undefined {
+  if (typeof value !== 'string')
+    return undefined
+  const match = HEX_COLOR.exec(value.trim())
+  if (!match)
+    return undefined
+  const hex = match[1]!.toLowerCase()
+  return `#${hex.length === 3 ? [...hex].map(char => char + char).join('') : hex}`
+}
+
+export function parseSkillBadgeAppearance(query: { theme?: unknown, label?: unknown, style?: unknown, labelColor?: unknown, color?: unknown, logoColor?: unknown }): SkillBadgeAppearance {
+  const colors: SkillBadgeColors = {}
+  const label = parseHexColor(query.labelColor)
+  const brand = parseHexColor(query.color)
+  const logo = parseHexColor(query.logoColor)
+  if (label)
+    colors.label = label
+  if (brand)
+    colors.brand = brand
+  if (logo)
+    colors.logo = logo
   return {
     theme: query.theme === 'dark' ? 'dark' : 'light',
     showLabel: query.label !== '0',
+    style: query.style === 'flat' ? 'flat' : 'skilld',
+    colors,
   }
+}
+
+/** Relative luminance of a `#rrggbb` colour, 0 for black to 1 for white. */
+function luminance(hex: string): number {
+  const channel = (offset: number) => {
+    const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+}
+
+const isDarkFill = (hex: string) => luminance(hex) < 0.4
+
+/** Text colour for a fill: white on dark fills, stone 800 on light ones. */
+const textOn = (fill: string) => isDarkFill(fill) ? '#ffffff' : '#292524'
+
+/**
+ * The skilld mark: the caret in the text colour and one rose dot, in the shade
+ * DESIGN.md pairs with the surface. A logo colour paints both in one colour.
+ */
+function badgeMark(input: { x: number, y: number, size: number, fill: string, logo?: string }): string {
+  const { viewBox, caret, dot } = markGeometry(input.size <= 16 ? 'small' : 'regular')
+  const caretFill = input.logo ?? textOn(input.fill)
+  const dotFill = input.logo ?? (isDarkFill(input.fill) ? BRAND_DARK.dot : BRAND_LIGHT.dot)
+  return `<svg x="${input.x}" y="${input.y}" width="${input.size}" height="${input.size}" viewBox="${viewBox}" aria-hidden="true"><path d="${caret}" fill="${caretFill}"/><circle cx="${dot.cx}" cy="${dot.cy}" r="${dot.r}" fill="${dotFill}"/></svg>`
 }
 
 export function parseSkillBadgeTarget(slug: string): SkillBadgeTarget | null {
@@ -89,12 +157,12 @@ export async function loadSkillBadgeAward(db: D1Database, target: SkillBadgeTarg
  * The trending mark (`⣀⣤⣶⣿`, see `TrendingMark.vue`) drawn as dots. A badge
  * renders in GitHub's image proxy, where no font is sure to carry braille.
  */
-function trendingMarkDots(x: number): string {
+function trendingMarkDots(x: number, baseline = 15.4): string {
   const dots: string[] = []
   for (const [cell, level] of [1, 2, 3, 4].entries()) {
     for (let row = 0; row < level; row++) {
       for (const column of [0, 2.2])
-        dots.push(`<circle cx="${Math.round((x + cell * 5.6 + column) * 10) / 10}" cy="${Math.round((15.4 - row * 2.2) * 10) / 10}" r="0.85"/>`)
+        dots.push(`<circle cx="${Math.round((x + cell * 5.6 + column) * 10) / 10}" cy="${Math.round((baseline - row * 2.2) * 10) / 10}" r="0.85"/>`)
     }
   }
   return dots.join('')
@@ -108,12 +176,11 @@ function badgeLikeLabel(likeCount: number): string {
 }
 
 function skillBadgeSvg(input: SkillBadgeResponseInput): string {
-  const { target, theme = 'light', likeCount, award } = input
+  const { target, theme = 'light', likeCount, award, colors = {} } = input
   const showLabel = input.showLabel !== false
   const safeLikeCount = likeCount === undefined ? null : Math.max(0, Math.floor(likeCount))
   const showLikes = safeLikeCount !== null
   const likeLabel = showLikes ? badgeLikeLabel(safeLikeCount) : ''
-  const likeWord = safeLikeCount === 1 ? 'like' : 'likes'
   const countWidth = showLikes ? Math.max(46, 25 + likeLabel.length * 7) : 0
   const badgeWidth = showLabel ? 153 : 81
   const awardLabel = award ? trendingAwardBadgeLabel(award) : ''
@@ -122,17 +189,12 @@ function skillBadgeSvg(input: SkillBadgeResponseInput): string {
   const width = awardX + awardWidth
   const brandX = showLabel ? 72 : 0
   const categoryLabel = target._tag === 'repository' ? 'Skill repo' : 'Agent skill'
-  const targetLabel = target._tag === 'repository' ? 'Skill repository' : 'Agent skill'
-  const accessibleLabel = [
-    `${targetLabel} on skilld.dev`,
-    showLikes ? `${safeLikeCount} ${likeWord}` : null,
-    award ? trendingAwardLabel(award) : null,
-  ].filter(Boolean).join(', ')
+  const accessibleLabel = badgeAccessibleLabel(input)
   const darkTheme = theme === 'dark'
-  const categoryFill = darkTheme ? '#3f3833' : '#f5f5f4'
-  const categoryText = darkTheme ? '#ffffff' : '#292524'
-  const brandFill = darkTheme ? '#f5f5f4' : '#2f2925'
-  const brandText = darkTheme ? '#292524' : '#ffffff'
+  const categoryFill = colors.label ?? (darkTheme ? '#3f3833' : '#f5f5f4')
+  const categoryText = textOn(categoryFill)
+  const brandFill = colors.brand ?? (darkTheme ? '#f5f5f4' : '#2f2925')
+  const brandText = textOn(brandFill)
   const likesFill = darkTheme ? '#e7e5e4' : '#3f3833'
   const likesText = darkTheme ? '#292524' : '#ffffff'
   const categorySegment = showLabel
@@ -170,18 +232,129 @@ function skillBadgeSvg(input: SkillBadgeResponseInput): string {
     ${categorySegment}
     <rect x="${brandX}" width="81" height="22" fill="${brandFill}"/>${likesSegment}${awardSegment}
   </g>${categoryContent}
-  <svg x="${brandX + 8.4}" y="6" width="12" height="12" viewBox="0 0 160 160" aria-hidden="true">
-    <path d="M80 34 L135 104 L121 104 L80 52 L39 104 L25 104 Z" fill="#fb7185"/>
-  </svg>
+  ${badgeMark({ x: brandX + 7.4, y: 5, size: 12, fill: brandFill, logo: colors.logo })}
   <text x="${brandX + 23.3}" y="15" fill="${brandText}" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" textLength="47.4" lengthAdjust="spacingAndGlyphs">skilld.dev</text>${likesContent}${awardContent}
 </svg>`
+}
+
+const FLAT_FONT = 'Verdana,Geneva,DejaVu Sans,sans-serif'
+/** shields.io's default label grey, for a flat badge with no label colour. */
+const FLAT_LABEL_FILL = '#555555'
+
+/**
+ * Verdana advance widths at 11px, the size shields.io sets badge text in. The
+ * SVG pins each text run to this width, so the layout never depends on the
+ * reader's installed fonts.
+ */
+function verdanaWidth(text: string): number {
+  let width = 0
+  for (const char of text) {
+    if ('ijl'.includes(char))
+      width += 3
+    else if (' .,:;·\''.includes(char))
+      width += 3.9
+    else if ('ftr'.includes(char))
+      width += 4.5
+    else if (char === 'm')
+      width += 10.5
+    else if (char === 'w')
+      width += 9
+    else if ('csz'.includes(char))
+      width += 5.8
+    else if (/[0-9#]/.test(char))
+      width += 7
+    else if (/[A-Z]/.test(char))
+      width += 7.5
+    else
+      width += 6.7
+  }
+  return Math.round(width * 10) / 10
+}
+
+interface FlatSegment {
+  fill: string
+  width: number
+  draw: (x: number) => string
+}
+
+/** A text run in shields.io's flat style: 11px Verdana with a one pixel drop shadow. */
+function flatText(text: string, x: number, fill: string): string {
+  const width = verdanaWidth(text)
+  const centre = Math.round((x + width / 2) * 10)
+  const shadow = isDarkFill(fill) ? '#010101' : '#cccccc'
+  const color = textOn(fill)
+  return `<text aria-hidden="true" x="${centre}" y="150" fill="${shadow}" fill-opacity=".3" transform="scale(.1)" textLength="${Math.round(width * 10)}">${text}</text>`
+    + `<text x="${centre}" y="140" transform="scale(.1)" fill="${color}" textLength="${Math.round(width * 10)}">${text}</text>`
+}
+
+/** The badge in shields.io's default flat style, so it lines up in a row of shields badges. */
+function flatBadgeSvg(input: SkillBadgeResponseInput): string {
+  const { target, theme = 'light', likeCount, award, colors = {} } = input
+  const showLabel = input.showLabel !== false
+  const safeLikeCount = likeCount === undefined ? null : Math.max(0, Math.floor(likeCount))
+  const labelFill = colors.label ?? FLAT_LABEL_FILL
+  const brandFill = colors.brand ?? (theme === 'dark' ? BRAND_DARK.ink : BRAND_LIGHT.ink)
+  const segments: FlatSegment[] = []
+  if (showLabel) {
+    const text = target._tag === 'repository' ? 'Skill repo' : 'Agent skill'
+    segments.push({ fill: labelFill, width: verdanaWidth(text) + 10, draw: x => flatText(text, x + 5, labelFill) })
+  }
+  segments.push({
+    fill: brandFill,
+    width: verdanaWidth('skilld.dev') + 27,
+    draw: x => badgeMark({ x: x + 5, y: 3, size: 14, fill: brandFill, logo: colors.logo }) + flatText('skilld.dev', x + 22, brandFill),
+  })
+  if (safeLikeCount !== null) {
+    const text = badgeLikeLabel(safeLikeCount)
+    const fill = labelFill
+    segments.push({
+      fill,
+      width: verdanaWidth(text) + 27,
+      draw: x => `<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78a5.5 5.5 0 0 0 0-7.78Z" fill="none" stroke="${BRAND_DARK.dot}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" transform="translate(${x + 5} 3) scale(.58)"/>${
+        flatText(text, x + 22, fill)}`,
+    })
+  }
+  if (award) {
+    const text = trendingAwardBadgeLabel(award)
+    segments.push({
+      fill: AWARD_FILL,
+      width: verdanaWidth(text) + 37,
+      draw: x => `<g fill="#ffffff" aria-hidden="true">${trendingMarkDots(x + 5, 14.4)}</g>${flatText(text, x + 32, AWARD_FILL)}`,
+    })
+  }
+
+  let x = 0
+  const placed = segments.map((segment) => {
+    const at = x
+    x += segment.width
+    return { ...segment, at }
+  })
+  const width = Math.ceil(x)
+  const label = badgeAccessibleLabel(input)
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20" viewBox="0 0 ${width} 20" role="img" aria-label="${label}">
+  <title>${label}</title>
+  <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
+  <clipPath id="r"><rect width="${width}" height="20" rx="3" fill="#fff"/></clipPath>
+  <g clip-path="url(#r)">${placed.map(segment => `<rect x="${segment.at}" width="${Math.ceil(segment.width)}" height="20" fill="${segment.fill}"/>`).join('')}<rect width="${width}" height="20" fill="url(#s)"/></g>
+  <g text-anchor="middle" font-family="${FLAT_FONT}" text-rendering="geometricPrecision" font-size="110">${placed.map(segment => segment.draw(segment.at)).join('')}</g>
+</svg>`
+}
+
+function badgeAccessibleLabel(input: SkillBadgeResponseInput): string {
+  const { target, likeCount, award } = input
+  const safeLikeCount = likeCount === undefined ? null : Math.max(0, Math.floor(likeCount))
+  return [
+    `${target._tag === 'repository' ? 'Skill repository' : 'Agent skill'} on skilld.dev`,
+    safeLikeCount === null ? null : `${safeLikeCount} ${safeLikeCount === 1 ? 'like' : 'likes'}`,
+    award ? trendingAwardLabel(award) : null,
+  ].filter(Boolean).join(', ')
 }
 
 export function createSkillBadgeResponse(input: SkillBadgeResponseInput): Response {
   const cachePolicy = input.likeCount !== undefined
     ? LIKES_CACHE_POLICY
     : input.award !== undefined ? AWARD_CACHE_POLICY : PLAIN_CACHE_POLICY
-  return new Response(skillBadgeSvg(input), {
+  return new Response(input.style === 'flat' ? flatBadgeSvg(input) : skillBadgeSvg(input), {
     status: 200,
     headers: {
       'access-control-allow-origin': '*',

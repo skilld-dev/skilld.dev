@@ -61,7 +61,7 @@ async function openGuide() {
 
 useSeoMeta({
   title: 'Make a skill',
-  description: 'Choose what your Skill is for. Get a guide to writing it and shipping it from your repository.',
+  description: 'Choose what your Skill is for. Get a guide to writing it, or let Skillgen keep your package Skill current.',
   robots: 'noindex,follow',
 })
 defineOgImage('Page.takumi', {
@@ -82,7 +82,7 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
         Make a skill
       </h1>
       <p class="mt-4 text-base leading-relaxed text-muted sm:pr-44">
-        Help agents use your package or work in your project. Get the steps to write a Skill and ship it from your repository.
+        Help agents use your package or work in your project. Get the steps to write a Skill, then let Skillgen keep it current after each release.
       </p>
     </header>
 
@@ -121,6 +121,28 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
           <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0 text-muted" aria-hidden="true" />
         </UButton>
       </div>
+
+      <!-- The guides above write a Skill. Skillgen updates one that exists, so it has its own question. -->
+      <h2 id="skillgen-heading" class="mt-10 text-xl font-semibold">
+        Already ship a package Skill?
+      </h2>
+      <UButton
+        to="/skillgen"
+        aria-labelledby="skillgen-heading skillgen-label"
+        color="neutral"
+        variant="ghost"
+        class="mt-6 min-h-20 w-full justify-start gap-4 rounded-lg border border-default p-4 text-left"
+      >
+        <UIcon name="i-lucide-git-pull-request-draft" class="size-6 shrink-0" aria-hidden="true" />
+        <span class="min-w-0 flex-1">
+          <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span id="skillgen-label" class="text-base font-medium">Keep it current with Skillgen</span>
+            <UBadge label="GitHub App" color="neutral" variant="outline" size="sm" class="font-mono" />
+          </span>
+          <span class="mt-1 block text-sm font-normal text-muted">After each release tag, Skillgen opens a draft pull request that updates your Skill. npm packages only.</span>
+        </span>
+        <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0 text-muted" aria-hidden="true" />
+      </UButton>
     </section>
 
     <section v-else-if="!selected" aria-labelledby="ecosystem-heading" class="pt-6">
@@ -226,6 +248,16 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
         variant="link"
         class="mt-3 min-h-11 px-0 text-sm"
       />
+      <!-- Skillgen supports npm packages only. -->
+      <div v-if="ecosystem === 'npm'" class="mt-8 flex items-start gap-3 border-t border-default pt-6">
+        <UIcon name="i-lucide-git-pull-request-draft" class="mt-0.5 size-5 shrink-0 text-muted" aria-hidden="true" />
+        <p class="text-sm leading-relaxed text-muted">
+          Once the Skill ships, Skillgen can keep it current. After each release tag, it opens a draft pull request that updates the Skill.
+          <NuxtLink to="/skillgen" class="text-default underline underline-offset-2 hover:text-primary">
+            Set up Skillgen
+          </NuxtLink>
+        </p>
+      </div>
     </section>
   </div>
 </template>

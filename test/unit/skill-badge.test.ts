@@ -78,11 +78,48 @@ describe('skill badge', () => {
     expect(parseSkillBadgeAppearance({ theme: 'dark', label: '0' })).toEqual({
       theme: 'dark',
       showLabel: false,
+      style: 'skilld',
+      colors: {},
     })
     expect(parseSkillBadgeAppearance({ theme: 'sepia', label: 'yes' })).toEqual({
       theme: 'light',
       showLabel: true,
+      style: 'skilld',
+      colors: {},
     })
+  })
+
+  it('parses the flat style and shields colours, and drops colours that are not hex', () => {
+    expect(parseSkillBadgeAppearance({ style: 'flat', labelColor: '16152B', color: '#0a3', logoColor: 'red' })).toEqual({
+      theme: 'light',
+      showLabel: true,
+      style: 'flat',
+      colors: { label: '#16152b', brand: '#00aa33' },
+    })
+    expect(parseSkillBadgeAppearance({ color: 'url(#x)' }).colors).toEqual({})
+  })
+
+  it('draws the prompt caret mark, never the retired chevron', async () => {
+    const svg = await createSkillBadgeResponse({
+      target: { _tag: 'repository', owner: 'danielroe', repo: 'empathy' },
+    }).text()
+    expect(svg).toContain('d="M58 50 L18 82')
+    expect(svg).not.toContain('M80 34 L135 104')
+  })
+
+  it('renders a 20px flat badge in the requested colours, with readable text', async () => {
+    const svg = await createSkillBadgeResponse({
+      target: { _tag: 'repository', owner: 'harlan-zw', repo: 'nuxt-seo' },
+      style: 'flat',
+      colors: { label: '#16152b', brand: '#e7f6ec', logo: '#ffffff' },
+    }).text()
+    expect(svg).toMatch(/height="20" viewBox="0 0 \d+ 20"/)
+    expect(svg).toContain('<rect x="0" width="62" height="20" fill="#16152b"/>')
+    expect(svg).toContain('fill="#e7f6ec"/>')
+    // White on the dark label, stone on the pale brand fill.
+    expect(svg).toContain('fill="#ffffff" textLength')
+    expect(svg).toContain('fill="#292524" textLength')
+    expect(svg).toContain('<title>Skill repository on skilld.dev</title>')
   })
 
   it('returns a plain badge without querying for likes', async () => {
