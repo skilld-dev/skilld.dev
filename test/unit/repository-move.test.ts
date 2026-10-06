@@ -212,6 +212,35 @@ describe('a move into a name the registry already holds', () => {
   })
 })
 
+describe('a move into a name a different Repository holds', () => {
+  beforeEach(() => {
+    seedUser(101)
+    // A stale row: GitHub stopped serving this Repository, markRepoMissing
+    // kept the row, and its name carries its own Repository ID.
+    exec(`INSERT INTO repos (owner, repo, repository_id, repo_skill_count, last_tree_sha) VALUES ('vuejs-ai', 'skills', 111, 1, 'tree-1')`)
+    seedSkill('vuejs-ai', 'skills', 'held-skill')
+    seedRepo('hyf0', 'vue-skills')
+    seedSkill('hyf0', 'vue-skills', 'moved-skill')
+    github.getRepoSummary.mockResolvedValue(githubAnswer('vuejs-ai/skills', 222))
+  })
+
+  it('refuses the move instead of merging another Repository\'s rows', async () => {
+    const stats = await syncRepo('hyf0', 'vue-skills', {}, d1.db)
+
+    expect(stats.status).toBe('failed')
+    expect(stats.reason).toContain('move_refused')
+    expect(rows(`SELECT owner, repo, repository_id FROM repos ORDER BY owner`)).toEqual([
+      { owner: 'hyf0', repo: 'vue-skills', repository_id: null },
+      { owner: 'vuejs-ai', repo: 'skills', repository_id: 111 },
+    ])
+    expect(rows(`SELECT owner, repo, name FROM skills ORDER BY name`)).toEqual([
+      { owner: 'vuejs-ai', repo: 'skills', name: 'held-skill' },
+      { owner: 'hyf0', repo: 'vue-skills', name: 'moved-skill' },
+    ])
+    expect(rows(`SELECT COUNT(*) AS aliases FROM repo_aliases`)).toEqual([{ aliases: 0 }])
+  })
+})
+
 describe('a move that renames a root Skill', () => {
   it('renames the Skill to the new Repository name and records it on the alias', async () => {
     seedRepo('palkan', 'skills', { source: 'palkan/layered-rails-skills' })

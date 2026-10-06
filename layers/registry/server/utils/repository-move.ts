@@ -48,19 +48,46 @@ export function movedRegistryName(current: RepositoryName, held: RepositoryName 
   return held ?? { owner: current.owner.toLowerCase(), repo: current.repo.toLowerCase() }
 }
 
+/** The row the registry already holds under a name, with its GitHub identity. */
+export interface HeldRepositoryName extends RepositoryName {
+  /** The GitHub Repository ID the held row belongs to, when the registry knows it. */
+  repositoryId: number | null
+}
+
+/**
+ * What a move into the registry may do. A held name merges only when the
+ * held row is not provably another Repository's: a stale row GitHub no
+ * longer serves can occupy a name, and merging into it would absorb a
+ * different Repository's rows. The move is refused for review instead.
+ */
+export type RepositoryMovePlan
+  = | { _tag: 'merge', to: RepositoryName }
+    | { _tag: 'held', heldBy: number }
+
+export function planRepositoryMove(
+  current: RepositoryName,
+  held: HeldRepositoryName | null,
+  repositoryId: number,
+): RepositoryMovePlan {
+  if (held?.repositoryId != null && held.repositoryId !== repositoryId)
+    return { _tag: 'held', heldBy: held.repositoryId }
+  return { _tag: 'merge', to: movedRegistryName(current, held) }
+}
+
 /**
  * The registry row that already holds a name, matched without case, or null.
  */
-export async function findHeldRepositoryName(db: D1Database, name: RepositoryName): Promise<RepositoryName | null> {
-  return await db
+export async function findHeldRepositoryName(db: D1Database, name: RepositoryName): Promise<HeldRepositoryName | null> {
+  const row = await db
     .prepare(`
-      SELECT owner, repo
+      SELECT owner, repo, repository_id
       FROM repos
       WHERE owner = ?1 COLLATE NOCASE AND repo = ?2 COLLATE NOCASE
       ORDER BY (owner = lower(?1) AND repo = lower(?2)) DESC
       LIMIT 1`)
     .bind(name.owner, name.repo)
-    .first<RepositoryName>()
+    .first<{ owner: string, repo: string, repository_id: number | null }>()
+  return row ? { owner: row.owner, repo: row.repo, repositoryId: row.repository_id } : null
 }
 
 /** Apply one move as a single D1 batch, so it lands whole or not at all. */

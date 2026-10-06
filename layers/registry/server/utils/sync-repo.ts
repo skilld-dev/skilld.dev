@@ -1,14 +1,14 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import type { GithubBindings, RepoMeta } from './github-client'
-import type { RepositoryName } from './repository-move'
+import type { RepositoryMovePlan, RepositoryName } from './repository-move'
 import type { SkillTrustTier } from './skill-trust'
 import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { repoStarObservationStatements } from './repo-history'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
-import { findHeldRepositoryName, movedRegistryName, moveRepository, sameRepositoryName } from './repository-move'
+import { findHeldRepositoryName, moveRepository, planRepositoryMove, sameRepositoryName } from './repository-move'
 import { skillContentSha256 } from './skill-content-hash'
 import { parseSkillFile, registrySkillName } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
@@ -464,17 +464,20 @@ export async function refreshRepoAssets(
 
 /**
  * Move every row of a Repository GitHub now serves as `current`, and answer
- * the registry identity the rows carry after the move.
+ * the registry identity the rows carry after the move. A move into a name
+ * another Repository holds is refused, so nothing merges.
  */
 async function followRepositoryMove(
   db: D1Database,
   requested: RepositoryName,
   current: RepositoryName,
   repositoryId: number,
-): Promise<RepositoryName> {
-  const to = movedRegistryName(current, await findHeldRepositoryName(db, current))
-  await moveRepository(db, { from: requested, to, source: current, repositoryId, movedAt: nowSec() })
-  return to
+): Promise<RepositoryMovePlan> {
+  const plan = planRepositoryMove(current, await findHeldRepositoryName(db, current), repositoryId)
+  if (plan._tag === 'held')
+    return plan
+  await moveRepository(db, { from: requested, to: plan.to, source: current, repositoryId, movedAt: nowSec() })
+  return plan
 }
 
 async function loadExistingRepo(db: D1Database, owner: string, repo: string): Promise<ExistingRepo | null> {
@@ -851,9 +854,15 @@ export async function syncRepo(
   // The rows follow it there, and the sync goes on under the new name, so a
   // caller keyed by the old name still gets an outcome (ADR-0013).
   const current: RepositoryName = { owner: sourceOwner, repo: sourceRepo }
-  const movedTo = sameRepositoryName(requested, current)
+  const movePlan = sameRepositoryName(requested, current)
     ? null
     : await followRepositoryMove(db, requested, current, repositoryId)
+  if (movePlan?._tag === 'held') {
+    stats.status = 'failed'
+    stats.reason = `move_refused: ${current.owner}/${current.repo} is Repository ${repositoryId} on GitHub, and the registry holds that name for Repository ${movePlan.heldBy}`
+    return stats
+  }
+  const movedTo = movePlan?.to
   if (movedTo)
     stats.movedTo = movedTo
   const { owner, repo } = movedTo ?? requested
