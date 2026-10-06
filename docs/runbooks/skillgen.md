@@ -46,7 +46,7 @@ It requests no Actions, administration, or issues permission.
 Configure the saved JSON with `wrangler secret bulk` in `workers/skill-harness`.
 Pass the file through stdin. Never print its contents.
 Also configure the model credential and `PROOF_TOKEN` described in the [Harness runbook](./skill-harness-proof.md).
-Deploy through the existing Actions workflow with `target=harness-proof`.
+A merge that changes the Worker deploys it. The [Harness runbook](./skill-harness-proof.md) covers a deploy by hand.
 
 Use the saved installation URL. Select only the package repository.
 Installation starts a job for its latest tag.

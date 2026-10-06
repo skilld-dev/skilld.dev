@@ -8,8 +8,11 @@ The proof produces a file bundle. GitHub tag handling and pull request publicati
 
 ## Deploy the proof
 
-Dispatch the existing deployment workflow with `target=harness-proof` and the reviewed branch.
-That target deploys only the separate `skilld-harness-proof` Worker and its container image.
+A merge to main deploys the `skilld-harness-proof` Worker and its container image after the site deploy.
+It deploys only when the merge changed `workers/skill-harness/`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, or the deploy workflow.
+A new version restarts containers, so an unchanged merge keeps the running version.
+
+To deploy a branch by hand, dispatch the workflow with `target=harness-proof`.
 
 ```sh
 gh workflow run deploy-cloudflare.yml --ref BRANCH --field target=harness-proof
