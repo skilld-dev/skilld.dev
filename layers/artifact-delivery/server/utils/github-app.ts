@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { decryptToken, encryptToken } from '#layers/identity/server/utils/crypto'
+import { requestInstallationToken, signGithubAppJwt } from '#shared/server/github-app-credential'
 import { base64ToBytes, bytesToBase64Url } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
 
@@ -46,11 +47,6 @@ const appSchema = z.object({
 const githubUserSchema = z.object({
   id: z.number().int().positive().safe(),
   login: z.string().min(1).max(100),
-}).passthrough()
-
-const installationTokenSchema = z.object({
-  token: z.string().min(1).max(2048),
-  expires_at: z.string().datetime(),
 }).passthrough()
 
 const refreshedUserTokenSchema = z.object({
@@ -541,91 +537,11 @@ export async function verifyGithubWebhookSignature(
   return different === 0
 }
 
-export type InstallationTokenResult
-  = | { _tag: 'created', token: string, expiresAt: string }
-    /** GitHub answered 401, 403 or 404: the App, its key or the installation is gone. */
-    | { _tag: 'refused', status: number }
-
-/**
- * Exchange an App JWT for an installation access token.
- *
- * A refusal is a value. Any other failure, such as a 5xx or an unreadable
- * answer, throws: it says nothing about the App.
- */
-export async function requestInstallationToken(input: {
-  fetch: typeof globalThis.fetch
-  jwt: string
-  installationId: number
-  body: { repository_ids?: number[], permissions: Record<string, 'read'> }
-}): Promise<InstallationTokenResult> {
-  const fetched = await fetchNoRedirect(input.fetch, `${GITHUB_API}/app/installations/${input.installationId}/access_tokens`, {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/vnd.github+json',
-      'Authorization': `Bearer ${input.jwt}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'skilld.dev',
-      'X-GitHub-Api-Version': GITHUB_API_VERSION,
-    },
-    body: JSON.stringify(input.body),
-    signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
-  })
-  if (fetched._tag === 'unexpected-redirect')
-    throw new Error(`GitHub App request redirected ${fetched.status}`)
-  const response = fetched.response
-  if (response.status === 401 || response.status === 403 || response.status === 404) {
-    await response.body?.cancel()
-    return { _tag: 'refused', status: response.status }
-  }
-  if (!response.ok)
-    throw new Error(`GitHub App request returned ${response.status}`)
-  const value = installationTokenSchema.safeParse(await readBoundedJson(response, MAX_GITHUB_TOKEN_RESPONSE_BYTES))
-  if (!value.success)
-    throw new Error('GitHub App returned an invalid response')
-  return { _tag: 'created', token: value.data.token, expiresAt: value.data.expires_at }
-}
-
 async function createGithubAppJwt(config: GithubAppConfig): Promise<string> {
   const privateKey = decodeCanonicalBase64Url(config.privateKeyPkcs8)
   if (!privateKey)
     throw new Error('GitHub App private key is malformed')
   return await signGithubAppJwt({ issuer: config.clientId, privateKeyPkcs8: privateKey, now: config.now() })
-}
-
-/**
- * An RS256 GitHub App JWT. `issuer` is the App's client ID or its App ID;
- * GitHub accepts either.
- *
- * It is valid for ten minutes from a minute in the past, which absorbs clock
- * drift between the Worker and GitHub. Ten minutes is GitHub's maximum.
- */
-export async function signGithubAppJwt(input: {
-  issuer: string
-  privateKeyPkcs8: Uint8Array
-  /** Unix seconds. */
-  now: number
-}): Promise<string> {
-  const issuedAt = input.now - 60
-  const header = bytesToBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })))
-  const payload = bytesToBase64Url(new TextEncoder().encode(JSON.stringify({
-    iat: issuedAt,
-    exp: issuedAt + 600,
-    iss: input.issuer,
-  })))
-  const unsigned = `${header}.${payload}`
-  const imported = await crypto.subtle.importKey(
-    'pkcs8',
-    toArrayBuffer(input.privateKeyPkcs8),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    imported,
-    new TextEncoder().encode(unsigned),
-  )
-  return `${unsigned}.${bytesToBase64Url(new Uint8Array(signature))}`
 }
 
 async function readBoundedJson(response: Response, maximumBytes: number): Promise<unknown> {

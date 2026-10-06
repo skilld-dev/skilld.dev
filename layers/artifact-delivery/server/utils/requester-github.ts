@@ -1,4 +1,4 @@
-import type { GithubObjectCache, GithubReadFailure, PublicGithubSourceClient } from './github-source'
+import type { GithubObjectCache, GithubReadFailure, LoadSourceResult, PublicGithubSourceClient, ResolveSourceResult } from './github-source'
 import type { ResolutionRow } from './state'
 import { decryptToken } from '#layers/identity/server/utils/crypto'
 import { createPublicGithubSourceClient } from './github-source'
@@ -86,8 +86,10 @@ export function createRequesterGithubSource(
 }
 
 /**
- * A client that reads with the shared credential, and repeats a read the
- * shared quota refused with the requester's own client.
+ * A client that reads with the shared credential, and repeats with the
+ * requester's own client a read the shared credentials could not make: a spent
+ * quota, or a Repository whose organization denies the read App when no
+ * fallback token is set.
  *
  * Every other answer, success or rejection, stays the shared one, so a
  * requester's token is spent only when nothing else could read.
@@ -104,17 +106,22 @@ export function withRequesterFallback(
   return {
     async resolve(request) {
       const first = await shared.resolve(request)
-      if (first._tag !== 'rejected' || first.code !== 'RATE_LIMITED')
+      if (!sharedCouldNotRead(first))
         return first
       const client = await ownClient()
       return client ? await client.resolve(request) : first
     },
     async load(source) {
       const first = await shared.load(source)
-      if (first._tag !== 'rejected' || first.code !== 'RATE_LIMITED')
+      if (!sharedCouldNotRead(first))
         return first
       const client = await ownClient()
       return client ? await client.load(source) : first
     },
   }
+}
+
+/** A spent quota, or a denial no shared credential could get past. */
+function sharedCouldNotRead(result: ResolveSourceResult | LoadSourceResult): boolean {
+  return result._tag === 'rejected' && (result.code === 'RATE_LIMITED' || result.code === 'SOURCE_ACCESS_DENIED')
 }

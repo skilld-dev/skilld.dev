@@ -5,6 +5,7 @@ import type { SkillTrustTier } from './skill-trust'
 import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
+import { githubRateLimited } from './github-rate-limited'
 import { repoStarObservationStatements } from './repo-history'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
 import { skillContentSha256 } from './skill-content-hash'
@@ -345,8 +346,8 @@ export async function refreshRepoAssets(
       owner,
       repo,
       reason: `repo fetch ${repoRes.status}`,
-      retryable: repoRes.status === 403 || repoRes.status === 429 || repoRes.status >= 500,
-      rateLimited: repoRes.status === 403 || repoRes.status === 429,
+      retryable: githubRateLimited(repoRes) || repoRes.status >= 500,
+      rateLimited: githubRateLimited(repoRes),
       unauthorized: repoRes.status === 401,
       ...rate,
     }
@@ -377,8 +378,8 @@ export async function refreshRepoAssets(
       owner,
       repo,
       reason: `tree fetch ${treeRes.status}`,
-      retryable: treeRes.status === 403 || treeRes.status === 429 || treeRes.status >= 500,
-      rateLimited: treeRes.status === 403 || treeRes.status === 429,
+      retryable: githubRateLimited(treeRes) || treeRes.status >= 500,
+      rateLimited: githubRateLimited(treeRes),
       unauthorized: treeRes.status === 401,
       ...finalRate,
     }
@@ -797,7 +798,7 @@ export async function syncRepo(
     return stats
   }
 
-  if (repoRes.status === 403 || repoRes.status === 429) {
+  if (githubRateLimited(repoRes)) {
     stats.status = 'rate-limited'
     stats.reason = `rate-limited (${repoRes.rateLimit?.remaining ?? '?'} remaining)`
     return stats
@@ -807,7 +808,7 @@ export async function syncRepo(
     if (repoRes.status === 404 || repoRes.status === 410)
       await markRepoMissing(db, owner, repo, nowSec())
     stats.status = 'failed'
-    stats.reason = `repo fetch ${repoRes.status}`
+    stats.reason = repoRes.denied ? 'github denied the read App (403)' : `repo fetch ${repoRes.status}`
     return stats
   }
 
@@ -844,7 +845,7 @@ export async function syncRepo(
   trackRateLimit(treeRes.rateLimit)
 
   if (!treeRes.data) {
-    stats.status = treeRes.status === 403 || treeRes.status === 429 ? 'rate-limited' : 'failed'
+    stats.status = githubRateLimited(treeRes) ? 'rate-limited' : 'failed'
     stats.reason = `tree_fetch_failed:${treeRes.status}`
     return stats
   }
@@ -1110,7 +1111,7 @@ export async function syncRepo(
       logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
       trackRateLimit(blobsRes.rateLimit)
       if (!blobsRes.data) {
-        stats.status = blobsRes.status === 403 || blobsRes.status === 429 ? 'rate-limited' : 'failed'
+        stats.status = githubRateLimited(blobsRes) ? 'rate-limited' : 'failed'
         stats.reason = `blob_batch_failed:${blobsRes.status}`
         return stats
       }
@@ -1252,7 +1253,7 @@ export async function syncRepo(
       logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
       trackRateLimit(commitsRes.rateLimit)
       if (!commitsRes.data) {
-        stats.status = commitsRes.status === 403 || commitsRes.status === 429 ? 'rate-limited' : 'failed'
+        stats.status = githubRateLimited(commitsRes) ? 'rate-limited' : 'failed'
         stats.reason = `commit_batch_failed:${commitsRes.status}`
         return stats
       }
