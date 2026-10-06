@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MAX_SEARCH_QUERY_LENGTH } from '#shared/skill-search-query'
+import { classifySearchQuery, MAX_SEARCH_QUERY_LENGTH } from '#shared/skill-search-query'
 
 const flag = z.string().optional().transform(v => v === 'true' || v === '1')
 
@@ -48,3 +48,20 @@ export const SkillBoxSearchQuery = z.object({
 })
 
 export type SkillBoxSearchQuery = z.infer<typeof SkillBoxSearchQuery>
+
+/**
+ * Task search answers a sentence, the one query kind the search box offers it
+ * for. `q` arrives normalised, so the answer cache key is one spelling.
+ */
+export const TaskSearchBody = z.object({
+  q: z.string().transform((value, ctx) => {
+    const query = classifySearchQuery(value.slice(0, MAX_SEARCH_QUERY_LENGTH))
+    if (query._tag !== 'intent') {
+      ctx.addIssue({ code: 'custom', message: 'Task search answers a sentence of two or more words.' })
+      return z.NEVER
+    }
+    return query.text
+  }),
+})
+
+export type TaskSearchBody = z.infer<typeof TaskSearchBody>

@@ -147,6 +147,17 @@ export default defineNuxtConfig({
       // `search-intent`: how long the query model took, so the latency
       // budget can be checked against production instead of guessed.
       'model.durationMs',
+      // `task-search`: what one model answer cost, so the daily budget and
+      // the eval's per-question figures can be checked against production.
+      // The question text is never a field.
+      'model.cachedTokens',
+      'model.costMicros',
+      'model.droppedRefs',
+      'model.errorCode',
+      'model.inputTokens',
+      'model.outputTokens',
+      'model.searches',
+      'model.turns',
       'operation',
       'outcome',
       'processed.count',
@@ -399,6 +410,14 @@ export default defineNuxtConfig({
     tokenKey: '',
     checkinToken: '',
     publicSiteUrl: 'https://skilld.dev',
+    // Task search, the search box's opt-in model answer. Set the Worker
+    // variable NUXT_TASK_SEARCH_ENABLED=false to switch it off without a
+    // deploy. The budget is micro-dollars per UTC day across every visitor:
+    // 1,000,000 is $1, about 1,400 questions at the measured $0.0007.
+    taskSearch: {
+      enabled: true,
+      dailyBudgetMicros: 1_000_000,
+    },
     oauth: {
       github: {
         clientId: '',
