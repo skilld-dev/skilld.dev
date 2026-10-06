@@ -88,7 +88,20 @@ export function avatarProxyUrl(src: string | null | undefined): string | undefin
   const target = parseImageTarget(src)
   if (target._tag === 'Err' || !isAvatarUrl(target.url))
     return undefined
-  return `${IMAGE_PROXY_PREFIX}/avatar?url=${encodeURIComponent(target.url.href)}`
+  return `${IMAGE_PROXY_PREFIX}/avatar?url=${encodeURIComponent(avatarAtThumbnailSize(target.url).href)}`
+}
+
+/**
+ * Bluesky's `avatar` path serves the upload at full size, often 1000 pixels
+ * square. Pages draw avatars at 20 to 40 pixels, so the trending board shipped
+ * about 760 kB of Bluesky avatars where the `avatar_thumbnail` path sends 39 kB.
+ */
+function avatarAtThumbnailSize(url: URL): URL {
+  if (url.hostname !== 'cdn.bsky.app' || !url.pathname.startsWith('/img/avatar/'))
+    return url
+  const thumbnail = new URL(url)
+  thumbnail.pathname = url.pathname.replace('/img/avatar/', '/img/avatar_thumbnail/')
+  return thumbnail
 }
 
 /** The proxy address for a GitHub account avatar at a pixel size. */
