@@ -9,7 +9,7 @@ import {
 } from '../../../layers/artifact-delivery/server/schemas/contracts'
 import { artifactR2Key } from '../../../layers/artifact-delivery/server/utils/artifact-storage'
 import { createAttestationSignaturePayload, encodeAttestationStatement } from '../../../layers/artifact-delivery/server/utils/attestation'
-import { checksPermitSigning } from '../../../layers/artifact-delivery/server/utils/checks'
+import { checksPermitSigning, SIGNABLE_ARTIFACT_POLICIES } from '../../../layers/artifact-delivery/server/utils/checks'
 import { base64ToBytes, bytesToBase64Url, canonicalJson, digestHex } from '../../../layers/artifact-delivery/server/utils/encoding'
 import { ARTIFACT_POLICY_VERSION } from '../../../layers/artifact-delivery/server/utils/state'
 
@@ -211,9 +211,15 @@ function validateSigningRow(row: SigningRow, maximumAgeSeconds: number, now: num
   ) {
     return failures.artifactIdMismatch()
   }
+  // Checks count under the policy the statement names, when the signer signs
+  // it. An unknown policy counts under the current one and fails below.
+  const stagedPolicy = artifactAttestationStatementSchema.safeParse(parseJson(row.attestation_statement_json))
+  const policyVersion = stagedPolicy.success && SIGNABLE_ARTIFACT_POLICIES.has(stagedPolicy.data.policyVersion)
+    ? stagedPolicy.data.policyVersion
+    : ARTIFACT_POLICY_VERSION
   const checkResultsValue = parseJson(row.check_results_json)
   const checkResults = z.array(checkResultSchema).min(1).max(100).safeParse(checkResultsValue)
-  if (!checkResults.success || !checksPermitSigning(checkResults.data))
+  if (!checkResults.success || !checksPermitSigning(checkResults.data, policyVersion))
     return failures.checksBlocked()
   const checkAge = now - row.updated_at
   if (checkAge < 0 || checkAge > maximumAgeSeconds)
@@ -226,7 +232,7 @@ function validateSigningRow(row: SigningRow, maximumAgeSeconds: number, now: num
   const statement = artifactAttestationStatementSchema.safeParse(statementValue)
   if (!statement.success)
     return failures.statementChanged()
-  if (statement.data.policyVersion !== ARTIFACT_POLICY_VERSION)
+  if (!SIGNABLE_ARTIFACT_POLICIES.has(statement.data.policyVersion))
     return failures.policyOutdated()
   if (row.attestation_statement_json !== encodeAttestationStatement(statement.data))
     return failures.statementChanged()

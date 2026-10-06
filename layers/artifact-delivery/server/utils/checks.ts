@@ -1,6 +1,7 @@
 import type { ArtifactFile, CheckResult, ResolvedSource } from '../schemas/contracts'
 import type { ArtifactSourceFile, OmittedArtifactFile } from './github-source'
 import { digestHex } from './encoding'
+import { ARTIFACT_POLICY_VERSION } from './state'
 
 /**
  * 2026-10-07: the check became advisory. It still reports every finding, but
@@ -30,12 +31,38 @@ const OMITTED_FILES_VERSION = '1'
 const MAX_CHECK_FINDINGS = 100
 const MAX_CHECK_FINDING_CHARACTERS = 500
 
-const CURRENT_ARTIFACT_CHECKS = new Map([
+/** The checks a statement under one policy carries, by check name. */
+export type ArtifactCheckSet = ReadonlyMap<string, { version: string, required: boolean }>
+
+const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
   ['path-policy', { version: PATH_POLICY_VERSION, required: true }],
   ['agent-skills-spec', { version: AGENT_SKILLS_CHECK_VERSION, required: false }],
   ['credential-material', { version: CREDENTIAL_MATERIAL_VERSION, required: true }],
   ['executable-files', { version: EXECUTABLE_FILES_VERSION, required: false }],
   ['omitted-files', { version: OMITTED_FILES_VERSION, required: false }],
+])
+
+/**
+ * Every policy the artifact signer signs, with the checks its statements carry.
+ *
+ * The deploy updates the signer before the site, and a failed smoke rolls the
+ * site back alone. In both windows the running site stages statements under
+ * the policy before the signer's, so the signer signs that one too. When you
+ * bump `ARTIFACT_POLICY_VERSION`, replace the previous entry with the policy
+ * you bumped from. Leave it out only when the bump closes a safety gap, so the
+ * signer refuses the old policy at once.
+ *
+ * The site never reuses a build under another policy, so a statement signed
+ * under the previous one only finishes a run already in flight.
+ */
+export const SIGNABLE_ARTIFACT_POLICIES: ReadonlyMap<string, ArtifactCheckSet> = new Map([
+  [ARTIFACT_POLICY_VERSION, CURRENT_ARTIFACT_CHECKS],
+  ['2026-10-07.1', new Map([
+    ['path-policy', { version: '1', required: true }],
+    ['agent-skills-spec', { version: '2026-10-07', required: false }],
+    ['credential-material', { version: '1', required: true }],
+    ['executable-files', { version: '1', required: false }],
+  ])],
 ])
 
 export interface CheckedArtifactSource {
@@ -192,11 +219,11 @@ function omittedFilesResult(omitted: OmittedArtifactFile[]): CheckResult {
   }
 }
 
-export function checksBlockArtifact(checks: CheckResult[]): boolean {
+export function checksBlockArtifact(checks: CheckResult[], checkSet: ArtifactCheckSet = CURRENT_ARTIFACT_CHECKS): boolean {
   const byName = new Map(checks.map(check => [check.name, check]))
   if (byName.size !== checks.length)
     return true
-  for (const [name, expected] of CURRENT_ARTIFACT_CHECKS) {
+  for (const [name, expected] of checkSet) {
     const check = byName.get(name)
     if (!check || check.version !== expected.version || check.required !== expected.required)
       return true
@@ -204,8 +231,11 @@ export function checksBlockArtifact(checks: CheckResult[]): boolean {
   return checks.some(check => check.required && (check.outcome === 'fail' || check.outcome === 'error'))
 }
 
-export function checksPermitSigning(checks: CheckResult[]): boolean {
-  return !checksBlockArtifact(checks)
+/** Whether checks permit signing under one policy. The current policy is the default. */
+export function checksPermitSigning(checks: CheckResult[], policyVersion: string = ARTIFACT_POLICY_VERSION): boolean {
+  const checkSet = SIGNABLE_ARTIFACT_POLICIES.get(policyVersion)
+  return checkSet !== undefined
+    && !checksBlockArtifact(checks, checkSet)
     && checks.every(check => !check.required || check.outcome === 'pass')
 }
 

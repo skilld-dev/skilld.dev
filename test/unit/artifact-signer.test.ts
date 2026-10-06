@@ -1,4 +1,4 @@
-import type { ResolvedSource } from '../../layers/artifact-delivery/server/schemas/contracts'
+import type { CheckResult, ResolvedSource } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { ArtifactSignerBindings } from '../../workers/artifact-signer/src/handler'
 import { describe, expect, it, vi } from 'vitest'
 import { artifactR2Key } from '../../layers/artifact-delivery/server/utils/artifact-storage'
@@ -7,7 +7,9 @@ import {
   createAttestationStatement,
   encodeAttestationStatement,
 } from '../../layers/artifact-delivery/server/utils/attestation'
+import { SIGNABLE_ARTIFACT_POLICIES } from '../../layers/artifact-delivery/server/utils/checks'
 import { bytesToBase64Url, digestHex } from '../../layers/artifact-delivery/server/utils/encoding'
+import { ARTIFACT_POLICY_VERSION } from '../../layers/artifact-delivery/server/utils/state'
 import {
   ARTIFACT_SIGNER_MAX_REQUEST_BYTES,
   handleArtifactSignerRequest,
@@ -154,6 +156,33 @@ describe('artifact signing Worker', () => {
     fixture.close()
   })
 
+  // The deploy updates the signer before the site, and a failed smoke rolls
+  // the site back alone. In both windows the running site stages statements
+  // under the policy before the signer's. The signer refused every one, so a
+  // deploy that bumped the policy failed each run in its window.
+  it('signs a statement the site staged under the previous policy', async () => {
+    const [policyVersion, checkSet] = [...SIGNABLE_ARTIFACT_POLICIES].find(([version]) => version !== ARTIFACT_POLICY_VERSION)!
+    const fixture = await createSignerFixture({
+      policyVersion,
+      checks: [...checkSet].map(([name, check]) => ({ name, version: check.version, outcome: 'pass' as const, required: check.required })),
+    })
+
+    const response = await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW)
+
+    expect(response.status).toBe(200)
+    fixture.close()
+  })
+
+  it('rejects current check results under the previous policy', async () => {
+    const [policyVersion] = [...SIGNABLE_ARTIFACT_POLICIES].find(([version]) => version !== ARTIFACT_POLICY_VERSION)!
+    const fixture = await createSignerFixture({ policyVersion })
+
+    const response = await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW)
+
+    expect(await readCode(response)).toBe('CHECKS_BLOCKED')
+    fixture.close()
+  })
+
   it.each([
     ['size', { sizeOffset: 1 }],
     ['stored digest', { storedDigest: 'f'.repeat(64) }],
@@ -235,6 +264,8 @@ interface SignerFixtureOptions {
     body?: Uint8Array
   }
   privateArtifact?: boolean
+  policyVersion?: string
+  checks?: CheckResult[]
 }
 
 async function createSignerFixture(options: SignerFixtureOptions = {}) {
@@ -255,22 +286,25 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
   const r2Key = options.privateArtifact
     ? `v1/private/account/${RESOLUTION_ID}.bin`
     : artifactR2Key(contentSha256)
-  const checks = [
+  const checks: CheckResult[] = options.checks ?? [
     { name: 'path-policy', version: '1', outcome: options.checkOutcome ?? 'pass', required: true },
     { name: 'agent-skills-spec', version: '2026-10-07', outcome: 'pass', required: false },
     { name: 'credential-material', version: '2', outcome: 'pass', required: true },
     { name: 'executable-files', version: '1', outcome: 'pass', required: false },
     { name: 'omitted-files', version: '1', outcome: 'pass', required: false },
-  ] as const
-  const statement = encodeAttestationStatement(createAttestationStatement({
-    artifactId,
-    createdAt: new Date((NOW - 60) * 1000).toISOString(),
-    source: options.privateArtifact ? { ...source, visibility: 'private' } : source,
-    contentSha256,
-    contentBytes: artifactBytes.byteLength,
-    files: [{ path: 'SKILL.md', mode: 420, size: 1, sha256: 'a'.repeat(64) }],
-    checkResults: checks.map(check => ({ ...check })),
-  }))
+  ]
+  const statement = encodeAttestationStatement({
+    ...createAttestationStatement({
+      artifactId,
+      createdAt: new Date((NOW - 60) * 1000).toISOString(),
+      source: options.privateArtifact ? { ...source, visibility: 'private' } : source,
+      contentSha256,
+      contentBytes: artifactBytes.byteLength,
+      files: [{ path: 'SKILL.md', mode: 420, size: 1, sha256: 'a'.repeat(64) }],
+      checkResults: checks.map(check => ({ ...check })),
+    }),
+    ...(options.policyVersion ? { policyVersion: options.policyVersion } : {}),
+  })
   sqlite.raw.prepare(
     `INSERT INTO artifact_resolutions (
        id, request_fingerprint, state, state_version,
