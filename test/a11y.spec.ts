@@ -235,24 +235,27 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
-  it('skillTable has no violations', async () => {
+  it.each(['card', 'row', 'compact'] as const)('skillCard has no violations as a %s', async (layout) => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await loadComponent('SkillTable'),
+      await loadComponent('SkillCard'),
       {
         attachTo: container,
         props: {
-          skills: [{
+          skill: {
             owner: 'antfu',
             repo: 'skills',
             name: 'vite',
-            slug: 'antfu/vite',
+            registryPath: '/gh/antfu/skills/vite',
             description: 'Vite configuration conventions.',
             stars: 1200,
-            modifiedAt: 1_760_000_000,
+            authorName: 'Anthony Fu',
             official: true,
-          }],
-          ariaLabel: 'All skills',
+          },
+          layout,
+          rank: 1,
+          note: 'The one to start with.',
+          actions: ['run', 'source'],
         },
       },
     )
@@ -683,7 +686,9 @@ describe('accessibility: component coverage', () => {
     'OgBrand', // OG image component, rendered server-side only
     'OgLayout', // OG image layout component, rendered server-side only
     'OgLines', // OG image text component, rendered server-side only
-    'SkillCard', // Tested at page level
+    'skill-card/_SkillCardIdentity', // A part of SkillCard, scanned inside every SkillCard test
+    'skill-card/_SkillCardMetric', // A part of SkillCard, scanned inside every SkillCard test
+    'skill-card/_SkillCardRun', // A part of SkillCard, scanned inside every SkillCard test
     'SkillReceiptsBadge', // Tested at page level
     'StatsBars', // Decorative chart, tested at page level
     'StatsHBar', // Decorative chart, tested at page level
@@ -710,7 +715,7 @@ describe('accessibility: component coverage', () => {
 
   it('records only the components an axe test actually mounted', () => {
     expect([...testedComponents]).toContain('AgentTargets')
-    expect([...testedComponents]).not.toContain('SkillCard')
+    expect([...testedComponents]).not.toContain('SkillReceiptsBadge')
   })
 
   it('covers every component with an axe test or a documented skip', () => {

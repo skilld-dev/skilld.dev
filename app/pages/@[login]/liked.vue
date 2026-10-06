@@ -129,16 +129,7 @@ useSeoMeta({
       <SkillCard
         v-for="skill in items"
         :key="skill.slug"
-        :skill="{
-          owner: skill.owner,
-          repo: skill.repo,
-          name: skill.name,
-          registryPath: skill.registryPath,
-          slug: skill.slug,
-          description: skill.description,
-          stars: skill.stars ?? 0,
-          likeCount: skill.likeCount,
-        }"
+        :skill
       />
     </section>
 

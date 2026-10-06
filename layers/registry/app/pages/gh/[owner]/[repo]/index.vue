@@ -7,7 +7,7 @@ import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { resolveMissingRepoRedirect } from '../../../../utils/missing-repo-recovery'
 import { parseRepoSkillSort, REPO_SKILL_SORT_OPTIONS, sortRepoSkills } from '../../../../utils/repo-skill-layout'
-import RepoSkillCard from './_RepoSkillCard.vue'
+import RepoSkillDependencies from './_RepoSkillDependencies.vue'
 import RepoSparkline from './_RepoSparkline.vue'
 
 const route = useRoute()
@@ -611,11 +611,17 @@ useHead(computed(() => ({
             v-else-if="sortedRepoSkills.length && !groupedSkills"
             class="grid gap-3"
           >
-            <RepoSkillCard
+            <SkillCard
               v-for="skill in sortedRepoSkills"
               :key="skill.slug"
-              :skill="skill"
-            />
+              :skill
+              byline="none"
+              metric="updated"
+            >
+              <template v-if="skill.dependencies?.length" #footer>
+                <RepoSkillDependencies :owner="skill.owner" :repo="skill.repo" :dependencies="skill.dependencies" />
+              </template>
+            </SkillCard>
           </div>
           <div v-else-if="skillGroups.length" class="space-y-8">
             <section
@@ -635,11 +641,17 @@ useHead(computed(() => ({
                 </span>
               </div>
               <div class="mt-3 grid gap-3 lg:grid-cols-2">
-                <RepoSkillCard
+                <SkillCard
                   v-for="skill in group.skills"
                   :key="skill.slug"
-                  :skill="skill"
-                />
+                  :skill
+                  byline="none"
+                  metric="updated"
+                >
+                  <template v-if="skill.dependencies?.length" #footer>
+                    <RepoSkillDependencies :owner="skill.owner" :repo="skill.repo" :dependencies="skill.dependencies" />
+                  </template>
+                </SkillCard>
               </div>
             </section>
           </div>

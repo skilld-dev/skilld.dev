@@ -2,7 +2,7 @@
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 import { createReusableTemplate, useMediaQuery } from '@vueuse/core'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
-import { trendingSkillKeySet } from '#shared/trending-keys'
+import { trendingSkillKey, trendingSkillKeySet } from '#shared/trending-keys'
 import DirectoryCta from '../../components/skills/_DirectoryCta.vue'
 import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
@@ -506,14 +506,21 @@ function selectOwner(next: string) {
               />
             </div>
 
-            <SkillTable
+            <ul
               v-else-if="registryView._tag === 'ready'"
-              :skills="registryView.data.items"
-              :metric="sort"
-              :trending-keys="trendingKeys"
-              class="directory-table"
+              class="editorial-ledger list-none p-0"
               :aria-label="isFiltering ? 'Matching skills' : 'Top skill from each author'"
-            />
+            >
+              <li v-for="skill in registryView.data.items" :key="skill.slug">
+                <SkillCard
+                  :skill
+                  layout="row"
+                  :metric="sort"
+                  :trending="trendingKeys.has(trendingSkillKey(skill.owner, skill.repo, skill.name))"
+                  surface="skills-directory"
+                />
+              </li>
+            </ul>
 
             <nav
               v-if="totalPages > 1"
@@ -564,18 +571,5 @@ function selectOwner(next: string) {
   border-block-start: 1px solid var(--ui-border);
   content: '';
   pointer-events: none;
-}
-
-.directory-table :deep(.skill-table__col-description) {
-  font-weight: 300;
-}
-
-/* Give identity more room than the summary in this directory's wide layout. */
-@media (min-width: 64rem) {
-  .directory-table :deep(.skill-table__head),
-  .directory-table :deep(.skill-table__row) {
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1.6fr) 3.5rem 3.5rem;
-    gap: 0.75rem;
-  }
 }
 </style>

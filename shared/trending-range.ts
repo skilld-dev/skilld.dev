@@ -369,6 +369,10 @@ export interface TrendingBoardRow {
   key: string
   /** Whose avatar the row shows. */
   owner: string
+  /** The Repository the row's Skill lives in. */
+  repo: string
+  /** The Skill directory name the row links to, the last segment of `owner/repo/name`. */
+  name: string
   /** The row's primary link text. */
   title: string
   /** Where the primary link goes. */
@@ -490,6 +494,8 @@ export function leaderboardBoardRows(
     return {
       key: `${item.owner}/${item.repo}/${item.topSkill.name}`,
       owner: item.owner,
+      repo: item.repo,
+      name: item.topSkill.name,
       title: item.topSkill.name,
       to: item.topSkill.registryPath,
       subtitle: `${item.owner}/${item.repo}`,

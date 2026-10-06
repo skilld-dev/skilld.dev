@@ -134,33 +134,13 @@ describe('community creator collection preview', () => {
 })
 
 describe('community creator top skill', () => {
-  it('links the most popular skill to its canonical page with compact star counts', async () => {
+  it('links the most popular skill to its canonical page, with its Repository and stars', async () => {
     const wrapper = await mountCreator()
 
-    const link = wrapper.get('a[href="/gh/antfu/skills/nuxt"]')
-    expect(link.text()).toContain('Nuxt')
-    expect(link.text()).toContain('antfu/skills')
-    expect(link.text()).toContain('1.2K GitHub stars')
-
-    wrapper.unmount()
-  })
-
-  it('uses the singular star unit and an uncompacted count below a thousand', async () => {
-    const wrapper = await mountCreator({
-      topSkill: { ...creatorFixture().topSkill!, stars: 1 },
-    })
-
-    expect(wrapper.text()).toContain('1 GitHub star')
-
-    wrapper.unmount()
-  })
-
-  it('falls back to the raw skill name when it has no display name', async () => {
-    const wrapper = await mountCreator({
-      topSkill: { ...creatorFixture().topSkill!, displayName: null },
-    })
-
-    expect(wrapper.get('a[href="/gh/antfu/skills/nuxt"]').text()).toContain('nuxt')
+    const section = wrapper.get('section[aria-label="Most starred skill by Harlan Wilton"]')
+    expect(section.get('a[href="/gh/antfu/skills/nuxt"]').text()).toBe('/nuxt')
+    expect(section.text()).toContain('skills')
+    expect(section.text()).toContain('1.2k GitHub stars')
 
     wrapper.unmount()
   })

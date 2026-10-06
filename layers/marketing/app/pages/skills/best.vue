@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { githubAvatarProxyUrl } from '#shared/image-proxy'
-
 interface EssentialSkill {
   owner: string
   repo: string
@@ -115,59 +113,18 @@ function trustLabel(tier: string): string {
 
       <ol class="editorial-ledger list-none p-0">
         <li v-for="(skill, index) in skills" :key="`${skill.owner}/${skill.repo}/${skill.name}`">
-          <NuxtLink
-            :to="skill.registryPath"
-            class="best-row group"
+          <SkillCard
+            :skill
+            layout="row"
+            :rank="index + 1"
+            surface="skills-best"
           >
-            <span class="best-rank">{{ String(index + 1).padStart(2, '0') }}</span>
-            <img
-              :src="githubAvatarProxyUrl(skill.owner, 80)"
-              alt=""
-              width="40"
-              height="40"
-              class="size-10 rounded-full border border-default bg-muted"
-              loading="lazy"
-              decoding="async"
-            >
-            <span class="min-w-0 flex-1">
-              <span class="flex flex-wrap items-baseline gap-x-2">
-                <span class="font-medium text-default">{{ skill.displayName || skill.name }}</span>
-                <span class="font-mono text-xs text-muted">{{ skill.owner }}/{{ skill.repo }}</span>
-              </span>
-              <span v-if="skill.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
-                {{ skill.description }}
-              </span>
-              <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                <span>{{ trustLabel(skill.trustTier) }}</span>
-                <span class="font-mono tabular-nums">{{ skill.stars.toLocaleString() }} stars</span>
-              </span>
-            </span>
-          </NuxtLink>
+            <template #meta>
+              <span>{{ trustLabel(skill.trustTier) }}</span>
+            </template>
+          </SkillCard>
         </li>
       </ol>
     </section>
   </div>
 </template>
-
-<style scoped>
-.best-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1.25rem 0;
-  border-bottom: 1px solid var(--ui-border);
-  transition: opacity 200ms ease;
-}
-
-.best-row:hover {
-  opacity: 0.7;
-}
-
-.best-rank {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-text-muted);
-  padding-top: 0.75rem;
-}
-</style>
