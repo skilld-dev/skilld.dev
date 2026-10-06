@@ -1,4 +1,5 @@
 minimumReleaseAgeExclude:
+  - '@nuxt/cli@4.0.0'
   - '@harlan-zw/comark-content@0.2.0'
   - '@harlan-zw/nuxt-cf-jobs@0.3.0'
   - '@harlan-zw/nuxt-checkin@0.4.1'
