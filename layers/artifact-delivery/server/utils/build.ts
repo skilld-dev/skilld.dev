@@ -9,7 +9,7 @@ import type {
 import type { ArtifactSigner } from './attestation'
 import type { CheckedArtifactSource } from './checks'
 import type { ArtifactSourceFile, PublicGithubSourceClient, SourceRejection } from './github-source'
-import type { ReadyBuildLookup, ResolutionPatch, ResolutionRow } from './state'
+import type { ReadyBuildLookup, ReadyPublicBuild, ResolutionPatch, ResolutionRow } from './state'
 import type { TrustedRoot } from './trusted-root'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { emitOperationalEvent } from '#server/utils/operational-event'
@@ -28,17 +28,20 @@ import {
 } from './attestation'
 import { checkArtifactSource, checksBlockArtifact, checksPermitSigning } from './checks'
 import { canonicalJson, digestHex } from './encoding'
-import { isRetryableProblem } from './github-source'
+import { isRetryableProblem, storedFilesPassLoadRules } from './github-source'
 import { withRequesterFallback } from './requester-github'
 import {
   ARTIFACT_POLICY_VERSION,
+  BYTE_COMPATIBLE_POLICY_VERSIONS,
   findReadyPublicBuild,
   getResolution,
+  hasLeadingBuild,
+  LEADING_BUILD_FRESH_SECONDS,
   parseCheckResults,
   publishArtifactRecord,
   transitionResolution,
 } from './state'
-import { createDeterministicUstar } from './ustar'
+import { createDeterministicUstar, readDeterministicUstar } from './ustar'
 
 export interface ArtifactBuildDependencies {
   db: D1Database
@@ -88,10 +91,17 @@ export type ReuseMissReason
 export type ArtifactBuildReuseReport
   = { _tag: 'hit', lookup: ReadyBuildLookup['_tag'], resolutionId: string, reusedFrom: string }
     | { _tag: 'miss', lookup: ReadyBuildLookup['_tag'], resolutionId: string, reason: ReuseMissReason }
+    /** The stored bytes of a ready build were checked again, with no GitHub read. */
+    | { _tag: 'recheck', lookup: ReadyBuildLookup['_tag'], resolutionId: string, reusedFrom: string }
 
 export type ArtifactBuildOutcome
   = { _tag: 'ready' | 'blocked' | 'failed' | 'unchanged', resolutionId: string }
     | { _tag: 'superseded', resolutionId: string }
+    /** An earlier build of the same Skill at the same commit is running. Process this one again later. */
+    | { _tag: 'deferred', resolutionId: string, delaySeconds: number }
+
+/** How long a build waits before it looks again at the earlier build it follows. */
+export const LEADING_BUILD_WAIT_SECONDS = 2
 
 /**
  * A ready public build of the same commit, verified against the current trusted
@@ -128,6 +138,9 @@ type BuildLoad
   = LoadedBuild
     | ReusedBuild
     | { _tag: 'rejected', rejection: SourceRejection }
+
+/** An earlier build of the same source is running, so this one waits for it. */
+interface FollowingBuild { _tag: 'following' }
 
 type StagedStatement
   = { _tag: 'staged', patch: ResolutionPatch }
@@ -167,9 +180,12 @@ export async function processArtifactBuild(
       // A request pinned to a commit that was built before needs no GitHub
       // read. An unpinned request always resolves on GitHub, so it never gets
       // an older commit than the branch or tag names now.
-      const pinned = await reusePinnedBuild(dependencies, row)
+      const pinned = await startPinnedBuild(dependencies, row)
+      if (pinned?._tag === 'following')
+        return { _tag: 'deferred', resolutionId, delaySeconds: LEADING_BUILD_WAIT_SECONDS }
       if (pinned) {
-        const advanced = await transitionResolution(dependencies.db, row, 'fetching', resolvedSourcePatch(pinned.build.source), now)
+        const pinnedSource = pinned._tag === 'reused' ? pinned.build.source : pinned.source
+        const advanced = await transitionResolution(dependencies.db, row, 'fetching', resolvedSourcePatch(pinnedSource), now)
         if (advanced._tag === 'superseded')
           return { _tag: 'superseded', resolutionId }
         row = advanced.row
@@ -193,7 +209,10 @@ export async function processArtifactBuild(
     }
 
     if (row.state === 'fetching') {
-      const loaded: BuildLoad = carried ?? await reuseOrLoad(dependencies, row)
+      const next: BuildLoad | FollowingBuild = carried ?? await reuseOrLoad(dependencies, row)
+      if (next._tag === 'following')
+        return { _tag: 'deferred', resolutionId, delaySeconds: LEADING_BUILD_WAIT_SECONDS }
+      const loaded: BuildLoad = next
       carried = loaded._tag === 'rejected' ? null : loaded
       const checkResults = loaded._tag === 'loaded'
         ? loaded.checked.checkResults
@@ -387,38 +406,138 @@ function stageReusedStatement(
   }
 }
 
-/** A pinned public request reuses a ready build of its commit before any GitHub read. */
-async function reusePinnedBuild(
+/**
+ * A pinned public request, before any GitHub read: reuse a ready build of its
+ * commit, check stored bytes again, or wait for an earlier build of it.
+ * Null means the request resolves on GitHub.
+ */
+async function startPinnedBuild(
   dependencies: ArtifactBuildDependencies,
   row: ResolutionRow,
-): Promise<ReusedBuild | null> {
+): Promise<ReusedBuild | LoadedBuild | FollowingBuild | null> {
   if (row.visibility !== 'public')
     return null
   const request = sourceRequestFromRow(row)
   if (request.ref?.type !== 'commit')
     return null
-  const decision = await decideReuse(dependencies, row, {
+  const lookup: ReadyBuildLookup = {
     _tag: 'pinned',
     owner: request.owner,
     repository: request.repository,
     commitSha: request.ref.value,
     selector: request.selector,
-  })
-  return decision._tag === 'hit' ? { _tag: 'reused', build: decision.build } : null
+  }
+  const decision = await decideReuse(dependencies, row, lookup)
+  if (decision._tag === 'hit')
+    return { _tag: 'reused', build: decision.build }
+  return (bytesMayBeReused(decision.reason) ? await loadStoredBuild(dependencies, row, lookup) : null)
+    ?? (await followsLeadingBuild(dependencies, row, lookup) ? { _tag: 'following' } : null)
 }
 
-/** After GitHub resolves a public request, reuse a ready build of that exact source, or load it. */
+/**
+ * After GitHub resolves a public request: reuse a ready build of that exact
+ * source, check its stored bytes again, wait for an earlier build of it, or
+ * load it.
+ */
 async function reuseOrLoad(
   dependencies: ArtifactBuildDependencies,
   row: ResolutionRow,
-): Promise<BuildLoad> {
+): Promise<BuildLoad | FollowingBuild> {
   const source = resolvedSourceFromRow(row)
   if (row.visibility === 'public') {
-    const decision = await decideReuse(dependencies, row, { _tag: 'resolved', source })
+    const lookup: ReadyBuildLookup = { _tag: 'resolved', source }
+    const decision = await decideReuse(dependencies, row, lookup)
     if (decision._tag === 'hit')
       return { _tag: 'reused', build: decision.build }
+    const stored = bytesMayBeReused(decision.reason) ? await loadStoredBuild(dependencies, row, lookup) : null
+    if (stored)
+      return stored
+    if (await followsLeadingBuild(dependencies, row, lookup))
+      return { _tag: 'following' }
   }
   return await loadAndCheck(dependencies, row, source)
+}
+
+/**
+ * Whether an earlier build of the same source is running, so this one should
+ * wait for it rather than spend GitHub quota on the same reads. A build waits
+ * at most {@link LEADING_BUILD_FRESH_SECONDS} from its creation.
+ */
+async function followsLeadingBuild(
+  dependencies: ArtifactBuildDependencies,
+  row: ResolutionRow,
+  lookup: ReadyBuildLookup,
+): Promise<boolean> {
+  const now = dependencies.now()
+  if (row.created_at < now - LEADING_BUILD_FRESH_SECONDS)
+    return false
+  return await hasLeadingBuild(dependencies.db, row, lookup, now)
+}
+
+/** A ready build missed only because its policy or checks changed, so its bytes may still serve. */
+function bytesMayBeReused(reason: ReuseMissReason): boolean {
+  return reason === 'policy-changed' || reason === 'checks-changed'
+}
+
+/**
+ * The files of a ready public build, read back from R2 and checked under the
+ * current checks, when its policy packed the same bytes as the current one.
+ *
+ * A policy bump that changes only checks then costs no GitHub read. The
+ * attestation must still verify, R2 must hold the exact bytes, and the files
+ * must pass every rule a GitHub load applies today. Null means load from
+ * GitHub.
+ */
+async function loadStoredBuild(
+  dependencies: ArtifactBuildDependencies,
+  row: ResolutionRow,
+  lookup: ReadyBuildLookup,
+): Promise<LoadedBuild | null> {
+  const ready = await findReadyPublicBuild(dependencies.db, lookup)
+  if (!ready)
+    return null
+  const attestation = parseStoredAttestation(ready.attestationJson)
+  if (
+    !attestation
+    || (attestation.policyVersion !== ARTIFACT_POLICY_VERSION && !BYTE_COMPATIBLE_POLICY_VERSIONS.has(attestation.policyVersion))
+    || !omittedNothing(attestation)
+    || !attestationMatchesRecord(attestation, ready)
+    || !await verifyArtifactAttestation(attestation, dependencies.trustedRoot, dependencies.now())
+  ) {
+    return null
+  }
+  const object = await dependencies.bucket.get(ready.r2Key)
+  if (!object)
+    return null
+  const bytes = new Uint8Array(await object.arrayBuffer())
+  if (bytes.byteLength !== ready.contentBytes || await digestHex('SHA-256', bytes) !== ready.contentSha256)
+    return null
+  const files = await readDeterministicUstar(bytes)
+  if (!files || !storedFilesPassLoadRules(files, ready.source.skillPath))
+    return null
+  const reportReuse = dependencies.reportReuse ?? emitReuseEvent
+  reportReuse({
+    _tag: 'recheck',
+    lookup: lookup._tag,
+    resolutionId: row.id,
+    reusedFrom: ready.resolutionId,
+  })
+  return {
+    _tag: 'loaded',
+    source: ready.source,
+    files,
+    checked: await checkArtifactSource(ready.source, files, []),
+  }
+}
+
+/**
+ * Whether a stored build left no file out. R2 holds only the files it packed,
+ * so a build that left some out cannot be checked again from its bytes.
+ * Policies before the `omitted-files` check never left a file out.
+ */
+function omittedNothing(attestation: ArtifactAttestation): boolean {
+  const omitted = attestation.checkResults.find(check => check.name === 'omitted-files')
+  return omitted === undefined || omitted.outcome === 'pass'
 }
 
 /**
@@ -487,16 +606,8 @@ async function findReusableBuild(
     return { _tag: 'miss', reason: 'policy-changed' }
   if (!checksPermitSigning(attestation.checkResults))
     return { _tag: 'miss', reason: 'checks-changed' }
-  if (
-    attestation.artifactId !== ready.artifactId
-    || ready.artifactId !== `sha256:${ready.contentSha256}`
-    || attestation.contentSha256 !== ready.contentSha256
-    || attestation.contentBytes !== ready.contentBytes
-    || ready.r2Key !== artifactR2Key(ready.contentSha256)
-    || canonicalJson(attestation.source) !== canonicalJson(ready.source)
-  ) {
+  if (!attestationMatchesRecord(attestation, ready))
     return { _tag: 'miss', reason: 'record-mismatch' }
-  }
   const stored = await hasImmutableArtifact(dependencies.bucket, {
     key: ready.r2Key,
     contentSha256: ready.contentSha256,
@@ -518,6 +629,16 @@ async function findReusableBuild(
   }
 }
 
+/** Whether a stored attestation names exactly the bytes and source of its D1 record. */
+function attestationMatchesRecord(attestation: ArtifactAttestation, ready: ReadyPublicBuild): boolean {
+  return attestation.artifactId === ready.artifactId
+    && ready.artifactId === `sha256:${ready.contentSha256}`
+    && attestation.contentSha256 === ready.contentSha256
+    && attestation.contentBytes === ready.contentBytes
+    && ready.r2Key === artifactR2Key(ready.contentSha256)
+    && canonicalJson(attestation.source) === canonicalJson(ready.source)
+}
+
 function parseStoredAttestation(value: string): ArtifactAttestation | null {
   const parsed = artifactAttestationSchema.safeParse(parseJson(value))
   return parsed.success ? parsed.data : null
@@ -535,10 +656,10 @@ function parseJson(value: string): unknown {
 
 /** One wide event per reuse decision, so the daily check-in can count hits. */
 function emitReuseEvent(report: ArtifactBuildReuseReport): void {
-  if (report._tag === 'hit') {
+  if (report._tag === 'hit' || report._tag === 'recheck') {
     emitOperationalEvent(createWideEvent({
       'operation': 'artifact-build-reuse',
-      'outcome': 'hit',
+      'outcome': report._tag,
       'artifact.resolutionId': report.resolutionId,
       'artifact.reuseLookup': report.lookup,
       'artifact.reusedFrom': report.reusedFrom,
@@ -576,7 +697,7 @@ async function loadAndCheck(
   const loaded = await github.load(source)
   if (loaded._tag === 'rejected')
     return { _tag: 'rejected', rejection: loaded }
-  const checked = await checkArtifactSource(source, loaded.value.files)
+  const checked = await checkArtifactSource(source, loaded.value.files, loaded.value.omitted)
   return { _tag: 'loaded', source, files: loaded.value.files, checked }
 }
 

@@ -1,7 +1,7 @@
 import type { ResolvedSource, SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { ArtifactBuildDependencies } from '../../layers/artifact-delivery/server/utils/build'
 import type { ArtifactSourceFile, PublicGithubSourceClient } from '../../layers/artifact-delivery/server/utils/github-source'
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import {
   artifactAttestationSchema,
@@ -41,7 +41,7 @@ const ARTIFACT_MIGRATIONS = [
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
-  'migrations/0143_artifact_resolution_requesters.sql',
+  'migrations/0144_artifact_resolution_requesters.sql',
 ]
 const sourceRequest: SourceRequest = {
   provider: 'github',
@@ -174,7 +174,8 @@ describe('public Artifact delivery', () => {
   it('blocks failed checks before storage or signing', async () => {
     const harness = await createBuildHarness([{
       ...validFiles[0]!,
-      bytes: new TextEncoder().encode('---\nname: demo\ndescription: Demo.\n---\n-----BEGIN PRIVATE KEY-----\n'),
+      // Generated per run, so the repository never holds key material.
+      bytes: new TextEncoder().encode(`---\nname: demo\ndescription: Demo.\n---\n${generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' })}`),
     }])
 
     const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)

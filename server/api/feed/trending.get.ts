@@ -7,12 +7,15 @@
  * catalog. The admin review surface reads the same loader without the filter.
  */
 
+import type { TrendingBoard } from '#shared/server/trending-board'
 import type { FallbackSkill } from '#shared/server/trending-fallback'
 import type { TrendingRepo } from '#shared/server/trending-repos'
 import type { TrendingSkill, TrendingSkillEvidence } from '#shared/server/trending-skills'
 import type { StarPoint } from '#shared/trending-range'
 import { getDB } from '#server/utils/db'
 import { cachedFeed } from '#server/utils/feed-cache'
+import { runCheckFlagKey } from '#shared/run-check-flags'
+import { fetchFlaggedSkillKeys } from '#shared/server/run-check-flags'
 import { loadStarSeries, starSeriesKey } from '#shared/server/star-series'
 import { loadTrendingBoard } from '#shared/server/trending-board'
 import { clipPostText, DEFAULT_WINDOW_HOURS } from '#shared/server/trending-skills'
@@ -246,6 +249,25 @@ function toItem(entry: TrendingRepo): TrendingFeedItem {
   }
 }
 
+/**
+ * The board without Skills that hold a run check flag. A board row hands out a
+ * run command, so a Skill whose run keeps failing stays off it until a check
+ * passes. A repository card that loses every Skill leaves too.
+ */
+function withoutFlaggedSkills(board: TrendingBoard, flagged: ReadonlySet<string>): TrendingBoard {
+  if (flagged.size === 0)
+    return board
+  const runs = (owner: string, repo: string, name: string) => !flagged.has(runCheckFlagKey(owner, repo, name))
+  return {
+    ...board,
+    entries: board.entries
+      .map(entry => ({ ...entry, skills: entry.skills.filter(skill => runs(entry.owner, entry.repo, skill.name)) }))
+      .filter(entry => entry.skills.length > 0),
+    namedSkills: board.namedSkills.filter(entry => runs(entry.owner, entry.repo, entry.slug)),
+    fallback: board.fallback.filter(entry => runs(entry.owner, entry.repo, entry.slug)),
+  }
+}
+
 export default defineEventHandler(
   async (event): Promise<TrendingFeedResponse> => {
     const limit = Math.min(Number(getQuery(event).limit) || 24, 50)
@@ -263,7 +285,11 @@ export default defineEventHandler(
     return cachedFeed(event, 'trending', async () => {
       const db = getDB(event)
       const now = Math.floor(Date.now() / 1000)
-      const { entries, namedSkills, fallback: fallbackSkills } = await loadTrendingBoard({ db, now, limit, windowHours })
+      const [board, flagged] = await Promise.all([
+        loadTrendingBoard({ db, now, limit, windowHours }),
+        fetchFlaggedSkillKeys('feed-trending'),
+      ])
+      const { entries, namedSkills, fallback: fallbackSkills } = withoutFlaggedSkills(board, flagged)
 
       // The sparkline covers the same window the ranking read, from its first
       // whole UTC day, so a line never starts before the board does.

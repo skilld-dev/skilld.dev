@@ -1,4 +1,4 @@
-import type { GithubReadFailure, PublicGithubSourceClient } from './github-source'
+import type { GithubObjectCache, GithubReadFailure, PublicGithubSourceClient } from './github-source'
 import type { ResolutionRow } from './state'
 import { decryptToken } from '#layers/identity/server/utils/crypto'
 import { createPublicGithubSourceClient } from './github-source'
@@ -34,6 +34,8 @@ export interface RequesterGithubDependencies {
   fetch: typeof globalThis.fetch
   /** Unix seconds. */
   now: () => number
+  /** Commits and trees by SHA, shared with the build's own client. */
+  cache?: GithubObjectCache
   onReadFailure?: (failure: GithubReadFailure) => void
   /** Called when a stored token cannot be used. It never receives the token. */
   onUnusableToken?: (reason: string) => void
@@ -77,6 +79,7 @@ export function createRequesterGithubSource(
     return createPublicGithubSourceClient({
       fetch: dependencies.fetch,
       token: token.value,
+      cache: dependencies.cache,
       onReadFailure: dependencies.onReadFailure,
     })
   }

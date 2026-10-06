@@ -43,7 +43,7 @@ const MIGRATIONS = [
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
   'migrations/0131_artifact_build_reuse.sql',
-  'migrations/0143_artifact_resolution_requesters.sql',
+  'migrations/0144_artifact_resolution_requesters.sql',
 ]
 const COMMIT = '0123456789abcdef0123456789abcdef01234567'
 const NEXT_COMMIT = 'fedcba9876543210fedcba9876543210fedcba98'
@@ -182,33 +182,37 @@ describe('reusing a ready public build', () => {
     harness.close()
   })
 
-  it.each([
-    {
-      change: 'policy version',
-      reason: 'policy-changed',
-      edit: (statement: ArtifactAttestationStatement) => ({ ...statement, policyVersion: '2026-01-01.0' }),
-    },
-    {
-      change: 'check version',
-      reason: 'checks-changed',
-      edit: (statement: ArtifactAttestationStatement) => ({
-        ...statement,
-        checkResults: statement.checkResults.map(check => check.name === 'agent-skills-spec'
-          ? { ...check, version: '2026-01-01' }
-          : check),
-      }),
-    },
-  ])('loads again when the ready build was signed under another $change', async ({ reason, edit }) => {
+  it('loads again when the ready build was signed under a policy that packed other bytes', async () => {
     const harness = await createReuseHarness()
     const first = await harness.build(pinned, githubServing(source))
-    await harness.resignReadyBuild(first.row.id, edit)
+    await harness.resignReadyBuild(first.row.id, statement => ({ ...statement, policyVersion: '2026-01-01.0' }))
     const github = githubServing(source)
 
     const repeat = await harness.build(pinned, github)
 
     expect(repeat.row.state).toBe('ready')
     expect(github.load).toHaveBeenCalledOnce()
-    expect(harness.reports).toContainEqual({ _tag: 'miss', lookup: 'pinned', resolutionId: repeat.row.id, reason })
+    expect(harness.reports).toContainEqual({ _tag: 'miss', lookup: 'pinned', resolutionId: repeat.row.id, reason: 'policy-changed' })
+    harness.close()
+  })
+
+  it('checks the stored bytes again when the ready build was signed under another check version', async () => {
+    const harness = await createReuseHarness()
+    const first = await harness.build(pinned, githubServing(source))
+    await harness.resignReadyBuild(first.row.id, statement => ({
+      ...statement,
+      checkResults: statement.checkResults.map(check => check.name === 'agent-skills-spec'
+        ? { ...check, version: '2026-01-01' }
+        : check),
+    }))
+    const github = githubServing(source)
+
+    const repeat = await harness.build(pinned, github)
+
+    expect(repeat.row.state).toBe('ready')
+    expect(github.resolve).not.toHaveBeenCalled()
+    expect(github.load).not.toHaveBeenCalled()
+    expect(harness.reports).toContainEqual({ _tag: 'recheck', lookup: 'pinned', resolutionId: repeat.row.id, reusedFrom: first.row.id })
     harness.close()
   })
 

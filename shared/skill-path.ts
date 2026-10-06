@@ -25,6 +25,28 @@ const NON_SKILL_FOLDERS: ReadonlySet<string> = new Set([
   'tests',
 ])
 
+const SLUGIFY_STRIP_RE = /[^a-z0-9-]+/g
+const SLUGIFY_DEDUPE_DASH_RE = /-+/g
+const SLUGIFY_TRIM_DASH_RE = /^-+|-+$/g
+
+/**
+ * The registry Skill name for a folder name, or for the Repository name when
+ * the Skill sits at the root.
+ *
+ * The registry admits a Skill under this name, and delivery finds a Skill by
+ * it, so both read it from this one function. Delivery used to compare the raw
+ * folder name: `better-auth/emailAndPassword` was listed as `emailandpassword`
+ * and no run could find it.
+ */
+export function slugifySkillName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(SLUGIFY_STRIP_RE, '')
+    .replace(SLUGIFY_DEDUPE_DASH_RE, '-')
+    .replace(SLUGIFY_TRIM_DASH_RE, '')
+}
+
 /**
  * True when a Git tree path is a SKILL.md the registry indexes.
  *
@@ -60,6 +82,29 @@ export function isRegistrySkillPath(path: string): boolean {
 export function canonicalSkillFolder(folders: readonly string[]): string | null {
   const ranked = [...new Set(folders)].sort(compareSkillFolders)
   return ranked[0] ?? null
+}
+
+/**
+ * The canonical SKILL.md path of each Skill name, in input order.
+ *
+ * `paths` are SKILL.md paths from one Repository tree. `nameOf` names the
+ * Skill in a folder, with `.` for the root. Copies that share a name keep the
+ * one {@link canonicalSkillFolder} picks, the folder `skilld run` resolves by
+ * name, so the registry admits the same copy every sync.
+ */
+export function canonicalSkillPaths(paths: readonly string[], nameOf: (folder: string) => string): string[] {
+  const foldersByName = new Map<string, string[]>()
+  for (const path of paths) {
+    const folder = skillFolderOf(path)
+    const name = nameOf(folder)
+    foldersByName.set(name, [...(foldersByName.get(name) ?? []), folder])
+  }
+  const canonical = new Set([...foldersByName.values()].map(canonicalSkillFolder))
+  return paths.filter(path => canonical.has(skillFolderOf(path)))
+}
+
+function skillFolderOf(path: string): string {
+  return path === SKILL_FILE ? '.' : path.slice(0, -`/${SKILL_FILE}`.length)
 }
 
 function compareSkillFolders(left: string, right: string): number {

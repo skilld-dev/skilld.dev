@@ -1,4 +1,5 @@
 import { parseDocument } from 'yaml'
+import { slugifySkillName } from '#shared/skill-path'
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/
 const KEY_LINE_RE = /^([A-Z_][\w-]*):(.*)$/i
@@ -142,17 +143,13 @@ export function parseFrontmatter(raw: string): SkillFrontmatter {
   return fm
 }
 
-const SLUGIFY_STRIP_RE = /[^a-z0-9-]+/g
-const SLUGIFY_DEDUPE_DASH_RE = /-+/g
-const SLUGIFY_TRIM_DASH_RE = /^-+|-+$/g
-
-export function slugifySkillName(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(SLUGIFY_STRIP_RE, '')
-    .replace(SLUGIFY_DEDUPE_DASH_RE, '-')
-    .replace(SLUGIFY_TRIM_DASH_RE, '')
+/**
+ * The registry name of the Skill in a folder, with `.` for the Repository
+ * root. A root Skill takes the Repository name. {@link parseSkillFile} names a
+ * Skill the same way.
+ */
+export function registrySkillName(folder: string, repository: string): string {
+  return slugifySkillName(folder === '.' ? repository : folder.slice(folder.lastIndexOf('/') + 1))
 }
 
 export interface ParsedSkill {
