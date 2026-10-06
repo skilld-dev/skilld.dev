@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import type { RunCheckFlag } from '#shared/run-check-flags'
 import type { ZipState } from '../utils/skill-zip'
 import { SKILL_RUN_PROMPT_LEAD } from '#shared/skill-commands'
 import { AGENT_LOGOS } from '~/utils/agent-logos'
+import SkillRunFlag from './_SkillRunFlag.vue'
 
 type CommandMode = 'run' | 'install'
 type InstallTarget = 'local' | 'claude' | 'chatgpt'
@@ -15,6 +17,8 @@ const {
   layout = 'tabs',
   zipName,
   zipState = { _tag: 'idle' },
+  runFlag = null,
+  sourceUrl = '',
 } = defineProps<{
   /** The Skill page. The Agent fetches it and receives the SKILL.md as markdown. */
   runUrl: string
@@ -27,6 +31,10 @@ const {
   /** File name of the Skill ZIP for web agents. Unset hides the download. */
   zipName?: string
   zipState?: ZipState
+  /** Set when the last two run checks failed for a reason a retry cannot change. */
+  runFlag?: RunCheckFlag | null
+  /** The SKILL.md on GitHub, which the run flag links. */
+  sourceUrl?: string
 }>()
 
 const emit = defineEmits<{
@@ -125,6 +133,11 @@ function copyFrom(next: CommandMode) {
         class="font-mono"
         :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
         @click="copyFrom('run')"
+      />
+      <SkillRunFlag
+        v-if="runFlag"
+        :flag="runFlag"
+        :source-url="sourceUrl"
       />
     </div>
 
@@ -286,6 +299,11 @@ function copyFrom(next: CommandMode) {
     >
       <strong class="font-medium text-default">This session only.</strong> Nothing lands on disk.
     </p>
+    <SkillRunFlag
+      v-if="mode === 'run' && runFlag"
+      :flag="runFlag"
+      :source-url="sourceUrl"
+    />
 
     <div class="space-y-1">
       <NuxtLink
