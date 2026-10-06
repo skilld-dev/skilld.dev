@@ -12,6 +12,7 @@
  */
 
 import type { EmailPlacement } from './email-clicks'
+import { brailleSpark, SPARK_BARS, sparkCount, sparkLevels, sparkWeek } from '#shared/braille-spark'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { countedEmailUrl } from './email-clicks'
@@ -77,6 +78,12 @@ const PALETTE: Record<WeeklyTheme, Tokens> = {
 
 const SANS = `'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`
 const MONO = `'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace`
+/**
+ * Faces that carry braille, one per platform: Apple Mail and iOS, Windows,
+ * Android, then Linux. IBM Plex Mono has none, and a mail client rarely loads
+ * it anyway.
+ */
+const BRAILLE = `'Apple Braille','Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans Mono',ui-monospace,monospace`
 
 /**
  * Why a skill is on the trending list, as one value rather than a bag of
@@ -90,17 +97,25 @@ const MONO = `'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospa
  * reason.
  */
 export type WeeklyReason
-  = { _tag: 'named', authorCount: number, mentionCount: number, latestAt: number }
-    | { _tag: 'stars', gain: number, day: number }
-    | {
-      _tag: 'named-and-stars'
-      authorCount: number
-      mentionCount: number
-      latestAt: number
-      gain: number
-      day: number
-    }
-    | { _tag: 'popular', stars: number }
+  = {
+    _tag: 'named'
+    authorCount: number
+    mentionCount: number
+    latestAt: number
+    /** Counted mentions per rolling day, oldest first, for the braille spark. */
+    mentionsByDay: number[] | null
+  }
+  | { _tag: 'stars', gain: number, day: number }
+  | {
+    _tag: 'named-and-stars'
+    authorCount: number
+    mentionCount: number
+    latestAt: number
+    mentionsByDay: number[] | null
+    gain: number
+    day: number
+  }
+  | { _tag: 'popular', stars: number }
 
 export interface WeeklyEvidence {
   url: string
@@ -308,6 +323,43 @@ function trendingMeta(skill: WeeklyTrendingSkill, now: number): string {
 }
 
 /**
+ * The seven days a row's spark draws, or null when it draws none.
+ *
+ * Only a row somebody posted about has days to draw. A week of zeros means
+ * every counted post is older than the spark, and seven blank cells beside
+ * "0 mentions" say nothing, so that row draws none, as on the board.
+ */
+function sparkDays(reason: WeeklyReason): number[] | null {
+  if (reason._tag !== 'named' && reason._tag !== 'named-and-stars')
+    return null
+  const week = sparkWeek(reason.mentionsByDay ?? [])
+  return week.some(count => count > 0) ? week : null
+}
+
+function sparkTotal(days: readonly number[]): string {
+  return sparkCount(days.reduce((sum, count) => sum + count, 0))
+}
+
+/**
+ * The braille spark for the HTML half, in stone.
+ *
+ * The site draws today in rose. The email spends its rose on the button and
+ * the footer rule, so seven rose cells would break the one-rose budget. A day
+ * with no count draws the lowest bar faintly as a track, as the site does, so
+ * a lone bar still reads as one day of seven.
+ *
+ * The label carries the numbers and the bars are hidden from screen readers,
+ * because a braille cell read aloud is noise.
+ */
+function sparkHtml(t: Tokens, days: readonly number[]): string {
+  const label = `${sparkTotal(days)} in 7 days. Per day, oldest first: ${days.join(', ')}.`
+  const bars = sparkLevels(days)
+    .map(level => level === 0 ? `<span style="color:${t.borderStrong};">${SPARK_BARS[1]}</span>` : SPARK_BARS[level])
+    .join('')
+  return `<span role="img" aria-label="${esc(label)}" style="white-space:nowrap;font-family:${MONO};font-size:14px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;"><span aria-hidden="true" style="font-family:${BRAILLE};">${bars}</span> <span aria-hidden="true">${esc(sparkTotal(days))}</span></span>`
+}
+
+/**
  * A skill description cut to something a person reads in one glance.
  *
  * SKILL.md descriptions are written for an agent deciding whether to load the
@@ -449,6 +501,8 @@ function trendingRow(t: Tokens, options: {
   description: string | null
   meta: string
   evidence: WeeklyEvidence | null
+  /** Seven days of mentions, or null for a row nobody posted about. */
+  spark: number[] | null
 }): string {
   const description = trimDescription(options.description)
   const evidence = options.evidence
@@ -463,7 +517,12 @@ function trendingRow(t: Tokens, options: {
              style="width:28px;height:28px;border-radius:14px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
       <td valign="top">
-        <a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td valign="top"><a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a></td>
+            ${options.spark ? `<td valign="top" align="right" style="padding-left:12px;white-space:nowrap;">${sparkHtml(t, options.spark)}</td>` : ''}
+          </tr>
+        </table>
         ${description ? `<div style="margin-top:3px;font-family:${SANS};font-size:14px;line-height:1.55;color:${t.body};">${esc(description)}</div>` : ''}
         <div style="margin-top:3px;font-family:${MONO};font-size:14px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}${evidence}</div>
       </td>
@@ -715,6 +774,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       description: skill.description,
       meta: trendingMeta(skill, now),
       evidence: skill.evidence,
+      spark: sparkDays(skill.reason),
     })
   }).join('')
 
@@ -843,7 +903,8 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
   if (input.trending.length) {
     lines.push('', 'TRENDING THIS WEEK', '')
     for (const skill of input.trending) {
-      lines.push(`- ${skill.owner}/${skill.repo} ${skill.canonicalName}`)
+      const spark = sparkDays(skill.reason)
+      lines.push(`- ${skill.owner}/${skill.repo} ${skill.canonicalName}${spark ? `  ${brailleSpark(spark)} ${sparkTotal(spark)}` : ''}`)
       const description = trimDescription(skill.description)
       if (description)
         lines.push(`  ${description}`)

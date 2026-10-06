@@ -1,4 +1,5 @@
 import type { SkillBoxSearchAnswer } from '#layers/registry/server/presenters/skill-box-search'
+import type { TaskSearchAnswer } from '#layers/registry/server/presenters/task-search'
 import type { GitHubRepository } from '#shared/github-repository'
 import type {
   IndexedRepositorySkill,
@@ -53,18 +54,33 @@ export interface SearchSkill {
 export type SearchRepository = TypeaheadRepository
 
 /**
+ * Task search for the sentence in the box. It runs only when the visitor
+ * selects its row, never per keystroke. Every status but `found` leaves the
+ * search results on screen.
+ */
+export type TaskSearchStatus
+  = | { _tag: 'idle' }
+    | { _tag: 'running' }
+    | { _tag: 'found', skills: SearchSkill[] }
+    | { _tag: 'none' }
+    | { _tag: 'limited', scope: 'visitor' | 'daily' }
+    | { _tag: 'off' }
+    | { _tag: 'failed' }
+
+/**
  * A row the user can move focus onto. Keeping the trailing "see everything"
  * action in the same list as the results means one arrow-key model covers the
  * whole panel instead of two.
  *
  * `repository` is a Repository the registry holds. `index` is the action for
- * one it does not hold yet.
+ * one it does not hold yet. `task` runs task search, and then shows how it went.
  */
 export type SearchRow
   = | { _tag: 'skill', skill: SearchSkill, provisional: boolean }
     | { _tag: 'repository', repository: SearchRepository }
     | { _tag: 'index', repository: GitHubRepository }
     | { _tag: 'all', query: string }
+    | { _tag: 'task', status: Exclude<TaskSearchStatus, { _tag: 'found' }> }
 
 /**
  * Which retrieval lanes answered. `semantic` means the lexical lane found
@@ -273,6 +289,43 @@ function useSkillSearchInternal() {
     flush: 'sync',
   })
 
+  const taskSearch = shallowRef<TaskSearchStatus>({ _tag: 'idle' })
+  let taskInFlight: AbortController | null = null
+
+  /**
+   * Run task search for the sentence in the box. It takes about 5 seconds,
+   * so it starts only from its row. Any failure keeps the search results.
+   */
+  async function findForTask(): Promise<void> {
+    const status = taskSearch.value._tag
+    if (classified.value._tag !== 'intent' || (status !== 'idle' && status !== 'failed'))
+      return
+    const controller = new AbortController()
+    taskInFlight = controller
+    taskSearch.value = { _tag: 'running' }
+    try {
+      const answer = await $fetch<TaskSearchAnswer>('/api/skills/task-search', {
+        method: 'POST',
+        body: { q: trimmedQuery.value },
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted)
+        return
+      taskSearch.value = answer._tag === 'found' ? { _tag: 'found', skills: answer.items } : answer
+    }
+    catch (error) {
+      // An edit to the query aborts the request; the new query starts idle.
+      if (controller.signal.aborted)
+        return
+      console.warn('[search] task search unavailable', error)
+      taskSearch.value = { _tag: 'failed' }
+    }
+    finally {
+      if (taskInFlight === controller)
+        taskInFlight = null
+    }
+  }
+
   // Invalidate on input, before debounce. Old results must never remain selectable.
   watch(trimmedQuery, () => {
     activeIndex.value = -1
@@ -282,6 +335,9 @@ function useSkillSearchInternal() {
     serverResults.value = null
     serverError.value = null
     pending.value = false
+    taskInFlight?.abort()
+    taskInFlight = null
+    taskSearch.value = { _tag: 'idle' }
   }, { flush: 'sync' })
 
   const state = computed<SearchState>(() => {
@@ -349,9 +405,19 @@ function useSkillSearchInternal() {
       }
     }
 
+    // A sentence can ask task search for Skills that fit. Found Skills take the
+    // search results' place; every other status leaves them where they are.
+    const task = taskSearch.value
+    if (server.kind === 'intent' && task._tag === 'found') {
+      const taskRows: SearchRow[] = task.skills.map(skill => ({ _tag: 'skill' as const, skill, provisional: false }))
+      return { _tag: 'ready', rows: [...taskRows, { _tag: 'all', query: term }], total: server.total, repository: null }
+    }
+
     const rows: SearchRow[] = [...localRepositoryRows.value, ...skillRows]
     if (skillRows.length)
       rows.push({ _tag: 'all', query: term })
+    if (server.kind === 'intent' && task._tag !== 'found')
+      rows.push({ _tag: 'task', status: task })
     return { _tag: 'ready', rows, total: server.total, mode: server.mode ?? undefined, repository: null }
   })
 
@@ -490,6 +556,8 @@ function useSkillSearchInternal() {
     loadTypeaheadIndex,
     retry: () => runSearch(trimmedQuery.value),
     submitRepository,
+    taskSearch,
+    findForTask,
     skillKey,
   }
 }

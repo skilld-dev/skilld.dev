@@ -74,8 +74,8 @@
  * demand and costs a URL, while a homepage tile answers trending demand and
  * costs the scarcest space on the site. The grid caps at twelve, so the
  * subtraction happens there. `seo` and `coding` keep their pages and lose
- * their tiles. Method and numbers:
- * ~/scratch/notes/skilld-track-demand-2026-09-04.md
+ * their tiles. The method and the shares sit on TRACK_DEMAND_ORDER in
+ * app/pages/index.vue.
  *
  * 2026-08-25: `anti-slop-coding` joined as the coding counterpart. Its seven
  * pinned skills preserve the shared ranking and keep the page focused. It has

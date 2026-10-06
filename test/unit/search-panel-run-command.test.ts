@@ -36,6 +36,7 @@ mockNuxtImport('useSkillSearch', () => () => ({
   recentSearches: ref([]),
   retry: vi.fn(),
   submitRepository: vi.fn(),
+  taskSearch: ref({ _tag: 'idle' as const }),
 }))
 
 describe('search panel command grammar', () => {

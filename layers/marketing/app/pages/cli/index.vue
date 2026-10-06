@@ -14,7 +14,6 @@
  * the parent route of `/cli/authorize` and swallow the CLI sign-in page.
  */
 import {
-  cliNativeInstallCmd,
   skillInstallCmd,
   skillOutdatedCmd,
   skillPageUrl,
@@ -28,41 +27,14 @@ import SetupSnippet from '../../components/_SetupSnippet.vue'
 import { setupSnippets } from '../../utils/developer-setup'
 import { pageRobots } from '../../utils/page-admissions'
 
-/**
- * Every `--agent` value, copied from `skilld install --help` in skilld 3.6.0.
- * The CLI defines them in `crates/skilld-core/src/target.rs`. The site's
- * `AGENT_TARGETS` carries a confirm step for only some of them, so the count
- * comes from this list.
- */
-const CLI_AGENT_TARGETS = [
-  'claude-code',
-  'cursor',
-  'windsurf',
-  'cline',
-  'codex',
-  'github-copilot',
-  'gemini-cli',
-  'goose',
-  'amp',
-  'opencode',
-  'roo',
-  'antigravity',
-  'openclaw',
-  'hermes',
-  'kiro',
-  'kilo',
-  'droid',
-  'trae',
-  'zed',
-] as const
-const targetCount = CLI_AGENT_TARGETS.length
+/** Every `--agent` value of `skilld install --help`, mirrored in `AGENT_TARGETS`. */
+const targetCount = AGENT_TARGETS.length
 
 /** The README's example Skill. Its installed name is the last segment. */
 const EXAMPLE = { owner: 'antfu', repo: 'skills', skill: 'vue' } as const
 
 const agentPrompt = skillRunPrompt(skillPageUrl(EXAMPLE.owner, EXAMPLE.repo, EXAMPLE.skill))
 const askPrompt = 'Find a skilld Skill for Vue and use it'
-const nativeInstall = cliNativeInstallCmd()
 
 /** Each id is a stable anchor, so other pages can link one verb. */
 const verbs = [
@@ -223,13 +195,7 @@ const codeClass = 'font-mono text-xs text-default'
                 Run the two commands at the top of this page. Then ask your Agent in your own words.
               </p>
             </div>
-            <div :class="stepActionClass">
-              <SetupSnippet :code="askPrompt" label="example prompt" />
-              <p class="mt-4 text-sm leading-relaxed text-muted">
-                No Node.js? On macOS and Linux, install one native binary:
-              </p>
-              <SetupSnippet class="mt-2" :code="nativeInstall" label="native install command" format="bash" />
-            </div>
+            <SetupSnippet :class="stepActionClass" :code="askPrompt" label="example prompt" />
           </li>
         </ol>
       </div>
@@ -320,11 +286,11 @@ const codeClass = 'font-mono text-xs text-default'
               </p>
               <ul class="mt-3 flex list-none flex-wrap gap-1.5 p-0" aria-label="Agent target values">
                 <li
-                  v-for="agent in CLI_AGENT_TARGETS"
-                  :key="agent"
+                  v-for="agent in AGENT_TARGETS"
+                  :key="agent.id"
                   class="rounded-sm border border-default px-1.5 py-0.5 font-mono text-xs text-toned"
                 >
-                  {{ agent }}
+                  {{ agent.id }}
                 </li>
               </ul>
               <AgentTargets class="mt-4" />
@@ -352,7 +318,7 @@ const codeClass = 'font-mono text-xs text-default'
                 One native binary
               </dt>
               <dd class="mt-2 text-sm leading-relaxed text-muted">
-                No runtime to install, and it starts in under a millisecond. The npm package selects the same native executable for your system.
+                No runtime to install, and it starts in under a millisecond. A curl or PowerShell install upgrades itself from signed releases. An npm install runs the same executable, and npm handles its upgrades.
               </dd>
             </div>
             <div>
