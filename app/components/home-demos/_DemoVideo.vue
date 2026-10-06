@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import type { HomeDemoItem, HomeDemoVideo } from '~/utils/home-demos'
-import { useEventListener, useMediaQuery, usePreferredReducedMotion } from '@vueuse/core'
+import { useEventListener, useIntersectionObserver, useMediaQuery, usePreferredReducedMotion } from '@vueuse/core'
 import { formatDemoDuration } from '~/utils/home-demos'
 
 /**
- * A film demo as a card shows it: the poster, then the film muted and looped
- * while its link has the pointer or the keyboard focus. Leaving pauses it and
- * puts the poster back. Touch screens and reduced motion never play it here;
- * they keep the poster and a play glyph, and the Skill page plays it.
+ * A film demo: the poster, then the film muted and looped.
  *
- * Nothing downloads until the first play, so the homepage pays for a poster.
+ * `play="hover"` plays while the link around it has the pointer or the
+ * keyboard focus, and leaving puts the poster back; touch screens keep the
+ * poster. `play="visible"` plays whenever a quarter of it is on screen, on any
+ * device, because it is the one large film on view. Reduced motion never
+ * plays it: the poster and a play glyph stay, and the Skill page plays it.
+ *
+ * Nothing downloads until the first play.
  */
-const { demo, video, eager = false } = defineProps<{
+const { demo, video, eager = false, play = 'hover' } = defineProps<{
   demo: Pick<HomeDemoItem, 'name'>
   video: HomeDemoVideo
   eager?: boolean
+  play?: 'hover' | 'visible'
 }>()
 
 const root = useTemplateRef<HTMLElement>('root')
@@ -22,7 +26,7 @@ const film = useTemplateRef<HTMLVideoElement>('film')
 
 const canHover = useMediaQuery('(hover: hover)')
 const motion = usePreferredReducedMotion()
-const autoplay = computed(() => canHover.value && motion.value !== 'reduce')
+const autoplay = computed(() => motion.value !== 'reduce' && (play === 'visible' || canHover.value))
 const playing = ref(false)
 
 /** The link or focusable frame around the film starts and stops it. */
@@ -51,10 +55,21 @@ function stop() {
   el.currentTime = 0
 }
 
-useEventListener(trigger, 'mouseenter', start)
-useEventListener(trigger, 'mouseleave', stop)
-useEventListener(trigger, 'focus', start)
-useEventListener(trigger, 'blur', stop)
+const hoverTrigger = computed(() => play === 'hover' ? trigger.value : undefined)
+useEventListener(hoverTrigger, 'mouseenter', start)
+useEventListener(hoverTrigger, 'mouseleave', stop)
+useEventListener(hoverTrigger, 'focus', start)
+useEventListener(hoverTrigger, 'blur', stop)
+
+// A hidden twin (the phone or the desktop stage) never intersects, so only the shown one plays.
+useIntersectionObserver(root, ([entry]) => {
+  if (play !== 'visible')
+    return
+  if (entry?.isIntersecting)
+    start()
+  else
+    stop()
+}, { threshold: 0.25 })
 
 const duration = computed(() => formatDemoDuration(video.durationSeconds))
 </script>

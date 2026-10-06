@@ -593,7 +593,7 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
-  it('homeDemos has no violations and links each demo to its Skill page', async () => {
+  it('homeDemos has no violations, and picking a prompt puts its demo on the stage', async () => {
     const shot = { src: '/demos/a/b/c/desktop.jpg', width: 1440, height: 900, alt: 'Desktop screenshot of the page', viewport: 'desktop' as const }
     const demos = ['one', 'two', 'three'].map(name => ({
       owner: 'anthropics',
@@ -602,7 +602,10 @@ describe('accessibility: components', () => {
       skillPath: `/gh/anthropics/skills/${name}`,
       authorName: 'Anthropic',
       sourceUrl: `https://github.com/anthropics/skills/blob/main/skills/${name}/SKILL.md`,
-      prompt: 'Build a landing page for Tidepool.',
+      prompt: `Build the ${name} page for Tidepool.`,
+      agent: 'Claude Code',
+      model: 'claude-opus-5-5',
+      recordedAt: '2026-10-06',
       shots: [shot],
       video: null,
     }))
@@ -613,11 +616,17 @@ describe('accessibility: components', () => {
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
-    expect([...container.querySelectorAll('.home-demos__link')].map(link => link.getAttribute('href'))).toEqual([
-      '/gh/anthropics/skills/one#demo',
-      '/gh/anthropics/skills/two#demo',
-      '/gh/anthropics/skills/three#demo',
-    ])
+    const picks = [...container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')]
+    expect(picks).toHaveLength(3)
+    expect(picks[0]?.getAttribute('aria-pressed')).toBe('true')
+    const stage = () => container.querySelector('.home-demos__stage .home-demos__open')?.getAttribute('href')
+    expect(stage()).toBe('/gh/anthropics/skills/one#demo')
+
+    picks[1]!.click()
+    await nextTick()
+    await new Promise(done => setTimeout(done, 400))
+    expect(picks[1]?.getAttribute('aria-pressed')).toBe('true')
+    expect(stage()).toBe('/gh/anthropics/skills/two#demo')
     wrapper.unmount()
   })
 
@@ -808,6 +817,10 @@ describe('accessibility: component coverage', () => {
     'StatsLeaderboard', // Tested at page level
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
     '_ChipSwitch', // The switch above RunChip and CliInstallChip, axe-scanned and clicked through both
+    'home-demos/_DemoMedia', // A part of HomeDemos, scanned inside the HomeDemos tests
+    'home-demos/_DemoPicture', // A part of HomeDemos, scanned inside the HomeDemos tests
+    'home-demos/_DemoRecording', // A part of HomeDemos, scanned inside the HomeDemos tests
+    'home-demos/_DemoVideo', // A part of HomeDemos; its play rules need a real browser, checked by hand
   ]
 
   /**
