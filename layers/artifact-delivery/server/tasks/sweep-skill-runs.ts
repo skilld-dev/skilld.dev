@@ -11,11 +11,13 @@ import { runSkillRunSweep } from '../utils/run-sweep'
 
 const CRON = '7,22,37,52 * * * *'
 /**
- * 25 checks every 15 minutes is 2,400 a day, so about 2,100 indexed Skills
- * cycle in under a day. A ready build of the same commit is reused without a
- * GitHub read, so a repeat check of an unchanged Skill costs D1 rows only.
+ * 40 checks every 15 minutes is 3,840 a day. The registry indexed 5,949 Skills
+ * on 2026-10-07, so one cycle takes about 37 hours. A ready build of the same
+ * commit is reused without a GitHub read, so a repeat check of an unchanged
+ * Skill costs D1 rows only. A first check loads from GitHub with about 8 REST
+ * requests, so a cycle of first checks spends about 1,300 an hour.
  */
-const BATCH_SIZE = 25
+const BATCH_SIZE = 40
 
 /**
  * Scheduled task: check that every indexed Skill still runs.
