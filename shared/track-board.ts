@@ -192,7 +192,7 @@ function memberRow(member: TrackMemberInput): TrendingBoardRow {
  *
  * One owner's Skill of one name is one Skill to a reader, even when two
  * repositories ship it: a moved Repository sits under both names until sync
- * follows the move (ADR-0013), and a plugin bundle copies a Skill under the
+ * follows the move (ADR-0015), and a plugin bundle copies a Skill under the
  * same name. The
  * first list to claim it keeps it: the talked section, then the pins, then
  * the most-starred copy.

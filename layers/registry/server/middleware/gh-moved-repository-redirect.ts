@@ -7,7 +7,7 @@ import {
 
 /**
  * Answer every URL under a moved Repository with a 301 to its new name, so
- * the old URLs pass their link equity on (ADR-0013). Paths without an owner
+ * the old URLs pass their link equity on (ADR-0015). Paths without an owner
  * and a Repository segment skip the cache read.
  */
 export default defineEventHandler(async (event) => {

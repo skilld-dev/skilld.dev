@@ -852,7 +852,7 @@ export async function syncRepo(
 
   // GitHub answers a renamed or transferred Repository with its new name.
   // The rows follow it there, and the sync goes on under the new name, so a
-  // caller keyed by the old name still gets an outcome (ADR-0013).
+  // caller keyed by the old name still gets an outcome (ADR-0015).
   const current: RepositoryName = { owner: sourceOwner, repo: sourceRepo }
   const movePlan = sameRepositoryName(requested, current)
     ? null

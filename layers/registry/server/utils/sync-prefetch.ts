@@ -64,7 +64,7 @@ interface PrefetchRow extends ExistingRepo {
  * A discovery claim, a job still holding the repository's progress row, a
  * Skill-less repository, a repository GitHub moved to another name, and any
  * repository GitHub gave no summary for keep their job: `syncRepo` owns those
- * verdicts, the move included (ADR-0013).
+ * verdicts, the move included (ADR-0015).
  */
 export async function prefetchUnchangedRepos(
   dependencies: SyncPrefetchDependencies,

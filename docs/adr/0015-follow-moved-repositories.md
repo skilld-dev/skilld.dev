@@ -1,4 +1,4 @@
-# ADR-0013: Follow moved Repositories
+# ADR-0015: Follow moved Repositories
 
 **Status:** Accepted
 **Date:** 2026-10-07

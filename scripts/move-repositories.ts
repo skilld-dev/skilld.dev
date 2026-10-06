@@ -1,6 +1,6 @@
 /**
  * One-off backfill: move Repositories that GitHub renamed or transferred to
- * their new names (ADR-0013). Sync makes the same move when it next reads a
+ * their new names (ADR-0015). Sync makes the same move when it next reads a
  * moved Repository. This runs it now, for the moves the 2026-10-07 run sweep
  * found failing on GitHub's 301.
  *
@@ -130,11 +130,11 @@ function heldName(target: Target, name: RepositoryName): HeldRepositoryName | nu
   return row ?? null
 }
 
-/** The move writes columns and a table that migration 0145 adds. */
+/** The move writes columns and a table that migration 0146 adds. */
 function assertMigrated(target: Target): void {
   const [row] = readRows<{ migrated: number }>(target, `SELECT COUNT(*) AS migrated FROM pragma_table_info('repos') WHERE name = 'repository_id'`)
   if (!row?.migrated)
-    throw new Error(`The ${target._tag} D1 lacks migration 0145_repository_moves.sql. Deploy first, then run this script.`)
+    throw new Error(`The ${target._tag} D1 lacks migration 0146_repository_moves.sql. Deploy first, then run this script.`)
 }
 
 function countRows(target: Target, name: RepositoryName): Record<string, number> {

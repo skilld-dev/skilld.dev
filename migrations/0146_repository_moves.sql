@@ -1,5 +1,5 @@
 -- A Repository that GitHub renames or transfers moves in the registry too
--- (ADR-0013). Every row moves to the new owner and name, and the old name
+-- (ADR-0015). Every row moves to the new owner and name, and the old name
 -- stays behind as an alias that answers its URLs with a 301.
 --
 -- GitHub's numeric Repository ID survives every rename and transfer. Sync

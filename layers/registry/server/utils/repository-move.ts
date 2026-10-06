@@ -10,7 +10,7 @@ export interface RepositoryName {
 /**
  * One Repository move: every registry row under `from` moves to `to` in one
  * D1 batch, and `from` stays as an alias that answers its URLs with a 301.
- * ADR-0013 says why the registry follows GitHub here.
+ * ADR-0015 says why the registry follows GitHub here.
  */
 export interface RepositoryMove {
   /** The registry identity the rows carry now, exactly as stored. */
