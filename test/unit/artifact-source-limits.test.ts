@@ -35,7 +35,7 @@ describe('artifact source size guards', () => {
     expect(loaded).toMatchObject({
       _tag: 'rejected',
       code: 'INVALID_SOURCE',
-      summary: 'The Skill has more than 900 files.',
+      summary: 'The Skill folder `skills/demo` has 901 files. The limit is 900.',
     })
   })
 
@@ -54,7 +54,45 @@ describe('artifact source size guards', () => {
     expect(loaded).toMatchObject({
       _tag: 'rejected',
       code: 'INVALID_SOURCE',
-      summary: 'The packaged Skill would exceed 10485760 bytes.',
+      summary: 'The Skill folder `skills/demo` packs to 10.11 MiB. The limit is 10 MiB.',
+    })
+  })
+
+  it('names the file over the one-file limit and its size', async () => {
+    // agiwhitelist/auteur keeps a 2,153,066 byte README image beside its SKILL.md.
+    const entries = [
+      blob('SKILL.md', skillBlobSha, skillText.length),
+      blob('assets/readme/hero-anim.webp', skillBlobSha, 2_153_066),
+    ]
+    const client = createPublicGithubSourceClient({
+      fetch: skillTreeFetch(entries) as unknown as typeof fetch,
+    })
+
+    const loaded = await client.load(resolvedSource())
+
+    expect(loaded).toMatchObject({
+      _tag: 'rejected',
+      code: 'INVALID_SOURCE',
+      summary: 'The file `assets/readme/hero-anim.webp` is 2.06 MiB. The limit for one file is 2 MiB.',
+      findings: ['assets/readme/hero-anim.webp: 2,153,066 bytes'],
+    })
+  })
+
+  it('says that a root Skill counts every file in the Repository', async () => {
+    const entries = [
+      blob('SKILL.md', skillBlobSha, skillText.length),
+      blob('docs/assets/interactive-motion.gif', skillBlobSha, 2_479_001),
+    ]
+    const client = createPublicGithubSourceClient({
+      fetch: rootTreeFetch(entries) as unknown as typeof fetch,
+    })
+
+    const loaded = await client.load({ ...resolvedSource(), skillPath: '.' })
+
+    expect(loaded).toMatchObject({
+      _tag: 'rejected',
+      code: 'INVALID_SOURCE',
+      summary: 'The file `docs/assets/interactive-motion.gif` is 2.37 MiB. The limit for one file is 2 MiB. The Skill folder is the Repository root, so every file in the Repository counts.',
     })
   })
 })
@@ -99,6 +137,17 @@ function skillTreeFetch(entries: object[]) {
       return json({ sha: skillTreeSha, tree: entries, truncated: false })
     if (url.includes(`/git/blobs/${skillBlobSha}`))
       return json({ sha: skillBlobSha, size: skillText.length, encoding: 'base64', content: btoa(skillText) })
+    return json({}, 404)
+  })
+}
+
+function rootTreeFetch(entries: object[]) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.endsWith('/repos/skilld-dev/skills'))
+      return json(publicRepository())
+    if (url.endsWith(`/git/trees/${rootTreeSha}?recursive=1`))
+      return json({ sha: rootTreeSha, tree: entries, truncated: false })
     return json({}, 404)
   })
 }

@@ -2,7 +2,7 @@ import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/cont
 import type { GithubReadTry } from './github-read'
 import type { TarballExtraction } from './tarball-source'
 import { z } from 'zod'
-import { isRegistrySkillPath } from '#shared/skill-path'
+import { canonicalSkillFolder, isRegistrySkillPath } from '#shared/skill-path'
 import { base64ToBytes, gitBlobShaHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
 import {
@@ -316,7 +316,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       return readRejection(recursive)
     if (!recursive.value.truncated) {
       if (recursive.value.tree.length > MAX_TREE_ENTRIES)
-        return sourceLimitRejection(`The Skill has more than ${MAX_TREE_ENTRIES} source entries.`)
+        return sourceLimitRejection(`The Skill folder has more than ${MAX_TREE_ENTRIES} entries.`)
       return { _tag: 'listed', entries: recursive.value.tree, truncated: false }
     }
 
@@ -325,7 +325,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     let requests = 0
     while (queue.length > 0) {
       if (++requests > MAX_TREE_REQUESTS)
-        return sourceLimitRejection(`The Skill needs more than ${MAX_TREE_REQUESTS} tree reads.`)
+        return sourceLimitRejection(`The Skill folder needs more than ${MAX_TREE_REQUESTS} tree reads.`)
       const current = queue.shift()!
       const response = await getTree(owner, repository, current.sha, false)
       if (response._tag !== 'ok')
@@ -337,7 +337,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         const nested = { ...entry, path }
         entries.push(nested)
         if (entries.length > MAX_TREE_ENTRIES)
-          return sourceLimitRejection(`The Skill has more than ${MAX_TREE_ENTRIES} source entries.`)
+          return sourceLimitRejection(`The Skill folder has more than ${MAX_TREE_ENTRIES} entries.`)
         if (entry.type === 'tree')
           queue.push({ sha: entry.sha, prefix: path })
       }
@@ -368,24 +368,42 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     return currentSha
   }
 
+  /**
+   * The folder of the Skill a name selects, searched across the whole
+   * Repository.
+   *
+   * The search reads one recursive tree and loads nothing, so the Skill
+   * limits do not apply to it. It used to read the tree through
+   * `listTreeBounded`, whose 2,000 entry ceiling is a limit for one Skill:
+   * every Repository larger than that failed with INVALID_SOURCE, whatever
+   * the Skill size. Measured 2026-10-07: github/awesome-copilot (3,958
+   * entries), garrytan/gstack (3,398), heygen-com/hyperframes (10,342).
+   *
+   * Copies of one Skill in several folders resolve to the canonical copy.
+   * They used to fail as "More than one Skill matched".
+   */
   const resolveNamedSkill = async (
     owner: string,
     repository: string,
     treeSha: string,
     name: string,
   ): Promise<string | SourceRejection> => {
-    const tree = await listTreeBounded(owner, repository, treeSha)
-    if (tree._tag !== 'listed')
-      return tree
-    const matches = tree.entries
+    const tree = await getTree(owner, repository, treeSha, true)
+    if (tree._tag !== 'ok')
+      return readRejection(tree)
+    if (tree.value.truncated) {
+      return reject(
+        'INVALID_SOURCE',
+        'The Repository is too large to find a Skill by name. Name the Skill by its path.',
+        [name],
+      )
+    }
+    const matches = tree.value.tree
       .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
       .map(entry => entry.path === 'SKILL.md' ? '.' : entry.path.slice(0, -'/SKILL.md'.length))
       .filter(path => (path === '.' ? repository : path.split('/').at(-1)) === name)
-    if (matches.length === 0)
-      return reject('SOURCE_NOT_FOUND', 'No Skill matched the requested name.', [name])
-    if (matches.length > 1)
-      return reject('INVALID_SOURCE', 'More than one Skill matched the requested name.', matches.slice(0, 100))
-    return matches[0]!
+    return canonicalSkillFolder(matches)
+      ?? reject('SOURCE_NOT_FOUND', 'No Skill matched the requested name.', [name])
   }
 
   return {
@@ -500,7 +518,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const listed = await listTreeBounded(source.owner, source.repository, skillTree)
       if (listed._tag !== 'listed')
         return listed
-      const selected = selectArtifactEntries(listed.entries)
+      const selected = selectArtifactEntries(listed.entries, source.skillPath)
       if (selected._tag === 'rejected')
         return selected
 
@@ -664,7 +682,14 @@ function normalizeRequestedSkillPath(input: string): string | null {
   return path
 }
 
-function selectArtifactEntries(entries: TreeEntry[]): { _tag: 'selected', entries: Array<TreeEntry & { size: number }> } | SourceRejection {
+/**
+ * The blobs one Skill folder packs, or the rule that refuses them.
+ *
+ * Every limit counts the Skill folder only. A Skill at the Repository root has
+ * the whole Repository as its folder, so each size message says so: a README
+ * image then counts against the Skill.
+ */
+function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag: 'selected', entries: Array<TreeEntry & { size: number }> } | SourceRejection {
   const findings: string[] = []
   const identities = new Map<string, string>()
   const blobs: Array<TreeEntry & { size: number }> = []
@@ -695,20 +720,48 @@ function selectArtifactEntries(entries: TreeEntry[]): { _tag: 'selected', entrie
     return reject('INVALID_SOURCE', 'The Skill source layout was rejected.', findings.slice(0, 100))
   if (!blobs.some(entry => entry.path === 'SKILL.md'))
     return reject('INVALID_SOURCE', 'The Skill directory has no SKILL.md file.', ['SKILL.md'])
+  const rootNote = skillPath === '.'
+    ? ' The Skill folder is the Repository root, so every file in the Repository counts.'
+    : ''
   if (blobs.length > MAX_ARTIFACT_FILES)
-    return sourceLimitRejection(`The Skill has more than ${MAX_ARTIFACT_FILES} files.`)
+    return sourceLimitRejection(`${skillFolderLabel(skillPath)} has ${blobs.length} files. The limit is ${MAX_ARTIFACT_FILES}.`)
   const oversized = blobs.filter(entry => entry.size > MAX_FILE_BYTES)
-  if (oversized.length > 0)
-    return sourceLimitRejection(`A Skill file exceeds ${MAX_FILE_BYTES} bytes.`, oversized.map(entry => entry.path))
+  if (oversized.length > 0) {
+    return sourceLimitRejection(
+      `The file \`${oversized[0]!.path}\` is ${mebibytes(oversized[0]!.size)}. The limit for one file is ${mebibytes(MAX_FILE_BYTES)}.${rootNote}`,
+      oversized.map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
+    )
+  }
   // The signer checks `content_bytes` against this same ceiling, and
   // `content_bytes` is the packed archive rather than the sum of the blobs. A
   // Skill that cleared a source-total check could therefore be refused after
   // the R2 write, with the signer's error instead of a named rejection. Guard
   // the number the signer will actually see.
   const projectedBytes = projectedUstarBytes(blobs.map(entry => entry.size))
-  if (projectedBytes > MAX_ARTIFACT_BYTES)
-    return sourceLimitRejection(`The packaged Skill would exceed ${MAX_ARTIFACT_BYTES} bytes.`)
+  if (projectedBytes > MAX_ARTIFACT_BYTES) {
+    return sourceLimitRejection(
+      `${skillFolderLabel(skillPath)} packs to ${mebibytes(projectedBytes)}. The limit is ${mebibytes(MAX_ARTIFACT_BYTES)}.${rootNote}`,
+      largestFirst(blobs).map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
+    )
+  }
   return { _tag: 'selected', entries: blobs.sort((a, b) => comparePath(a.path, b.path)) }
+}
+
+function skillFolderLabel(skillPath: string): string {
+  return skillPath === '.' ? 'The Skill folder' : `The Skill folder \`${skillPath}\``
+}
+
+/**
+ * Bytes as mebibytes, rounded up to two decimals so a size over a limit never
+ * prints equal to it. A whole number prints without decimals.
+ */
+function mebibytes(bytes: number): string {
+  const value = Math.ceil(bytes / 1024 / 1024 * 100) / 100
+  return `${Number.isInteger(value) ? value : value.toFixed(2)} MiB`
+}
+
+function largestFirst(entries: Array<TreeEntry & { size: number }>): Array<TreeEntry & { size: number }> {
+  return [...entries].sort((a, b) => b.size - a.size || comparePath(a.path, b.path))
 }
 
 function isSafeArtifactPath(path: string): boolean {
