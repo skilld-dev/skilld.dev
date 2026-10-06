@@ -47,6 +47,7 @@ const where = computed(() => view.author ? view.repo : view.source)
         </NuxtLink>
         <span v-if="view.trending" class="skill-id__flag"><TrendingMark :accent /><span class="sr-only">Trending</span></span>
         <UBadge v-if="view.official" label="Official" variant="subtle" color="neutral" size="xs" class="skill-id__flag font-mono" />
+        <span v-if="$slots.flag" class="skill-id__flag"><slot name="flag" /></span>
       </p>
       <p v-if="view.byline !== 'none' || $slots.default" class="skill-id__byline" :title="view.byline === 'full' ? view.source : undefined">
         <template v-if="view.byline === 'full' && terse">
