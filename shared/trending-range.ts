@@ -424,6 +424,109 @@ export function isEvidenced(row: TrendingBoardRow): boolean {
 }
 
 /**
+ * The fields `feedBoardRows` reads off a named Skill in the trending feed.
+ *
+ * Structural, like {@link LeaderboardRowInput}, so the mapper never imports
+ * the server route. The optional fields cover an edge-cached feed from before
+ * they existed, for the five minutes one can outlive a deploy.
+ */
+export interface FeedSkillInput {
+  owner: string
+  repo: string
+  name: string
+  canonicalName: string
+  registryPath: string
+  description: string | null
+  stars: number | null
+  starGain: number | null
+  starGainDay: number | null
+  evidence: BoardPostInput | null
+  morePosts?: readonly BoardPostInput[]
+  mentionsByDay?: readonly number[] | null
+  starSeries?: readonly StarPoint[]
+}
+
+/** The fields `feedBoardRows` reads off a star-ranked filler Skill. */
+export interface FeedFallbackInput {
+  owner: string
+  repo: string
+  name: string
+  canonicalName: string
+  registryPath: string
+  description: string | null
+  stars: number
+  repoSkillCount?: number
+  starSeries?: readonly StarPoint[]
+}
+
+export interface FeedBoardInput {
+  namedSkills: readonly FeedSkillInput[]
+  fallback: readonly FeedFallbackInput[]
+  /** Unix seconds the ranking was computed at. Every date on the board is measured against it. */
+  computedAt: number
+}
+
+/**
+ * The week and month boards, in one rank sequence.
+ *
+ * Evidenced rows always sit above star-only rows, never interleaved by score.
+ * Ranking a 200,000-star repository against "two people named it" would let
+ * raw popularity win the board every week, which is what the `all` range is
+ * already for. Filling the tail with starred skills is honest; letting them
+ * outrank the evidence is not.
+ *
+ * Filler drops any Skill already named. The two lists are drawn from
+ * overlapping sources, and production served `ppt-master`, `hallmark` and
+ * `karpathy-guidelines` in both at once, with different numbers against each.
+ * The same skill twice is not two findings.
+ */
+export function feedBoardRows(feed: FeedBoardInput): TrendingBoardRow[] {
+  const clock = feed.computedAt
+  const named = feed.namedSkills.map((s): TrendingBoardRow => ({
+    key: s.registryPath,
+    owner: s.owner,
+    repo: s.repo,
+    name: s.name,
+    title: s.canonicalName,
+    to: s.registryPath,
+    subtitle: `${s.owner}/${s.repo}`,
+    description: s.description,
+    stars: s.stars,
+    starSeries: s.starSeries ?? [],
+    names: [s.name, s.canonicalName],
+    // A post or a single-Skill surge put this exact Skill here, so the run
+    // command never guesses.
+    skill: { owner: s.owner, repo: s.repo, name: s.name },
+    reason: s.evidence
+      ? { _tag: 'posts', posts: [s.evidence, ...(s.morePosts ?? [])].map(post => boardPost(post, clock)), mentionsByDay: s.mentionsByDay ?? null }
+      : s.starGain !== null
+        ? { _tag: 'surge', gain: s.starGain, when: s.starGainDay ? relativeDay(s.starGainDay, clock) : null }
+        : { _tag: 'filler' },
+  }))
+  const shown = new Set(named.map(row => row.to))
+  // Filler says so. A starred repository shown because the socials were quiet
+  // must never pass for one that devs posted about.
+  const filler = feed.fallback
+    .filter(s => !shown.has(s.registryPath))
+    .map((s): TrendingBoardRow => ({
+      key: s.registryPath,
+      owner: s.owner,
+      repo: s.repo,
+      name: s.name,
+      title: s.canonicalName,
+      to: s.registryPath,
+      subtitle: `${s.owner}/${s.repo}`,
+      description: s.description,
+      stars: s.stars,
+      starSeries: s.starSeries ?? [],
+      names: [s.name, s.canonicalName],
+      skill: singleSkill(s.owner, s.repo, s.name, s.repoSkillCount ?? 0),
+      reason: { _tag: 'filler' },
+    }))
+  return [...named, ...filler]
+}
+
+/**
  * The fields `leaderboardBoardRows` reads off a `SkillsLeaderboardItem`.
  *
  * Structural on purpose. The mapper is pure and lives beside the page, and

@@ -4,7 +4,8 @@ import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import { agentSetupPrompt } from '#shared/agent-setup'
 import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
-import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
+import { avatarProxyUrl } from '#shared/image-proxy'
+import { feedBoardRows, trendingRangeMeta } from '#shared/trending-range'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { AGENT_LOGOS } from '../utils/agent-logos'
 import { MORE_AGENT_COUNT } from '../utils/agent-reach'
@@ -33,6 +34,9 @@ defineOgImage('Page.takumi', {
   title: 'Agent skills for you\nand your agent',
   description: 'Try any skill before you install it. Your agent can search for its own.',
 }, { alt: 'skilld, agent skills for you and your agent' })
+
+/** Skills the trending section shows: the head of the week board. */
+const HOME_BOARD_ROWS = 3
 
 const serverTimingHeader = useResponseHeader('Server-Timing')
 const homeDataStartedAt = performance.now()
@@ -75,14 +79,19 @@ const [
   // Server-rendered rather than lazy: the section is one of the few places on
   // the homepage whose content changes hourly, and the endpoint is cached at
   // the edge for 5 minutes, so it costs a cache read rather than a query.
-  withHomeDataTiming('home-trending', useFetch<TrendingFeedResponse>('/api/feed/trending', {
-    key: 'home-trending-v2',
+  withHomeDataTiming('home-trending', useFetch('/api/feed/trending', {
+    key: 'home-trending-v3',
     // The hero texture prints Skill names from every repo it gets, so it asks
-    // for more repos than the six-card section below it.
+    // for more repos than the board below it shows Skills. No window: the
+    // feed defaults to the week, which is the board this section heads.
     query: { limit: 24 },
-    // Repositories only. The named Skills, with their posts and star series,
-    // serve `/skills/trending` and would ride in this page's payload unread.
-    pick: ['items'],
+    // The board ships only its head. The rest of the named Skills, with their
+    // posts and star series, serve `/skills/trending` and would ride in this
+    // page's payload unread.
+    transform: (feed: TrendingFeedResponse) => ({
+      items: feed.items,
+      board: feedBoardRows(feed).slice(0, HOME_BOARD_ROWS),
+    }),
   })),
 ])
 
@@ -95,20 +104,25 @@ const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
 
 const trendingRepos = computed(() => trendingData.value?.items ?? [])
-/** The section below the fold stays a six-card grid whatever the texture uses. */
-const trendingSectionRepos = computed(() => trendingRepos.value.slice(0, 6))
+
+/** Owners whose avatar failed, which means the GitHub account is gone; see `/skills/trending`. */
+const missingAvatars = ref(new Set<string>())
+function onAvatarError(owner: string) {
+  missingAvatars.value = new Set(missingAvatars.value).add(owner)
+}
+const trendingBoard = computed(() =>
+  (trendingData.value?.board ?? []).filter(row => !missingAvatars.value.has(row.owner)),
+)
 
 /**
- * The section is hidden entirely below this many entries. A trending strip
- * showing one repo reads as a broken feature, and an empty-state box on the
- * homepage costs more attention than it returns.
+ * The section is hidden entirely when the board comes up short. A trending
+ * strip showing one Skill reads as a broken feature, and an empty-state box on
+ * the homepage costs more attention than it returns. Counted from what the
+ * server sent, so a dead avatar never hides the section after it rendered.
  */
-const MIN_TRENDING_TO_SHOW = 3
-const showTrending = computed(() => trendingRepos.value.length >= MIN_TRENDING_TO_SHOW)
+const showTrending = computed(() => (trendingData.value?.board.length ?? 0) >= HOME_BOARD_ROWS)
 
-function trendingShareLabel(authorCount: number): string {
-  return authorCount === 1 ? '1 dev shared it' : `${authorCount} devs shared it`
-}
+const weekBoardPath = trendingRangeMeta('week').path
 
 /** Real Skill names from this week's trending repositories, for the hero texture. */
 const heroTextureNames = computed(() =>
@@ -279,51 +293,11 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
         </div>
 
         <template v-else>
-          <ol class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
-            <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`" class="min-w-0">
-              <article class="home-trending-card">
-                <div class="flex min-w-0 items-center gap-2">
-                  <img
-                    :src="githubAvatarProxyUrl(repo.owner, 64)"
-                    alt=""
-                    width="24"
-                    height="24"
-                    class="size-6 shrink-0 rounded-full border border-default bg-muted"
-                    loading="lazy"
-                    decoding="async"
-                  >
-                  <NuxtLink
-                    :to="repoHubPath(repo.owner, repo.repo)"
-                    class="home-trending-card__link min-w-0 flex-1 truncate font-medium text-default"
-                  >
-                    {{ repo.owner }}/{{ repo.repo }}
-                  </NuxtLink>
-                  <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
-                    {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
-                  </span>
-                </div>
-                <p v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
-                  {{ repo.evidence.text }}
-                </p>
-                <p class="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-xs text-muted">
-                  <span>{{ trendingShareLabel(repo.authorCount) }}</span>
-                  <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
-                  <a
-                    v-if="repo.evidence"
-                    :href="repo.evidence.url"
-                    target="_blank"
-                    rel="noopener"
-                    class="home-trending-card__action inline-flex min-h-6 items-center gap-1 font-mono underline underline-offset-4 hover:text-default"
-                  >
-                    Source
-                    <UIcon name="i-lucide-arrow-up-right" class="size-3.5 shrink-0" aria-hidden="true" />
-                  </a>
-                </p>
-              </article>
-            </li>
-          </ol>
+          <div class="mt-8">
+            <BoardRankedList :rows="trendingBoard" surface="home-trending-row" @avatar-error="onAvatarError" />
+          </div>
           <UButton
-            to="/skills/trending"
+            :to="weekBoardPath"
             label="All trending skills"
             color="neutral"
             variant="ghost"

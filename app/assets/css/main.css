@@ -951,47 +951,6 @@
   text-decoration-color: currentColor;
 }
 
-/* Trending cards: the repository link covers the card, and the source link
-   sits above it. */
-.home-trending-card {
-  position: relative;
-  display: flex;
-  height: 100%;
-  min-width: 0;
-  flex-direction: column;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  padding: 1rem;
-  transition: border-color 200ms ease-out;
-}
-
-.home-trending-card__link::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-}
-
-.home-trending-card__action {
-  position: relative;
-  z-index: 1;
-}
-
-@media (hover: hover) {
-  .home-trending-card:has(.home-trending-card__link:hover) {
-    border-color: var(--ui-text-muted);
-  }
-}
-
-.home-trending-card:has(.home-trending-card__link:focus-visible) {
-  outline: 2px solid var(--ui-primary);
-  outline-offset: 2px;
-}
-
-.home-trending-card__link:focus-visible {
-  outline: none;
-}
-
 /* The homepage authoring link opens the setup wizard. */
 .home-make-strip {
   display: grid;
