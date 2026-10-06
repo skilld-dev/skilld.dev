@@ -142,6 +142,9 @@ export default defineNuxtConfig({
       'error.count',
       'failed.count',
       'failed.tasks',
+      // `artifact-github-credential`: which fallback token a build read GitHub
+      // with after the read App gave none.
+      'github.credential',
       'github.endpoint',
       'github.step',
       'item.count',
