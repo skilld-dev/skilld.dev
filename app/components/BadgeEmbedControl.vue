@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import type { SkillBadgeEmbedInput, SkillBadgeTheme } from '~~/shared/skill-badge'
-import { skillBadgeEmbed, skillBadgeImagePath } from '~~/shared/skill-badge'
+import type { TrendingAward } from '~~/shared/trending-award'
+import { skillBadgeAwardWidth, skillBadgeEmbed, skillBadgeImagePath } from '~~/shared/skill-badge'
 import { repoHubPath } from '~~/shared/skill-routes'
+import { trendingAwardBadgeLabel, trendingAwardLabel } from '~~/shared/trending-award'
 
-const props = defineProps<Pick<SkillBadgeEmbedInput, 'owner' | 'repo' | 'name' | 'registryPath'>>()
+const props = defineProps<Pick<SkillBadgeEmbedInput, 'owner' | 'repo' | 'name' | 'registryPath'> & {
+  /** The award the badge would show. The award option appears only with one. */
+  trendingAward?: TrendingAward | null
+}>()
 
 const open = ref(false)
 const showLabel = ref(true)
 const showLikes = ref(false)
+// On by default: an earned award is the usual reason to add the badge.
+const showTrendingAward = ref(Boolean(props.trendingAward))
 const previewTheme = ref<SkillBadgeTheme>('light')
 const { copy, copied } = useClipboard()
 
@@ -21,12 +28,15 @@ const configuredInput = computed(() => ({
   ...badgeInput.value,
   showLabel: showLabel.value,
   showLikes: showLikes.value,
+  showTrendingAward: Boolean(props.trendingAward) && showTrendingAward.value,
 }))
 const minimalInput = computed(() => ({ ...badgeInput.value, showLabel: false }))
 const minimalLightImage = computed(() => skillBadgeImagePath(minimalInput.value, 'light'))
 const minimalDarkImage = computed(() => skillBadgeImagePath(minimalInput.value, 'dark'))
 const previewImage = computed(() => skillBadgeImagePath(configuredInput.value, previewTheme.value))
-const previewWidth = computed(() => (showLabel.value ? 153 : 81) + (showLikes.value ? 46 : 0))
+const previewWidth = computed(() => (showLabel.value ? 153 : 81)
+  + (showLikes.value ? 46 : 0)
+  + (props.trendingAward && showTrendingAward.value ? skillBadgeAwardWidth(trendingAwardBadgeLabel(props.trendingAward)) : 0))
 const targetLabel = computed(() => props.registryPath === repoHubPath(props.owner, props.repo)
   ? `${props.owner}/${props.repo}`
   : `${props.owner}/${props.repo}/${props.name}`)
@@ -217,6 +227,45 @@ function copyEmbed(): void {
                 class="min-h-11"
                 :aria-pressed="showLikes"
                 @click="showLikes = true"
+              />
+            </div>
+          </fieldset>
+
+          <fieldset
+            v-if="trendingAward"
+            class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-3"
+          >
+            <legend class="sr-only">
+              Trending award
+            </legend>
+            <div>
+              <p class="font-mono text-sm text-highlighted" aria-hidden="true">
+                Trending award
+              </p>
+              <p class="mt-0.5 text-xs text-muted">
+                Add {{ trendingAwardLabel(trendingAward) }}.
+              </p>
+            </div>
+            <div class="flex gap-1" role="group" aria-label="Badge trending award">
+              <UButton
+                type="button"
+                label="Plain"
+                size="sm"
+                color="neutral"
+                :variant="showTrendingAward ? 'ghost' : 'soft'"
+                class="min-h-11"
+                :aria-pressed="!showTrendingAward"
+                @click="showTrendingAward = false"
+              />
+              <UButton
+                type="button"
+                label="With award"
+                size="sm"
+                color="neutral"
+                :variant="showTrendingAward ? 'soft' : 'ghost'"
+                class="min-h-11"
+                :aria-pressed="showTrendingAward"
+                @click="showTrendingAward = true"
               />
             </div>
           </fieldset>

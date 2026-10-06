@@ -8,11 +8,37 @@ export interface SkillBadgeEmbedInput {
   siteUrl?: string
   showLikes?: boolean
   showLabel?: boolean
+  /** Add the best trending award. The badge stays plain while the Skill has none. */
+  showTrendingAward?: boolean
 }
 
 export type SkillBadgeTheme = 'light' | 'dark'
 
 const DEFAULT_SITE_URL = 'https://skilld.dev'
+
+/**
+ * Award text width, from Verdana advance widths at 10px. The SVG pins its text
+ * to this width, so the preview and the served badge always agree.
+ */
+export function skillBadgeAwardTextWidth(label: string): number {
+  let width = 0
+  for (const char of label) {
+    if (char === ' ' || char === '·')
+      width += 3.5
+    else if (char === '#')
+      width += 8.4
+    else if (/[A-Z]/.test(char))
+      width += 7
+    else
+      width += 6.1
+  }
+  return Math.round(width * 10) / 10
+}
+
+/** Width of the award segment: spark, gap, text, end padding. */
+export function skillBadgeAwardWidth(label: string): number {
+  return Math.ceil(30 + skillBadgeAwardTextWidth(label) + 7)
+}
 
 export function skillBadgeImagePath(input: SkillBadgeEmbedInput, theme?: SkillBadgeTheme): string {
   const repoPath = repoHubPath(input.owner, input.repo)
@@ -23,6 +49,8 @@ export function skillBadgeImagePath(input: SkillBadgeEmbedInput, theme?: SkillBa
   const query = new URLSearchParams()
   if (input.showLikes)
     query.set('likes', '1')
+  if (input.showTrendingAward)
+    query.set('trending', '1')
   if (theme)
     query.set('theme', theme)
   if (input.showLabel === false)

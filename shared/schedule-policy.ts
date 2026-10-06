@@ -70,6 +70,7 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'recompute-skill-scores', cron: '0 3 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 60 * 60 },
   { _tag: 'observed', taskName: 'refresh-x-engagement', cron: '10 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'reconcile-rendered', cron: '20 */6 * * *', maxSilenceSeconds: 15 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
+  { _tag: 'observed', taskName: 'record-trending-awards', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 10 * 60 },
   // The watchdog rides whatever it re-invokes, so its runtime cap sits under
   // the cron invocation wall clock rather than under its siblings' ceilings.
   { _tag: 'observed', taskName: 'scheduled-cadence-watchdog', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 14 * 60 },

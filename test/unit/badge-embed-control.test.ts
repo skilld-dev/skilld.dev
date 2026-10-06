@@ -23,9 +23,9 @@ const input = {
   registryPath: '/gh/antfu/skills/vite',
 }
 
-async function mountControl() {
+async function mountControl(extra: { trendingAward?: { board: 'week' | 'month', period: string, rank: number } } = {}) {
   return await mountSuspended(BadgeEmbedControl, {
-    props: input,
+    props: { ...input, ...extra },
     global: {
       stubs: {
         UModal: ModalStub,
@@ -75,6 +75,23 @@ describe('readme badge editor', () => {
       showLabel: false,
       showLikes: true,
     }))
+    wrapper.unmount()
+  })
+
+  it('offers the award only when the Skill holds one, and starts with it on', async () => {
+    const plain = await mountControl()
+    await plain.get('button[aria-label="Configure README badge"]').trigger('click')
+    expect(plain.findAll('button').some(button => button.text().includes('With award'))).toBe(false)
+    plain.unmount()
+
+    const wrapper = await mountControl({ trendingAward: { board: 'month', period: '2026-09', rank: 2 } })
+    await wrapper.get('button[aria-label="Configure README badge"]').trigger('click')
+    expect(wrapper.text()).toContain('Add #2 trending, September 2026.')
+    expect(wrapper.get('[data-testid="badge-preview"]').attributes('src')).toBe('/b/antfu/skills/vite?trending=1&theme=light')
+
+    const awardGroup = wrapper.get('[aria-label="Badge trending award"]')
+    await awardGroup.findAll('button').find(button => button.text() === 'Plain')!.trigger('click')
+    expect(wrapper.get('[data-testid="badge-preview"]').attributes('src')).toBe('/b/antfu/skills/vite?theme=light')
     wrapper.unmount()
   })
 })
