@@ -1,6 +1,7 @@
 import type { SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { ResolutionRow } from '../../layers/artifact-delivery/server/utils/state'
-import { describe, expect, it } from 'vitest'
+import { createApp, createError, eventHandler, readBody, toWebHandler } from 'h3'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { failResolution } from '../../layers/artifact-delivery/server/utils/build'
 import { enqueueAfterResponse } from '../../layers/artifact-delivery/server/utils/request-resolution'
 import {
@@ -159,6 +160,95 @@ describe('queueing a build after the response', () => {
       code: 'SERVICE_UNAVAILABLE',
       retryable: true,
     })
+    sqlite.close()
+  })
+})
+
+describe('pOST /api/v1/resolutions queues the build from the real event', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    // `defineApiHandler` reads Nuxt auto-imports, so the route needs them before it loads.
+    vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
+    vi.stubGlobal('createError', createError)
+    vi.stubGlobal('readBody', readBody)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('answers 202 with the send scheduled off the h3 event', async () => {
+    const postResolutions = (await import(
+      '../../layers/artifact-delivery/server/api/v1/resolutions/index.post',
+    )).default
+    const sqlite = createSqliteD1(MIGRATIONS)
+    const sent: Array<{ version: number, resolutionId: string }> = []
+    const app = createApp()
+    app.use(eventHandler((event) => {
+      event.context.platform = {
+        db: sqlite.db,
+        env: {
+          ARTIFACT_BUILD_QUEUE: {
+            send: async (message: { version: number, resolutionId: string }) => {
+              sent.push(message)
+            },
+          },
+        },
+      } as never
+    }))
+    app.use(postResolutions)
+    const handle = toWebHandler(app)
+
+    const response = await handle(new Request('http://localhost/api/v1/resolutions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': 'post-route-queue-test-key' },
+      // A path selector asks no registry lookup, so the route's HTTP seam stays out of this test.
+      body: JSON.stringify({ source: { provider: 'github', owner: 'skilld-dev', repository: 'skills', selector: { type: 'path', path: 'skills/demo' } } }),
+    }))
+
+    expect(response.status).toBe(202)
+    expect(response.headers.get('content-type')).not.toBe('application/problem+json')
+    const body = await response.json()
+    expect(body).toMatchObject({ state: 'pending', stage: 'requested', pollAfterMs: 250 })
+    expect(sent.map(message => message.resolutionId)).toEqual([body.resolutionId])
+    sqlite.close()
+  })
+
+  it('hands the send to the Worker waitUntil when the runtime mounts one', async () => {
+    const postResolutions = (await import(
+      '../../layers/artifact-delivery/server/api/v1/resolutions/index.post',
+    )).default
+    const sqlite = createSqliteD1(MIGRATIONS)
+    const awaited: Array<Promise<unknown>> = []
+    const app = createApp()
+    app.use(eventHandler((event) => {
+      ;(event.context as { cloudflare?: object }).cloudflare = {
+        context: { waitUntil: (promise: Promise<unknown>) => awaited.push(promise) },
+      }
+      event.context.platform = {
+        db: sqlite.db,
+        env: {
+          ARTIFACT_BUILD_QUEUE: {
+            send: async () => {
+              throw new Error('the send must only be awaited, not resolved here')
+            },
+          },
+        },
+      } as never
+    }))
+    app.use(postResolutions)
+    const handle = toWebHandler(app)
+
+    const response = await handle(new Request('http://localhost/api/v1/resolutions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': 'post-route-waituntil-key1' },
+      body: JSON.stringify({ source: { provider: 'github', owner: 'skilld-dev', repository: 'skills', selector: { type: 'path', path: 'skills/demo' } } }),
+    }))
+
+    expect(response.status).toBe(202)
+    expect(awaited).toHaveLength(1)
+    // Let the scheduled send and its failure settlement finish before the database closes.
+    await Promise.allSettled(awaited)
     sqlite.close()
   })
 })
