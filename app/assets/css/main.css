@@ -1041,8 +1041,8 @@
   text-decoration-color: currentColor;
 }
 
-/* Trending cards: the repository link covers the card, and the run chip and
-   the source link sit above it. */
+/* Trending cards: the repository link covers the card, and the source link
+   sits above it. */
 .home-trending-card {
   position: relative;
   display: flex;
