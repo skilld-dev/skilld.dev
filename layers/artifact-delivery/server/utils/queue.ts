@@ -5,7 +5,7 @@ import type {
   ArtifactGithubCredentialReport,
   ArtifactGithubCredentialRuntime,
 } from './github-read-credential'
-import type { GithubReadFailure, PublicGithubSourceClient } from './github-source'
+import type { GithubObjectCache, GithubReadFailure, PublicGithubSourceClient } from './github-source'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { z } from 'zod'
 import { emitOperationalEvent } from '#server/utils/operational-event'
@@ -47,8 +47,12 @@ const artifactBuildMessageSchema = z.object({
  */
 export const ARTIFACT_BUILD_RETRY_DELAYS_SECONDS: readonly number[] = [5, 30, 120, 480]
 
-export async function enqueueArtifactBuild(env: Cloudflare.Env, resolutionId: string): Promise<void> {
-  await env.ARTIFACT_BUILD_QUEUE.send({ version: 1, resolutionId })
+export async function enqueueArtifactBuild(env: Cloudflare.Env, resolutionId: string, delaySeconds?: number): Promise<void> {
+  const message = { version: 1, resolutionId }
+  if (delaySeconds === undefined)
+    await env.ARTIFACT_BUILD_QUEUE.send(message)
+  else
+    await env.ARTIFACT_BUILD_QUEUE.send(message, { delaySeconds })
 }
 
 export async function consumeArtifactBuildBatch(
@@ -69,6 +73,25 @@ export async function consumeArtifactBuildBatch(
     const outcome = await processArtifactBuild(dependencies, parsed.data.resolutionId)
       .then(value => ({ _tag: 'ok' as const, value }))
       .catch(error => ({ _tag: 'error' as const, error }))
+    if (outcome._tag === 'ok' && outcome.value._tag === 'deferred') {
+      // A wait is no failure, so it goes back as a new message rather than a
+      // retry. A retry would spend the delivery budget that real failures need.
+      const requeued = await enqueueArtifactBuild(env, parsed.data.resolutionId, outcome.value.delaySeconds)
+        .then(() => true, (error: unknown) => {
+          console.error(JSON.stringify({
+            operation: 'artifact-build',
+            outcome: 'requeue-failed',
+            resolutionId: parsed.data.resolutionId,
+            error: error instanceof Error ? error.message : String(error),
+          }))
+          return false
+        })
+      if (requeued)
+        message.ack()
+      else
+        message.retry({ delaySeconds: outcome.value.delaySeconds })
+      continue
+    }
     if (outcome._tag === 'ok') {
       message.ack()
       continue
@@ -109,6 +132,33 @@ export function reportGithubReadFailure(failure: GithubReadFailure): void {
   }))
 }
 
+const GITHUB_OBJECT_CACHE_PREFIX = 'artifact-github:v1:'
+/** Commits and trees never change. The TTL only bounds what idle Repositories keep. */
+const GITHUB_OBJECT_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
+
+/**
+ * Immutable GitHub answers in KV, shared by every build in every location.
+ * A KV failure is reported and reads GitHub instead, so it never fails a build.
+ */
+export function createKvGithubObjectCache(kv: KVNamespace): GithubObjectCache {
+  const report = (outcome: 'read-failed' | 'write-failed', error: unknown) => emitOperationalEvent(createWideEvent({
+    operation: 'artifact-github-cache',
+    outcome,
+    reason: error instanceof Error ? error.message : String(error),
+  }))
+  return {
+    get: async key => await kv.get(`${GITHUB_OBJECT_CACHE_PREFIX}${key}`, 'json').catch((error: unknown) => {
+      report('read-failed', error)
+      return null
+    }),
+    put: async (key, value) => {
+      await kv.put(`${GITHUB_OBJECT_CACHE_PREFIX}${key}`, JSON.stringify(value), {
+        expirationTtl: GITHUB_OBJECT_CACHE_TTL_SECONDS,
+      }).catch((error: unknown) => report('write-failed', error))
+    },
+  }
+}
+
 /**
  * One installation token cache per isolate. A token lives an hour, so it
  * outlives the queue batch that minted it.
@@ -127,11 +177,12 @@ const installationTokens = createInstallationTokenCache()
 export function createArtifactGithubSource(
   env: ArtifactGithubCredentialEnv,
   runtime: ArtifactGithubCredentialRuntime = defaultGithubSourceRuntime(),
+  cache?: GithubObjectCache,
 ): PublicGithubSourceClient {
   const credential = createArtifactGithubCredential(parseArtifactGithubCredentialConfig(env), runtime)
   return withGithubCredential(
     credential,
-    token => createPublicGithubSourceClient({ fetch: runtime.fetch, token, onReadFailure: reportGithubReadFailure }),
+    token => createPublicGithubSourceClient({ fetch: runtime.fetch, token, onReadFailure: reportGithubReadFailure, cache }),
   )
 }
 
@@ -160,7 +211,7 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     : {}
   return {
     db: env.DB,
-    github: createArtifactGithubSource(env),
+    github: createArtifactGithubSource(env, defaultGithubSourceRuntime(), createKvGithubObjectCache(env.KV_CACHE)),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),

@@ -28,6 +28,20 @@ import { canonicalJson, digestHex } from './encoding'
  */
 export const ARTIFACT_POLICY_VERSION = '2026-10-07.2'
 
+/**
+ * Earlier policies under which every ready build packed the bytes this policy
+ * packs for the same commit and folder. A ready build under one of them is
+ * checked again from its stored bytes, with no GitHub read.
+ *
+ * A bump that changes only checks adds the version it replaces. A bump that
+ * changes the bytes of a folder an earlier policy accepted empties this set.
+ *
+ * - `2026-10-07.1`: #487 leaves large media out of a folder that policy
+ *   refused. Every folder it accepted packs the same files.
+ * - `2026-08-20.1`: #481 changed checks and Skill name resolution only.
+ */
+export const BYTE_COMPATIBLE_POLICY_VERSIONS: ReadonlySet<string> = new Set(['2026-10-07.1', '2026-08-20.1'])
+
 export const ACTIVE_BUILD_STATES = [
   'requested',
   'resolving',
@@ -384,6 +398,56 @@ function readyPublicBuildStatement(db: D1Database, lookup: ReadyBuildLookup): D1
        AND ${selector.filter}
      ${NEWEST_READY_BUILD}`,
   ).bind(lookup.commitSha, lookup.owner, lookup.repository, selector.value)
+}
+
+/**
+ * How long a build that is ahead may go without a state change and still
+ * count as running. A queue consumer that died leaves a row behind, and its
+ * followers must not wait for it.
+ */
+export const LEADING_BUILD_FRESH_SECONDS = 90
+
+/**
+ * Whether an earlier public build of the same Skill at the same commit is
+ * running now, so this build can wait and then reuse it.
+ *
+ * Builds order by creation time, then ID, so two builds never wait for each
+ * other. A `pinned` lookup matches the commit and Skill a request names, before
+ * any GitHub read. A `resolved` lookup matches the source GitHub resolved.
+ */
+export async function hasLeadingBuild(
+  db: D1Database,
+  row: ResolutionRow,
+  lookup: ReadyBuildLookup,
+  now: number,
+): Promise<boolean> {
+  const match = lookup._tag === 'resolved'
+    ? {
+        filter: 'commit_sha = ?4 AND repository_id = ?5 AND skill_path = ?6',
+        values: [lookup.source.commitSha, lookup.source.repositoryId, lookup.source.skillPath],
+      }
+    : {
+        filter: `ref_type = 'commit' AND ref_value = ?4
+          AND requested_owner = ?5 COLLATE NOCASE AND requested_repository = ?6 COLLATE NOCASE
+          AND selector_type = ?7 AND selector_value = ?8`,
+        values: [
+          lookup.commitSha,
+          lookup.owner,
+          lookup.repository,
+          lookup.selector.type,
+          lookup.selector.type === 'path' ? lookup.selector.path : lookup.selector.name,
+        ],
+      }
+  const leader = await db.prepare(
+    `SELECT id FROM artifact_resolutions
+     WHERE state IN (${ACTIVE_BUILD_STATES.map(state => `'${state}'`).join(', ')})
+       AND visibility = 'public'
+       AND (created_at < ?1 OR (created_at = ?1 AND id < ?2))
+       AND updated_at >= ?3
+       AND ${match.filter}
+     LIMIT 1`,
+  ).bind(row.created_at, row.id, now - LEADING_BUILD_FRESH_SECONDS, ...match.values).first<{ id: string }>()
+  return leader !== null
 }
 
 export function parseCheckResults(value: string | null): CheckResult[] {

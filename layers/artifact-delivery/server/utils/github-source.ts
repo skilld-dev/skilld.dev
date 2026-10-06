@@ -184,6 +184,20 @@ interface GithubClientOptions {
   random?: () => number
   /** Unix seconds. A Retry-After delay becomes an absolute retry time against it. */
   now?: () => number
+  /**
+   * Holds GitHub answers that never change: a commit and a tree, each read by
+   * its SHA. Pass it to a public client only, so private trees stay out.
+   */
+  cache?: GithubObjectCache
+}
+
+/**
+ * A store for immutable GitHub answers. `get` answers null for a miss. The
+ * caller parses every value again, so a stale or foreign value only misses.
+ */
+export interface GithubObjectCache {
+  get: (key: string) => Promise<unknown>
+  put: (key: string, value: unknown) => Promise<void>
 }
 
 export function createPublicGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
@@ -283,9 +297,29 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     throw new Error(`GitHub read failed at ${step} ${endpoint}: ${result.reason}`)
   }
 
+  /**
+   * A read whose answer the SHA in its key fixes forever. Only an answer that
+   * parsed is stored; a miss, a limit or a refusal always asks GitHub again.
+   */
+  const requestImmutableJson = async <T>(key: string, step: GithubReadStep, path: string, schema: z.ZodType<T>): Promise<ReadOutcome<T>> => {
+    const cache = options.cache
+    if (cache) {
+      const cached = schema.safeParse(await cache.get(key))
+      if (cached.success)
+        return { _tag: 'ok', value: cached.data }
+    }
+    const response = await requestJson(step, path, schema)
+    if (cache && response._tag === 'ok')
+      await cache.put(key, response.value)
+    return response
+  }
+
+  // A tree SHA names its listing in any Repository that holds it, so the key
+  // needs no Repository. The commit that names the tree is read per Repository.
   const getTree = async (owner: string, repository: string, sha: string, recursive: boolean) => {
     const suffix = recursive ? '?recursive=1' : ''
-    const response = await requestJson(
+    const response = await requestImmutableJson(
+      `tree:${sha}${recursive ? ':recursive' : ''}`,
       'tree',
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/trees/${sha}${suffix}`,
       treeResponseSchema,
@@ -555,7 +589,10 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         : request.ref.value
       if (typeof requestedCommit !== 'string')
         return requestedCommit
-      const commit = await requestJson(
+      // A commit is keyed by Repository ID, so it proves the commit exists in
+      // this Repository, whatever its name is now.
+      const commit = await requestImmutableJson(
+        `${repository.value.id}:commit:${requestedCommit}`,
         'commit',
         `/repos/${encodeURIComponent(repository.value.owner.login)}/${encodeURIComponent(repository.value.name)}/commits/${requestedCommit}`,
         commitResponseSchema,
@@ -1036,6 +1073,23 @@ function isReadBySkill(path: string): boolean {
 function githubBlobUrl(source: ResolvedSource, path: string): string {
   const repositoryPath = source.skillPath === '.' ? path : `${source.skillPath}/${path}`
   return `https://github.com/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/blob/${source.commitSha}/${repositoryPath.split('/').map(encodeURIComponent).join('/')}`
+}
+
+/**
+ * Whether files read back from a stored Artifact pass every rule a GitHub load
+ * applies today, and the load would leave none of them out. A Skill checked
+ * again from its stored bytes then packs exactly what a load would pack.
+ */
+export function storedFilesPassLoadRules(files: ArtifactSourceFile[], skillPath: string): boolean {
+  const entries = files.map(file => ({
+    path: file.path,
+    mode: file.mode === 493 ? '100755' : '100644',
+    type: 'blob' as const,
+    sha: file.gitBlobSha,
+    size: file.bytes.byteLength,
+  }))
+  const selected = selectArtifactEntries(entries, skillPath)
+  return selected._tag === 'selected' && selected.omitted.length === 0
 }
 
 function skillFolderLabel(skillPath: string): string {
