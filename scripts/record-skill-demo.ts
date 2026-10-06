@@ -8,6 +8,7 @@
  * `--makes` is the demo's group on /skills/demos: one of DEMO_MAKES in
  * shared/demo-groups.ts.
  *   pnpm demo:record owner/repo/skill --reshoot
+ *   pnpm demo:record owner/repo/skill --makes slides --prompt "..." --output deck.html --resume /tmp/skilld-demo-XXXX --model claude-opus-5-5
  *
  * 1. Reads the Skill's current source commit from the public API.
  * 2. Runs Claude Code headless in a fresh temp folder: it loads the Skill with
@@ -27,7 +28,9 @@
  * code hosts. Third-party Skill text never gets an open shell on this machine.
  *
  * `--reshoot` retakes the screenshots of a page demo from its kept output,
- * without running the Agent again.
+ * without running the Agent again. `--resume` finishes a run whose Agent
+ * already wrote its output into a folder, when a later step failed; give the
+ * model that run used with `--model`, since its result was not kept.
  *
  * It writes nothing to production. Opening a pull request with the result is
  * the review step: a human approves each demo by merging it.
@@ -129,7 +132,7 @@ interface DemoEntry {
 type OutputKind = 'page' | 'video'
 
 type Parsed
-  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null }
+  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null, resume: { dir: string, model: string } | null }
     | { _tag: 'reshoot', owner: string, repo: string, name: string }
     | { _tag: 'usage', message: string }
 
@@ -142,6 +145,8 @@ function parseInput(argv: string[]): Parsed {
       makes: { type: 'string' },
       output: { type: 'string', default: 'index.html' },
       seed: { type: 'string' },
+      resume: { type: 'string' },
+      model: { type: 'string' },
       setup: { type: 'string' },
       reshoot: { type: 'boolean', default: false },
     },
@@ -163,7 +168,10 @@ function parseInput(argv: string[]): Parsed {
     return { _tag: 'usage', message: 'The --output file must be one HTML or MP4 file name, such as index.html or film.mp4.' }
   if (values.seed && !values.setup)
     return { _tag: 'usage', message: 'A --seed folder needs a --setup line that tells visitors what the folder held.' }
-  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null }
+  if (values.resume && !values.model)
+    return { _tag: 'usage', message: 'A --resume folder needs --model: the model the interrupted run used.' }
+  const resumed = values.resume && values.model ? { dir: resolve(values.resume), model: values.model } : null
+  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null, resume: resumed }
 }
 
 interface SkillSource {
@@ -443,11 +451,14 @@ async function main(): Promise<void> {
   const skillRef = `${owner}/${repo}/${name}`
   const source = await skillSource(owner, repo, name)
 
-  const cwd = await mkdtemp(join(tmpdir(), 'skilld-demo-'))
-  if (seed)
+  const resumed = input.resume
+  const cwd = resumed ? resumed.dir : await mkdtemp(join(tmpdir(), 'skilld-demo-'))
+  if (seed && !resumed)
     await cp(seed, cwd, { recursive: true })
   console.log(`Recording ${skillRef} at ${source.commit.slice(0, 7)} in ${cwd}`)
-  const agent = await record(cwd, skillRef, prompt, kind)
+  const agent = resumed
+    ? { model: resumed.model, version: (await run('claude', ['--version'])).stdout.trim().split(' ')[0] ?? 'unknown' }
+    : await record(cwd, skillRef, prompt, kind)
 
   const produced = await findOutput(cwd, output)
   if (!produced)
