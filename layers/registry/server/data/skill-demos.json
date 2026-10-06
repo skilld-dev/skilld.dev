@@ -84,6 +84,35 @@
       "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md"
     },
     {
+      "owner": "heygen-com",
+      "repo": "hyperframes",
+      "name": "hyperframes",
+      "authorName": "HeyGen",
+      "sourceUrl": "https://github.com/heygen-com/hyperframes/blob/main/skills/hyperframes/SKILL.md",
+      "prompt": "Make a 12-second 1920x1080 promo video for Fernlight, a fictional plant-care app: a title card, three feature beats, and an end card. Render it as promo.mp4 in this folder.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "69a2169bde0c134f42979e1911755084b1c29962",
+      "recordedAt": "2026-10-06",
+      "video": {
+        "file": "video.mp4",
+        "poster": "poster.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 12
+      },
+      "shots": [
+        {
+          "file": "poster.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: Make a 12-second 1920x1080 promo video for Fernlight, a fictional plant-care app: a title card, three feature beats, and"
+        }
+      ]
+    },
+    {
       "owner": "humanlayer",
       "repo": "skills",
       "name": "show-me",
