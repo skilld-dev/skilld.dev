@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rollwick · Lisbon, late light</title>
+<style>
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --hold-duration: 2s;
+    --paper: #f3eee5;
+    --card: #fffdf8;
+    --ink: #2a241d;
+    --muted: #7d7265;
+    --line: #e7dfd2;
+    --danger: #b3261e;
+    --danger-soft: #fbece8;
+    --film: #1d1914;
+    --edge-print: #e39b3f;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: var(--paper);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  main { width: min(100%, 440px); }
+
+  .brand {
+    margin: 0 0 14px 4px;
+    font: 600 17px/1 "Iowan Old Style", Palatino, Georgia, serif;
+    letter-spacing: 0.01em;
+  }
+  .brand span { color: var(--muted); font-weight: 400; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Card and its deleted placeholder share one grid cell, so deleting never shifts layout. */
+  .slot { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .slot > * { grid-area: 1 / 1; }
+
+  .card {
+    padding: 20px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgb(42 36 29 / 0.04), 0 10px 28px rgb(42 36 29 / 0.07);
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+  .slot[data-state="deleted"] .card {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  .eyebrow {
+    margin: 0 0 4px;
+    color: var(--muted);
+    font: 500 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin: 0;
+    font: 600 22px/1.2 "Iowan Old Style", Palatino, Georgia, serif;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    margin: 12px 0 16px;
+  }
+  .meta dt { color: var(--muted); font-size: 12px; }
+  .meta dd { margin: 0; font-size: 14px; font-weight: 500; }
+
+  .strip {
+    position: relative;
+    padding: 16px 0 14px 12px;
+    overflow: hidden;
+    background: var(--film);
+    border-radius: 6px;
+    /* The strip runs off the card edge: there are more frames on the roll. */
+    mask-image: linear-gradient(90deg, #000 78%, transparent);
+  }
+  .strip::before,
+  .strip::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='6'%3E%3Crect x='3' width='8' height='6' rx='1.5' fill='%23fbf7ef'/%3E%3C/svg%3E") repeat-x;
+  }
+  .strip::before { top: 5px; }
+  .strip::after { bottom: 5px; }
+
+  .frames {
+    display: flex;
+    gap: 6px;
+  }
+
+  .frame {
+    flex: 0 0 96px;
+    aspect-ratio: 3 / 2;
+    border-radius: 2px;
+    box-shadow: inset 0 0 14px rgb(0 0 0 / 0.28);
+  }
+  .frame-1 {
+    background:
+      linear-gradient(180deg, transparent 62%, #2b2220 62%),
+      linear-gradient(90deg, transparent 31%, #2b2220 31% 35%, transparent 35%) 0 24% / 100% 50% no-repeat,
+      linear-gradient(90deg, transparent 8%, #2b2220 8% 26%, transparent 26% 44%, #2b2220 44% 52%, transparent 52% 84%, #2b2220 84%) 0 52.5% / 100% 20% no-repeat,
+      radial-gradient(circle at 72% 54%, #ffe2ab 0 9%, transparent 10%),
+      linear-gradient(180deg, #f6c27f, #e7826a 62%);
+  }
+  .frame-2 {
+    background:
+      linear-gradient(#3a4651, #3a4651) 30% 46% / 44% 12% no-repeat,
+      linear-gradient(#f2bf3b, #dfa02a) 30% 60% / 54% 36% no-repeat,
+      linear-gradient(180deg, #dcc8a7 0 72%, #8f7c66 72%);
+  }
+  .frame-3 {
+    background:
+      radial-gradient(circle, #efe8da 0 2px, transparent 2.5px) 7px 7px / 14px 14px,
+      repeating-conic-gradient(#2f5da0 0 25%, #e7dfcf 0 50%) 0 0 / 14px 14px;
+  }
+  .frame-4 {
+    background:
+      radial-gradient(circle at 36% 50%, #ffd9a0 0 8%, transparent 9%),
+      linear-gradient(180deg, #a3bccc 0 50%, #456f86 50%);
+  }
+  .frame-5 {
+    background:
+      radial-gradient(circle at 50% 32%, #f7c873 0 6%, rgb(247 200 115 / 0.22) 7% 24%, transparent 25%),
+      linear-gradient(#1f2433, #3a3240);
+  }
+
+  .edge-print {
+    display: flex;
+    gap: 6px;
+    margin-top: 5px;
+    color: var(--edge-print);
+    font: 600 8px/1 ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.06em;
+  }
+  .edge-print span { flex: 0 0 96px; }
+
+  .card-foot {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .card-foot p { margin: 0; color: var(--muted); font-size: 13px; }
+
+  .hold {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--danger-soft);
+    box-shadow: inset 0 0 0 1px rgb(179 38 30 / 0.22);
+    color: var(--danger);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition:
+      transform 160ms var(--ease-out),
+      background-color 150ms ease;
+  }
+  .hold[data-holding] { transform: scale(0.97); }
+  .hold:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .hold:hover { background-color: #f8e0da; }
+  }
+
+  /* A copy of the label in the filled colors, revealed by the clip, so text and fill change in sync. */
+  .hold-fill {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: inherit;
+    background: var(--danger);
+    color: #fff;
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 200ms var(--ease-out); /* release: snappy */
+  }
+  .hold[data-holding] .hold-fill {
+    clip-path: inset(0 0 0 0);
+    transition: clip-path var(--hold-duration) linear; /* hold: deliberate; progress never eases */
+  }
+  .hold[data-done] .hold-fill {
+    clip-path: inset(0 0 0 0);
+    transition: none;
+  }
+
+  .hold svg { width: 16px; height: 16px; flex: none; }
+
+  .ghost {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 10px;
+    padding: 20px;
+    border: 1px dashed #d6cbb9;
+    border-radius: 16px;
+    color: var(--muted);
+    text-align: center;
+    opacity: 0;
+    transition: opacity 200ms var(--ease-out);
+  }
+  .slot[data-state="deleted"] .ghost {
+    opacity: 1;
+    transition-delay: 80ms;
+  }
+  .ghost p { margin: 0; }
+
+  .restore {
+    height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--ink);
+    color: var(--card);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out);
+  }
+  .restore:active { transform: scale(0.97); }
+  .restore:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* Keep the fill: it shows progress. Drop the movement. */
+  @media (prefers-reduced-motion: reduce) {
+    .hold[data-holding],
+    .restore:active,
+    .slot[data-state="deleted"] .card { transform: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1 class="brand">Rollwick <span>Journal</span></h1>
+
+  <div class="slot" data-slot data-state="active">
+    <article class="card" data-card aria-labelledby="roll-title">
+      <p class="eyebrow">Roll 14 · 35mm</p>
+      <h2 id="roll-title">Lisbon, late light</h2>
+
+      <dl class="meta">
+        <div><dt>Film stock</dt><dd>Kodak Portra 400</dd></div>
+        <div><dt>Camera</dt><dd>Olympus OM-1</dd></div>
+        <div><dt>Frames</dt><dd>36</dd></div>
+      </dl>
+
+      <div class="strip" role="img" aria-label="Frames 12 to 16 from this roll">
+        <div class="frames">
+          <div class="frame frame-1"></div>
+          <div class="frame frame-2"></div>
+          <div class="frame frame-3"></div>
+          <div class="frame frame-4"></div>
+          <div class="frame frame-5"></div>
+        </div>
+        <div class="edge-print" aria-hidden="true">
+          <span>12 ▸ PORTRA 400</span>
+          <span>13 ▸ 13A</span>
+          <span>14 ▸ PORTRA 400</span>
+          <span>15 ▸ 15A</span>
+          <span>16 ▸ PORTRA 400</span>
+        </div>
+      </div>
+
+      <footer class="card-foot">
+        <p>Developed 2 Oct 2026</p>
+        <button class="hold" type="button" data-hold aria-describedby="hold-hint">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/></svg>
+          Hold to delete
+          <span class="hold-fill" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/></svg>
+            Hold to delete
+          </span>
+        </button>
+        <span class="sr-only" id="hold-hint">Press and hold for 2 seconds to delete this roll.</span>
+      </footer>
+    </article>
+
+    <div class="ghost" data-ghost inert>
+      <p>You deleted “Lisbon, late light”.</p>
+      <button class="restore" type="button" data-restore>Restore</button>
+    </div>
+  </div>
+
+  <p class="sr-only" role="status" data-live></p>
+</main>
+
+<script>
+  const slot = document.querySelector('[data-slot]')
+  const card = slot.querySelector('[data-card]')
+  const ghost = slot.querySelector('[data-ghost]')
+  const hold = card.querySelector('[data-hold]')
+  const fill = hold.querySelector('.hold-fill')
+  const restore = ghost.querySelector('[data-restore]')
+  const live = document.querySelector('[data-live]')
+  const title = card.querySelector('h2').textContent
+
+  const press = () => hold.toggleAttribute('data-holding', true)
+  const release = () => hold.toggleAttribute('data-holding', false)
+
+  const setDeleted = (deleted) => {
+    slot.dataset.state = deleted ? 'deleted' : 'active'
+    card.inert = deleted
+    ghost.inert = !deleted
+    live.textContent = deleted ? `You deleted ${title}.` : `You restored ${title}.`
+    ;(deleted ? restore : hold).focus()
+  }
+
+  hold.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return
+    // Touch captures the pointer implicitly. Release it so that sliding off the button cancels the hold.
+    if (hold.hasPointerCapture(event.pointerId)) hold.releasePointerCapture(event.pointerId)
+    press()
+  })
+  for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) hold.addEventListener(type, release)
+
+  hold.addEventListener('keydown', (event) => {
+    if (event.key !== ' ' && event.key !== 'Enter') return
+    event.preventDefault()
+    if (!event.repeat) press()
+  })
+  hold.addEventListener('keyup', (event) => {
+    if (event.key === ' ' || event.key === 'Enter') release()
+  })
+
+  // A long press on touch opens the context menu. The hold owns that gesture.
+  hold.addEventListener('contextmenu', (event) => event.preventDefault())
+
+  // The fill transition only ends at full width while the button is still held.
+  fill.addEventListener('transitionend', (event) => {
+    if (event.propertyName !== 'clip-path' || !hold.hasAttribute('data-holding')) return
+    hold.toggleAttribute('data-done', true)
+    release()
+    setDeleted(true)
+  })
+
+  // Reset the fill only after the card is invisible, so the reset never shows.
+  card.addEventListener('transitionend', (event) => {
+    if (event.target !== card || event.propertyName !== 'opacity' || slot.dataset.state !== 'deleted') return
+    hold.toggleAttribute('data-done', false)
+  })
+
+  restore.addEventListener('click', () => setDeleted(false))
+</script>
+</body>
+</html>

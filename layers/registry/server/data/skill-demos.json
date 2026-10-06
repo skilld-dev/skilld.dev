@@ -58,6 +58,37 @@
     {
       "owner": "emilkowalski",
       "repo": "skills",
+      "name": "animate",
+      "makes": "ui-component",
+      "authorName": "Emil Kowalski",
+      "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/animate/SKILL.md",
+      "prompt": "Build hold.html: a film-roll card for Rollwick, a fictional film-photo journal app, with a hold-to-delete button. Holding fills the button over about two seconds; releasing early springs it back. Inline all CSS and JavaScript.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "85e8e2363b713506e1d5b6e07a0eb2da66be1bc3",
+      "recordedAt": "2026-10-06",
+      "outputFile": "hold.html",
+      "shots": [
+        {
+          "file": "desktop-92230f46d7.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build hold.html: a film-roll card for Rollwick, a fictional film-photo journal app, with a hold-to-delete button. Holdin"
+        },
+        {
+          "file": "mobile-89cf3092a6.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build hold.html: a film-roll card for Rollwick, a fictional film-photo journal app, with a hold-to-delete button. Holdin"
+        }
+      ]
+    },
+    {
+      "owner": "emilkowalski",
+      "repo": "skills",
       "name": "emil-design-eng",
       "makes": "ui-component",
       "prompt": "Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show three stacked toasts on load that stay until dismissed, expand on hover, and dismiss on swipe. Inline all CSS and JavaScript.",
