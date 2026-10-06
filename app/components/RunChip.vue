@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { InstallCopyMode, InstallTarget } from '~/composables/useInstallCopy'
 import { skillInstallCmd, skillRunCmd } from '#shared/skill-commands'
+import ChipSwitch from './_ChipSwitch.vue'
 import CommandChip from './_CommandChip.vue'
 
 /**
@@ -78,23 +79,15 @@ function choose(next: InstallCopyMode) {
     ref="rootRef"
     class="run-chip"
   >
-    <div class="run-chip__switch" role="group" aria-label="Command">
-      <button
-        v-for="item in modes"
-        :key="item.value"
-        type="button"
-        class="run-chip__option"
-        :aria-pressed="mode === item.value"
-        @click="choose(item.value)"
-      >
+    <ChipSwitch :options="modes" :selected="mode" label="Command" @select="choose">
+      <template #lead="{ value }">
         <span
           class="run-chip__legend"
-          :class="item.value === 'install' && 'run-chip__legend--filled'"
+          :class="value === 'install' && 'run-chip__legend--filled'"
           aria-hidden="true"
         />
-        {{ item.label }}
-      </button>
-    </div>
+      </template>
+    </ChipSwitch>
     <CommandChip
       :command="command"
       :mode="mode"
@@ -124,42 +117,6 @@ function choose(next: InstallCopyMode) {
   display: block;
 }
 
-.run-chip__switch {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--ui-border-accented);
-  border-radius: var(--ui-radius);
-  background: var(--ui-bg);
-}
-
-.run-chip__option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4375rem;
-  min-height: 1.875rem;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: calc(var(--ui-radius) - 2px);
-  background: none;
-  color: var(--ui-text-muted);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: color 200ms ease-out, background-color 200ms ease-out;
-}
-
-@media (hover: hover) {
-  .run-chip__option:hover {
-    color: var(--ui-text);
-  }
-}
-
-.run-chip__option[aria-pressed='true'] {
-  background: var(--ui-bg-muted);
-  color: var(--ui-text);
-  font-weight: 500;
-}
-
 /* The same dots as the chip, in ink: a legend, so the chip keeps the only rose dot. */
 .run-chip__legend {
   flex: none;
@@ -179,11 +136,5 @@ function choose(next: InstallCopyMode) {
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--ui-text-muted);
-}
-
-@media (pointer: coarse) {
-  .run-chip__option {
-    min-height: 2.75rem;
-  }
 }
 </style>

@@ -10,6 +10,7 @@ import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
 import { SESSION_NAME } from './shared/server/session-access'
+import { CLI_INSTALL_SCRIPTS } from './shared/skill-commands'
 
 /** Every `/agents/*` page file, so the sitemap reads the admission decision for a page nobody listed. */
 function discoveredAgentRoutes(): string[] {
@@ -617,6 +618,9 @@ export default defineNuxtConfig({
     // .md (aiReady.llmsTxt.markdownLinks), so the dump redirects there. 302 so
     // this reverses the moment per-section splitting is worth building.
     '/llms-full.txt': { redirect: { to: '/llms.txt', statusCode: 302 } } as any,
+    // The printed native install commands. `CLI_INSTALL_SCRIPTS` says why each is a 302.
+    '/install.sh': { redirect: { to: CLI_INSTALL_SCRIPTS['/install.sh'], statusCode: 302 } } as any,
+    '/install.ps1': { redirect: { to: CLI_INSTALL_SCRIPTS['/install.ps1'], statusCode: 302 } } as any,
     // `/gh` has no index page: owner hubs live at `/gh/<owner>`. It 404'd while
     // `/orgs` 301'd straight into it, so every legacy orgs-index link dead-ended
     // on a redirect chain. `/community` is the browsable owner surface.

@@ -1,4 +1,5 @@
 import { CLUSTER_BY_SLUG } from '../../layers/registry/server/data/clusters'
+import { CLI_INSTALL_SCRIPTS } from '../../shared/skill-commands'
 
 export interface SmokeExpectation {
   path: string
@@ -112,6 +113,9 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   // The leaderboard is now the `all` range of the trending board. This checks
   // the 301 that carries its ~4,100/mo repository cluster across.
   { path: '/skills/leaderboard', status: 301, location: '/skills/trending?range=all' },
+  // Every native install command fetches one of these, so a lost redirect
+  // breaks the install for each person who copies it.
+  ...Object.entries(CLI_INSTALL_SCRIPTS).map(([path, location]) => ({ path, status: 302, location })),
   // The category surface is the reason the rework exists, so it is checked for
   // rendered content, not just a 200.
   //

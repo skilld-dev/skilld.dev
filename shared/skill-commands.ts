@@ -88,17 +88,38 @@ export function skillRemoveCmd(name: string): string {
   return `${CLI_PREFIX} remove ${name}`
 }
 
+const CLI_RELEASE_DOWNLOAD = 'https://github.com/skilld-dev/skilld/releases/latest/download'
+
+/**
+ * The native install scripts, by the site path that serves them. Each path is a
+ * 302 to the latest release asset, so the printed command stays short and
+ * GitHub Releases stays the source. `latest` moves, so it is never a 301.
+ */
+export const CLI_INSTALL_SCRIPTS = {
+  '/install.sh': `${CLI_RELEASE_DOWNLOAD}/install.sh`,
+  '/install.ps1': `${CLI_RELEASE_DOWNLOAD}/install.ps1`,
+} as const
+
 /**
  * Installs the CLI itself. npm runs it, so it is no skilld subcommand and the
- * grammar gate does not check it. The package selects a native executable.
+ * grammar gate does not check it. The package selects a native executable, and
+ * npm owns its upgrades.
  */
 export function cliGlobalInstallCmd(): string {
   return 'npm install --global skilld'
 }
 
-/** Installs the CLI as one native binary in `~/.skilld/bin`, with no Node.js. macOS and Linux. */
+/**
+ * Installs the CLI as one native binary in `~/.skilld/bin`, with no Node.js.
+ * macOS and Linux. This install upgrades itself from signed releases.
+ */
 export function cliNativeInstallCmd(): string {
-  return 'curl -fsSL https://github.com/skilld-dev/skilld/releases/latest/download/install.sh | sh'
+  return `curl -fsSL ${SITE_ORIGIN}/install.sh | sh`
+}
+
+/** The same native binary on Windows, from PowerShell, in `%LOCALAPPDATA%\skilld\bin`. */
+export function cliWindowsInstallCmd(): string {
+  return `irm ${SITE_ORIGIN}/install.ps1 | iex`
 }
 
 /**

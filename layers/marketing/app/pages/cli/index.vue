@@ -14,7 +14,6 @@
  * the parent route of `/cli/authorize` and swallow the CLI sign-in page.
  */
 import {
-  cliNativeInstallCmd,
   skillInstallCmd,
   skillOutdatedCmd,
   skillPageUrl,
@@ -62,7 +61,6 @@ const EXAMPLE = { owner: 'antfu', repo: 'skills', skill: 'vue' } as const
 
 const agentPrompt = skillRunPrompt(skillPageUrl(EXAMPLE.owner, EXAMPLE.repo, EXAMPLE.skill))
 const askPrompt = 'Find a skilld Skill for Vue and use it'
-const nativeInstall = cliNativeInstallCmd()
 
 /** Each id is a stable anchor, so other pages can link one verb. */
 const verbs = [
@@ -223,13 +221,7 @@ const codeClass = 'font-mono text-xs text-default'
                 Run the two commands at the top of this page. Then ask your Agent in your own words.
               </p>
             </div>
-            <div :class="stepActionClass">
-              <SetupSnippet :code="askPrompt" label="example prompt" />
-              <p class="mt-4 text-sm leading-relaxed text-muted">
-                No Node.js? On macOS and Linux, install one native binary:
-              </p>
-              <SetupSnippet class="mt-2" :code="nativeInstall" label="native install command" format="bash" />
-            </div>
+            <SetupSnippet :class="stepActionClass" :code="askPrompt" label="example prompt" />
           </li>
         </ol>
       </div>
@@ -352,7 +344,7 @@ const codeClass = 'font-mono text-xs text-default'
                 One native binary
               </dt>
               <dd class="mt-2 text-sm leading-relaxed text-muted">
-                No runtime to install, and it starts in under a millisecond. The npm package selects the same native executable for your system.
+                No runtime to install, and it starts in under a millisecond. A curl or PowerShell install upgrades itself from signed releases. An npm install runs the same executable, and npm handles its upgrades.
               </dd>
             </div>
             <div>

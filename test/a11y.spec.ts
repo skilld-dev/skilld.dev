@@ -571,7 +571,7 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
-  it('cliInstallChip has no violations and names what its copy button copies', async () => {
+  it('cliInstallChip has no violations, leads with the native install, and switches platform', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('CliInstallChip'),
@@ -579,8 +579,18 @@ describe('accessibility: components', () => {
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('code')?.textContent).toBe('curl -fsSL https://skilld.dev/install.sh | sh')
+    expect(container.querySelector('button[aria-label]')?.getAttribute('aria-label')).toBe('Copy CLI install command')
+
+    const option = (label: string) => wrapper.findAll('button[aria-pressed]').find(button => button.text() === label)!
+    await option('Windows').trigger('click')
+    await nextTick()
+    expect(container.querySelector('code')?.textContent).toBe('irm https://skilld.dev/install.ps1 | iex')
+
+    await option('npm').trigger('click')
+    await nextTick()
     expect(container.querySelector('code')?.textContent).toBe('npm install --global skilld')
-    expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Copy CLI install command')
+    expect(container.textContent).toContain('Needs Node.js.')
     wrapper.unmount()
   })
 
@@ -642,6 +652,7 @@ describe('accessibility: component coverage', () => {
     'StatsHBar', // Decorative chart, tested at page level
     'StatsLeaderboard', // Tested at page level
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
+    '_ChipSwitch', // The switch above RunChip and CliInstallChip, axe-scanned and clicked through both
   ]
 
   /**
