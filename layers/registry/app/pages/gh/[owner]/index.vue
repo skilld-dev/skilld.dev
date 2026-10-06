@@ -533,7 +533,7 @@ useSchemaOrg(computed(() => {
                 v-for="skill in skillsByRepo.get(repo.repo) ?? []"
                 :key="skill.slug"
               >
-                <SkillCard :skill />
+                <SkillCard :skill byline="none" metric="none" />
               </li>
             </ul>
           </div>

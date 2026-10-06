@@ -310,39 +310,33 @@ async function deleteAccount() {
           </div>
 
           <ul v-else-if="likedSkills.length" class="editorial-ledger list-none p-0">
-            <li
-              v-for="skill in likedSkills"
-              :key="skill.slug"
-              class="group flex min-w-0 items-start gap-4 py-5"
-            >
-              <NuxtLink
-                :to="skill.registryPath"
-                class="min-w-0 flex-1 rounded-sm"
+            <li v-for="skill in likedSkills" :key="skill.slug">
+              <SkillCard
+                :skill
+                layout="row"
+                metric="none"
+                :actions="['run', 'source']"
+                surface="account-watching"
               >
-                <span class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span class="font-mono text-base font-medium transition-colors duration-200 group-hover:text-primary">
-                    /{{ skill.name }}
+                <template #meta>
+                  <span class="inline-flex items-center gap-1.5">
+                    <UIcon name="i-lucide-activity" class="size-3.5" aria-hidden="true" />
+                    Watching for changes
                   </span>
-                  <span class="data-label">{{ skill.owner }}/{{ skill.repo }}</span>
-                </span>
-                <span v-if="skill.description" class="mt-2 max-w-3xl line-clamp-2 text-sm leading-relaxed text-muted text-pretty">
-                  {{ skill.description }}
-                </span>
-                <span class="mt-3 inline-flex items-center gap-1.5 font-mono text-sm text-muted">
-                  <UIcon name="i-lucide-activity" class="size-3.5 text-primary" aria-hidden="true" />
-                  Watching for changes
-                </span>
-              </NuxtLink>
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-heart-off"
-                class="min-h-11 min-w-11 shrink-0"
-                :aria-label="`Remove ${skill.name} from your skills`"
-                :disabled="removeLikeMutation.pending.value"
-                :loading="removeLikeMutation.pending.value && removingSkill === skill.slug"
-                @click="unlike(skill)"
-              />
+                </template>
+                <template #actions>
+                  <UButton
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide-heart-off"
+                    class="min-h-11 min-w-11 shrink-0"
+                    :aria-label="`Remove ${skill.name} from your skills`"
+                    :disabled="removeLikeMutation.pending.value"
+                    :loading="removeLikeMutation.pending.value && removingSkill === skill.slug"
+                    @click="unlike(skill)"
+                  />
+                </template>
+              </SkillCard>
             </li>
           </ul>
 

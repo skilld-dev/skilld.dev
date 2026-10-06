@@ -50,7 +50,7 @@ async function mountSkillsPage() {
     {
       global: {
         stubs: {
-          SkillTable: true,
+          SkillCard: true,
         },
       },
     },

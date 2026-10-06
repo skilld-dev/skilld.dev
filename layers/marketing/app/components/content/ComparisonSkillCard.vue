@@ -14,28 +14,18 @@ const skill = computed(() => ({
   repo,
   name,
   registryPath: to,
-  slug: `${owner}/${repo}/${name}`,
   description,
   skillFileUrl: source,
 }))
 </script>
 
 <template>
-  <div class="comparison-skill-card not-prose my-5">
+  <div class="not-prose my-5">
     <SkillCard
       :skill="skill"
-      signal="none"
-      show-owner-path
-      :show-copy="false"
-      :show-like="false"
+      metric="none"
+      :actions="['source']"
+      surface="comparison-card"
     />
   </div>
 </template>
-
-<style scoped>
-/* Source links remain easy to reach on touch screens inside the article. */
-.comparison-skill-card :deep(a[target='_blank']) {
-  min-width: 44px;
-  min-height: 44px;
-}
-</style>

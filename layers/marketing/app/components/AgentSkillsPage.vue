@@ -96,7 +96,7 @@ useSchemaOrg(computed(() => skills.value.length
 
       <ul v-else class="mt-6 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2">
         <li v-for="skill in skills" :key="skill.slug">
-          <SkillCard :skill show-owner-path />
+          <SkillCard :skill />
         </li>
       </ul>
 
