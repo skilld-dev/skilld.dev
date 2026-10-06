@@ -34,6 +34,18 @@ const MARK_DOT: Record<MarkCut, { cx: number, cy: number, r: number }> = {
   small: { cx: 80, cy: 50, r: 12 },
 }
 
+export interface MarkGeometry {
+  viewBox: string
+  caret: string
+  dot: { cx: number, cy: number, r: number }
+}
+
+/** The mark's parts, for callers that compose their own SVG, such as the README badge. */
+export function markGeometry(cut: MarkCut = 'regular'): MarkGeometry {
+  const { x, y, width, height } = MARK_VIEWBOX
+  return { viewBox: `${x} ${y} ${width} ${height}`, caret: CARET_PATH[cut], dot: MARK_DOT[cut] }
+}
+
 /** The caret's ink, in mark units. Both cuts share it. */
 const CARET_INK = { left: 18, right: 58, top: 18, bottom: 82, centreY: 50 } as const
 
