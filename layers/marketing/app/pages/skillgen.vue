@@ -27,6 +27,15 @@ const codeClass = 'font-mono text-xs text-default'
 <template>
   <div class="mx-auto max-w-2xl px-4 py-12 sm:px-6 md:py-16">
     <header>
+      <!-- `/make-skill` is the one entry for authors, and it routes here. -->
+      <UButton
+        to="/make-skill"
+        label="Make a skill"
+        icon="i-lucide-arrow-left"
+        color="neutral"
+        variant="link"
+        class="mb-4 min-h-11 px-0 font-mono text-sm text-muted"
+      />
       <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
         Skillgen
       </h1>

@@ -578,7 +578,6 @@ describe('accessibility: components', () => {
       '/developers?setup=mcp',
       '/developers?setup=api',
       '/make-skill',
-      '/skillgen',
       '/developers',
     ])
     wrapper.unmount()
