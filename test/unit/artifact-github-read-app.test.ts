@@ -124,6 +124,31 @@ describe('the GitHub credential public Artifact builds read with', () => {
     expect(text).not.toContain('PRIVATE KEY')
     expect(reports).toHaveLength(1)
   })
+
+  it('repeats a read the Repository denied the read App with the fallback token, and reports it', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, deniesApp: true })
+    const reports: ArtifactGithubCredentialReport[] = []
+    const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
+
+    const result = await source.resolve(request)
+
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1', 'Bearer runs'])
+    // The fallback read reached GitHub, which has no such Repository.
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_NOT_FOUND' })
+    expect(reports).toEqual([{ outcome: 'app-denied', reason: 'GitHub denied the read App for skilld-dev/skills', fallback: 'ARTIFACT_GITHUB_TOKEN' }])
+  })
+
+  it('keeps the denial when no token follows the read App', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, deniesApp: true })
+    const env = { ...appEnv(keys.pem), ARTIFACT_GITHUB_TOKEN: '', GITHUB_TOKEN: '' }
+
+    const result = await createArtifactGithubSource(env, runtime(github)).resolve(request)
+
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1'])
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_ACCESS_DENIED' })
+  })
 })
 
 interface FakeGithub {
@@ -132,7 +157,7 @@ interface FakeGithub {
   readAuthorizations: Array<string | null>
 }
 
-function fakeGithub(options: { expiresAt: number, mintStatus?: number }): FakeGithub {
+function fakeGithub(options: { expiresAt: number, mintStatus?: number, deniesApp?: boolean }): FakeGithub {
   const mints: FakeGithub['mints'] = []
   const readAuthorizations: FakeGithub['readAuthorizations'] = []
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -144,7 +169,12 @@ function fakeGithub(options: { expiresAt: number, mintStatus?: number }): FakeGi
         return new Response('{}', { status: options.mintStatus })
       return Response.json({ token: `ghs_installation_${mints.length}`, expires_at: new Date(options.expiresAt * 1000).toISOString() }, { status: 201 })
     }
-    readAuthorizations.push(headers.get('authorization'))
+    const authorization = headers.get('authorization')
+    readAuthorizations.push(authorization)
+    // Some organizations answer the read App 403 on a public Repository that
+    // a personal token reads: neondatabase/agent-skills on 2026-10-06.
+    if (options.deniesApp && authorization?.startsWith('Bearer ghs_'))
+      return Response.json({ message: 'Resource not accessible by integration' }, { status: 403 })
     return Response.json({ message: 'Not Found' }, { status: 404 })
   }
   return { fetch: fetcher as typeof fetch, mints, readAuthorizations }

@@ -183,6 +183,7 @@ export function createArtifactGithubSource(
   return withGithubCredential(
     credential,
     token => createPublicGithubSourceClient({ fetch: runtime.fetch, token, onReadFailure: reportGithubReadFailure, cache }),
+    runtime.report,
   )
 }
 
