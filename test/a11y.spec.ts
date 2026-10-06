@@ -609,6 +609,44 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('copyText has no violations and names what its button copies', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('CopyText'),
+      { attachTo: container, props: { text: 'https://skilld.dev/api/mcp', label: 'MCP server URL' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Copy MCP server URL')
+    wrapper.unmount()
+  })
+
+  it('homeAgents has no violations and links each Agent tile', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeAgents'),
+      { attachTo: container },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+
+    const tiles = [...container.querySelectorAll('ul > li > a')]
+    expect(tiles.map(tile => tile.getAttribute('href'))).toEqual([
+      '/agents/claude-code',
+      '/agents/cursor',
+      '/agents/codex',
+      '/agents/gemini-cli',
+      '/agents/github-copilot',
+      '/agents/windsurf',
+      '/agents/opencode',
+      '/developers?setup=mcp&app=claude',
+      '/developers?setup=mcp&app=chatgpt',
+      '/cli#install',
+    ])
+    expect(container.querySelectorAll('ol > li')).toHaveLength(3)
+    wrapper.unmount()
+  })
+
   it('cliInstallChip has no violations, leads with the native install, and switches platform', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
