@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   weekly:
-    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
