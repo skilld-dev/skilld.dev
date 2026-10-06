@@ -31,7 +31,7 @@
 import { execFile } from 'node:child_process'
 import { copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { extname, join, resolve } from 'node:path'
+import { extname, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs, promisify } from 'node:util'
@@ -290,7 +290,11 @@ async function encodeVideo(source: string, dir: string, prompt: string): Promise
   }
 }
 
-/** The named file, or the newest file of the same type anywhere in the folder. */
+/**
+ * The named file, or the newest file of the same type in the folder. Hidden
+ * folders and node_modules hold renderer scratch, such as the segments a film
+ * is cut from, so they never count as the output.
+ */
 async function findOutput(cwd: string, output: string): Promise<string | null> {
   const named = join(cwd, output)
   const found = await stat(named).catch((error: NodeJS.ErrnoException) => {
@@ -304,7 +308,8 @@ async function findOutput(cwd: string, output: string): Promise<string | null> {
   const wanted = extname(output)
   const entries = await readdir(cwd, { recursive: true, withFileTypes: true })
   const matches = await Promise.all(entries
-    .filter(entry => entry.isFile() && extname(entry.name) === wanted && !entry.parentPath.includes('node_modules'))
+    .filter(entry => entry.isFile() && extname(entry.name) === wanted
+      && !relative(cwd, entry.parentPath).split(sep).some(part => part.startsWith('.') || part === 'node_modules'))
     .map(async (entry) => {
       const path = join(entry.parentPath, entry.name)
       return { path, mtime: (await stat(path)).mtimeMs }
