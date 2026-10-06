@@ -61,6 +61,24 @@ describe('skilld run sweep', () => {
     harness.close()
   })
 
+  it('does not alarm again when a spent quota interrupts a known failure', async () => {
+    const harness = createHarness([archify])
+    const blocked: SourceRejection = { _tag: 'rejected', code: 'INVALID_SOURCE', summary: 'Too large.', findings: [] }
+
+    await runSkillRunSweep(harness.dependencies)
+    await harness.buildEach({ archify: blocked })
+    await runSkillRunSweep(harness.dependencies)
+    await harness.buildEach({ archify: { _tag: 'rejected', code: 'RATE_LIMITED', summary: 'Spent.', findings: [] } })
+    const interrupted = await runSkillRunSweep(harness.dependencies)
+    await harness.buildEach({ archify: blocked })
+    const resumed = await runSkillRunSweep(harness.dependencies)
+
+    expect(interrupted.transientFailures).toHaveLength(1)
+    expect(interrupted.failing).toBe(1)
+    expect(resumed.newFailures).toEqual([])
+    harness.close()
+  })
+
   it('checks the Skill checked longest ago first', async () => {
     const harness = createHarness([archify, busy], 1)
 

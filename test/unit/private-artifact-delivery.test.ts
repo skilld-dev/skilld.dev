@@ -557,7 +557,8 @@ function requiredChecks() {
   return [
     { name: 'path-policy', version: '1', outcome: 'pass' as const, required: true },
     { name: 'agent-skills-spec', version: '2026-10-07', outcome: 'pass' as const, required: false },
-    { name: 'credential-material', version: '1', outcome: 'pass' as const, required: true },
+    { name: 'credential-material', version: '2', outcome: 'pass' as const, required: true },
     { name: 'executable-files', version: '1', outcome: 'pass' as const, required: false },
+    { name: 'omitted-files', version: '1', outcome: 'pass' as const, required: false },
   ]
 }

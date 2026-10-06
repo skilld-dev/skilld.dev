@@ -1,4 +1,5 @@
 import { parseDocument } from 'yaml'
+import { slugifySkillName } from '#shared/skill-path'
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/
 const KEY_LINE_RE = /^([A-Z_][\w-]*):(.*)$/i
@@ -140,19 +141,6 @@ export function parseFrontmatter(raw: string): SkillFrontmatter {
       fm[key] = value
   }
   return fm
-}
-
-const SLUGIFY_STRIP_RE = /[^a-z0-9-]+/g
-const SLUGIFY_DEDUPE_DASH_RE = /-+/g
-const SLUGIFY_TRIM_DASH_RE = /^-+|-+$/g
-
-export function slugifySkillName(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(SLUGIFY_STRIP_RE, '')
-    .replace(SLUGIFY_DEDUPE_DASH_RE, '-')
-    .replace(SLUGIFY_TRIM_DASH_RE, '')
 }
 
 /**

@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Bees Did It: How Thimblecrest Doubled Its Harvest</title>
+
+    <!-- Fonts: Gloock (display serif), Instrument Sans (body), DM Mono (labels) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gloock&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap">
+
+    <style>
+        /* ===========================================
+           CSS CUSTOM PROPERTIES (THEME)
+           Change these to change the whole look
+           =========================================== */
+        :root {
+            /* Colors: orchard almanac palette */
+            --paper: #f4ecdc;
+            --paper-deep: #eadfc8;
+            --ink: #1f2a1c;          /* deep orchard green-black */
+            --ink-soft: #4d5a45;
+            --honey: #e8a317;
+            --honey-deep: #b87a0a;
+            --apple: #c0392b;
+            --leaf: #3f6b3a;
+            --stage-bg: #171d14;
+            --slide-bg: var(--paper);
+
+            /* Typography: authored at 1920×1080 stage size */
+            --font-display: 'Gloock', 'Georgia', serif;
+            --font-body: 'Instrument Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+
+            /* Spacing */
+            --slide-padding: 120px;
+
+            /* Animation */
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --duration-normal: 0.9s;
+        }
+
+        /* ===========================================
+           BASE STYLES
+           =========================================== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ===========================================
+           FIXED 16:9 STAGE: MANDATORY BASE STYLES
+           (full contents of viewport-base.css)
+           =========================================== */
+
+        /* 1. Lock the browser viewport */
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        /* 2. Full-window deck viewport */
+        .deck-viewport {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        /* 3. Fixed 16:9 design canvas.
+           JavaScript sets transform: translate(...) scale(...). */
+        .deck-stage {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            transform-origin: 0 0;
+            background: var(--slide-bg, #fff);
+        }
+
+        /* 4. Slides stack inside the fixed stage.
+           Content must be laid out at 1920×1080, not reflowed per device. */
+        .slide {
+            position: absolute;
+            inset: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            display: block;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            background: var(--slide-bg, #fff);
+        }
+
+        .slide.active,
+        .slide.visible {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 1;
+        }
+
+        /* 5. Keep media inside authored slide bounds */
+        img,
+        video,
+        canvas,
+        svg {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* 6. Presentation chrome stays outside the slide design system */
+        .deck-controls {
+            position: fixed;
+            left: 50%;
+            bottom: 22px;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+
+        /* 7. Print one fixed-size slide per page */
+        @media print {
+            html,
+            body {
+                width: 1920px;
+                height: auto;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-viewport {
+                position: static;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-stage {
+                position: static;
+                width: auto;
+                height: auto;
+                transform: none !important;
+                background: none;
+            }
+
+            .slide {
+                position: relative;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                pointer-events: auto !important;
+                width: 1920px;
+                height: 1080px;
+                break-after: page;
+                page-break-after: always;
+            }
+
+            .slide:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
+
+            .deck-controls {
+                display: none !important;
+            }
+        }
+
+        /* 8. Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.2s !important;
+            }
+        }
+
+        /* ===========================================
+           SLIDE ATMOSPHERE
+           Paper grain + faint honeycomb texture on every slide
+           =========================================== */
+        .slide {
+            font-family: var(--font-body);
+            color: var(--ink);
+            background:
+                radial-gradient(ellipse at 85% 10%, rgba(232, 163, 23, 0.16) 0%, transparent 45%),
+                radial-gradient(ellipse at 10% 95%, rgba(63, 107, 58, 0.10) 0%, transparent 50%),
+                var(--paper);
+        }
+
+        /* Grain overlay (inline SVG noise) */
+        .slide::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.35;
+            mix-blend-mode: multiply;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.35 0 0 0 0 0.2 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+
+        /* Dark variant for statement slides */
+        .slide.dark {
+            color: var(--paper);
+            background:
+                radial-gradient(ellipse at 70% 40%, rgba(232, 163, 23, 0.22) 0%, transparent 55%),
+                var(--ink);
+        }
+        .slide.dark::after { mix-blend-mode: screen; opacity: 0.12; }
+
+        /* Honeycomb pattern layer */
+        .comb {
+            position: absolute;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0 L56 16 L56 48 L28 64 L0 48 L0 16 Z M28 64 L28 97' fill='none' stroke='%23b87a0a' stroke-width='1.5'/%3E%3C/svg%3E");
+            background-size: 56px 97px;
+        }
+
+        /* ===========================================
+           SHARED CHROME
+           Running header + folio on each slide
+           =========================================== */
+        .runner {
+            position: absolute;
+            top: 64px;
+            left: var(--slide-padding);
+            right: var(--slide-padding);
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 20px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-soft);
+            border-bottom: 1.5px solid currentColor;
+            padding-bottom: 18px;
+        }
+        .dark .runner { color: rgba(244, 236, 220, 0.55); }
+
+        .kicker {
+            font-family: var(--font-mono);
+            font-size: 24px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--honey-deep);
+        }
+        .dark .kicker { color: var(--honey); }
+
+        h1, h2 {
+            font-family: var(--font-display);
+            font-weight: 400;
+            line-height: 0.95;
+            letter-spacing: -0.015em;
+        }
+        h2 { font-size: 128px; }
+        em.honey { font-style: normal; color: var(--honey-deep); }
+        .dark em.honey { color: var(--honey); }
+        em.apple { font-style: normal; color: var(--apple); }
+
+        /* ===========================================
+           ANIMATIONS
+           Triggered by .visible on the active slide
+           =========================================== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity var(--duration-normal) var(--ease-out-expo),
+                        transform var(--duration-normal) var(--ease-out-expo);
+        }
+        .reveal-scale {
+            opacity: 0;
+            transform: scale(0.6) rotate(-8deg);
+            transition: opacity 0.7s ease, transform 1s var(--ease-spring);
+        }
+        .slide.visible .reveal,
+        .slide.visible .reveal-scale {
+            opacity: 1;
+            transform: none;
+        }
+        /* Manual stagger via data-d attribute */
+        [data-d="1"] { transition-delay: 0.10s !important; }
+        [data-d="2"] { transition-delay: 0.25s !important; }
+        [data-d="3"] { transition-delay: 0.40s !important; }
+        [data-d="4"] { transition-delay: 0.55s !important; }
+        [data-d="5"] { transition-delay: 0.70s !important; }
+        [data-d="6"] { transition-delay: 0.85s !important; }
+
+        /* Gentle bee drift used on title + close */
+        @keyframes drift {
+            0%   { transform: translate(0, 0) rotate(-6deg); }
+            50%  { transform: translate(24px, -18px) rotate(6deg); }
+            100% { transform: translate(0, 0) rotate(-6deg); }
+        }
+
+        /* ===========================================
+           SLIDE 1: TITLE
+           =========================================== */
+        .s-title .comb {
+            right: -40px; top: 0; bottom: 0; width: 760px;
+            opacity: 0.35;
+            -webkit-mask-image: linear-gradient(to left, #000 20%, transparent 95%);
+                    mask-image: linear-gradient(to left, #000 20%, transparent 95%);
+        }
+        .s-title .wrap {
+            position: absolute;
+            left: var(--slide-padding);
+            top: 250px;
+            width: 1300px;
+        }
+        .s-title h1 {
+            font-size: 232px;
+            margin-top: 36px;
+        }
+        .s-title .sub {
+            margin-top: 56px;
+            font-size: 40px;
+            line-height: 1.35;
+            max-width: 1000px;
+            color: var(--ink-soft);
+        }
+        .s-title .apple-mark {
+            position: absolute;
+            right: 250px;
+            top: 330px;
+            width: 380px;
+            height: 380px;
+        }
+        .bee {
+            position: absolute;
+            width: 110px;
+            animation: drift 6s ease-in-out infinite;
+        }
+        .s-title .bee { right: 190px; top: 260px; }
+
+        /* ===========================================
+           SLIDE 2: THE PROBLEM (blossoms vs apples)
+           =========================================== */
+        .s-problem .left {
+            position: absolute;
+            left: var(--slide-padding);
+            top: 250px;
+            width: 900px;
+        }
+        .s-problem h2 { margin-top: 32px; }
+        .s-problem .note {
+            margin-top: 48px;
+            font-size: 36px;
+            line-height: 1.4;
+            color: var(--ink-soft);
+            max-width: 780px;
+        }
+        /* 5×4 blossom grid: only 4 set fruit */
+        .blossoms {
+            position: absolute;
+            right: 140px;
+            top: 270px;
+            display: grid;
+            grid-template-columns: repeat(5, 120px);
+            gap: 34px;
+        }
+        .blossoms span {
+            width: 120px; height: 120px;
+            border-radius: 50%;
+            display: grid; place-items: center;
+        }
+        .blossoms svg { width: 72px; height: 72px; }
+        .blossoms .flower { background: rgba(31, 42, 28, 0.06); filter: saturate(0.6); opacity: 0.75; }
+        .blossoms .fruit  { background: rgba(192, 57, 43, 0.12); box-shadow: inset 0 0 0 3px var(--apple); }
+        .blossoms-cap {
+            position: absolute;
+            right: 140px;
+            top: 900px;
+            width: 736px;
+            font-family: var(--font-mono);
+            font-size: 22px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-soft);
+            text-align: right;
+        }
+
+        /* ===========================================
+           SLIDE 3: THE INSIGHT (three-day window)
+           =========================================== */
+        .s-insight .center {
+            position: absolute;
+            left: var(--slide-padding);
+            right: var(--slide-padding);
+            top: 230px;
+        }
+        .s-insight h2 { font-size: 148px; max-width: 1500px; margin-top: 32px; }
+        .window {
+            position: absolute;
+            left: var(--slide-padding);
+            right: var(--slide-padding);
+            top: 720px;
+        }
+        .window .track {
+            position: relative;
+            height: 14px;
+            border-radius: 7px;
+            background: rgba(244, 236, 220, 0.14);
+        }
+        .window .open {
+            position: absolute;
+            left: 38%;
+            width: 0;
+            top: 0; bottom: 0;
+            border-radius: 7px;
+            background: var(--honey);
+            box-shadow: 0 0 40px rgba(232, 163, 23, 0.6);
+            transition: width 1.4s var(--ease-out-expo) 0.7s;
+        }
+        .slide.visible .window .open { width: 14%; }
+        .window .labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 28px;
+            font-family: var(--font-mono);
+            font-size: 22px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(244, 236, 220, 0.5);
+        }
+        .window .tag {
+            position: absolute;
+            left: 38%;
+            top: -88px;
+            font-family: var(--font-mono);
+            font-size: 26px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--honey);
+            white-space: nowrap;
+        }
+        .s-insight .foot {
+            position: absolute;
+            left: var(--slide-padding);
+            bottom: 110px;
+            font-size: 36px;
+            color: rgba(244, 236, 220, 0.75);
+        }
+
+        /* ===========================================
+           SLIDE 4: THE MOVE (240 rented hives)
+           =========================================== */
+        .s-move .left {
+            position: absolute;
+            left: var(--slide-padding);
+            top: 230px;
+            width: 820px;
+        }
+        .s-move .big {
+            font-family: var(--font-display);
+            font-size: 360px;
+            line-height: 0.85;
+            color: var(--honey-deep);
+            margin-top: 24px;
+        }
+        .s-move .big-label {
+            font-family: var(--font-display);
+            font-size: 76px;
+            line-height: 1;
+            margin-top: 12px;
+        }
+        .s-move .terms {
+            margin-top: 56px;
+            display: flex;
+            gap: 56px;
+            font-family: var(--font-mono);
+            font-size: 24px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-soft);
+        }
+        .s-move .terms b {
+            display: block;
+            font-family: var(--font-display);
+            font-weight: 400;
+            font-size: 56px;
+            letter-spacing: 0;
+            text-transform: none;
+            color: var(--ink);
+            margin-bottom: 6px;
+        }
+        /* Honeycomb of hive cells drawn by JS */
+        .hive-field {
+            position: absolute;
+            right: 110px;
+            top: 210px;
+            width: 860px;
+            height: 720px;
+        }
+        .hive-field svg { width: 100%; height: 100%; }
+        .hive-field polygon {
+            fill: var(--honey);
+            stroke: var(--paper);
+            stroke-width: 4;
+            opacity: 0;
+            transform-box: fill-box;
+            transform-origin: center;
+            transform: scale(0.3);
+            transition: opacity 0.4s ease, transform 0.6s var(--ease-spring);
+        }
+        .hive-field polygon.alt { fill: var(--honey-deep); }
+        .slide.visible .hive-field polygon { opacity: 1; transform: scale(1); }
+
+        /* ===========================================
+           SLIDE 5: HOW (three rules)
+           =========================================== */
+        .s-how .head {
+            position: absolute;
+            left: var(--slide-padding);
+            top: 220px;
+        }
+        .s-how h2 { font-size: 112px; margin-top: 28px; }
+        .rules {
+            position: absolute;
+            left: var(--slide-padding);
+            right: var(--slide-padding);
+            top: 560px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 64px;
+        }
+        .rule {
+            border-top: 6px solid var(--ink);
+            padding-top: 36px;
+        }
+        .rule .num {
+            font-family: var(--font-mono);
+            font-size: 24px;
+            letter-spacing: 0.14em;
+            color: var(--honey-deep);
+        }
+        .rule h3 {
+            font-family: var(--font-display);
+            font-weight: 400;
+            font-size: 64px;
+            line-height: 1.02;
+            margin-top: 20px;
+        }
+        .rule p {
+            margin-top: 22px;
+            font-size: 30px;
+            line-height: 1.4;
+            color: var(--ink-soft);
+        }
+
+        /* ===========================================
+           SLIDE 6: RESULT (2× bar chart)
+           =========================================== */
+        .s-result .left {
+            position: absolute;
+            left: var(--slide-padding);
+            top: 230px;
+            width: 820px;
+        }
+        .s-result .two-x {
+            font-family: var(--font-display);
+            font-size: 460px;
+            line-height: 0.8;
+            color: var(--apple);
+            margin-top: 20px;
+        }
+        .s-result .claim {
+            font-family: var(--font-display);
+            font-size: 64px;
+            line-height: 1.05;
+            margin-top: 36px;
+        }
+        .s-result .fine {
+            margin-top: 28px;
+            font-size: 28px;
+            color: var(--ink-soft);
+        }
+        .bars {
+            position: absolute;
+            right: 160px;
+            bottom: 170px;
+            height: 640px;
+            display: flex;
+            align-items: flex-end;
+            gap: 90px;
+        }
+        .bar {
+            width: 260px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            height: 100%;
+        }
+        .bar .val {
+            font-family: var(--font-display);
+            font-size: 72px;
+            margin-bottom: 18px;
+        }
+        .bar .val small {
+            font-family: var(--font-mono);
+            font-size: 22px;
+            letter-spacing: 0.08em;
+            color: var(--ink-soft);
+            margin-left: 6px;
+        }
+        .bar .fill {
+            width: 100%;
+            height: 0;
+            border-radius: 10px 10px 0 0;
+            transition: height 1.3s var(--ease-out-expo);
+        }
+        .bar.before .fill { background: repeating-linear-gradient(135deg, var(--ink-soft) 0 10px, #5f6c56 10px 20px); }
+        .bar.after  .fill { background: var(--apple); transition-delay: 0.35s; }
+        .slide.visible .bar.before .fill { height: 230px; }
+        .slide.visible .bar.after  .fill { height: 470px; }
+        .bar .yr {
+            margin-top: 22px;
+            height: 36px;
+            line-height: 36px;
+            font-family: var(--font-mono);
+            font-size: 24px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--ink-soft);
+        }
+        .bars-base {
+            position: absolute;
+            right: 120px;
+            bottom: 225px;   /* = .bars bottom (170) + .yr block (58) − line */
+            width: 690px;
+            height: 3px;
+            background: var(--ink);
+        }
+
+        /* ===========================================
+           SLIDE 7: CLOSE
+           =========================================== */
+        .s-close .comb {
+            inset: 0;
+            opacity: 0.18;
+            -webkit-mask-image: radial-gradient(ellipse at 50% 55%, #000 0%, transparent 70%);
+                    mask-image: radial-gradient(ellipse at 50% 55%, #000 0%, transparent 70%);
+        }
+        .s-close .center {
+            position: absolute;
+            left: 0; right: 0;
+            top: 280px;
+            text-align: center;
+        }
+        .s-close h2 { font-size: 136px; margin-top: 40px; line-height: 1.02; }
+        .s-close .sub {
+            margin-top: 56px;
+            font-size: 40px;
+            color: rgba(244, 236, 220, 0.75);
+        }
+        .s-close .sign {
+            position: absolute;
+            left: 0; right: 0;
+            bottom: 110px;
+            text-align: center;
+            font-family: var(--font-mono);
+            font-size: 24px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--honey);
+        }
+        .s-close .bee { left: 300px; top: 230px; width: 96px; animation-duration: 7s; }
+        .s-close .bee.b2 { left: auto; right: 300px; top: 820px; width: 80px; animation-delay: -3s; }
+
+        /* ===========================================
+           DECK CHROME (outside the slide design)
+           Progress bar + slide counter
+           =========================================== */
+        .progress {
+            position: fixed;
+            left: 0; top: 0;
+            height: 4px;
+            background: var(--honey);
+            z-index: 1000;
+            transition: width 0.5s var(--ease-out-expo);
+        }
+        .deck-controls {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            color: rgba(244, 236, 220, 0.6);
+            background: rgba(23, 29, 20, 0.7);
+            padding: 6px 14px;
+            border-radius: 999px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        body:hover .deck-controls { opacity: 1; }
+
+        /* ===========================================
+           INLINE EDITING
+           Hover top-left corner or press E
+           =========================================== */
+        .edit-hotzone {
+            position: fixed; top: 0; left: 0;
+            width: 80px; height: 80px;
+            z-index: 10000;
+            cursor: pointer;
+        }
+        .edit-toggle {
+            position: fixed;
+            top: 16px; left: 16px;
+            width: 48px; height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: var(--honey);
+            color: var(--ink);
+            font-size: 22px;
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 10001;
+        }
+        .edit-toggle.show,
+        .edit-toggle.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .edit-toggle.active { background: var(--apple); color: var(--paper); }
+        body.editing [contenteditable="true"] {
+            outline: 2px dashed rgba(232, 163, 23, 0.7);
+            outline-offset: 6px;
+            cursor: text;
+        }
+        .edit-toast {
+            position: fixed;
+            top: 24px; left: 50%;
+            transform: translateX(-50%);
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 0.1em;
+            background: var(--ink);
+            color: var(--paper);
+            padding: 8px 16px;
+            border-radius: 999px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 10002;
+            pointer-events: none;
+        }
+        .edit-toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="progress" id="progress"></div>
+
+    <div class="deck-viewport">
+        <main class="deck-stage" id="deckStage">
+
+            <!-- =========================================
+                 SLIDE 1: TITLE
+                 Speaker: "Five years ago our trees were in full bloom
+                 and our bins were half empty. This is how a few hundred
+                 rented beehives changed that."
+                 ========================================= -->
+            <section class="slide s-title active" aria-label="Title">
+                <div class="comb"></div>
+                <div class="runner"><span>Thimblecrest Orchard Co-op</span><span>Harvest Talk · 2026</span></div>
+                <div class="wrap">
+                    <div class="kicker reveal" data-d="1">A story about pollination</div>
+                    <h1 class="reveal" data-d="2">The bees<br>did <em class="honey">it.</em></h1>
+                    <p class="sub reveal" data-d="3">How Thimblecrest doubled its apple harvest by renting beehives.</p>
+                </div>
+                <!-- Apple mark -->
+                <svg class="apple-mark reveal-scale" data-d="4" viewBox="0 0 200 200" aria-hidden="true">
+                    <path d="M100 58 C70 38 28 52 30 102 C32 150 66 184 100 172 C134 184 168 150 170 102 C172 52 130 38 100 58 Z" fill="#c0392b"/>
+                    <path d="M100 58 C98 40 104 24 114 14" stroke="#1f2a1c" stroke-width="7" fill="none" stroke-linecap="round"/>
+                    <path d="M106 40 C120 18 150 18 160 30 C146 46 122 50 106 40 Z" fill="#3f6b3a"/>
+                    <ellipse cx="68" cy="92" rx="12" ry="22" fill="#f4ecdc" opacity="0.28" transform="rotate(-20 68 92)"/>
+                </svg>
+                <svg class="bee" viewBox="0 0 120 90" aria-hidden="true">
+                    <ellipse cx="44" cy="22" rx="22" ry="16" fill="#f4ecdc" stroke="#1f2a1c" stroke-width="3" opacity="0.9"/>
+                    <ellipse cx="70" cy="20" rx="20" ry="14" fill="#f4ecdc" stroke="#1f2a1c" stroke-width="3" opacity="0.9"/>
+                    <ellipse cx="60" cy="56" rx="38" ry="26" fill="#e8a317" stroke="#1f2a1c" stroke-width="3"/>
+                    <path d="M46 32 L46 80 M66 31 L66 81" stroke="#1f2a1c" stroke-width="9"/>
+                    <circle cx="94" cy="50" r="4" fill="#1f2a1c"/>
+                </svg>
+            </section>
+
+            <!-- =========================================
+                 SLIDE 2: THE PROBLEM
+                 Speaker: "Every spring we'd count blossoms in the
+                 thousands. By September only about one in five had
+                 become an apple."
+                 ========================================= -->
+            <section class="slide s-problem" aria-label="The problem">
+                <div class="runner"><span>01 · The problem</span><span>Spring 2021</span></div>
+                <div class="left">
+                    <div class="kicker reveal" data-d="1">Plenty of flowers</div>
+                    <h2 class="reveal" data-d="2">Blossoms everywhere. <em class="apple">Apples,</em> not so much.</h2>
+                    <p class="note reveal" data-d="3">Only one blossom in five was setting fruit.</p>
+                </div>
+                <div class="blossoms reveal" data-d="3" id="blossoms" aria-hidden="true"></div>
+                <div class="blossoms-cap reveal" data-d="4">● 4 of 20 blossoms → fruit</div>
+            </section>
+
+            <!-- =========================================
+                 SLIDE 3: THE INSIGHT
+                 Speaker: "An apple blossom is only receptive for a few
+                 days. Our wild bee population just couldn't cover
+                 400 hectares in that window."
+                 ========================================= -->
+            <section class="slide s-insight dark" aria-label="The insight">
+                <div class="runner"><span>02 · The insight</span><span>Why it happened</span></div>
+                <div class="center">
+                    <div class="kicker reveal" data-d="1">It wasn't the trees</div>
+                    <h2 class="reveal" data-d="2">Each blossom gives you <em class="honey">three days.</em></h2>
+                </div>
+                <div class="window reveal" data-d="3" aria-hidden="true">
+                    <div class="track">
+                        <span class="tag">← Pollination window →</span>
+                        <div class="open"></div>
+                    </div>
+                    <div class="labels"><span>Bud</span><span>Bloom</span><span>Petal fall</span></div>
+                </div>
+                <p class="foot reveal" data-d="4">Not enough bees showed up in time.</p>
+            </section>
+
+            <!-- =========================================
+                 SLIDE 4: THE MOVE
+                 Speaker: "So we stopped hoping bees would come and
+                 started renting them. 240 hives, three weeks, one
+                 local beekeeper."
+                 ========================================= -->
+            <section class="slide s-move" aria-label="The move">
+                <div class="runner"><span>03 · The move</span><span>Spring 2022</span></div>
+                <div class="left">
+                    <div class="kicker reveal" data-d="1">We rented</div>
+                    <div class="big reveal" data-d="2">240</div>
+                    <div class="big-label reveal" data-d="3">hives for bloom season.</div>
+                    <div class="terms reveal" data-d="4">
+                        <div><b>3 wks</b>on site</div>
+                        <div><b>$85</b>per hive</div>
+                        <div><b>1</b>beekeeper</div>
+                    </div>
+                </div>
+                <div class="hive-field" id="hiveField" aria-hidden="true"></div>
+            </section>
+
+            <!-- =========================================
+                 SLIDE 5: HOW WE DID IT
+                 Speaker: "Renting hives isn't enough on its own. Three
+                 rules made the bees actually work the apple rows."
+                 ========================================= -->
+            <section class="slide s-how" aria-label="How we did it">
+                <div class="runner"><span>04 · How</span><span>Three rules</span></div>
+                <div class="head">
+                    <div class="kicker reveal" data-d="1">Making the bees count</div>
+                    <h2 class="reveal" data-d="2">Make the apples the best option.</h2>
+                </div>
+                <div class="rules">
+                    <div class="rule reveal" data-d="3">
+                        <div class="num">01</div>
+                        <h3>Hives every 100 metres</h3>
+                        <p>Bees forage close to home. Spread them out.</p>
+                    </div>
+                    <div class="rule reveal" data-d="4">
+                        <div class="num">02</div>
+                        <h3>Mow the dandelions</h3>
+                        <p>No competing flowers on the orchard floor.</p>
+                    </div>
+                    <div class="rule reveal" data-d="5">
+                        <div class="num">03</div>
+                        <h3>No spraying in bloom</h3>
+                        <p>Protect the workers while they work.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =========================================
+                 SLIDE 6: THE RESULT
+                 Speaker: "Fruit set roughly doubled the first season,
+                 and the hive rental cost was under 3% of the extra
+                 revenue."
+                 ========================================= -->
+            <section class="slide s-result" aria-label="The result">
+                <div class="runner"><span>05 · The result</span><span>Tonnes per hectare</span></div>
+                <div class="left">
+                    <div class="kicker reveal" data-d="1">One season later</div>
+                    <div class="two-x reveal" data-d="2">2×</div>
+                    <div class="claim reveal" data-d="3">the apples, same trees.</div>
+                    <p class="fine reveal" data-d="4">Hive rental cost under 3% of the added revenue.</p>
+                </div>
+                <div class="bars-base reveal" data-d="2"></div>
+                <div class="bars" aria-label="Harvest rose from 18 to 37 tonnes per hectare">
+                    <div class="bar before">
+                        <div class="val reveal" data-d="3">18<small>t/ha</small></div>
+                        <div class="fill"></div>
+                        <div class="yr">2021</div>
+                    </div>
+                    <div class="bar after">
+                        <div class="val reveal" data-d="5">37<small>t/ha</small></div>
+                        <div class="fill"></div>
+                        <div class="yr">2022</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =========================================
+                 SLIDE 7: CLOSE
+                 Speaker: "If your orchard is blooming but not bearing,
+                 don't plant more trees. Rent some bees. Thank you."
+                 ========================================= -->
+            <section class="slide s-close dark" aria-label="Closing">
+                <div class="comb"></div>
+                <svg class="bee" viewBox="0 0 120 90" aria-hidden="true">
+                    <ellipse cx="44" cy="22" rx="22" ry="16" fill="#f4ecdc" opacity="0.85"/>
+                    <ellipse cx="70" cy="20" rx="20" ry="14" fill="#f4ecdc" opacity="0.85"/>
+                    <ellipse cx="60" cy="56" rx="38" ry="26" fill="#e8a317"/>
+                    <path d="M46 32 L46 80 M66 31 L66 81" stroke="#1f2a1c" stroke-width="9"/>
+                </svg>
+                <svg class="bee b2" viewBox="0 0 120 90" aria-hidden="true">
+                    <ellipse cx="44" cy="22" rx="22" ry="16" fill="#f4ecdc" opacity="0.85"/>
+                    <ellipse cx="70" cy="20" rx="20" ry="14" fill="#f4ecdc" opacity="0.85"/>
+                    <ellipse cx="60" cy="56" rx="38" ry="26" fill="#e8a317"/>
+                    <path d="M46 32 L46 80 M66 31 L66 81" stroke="#1f2a1c" stroke-width="9"/>
+                </svg>
+                <div class="center">
+                    <div class="kicker reveal" data-d="1">The takeaway</div>
+                    <h2 class="reveal" data-d="2">Don't plant more trees.<br><em class="honey">Rent more bees.</em></h2>
+                    <p class="sub reveal" data-d="3">Thank you. Questions?</p>
+                </div>
+                <div class="sign reveal" data-d="4">Thimblecrest Orchard Co-op</div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Deck chrome + editing controls (outside the stage) -->
+    <div class="deck-controls" id="counter">1 / 7</div>
+    <div class="edit-hotzone"></div>
+    <button class="edit-toggle" id="editToggle" title="Edit mode (E)" aria-label="Toggle edit mode">✎</button>
+    <div class="edit-toast" id="editToast"></div>
+
+    <script>
+        /* ===========================================
+           GENERATED VISUALS
+           Blossom grid (slide 2) + hive honeycomb (slide 4)
+           =========================================== */
+        (function buildBlossoms() {
+            const el = document.getElementById('blossoms');
+            const fruitAt = new Set([2, 8, 11, 17]); // 4 of 20 set fruit
+            // Five-petal blossom and a small apple, drawn inline (no emoji fonts)
+            const petals = [0, 72, 144, 216, 288].map(a =>
+                `<ellipse cx="50" cy="28" rx="15" ry="22" fill="#f2c6c0" transform="rotate(${a} 50 50)"/>`).join('');
+            const flower = `<svg viewBox="0 0 100 100">${petals}<circle cx="50" cy="50" r="10" fill="#e8a317"/></svg>`;
+            const apple = `<svg viewBox="0 0 100 100"><path d="M50 30 C35 20 14 27 15 52 C16 76 33 93 50 87 C67 93 84 76 85 52 C86 27 65 20 50 30 Z" fill="#c0392b"/><path d="M50 30 C49 21 52 13 57 8" stroke="#1f2a1c" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M53 20 C60 9 75 9 80 15 C73 23 61 25 53 20 Z" fill="#3f6b3a"/></svg>`;
+            for (let i = 0; i < 20; i++) {
+                const s = document.createElement('span');
+                const isFruit = fruitAt.has(i);
+                s.className = isFruit ? 'fruit' : 'flower';
+                s.innerHTML = isFruit ? apple : flower;
+                el.appendChild(s);
+            }
+        })();
+
+        (function buildHives() {
+            // Pointy-top hex grid; each cell represents a cluster of hives
+            const host = document.getElementById('hiveField');
+            const W = 860, H = 720, r = 46;
+            const w = Math.sqrt(3) * r, v = 1.5 * r;
+            const cx0 = W / 2, cy0 = H / 2;
+            const pts = [];
+            for (let row = -5; row <= 5; row++) {
+                for (let col = -6; col <= 6; col++) {
+                    const x = cx0 + col * w + (row & 1 ? w / 2 : 0);
+                    const y = cy0 + row * v;
+                    // keep a rounded blob shape
+                    const dx = (x - cx0) / (W / 2 - r), dy = (y - cy0) / (H / 2 - r);
+                    if (dx * dx + dy * dy <= 1) pts.push([x, y]);
+                }
+            }
+            const ns = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(ns, 'svg');
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            pts.forEach(([x, y], i) => {
+                const p = document.createElementNS(ns, 'polygon');
+                const c = [];
+                for (let k = 0; k < 6; k++) {
+                    const a = Math.PI / 180 * (60 * k - 30);
+                    c.push((x + (r - 2) * Math.cos(a)).toFixed(1) + ',' + (y + (r - 2) * Math.sin(a)).toFixed(1));
+                }
+                p.setAttribute('points', c.join(' '));
+                if ((i * 7) % 5 === 0) p.classList.add('alt');
+                // ripple outward from the centre
+                const d = Math.hypot(x - cx0, y - cy0) / 400;
+                p.style.transitionDelay = (0.3 + d * 0.9).toFixed(2) + 's';
+                svg.appendChild(p);
+            });
+            host.appendChild(svg);
+        })();
+
+        /* ===========================================
+           SLIDE PRESENTATION CONTROLLER
+           Stage scaling, keyboard / wheel / touch nav
+           =========================================== */
+        class SlidePresentation {
+            constructor() {
+                this.slides = document.querySelectorAll('.slide');
+                this.currentSlide = 0;
+                this.stage = document.getElementById('deckStage');
+                this.progress = document.getElementById('progress');
+                this.counter = document.getElementById('counter');
+                this.wheelLock = false;
+                this.setupStageScale();
+                this.setupKeyboardNav();
+                this.setupWheelNav();
+                this.setupTouchNav();
+                const start = parseInt(location.hash.replace('#', ''), 10);
+                this.showSlide(Number.isFinite(start) ? start - 1 : 0);
+            }
+
+            setupStageScale() {
+                const scale = () => {
+                    const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+                    const x = (window.innerWidth - 1920 * factor) / 2;
+                    const y = (window.innerHeight - 1080 * factor) / 2;
+                    this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+                };
+                scale();
+                window.addEventListener('resize', scale);
+            }
+
+            isEditing(e) {
+                return document.body.classList.contains('editing') ||
+                    (e && e.target && e.target.isContentEditable);
+            }
+
+            setupKeyboardNav() {
+                document.addEventListener('keydown', (e) => {
+                    if (this.isEditing(e)) return;
+                    if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) {
+                        e.preventDefault(); this.next();
+                    } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) {
+                        e.preventDefault(); this.prev();
+                    } else if (e.key === 'Home') {
+                        this.showSlide(0);
+                    } else if (e.key === 'End') {
+                        this.showSlide(this.slides.length - 1);
+                    }
+                });
+            }
+
+            setupWheelNav() {
+                window.addEventListener('wheel', (e) => {
+                    if (this.isEditing() || this.wheelLock || Math.abs(e.deltaY) < 20) return;
+                    this.wheelLock = true;
+                    e.deltaY > 0 ? this.next() : this.prev();
+                    setTimeout(() => { this.wheelLock = false; }, 800);
+                }, { passive: true });
+            }
+
+            setupTouchNav() {
+                let sx = 0, sy = 0;
+                window.addEventListener('touchstart', (e) => {
+                    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+                }, { passive: true });
+                window.addEventListener('touchend', (e) => {
+                    if (this.isEditing()) return;
+                    const dx = e.changedTouches[0].clientX - sx;
+                    const dy = e.changedTouches[0].clientY - sy;
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) < 40) return;
+                    const d = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+                    d < 0 ? this.next() : this.prev();
+                }, { passive: true });
+            }
+
+            next() { this.showSlide(this.currentSlide + 1); }
+            prev() { this.showSlide(this.currentSlide - 1); }
+
+            showSlide(index) {
+                this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+                this.slides.forEach((slide, i) => {
+                    slide.classList.toggle('active', i === this.currentSlide);
+                    slide.classList.toggle('visible', i === this.currentSlide);
+                });
+                const n = this.currentSlide + 1, total = this.slides.length;
+                this.progress.style.width = (n / total * 100) + '%';
+                this.counter.textContent = `${n} / ${total}`;
+                history.replaceState(null, '', '#' + n);
+            }
+        }
+
+        const deck = new SlidePresentation();
+
+        /* ===========================================
+           INLINE EDITOR
+           E or top-left hotzone toggles edit mode.
+           Edits auto-save to localStorage; Ctrl/Cmd+S
+           downloads an updated copy of the HTML.
+           =========================================== */
+        class InlineEditor {
+            constructor() {
+                this.isActive = false;
+                this.key = 'thimblecrest-deck-edits';
+                this.toggleBtn = document.getElementById('editToggle');
+                this.toast = document.getElementById('editToast');
+                this.targets = document.querySelectorAll(
+                    '.slide h1, .slide h2, .slide h3, .slide p, .kicker, .runner span, ' +
+                    '.big, .big-label, .terms div, .two-x, .claim, .bar .val, .bar .yr, .blossoms-cap, .sign, .rule .num'
+                );
+                this.restore();
+            }
+
+            toggleEditMode() {
+                this.isActive = !this.isActive;
+                document.body.classList.toggle('editing', this.isActive);
+                this.toggleBtn.classList.toggle('active', this.isActive);
+                this.targets.forEach(el => el.setAttribute('contenteditable', this.isActive ? 'true' : 'false'));
+                if (!this.isActive) {
+                    this.save();
+                    this.toggleBtn.classList.remove('show');
+                }
+                this.flash(this.isActive ? 'EDIT MODE · ESC TO EXIT · CTRL+S TO DOWNLOAD' : 'SAVED');
+            }
+
+            save() {
+                const data = Array.from(this.targets).map(el => el.innerHTML);
+                try { localStorage.setItem(this.key, JSON.stringify(data)); } catch (_) {}
+            }
+
+            restore() {
+                try {
+                    const data = JSON.parse(localStorage.getItem(this.key) || 'null');
+                    if (Array.isArray(data) && data.length === this.targets.length) {
+                        this.targets.forEach((el, i) => { el.innerHTML = data[i]; });
+                    }
+                } catch (_) {}
+            }
+
+            download() {
+                this.save();
+                const clone = document.documentElement.cloneNode(true);
+                clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+                clone.querySelector('body').classList.remove('editing');
+                // Strip generated nodes so the scripts rebuild them on load
+                clone.querySelector('#blossoms').innerHTML = '';
+                clone.querySelector('#hiveField').innerHTML = '';
+                const html = '<!DOCTYPE html>\n' + clone.outerHTML;
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+                a.download = 'deck.html';
+                a.click();
+                URL.revokeObjectURL(a.href);
+                this.flash('DOWNLOADED');
+            }
+
+            flash(msg) {
+                this.toast.textContent = msg;
+                this.toast.classList.add('show');
+                clearTimeout(this.toastTimer);
+                this.toastTimer = setTimeout(() => this.toast.classList.remove('show'), 1800);
+            }
+        }
+
+        const editor = new InlineEditor();
+        const hotzone = document.querySelector('.edit-hotzone');
+        const editToggle = document.getElementById('editToggle');
+        let hideTimeout = null;
+
+        // 1. Click handler on the toggle button
+        editToggle.addEventListener('click', () => editor.toggleEditMode());
+
+        // 2. Hotzone hover with 400ms grace period
+        hotzone.addEventListener('mouseenter', () => {
+            clearTimeout(hideTimeout);
+            editToggle.classList.add('show');
+        });
+        hotzone.addEventListener('mouseleave', () => {
+            hideTimeout = setTimeout(() => {
+                if (!editor.isActive) editToggle.classList.remove('show');
+            }, 400);
+        });
+        editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+        editToggle.addEventListener('mouseleave', () => {
+            hideTimeout = setTimeout(() => {
+                if (!editor.isActive) editToggle.classList.remove('show');
+            }, 400);
+        });
+
+        // 3. Hotzone direct click
+        hotzone.addEventListener('click', () => editor.toggleEditMode());
+
+        // 4. Keyboard: E toggles, Esc exits, Ctrl/Cmd+S downloads
+        document.addEventListener('keydown', (e) => {
+            const inText = e.target.isContentEditable;
+            if ((e.key === 'e' || e.key === 'E') && !inText && !e.metaKey && !e.ctrlKey) {
+                editor.toggleEditMode();
+            } else if (e.key === 'Escape' && editor.isActive) {
+                editor.toggleEditMode();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                editor.download();
+            }
+        });
+
+        // Auto-save while typing
+        document.addEventListener('input', () => { if (editor.isActive) editor.save(); });
+    </script>
+</body>
+</html>
