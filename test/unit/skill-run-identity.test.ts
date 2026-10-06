@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type { SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
