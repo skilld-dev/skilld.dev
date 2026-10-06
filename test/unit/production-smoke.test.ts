@@ -40,7 +40,7 @@ describe('production smoke contract', () => {
     expect(PRODUCTION_SMOKE_EXPECTATIONS).toEqual(expect.arrayContaining([
       // The homepage asserts its own hero words, because the page's error
       // branch renders an h1 too.
-      { path: '/', status: 200, bodyContains: ['<h1', 'Hyped agent skills'] },
+      { path: '/', status: 200, bodyContains: ['<h1', 'Agent skills for you'] },
       { path: '/alt', status: 301, location: '/' },
       { path: '/skills', status: 200, bodyContains: ['<h1'] },
       { path: '/community', status: 200, bodyContains: ['<h1'] },
