@@ -155,7 +155,7 @@ Collisions
 
 **Is:** Skills ranked by devs talking about them on X and Bluesky (ADR-0004). Never by installs.
 
-**Marketing phrase:** "hyped", as in the "Stay hyped" step. It names the same social signal.
+**Marketing phrase:** "hyped", as in the "Stay hyped" pitch line. It names the same social signal.
 
 **Never:** popular, hot, top, leaderboard.
 

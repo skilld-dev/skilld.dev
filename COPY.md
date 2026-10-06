@@ -29,12 +29,10 @@ These exact strings. Do not paraphrase them per page.
 | Promo panel note | No terminal? Paste this into your agent. | guidance only: the promo popover, under the install command and over the setup prompt |
 | Setup prompt | Read https://skilld.dev/agent.md and follow it to set up skilld for me. | guidance only: `agentSetupPrompt()` in `shared/agent-setup.ts` builds it for the promo popover and the homepage Agents section. `/agent.md` serves the steps it points at |
 | Hero Agent logos | The seven `AGENT_LOGOS` icons, then `+12` | guidance only: the quiet row under the homepage claims line. Links `#agents`. Its label names each Agent. 12 is `AGENT_TARGETS` minus `AGENT_LOGOS` |
-| Step 01: find | Find · Stay hyped. A curated registry, plus what devs talk about on X and Bluesky. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then the pitch line, then the description. Links `/skills/trending`. The braille spark motif pairs with the pitch line |
-| Step 02: run | Run · No more skill bloat. Your Agent reads the Skill now. Nothing lands on disk. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default. The run chip motif pairs with the pitch line |
-| Step 03: install | Install or fork · One install writes to 19 Agents, pinned to a commit and checked before files land. Fork for an editable copy. | guidance only: a homepage lifecycle step. Links `/cli#install`. 19 is `AGENT_TARGETS` in the CLI's `crates/skilld-core/src/target.rs`. If that count changes, change this string |
-| Step 04: update | Keep current · Keep updated. Watch repos and get a digest when their Skills change, or run `npx skilld outdated`. | guidance only: a homepage lifecycle step. Links `/cli#update`. The page prints the command through `skillOutdatedCmd`. The change grid motif pairs with the pitch line |
-| Step 05: make | Make · Guides and three authoring Skills to write and review your own. | guidance only: a homepage lifecycle step. Links `/make-skill`. The three are `generate-package-skill`, `generate-project-skill` and `review-skill` |
-| Step 06: build | Build on · Built to be built on. CLI, API, SDK, MCP and the Claude Code plugin. | guidance only: a homepage lifecycle step. Links `/developers` |
+| Step 1: find | Find Skills · Curated, plus what devs talk about. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then one line. Links `/skills` |
+| Step 2: run | Run, Fork or Install · Run leaves nothing on disk. Fork or install to keep it. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default |
+| Step 3: update | Keep up to date · Watch repos and get a digest when Skills change. | guidance only: a homepage lifecycle step. Links `/cli#update` |
+| Pitch lines | Stay hyped. · No more skill bloat. · Keep updated. · Built to be built on. | guidance only: approved pitch lines for find, run, update and build on. The DESIGN.md motifs pair with them |
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: agents | Works with your agent. · The CLI installs into 19 Agents. ChatGPT, Claude, and other MCP apps search the registry from the chat. | guidance only: the homepage Agents section heading and line. 19 is `AGENT_TARGETS.length` |
 | Agents way: prompt | Paste into any agent · Your agent reads the setup steps and picks the path that fits it. | guidance only: the first way in the homepage Agents section, over the setup prompt |
@@ -46,7 +44,7 @@ These exact strings. Do not paraphrase them per page.
 | Nav: CLI | CLI · Search, run, install, and keep Skills current. | guidance only: the first compact row in the Developers menu: name, line. Links `/cli`. The mobile menu shows the name only. The line is the CLI line, so change that first |
 | Nav: MCP server | MCP server · For ChatGPT, Claude, and any app that speaks MCP. | guidance only: a compact row in the Developers menu. Links `/developers?setup=mcp`. The line is the MCP setup card on `/developers` |
 | Nav: SDK | SDK · For your own code, with the TypeScript SDK or plain HTTP. | guidance only: a compact row in the Developers menu. Links `/developers?setup=api`. The line is the API setup card on `/developers` |
-| Nav: make | Make a skill · Write a Skill for your package or project, then keep it current. · Guides and three authoring Skills · Skillgen drafts updates after each release · Get the steps | guidance only: the large Developers menu card: name, line, its two routes, action. Links `/make-skill`, which routes to the guides or to `/skillgen`. The first route is the Step 05 description |
+| Nav: make | Make a skill · Write a Skill for your package or project, then keep it current. · Guides and three authoring Skills · Skillgen drafts updates after each release · Get the steps | guidance only: the large Developers menu card: name, line, its two routes, action. Links `/make-skill`, which routes to the guides or to `/skillgen`. The three are `generate-package-skill`, `generate-project-skill` and `review-skill` |
 | Make a skill: Skillgen route | Already ship a package Skill? · Keep it current with Skillgen · After each release tag, Skillgen opens a draft pull request that updates your Skill. npm packages only. | guidance only: the second question on `/make-skill`, under the Skill kinds. Links `/skillgen`. The badge reads "GitHub App" |
 | Nav: setup guides | All setup guides | guidance only: the link under the Developers menu cards. Links `/developers` |
 | Skillgen lead | Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository. You review it and decide what merges. | guidance only: the `/skillgen` line under the H1. Its first two sentences are the page's meta description. A "Make a skill" link above the H1 returns to `/make-skill` |
@@ -228,8 +226,7 @@ above is about naming our audience, not about the provenance claim.
 technical sense: npm, PyPI, crates, RubyGems. That names a category, not a community size, so
 the scoped ban above does not cover it.
 
-**Exception, "hyped".** Harlan approved "Stay hyped" for the find step of the homepage
-lifecycle band. It names what devs talk about on X and Bluesky, which we measure and show. Use "hyped" only for social trending. "Hot", "popular" and "top" stay banned.
+**Exception, "hyped".** Harlan approved "Stay hyped" as the pitch line for finding Skills. It names what devs talk about on X and Bluesky, which we measure and show. Use "hyped" only for social trending. "Hot", "popular" and "top" stay banned.
 
 ## Open questions
 
