@@ -569,7 +569,7 @@ async function loadAndCheck(
   const loaded = await github.load(source)
   if (loaded._tag === 'rejected')
     return { _tag: 'rejected', rejection: loaded }
-  const checked = await checkArtifactSource(source, loaded.value.files)
+  const checked = await checkArtifactSource(source, loaded.value.files, loaded.value.omitted)
   return { _tag: 'loaded', source, files: loaded.value.files, checked }
 }
 

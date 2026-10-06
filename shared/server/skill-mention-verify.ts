@@ -31,8 +31,8 @@
 
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
 import { getBlobsBatch, getRepoSummary, getTree, GRAPHQL_BATCH_SIZE, hasBody } from '#layers/registry/server/utils/github-client'
-import { parseSkillFile, slugifySkillName } from '#layers/registry/server/utils/skill-frontmatter'
-import { isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
+import { parseSkillFile } from '#layers/registry/server/utils/skill-frontmatter'
+import { isRegistrySkillPath, isSkilldCacheSkill, slugifySkillName } from '#shared/skill-path'
 
 /** Matches `sync-repo.ts`, so this module and the indexer agree on what a skill is. */
 const SKILL_FILE_SUFFIX = '/SKILL.md'

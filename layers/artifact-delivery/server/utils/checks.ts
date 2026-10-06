@@ -1,6 +1,7 @@
 import type { ArtifactFile, CheckResult, ResolvedSource } from '../schemas/contracts'
-import type { ArtifactSourceFile } from './github-source'
+import type { ArtifactSourceFile, OmittedArtifactFile } from './github-source'
 import { digestHex } from './encoding'
+import { ARTIFACT_POLICY_VERSION } from './state'
 
 /**
  * 2026-10-07: the check became advisory. It still reports every finding, but
@@ -11,14 +12,57 @@ import { digestHex } from './encoding'
 const AGENT_SKILLS_CHECK_VERSION = '2026-10-07'
 const MAX_DESCRIPTION_CHARACTERS = 1024
 const PATH_POLICY_VERSION = '1'
-const CREDENTIAL_MATERIAL_VERSION = '1'
+/**
+ * Version 2, 2026-10-07: a finding needs a whole key block, not its first
+ * line. Version 1 blocked nine Skills for a header alone: a secret scanner's
+ * pattern table, a `"-----BEGIN PRIVATE KEY-----\n..."` placeholder, and a
+ * test fixture whose body read `TEST-NOT-A-REAL-KEY`. None held a key.
+ */
+const CREDENTIAL_MATERIAL_VERSION = '2'
 const EXECUTABLE_FILES_VERSION = '1'
+/**
+ * Lists the files left out of the Artifact for a size limit. It is a check
+ * result, not a new attestation field: the released skilld CLI refuses an
+ * attestation or a Resolution answer with a field it does not know, and it
+ * accepts any check result that is not required.
+ */
+const OMITTED_FILES_VERSION = '1'
+/** The skilld CLI refuses a check result with more findings, or a longer one. */
+const MAX_CHECK_FINDINGS = 100
+const MAX_CHECK_FINDING_CHARACTERS = 500
 
-const CURRENT_ARTIFACT_CHECKS = new Map([
+/** The checks a statement under one policy carries, by check name. */
+export type ArtifactCheckSet = ReadonlyMap<string, { version: string, required: boolean }>
+
+const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
   ['path-policy', { version: PATH_POLICY_VERSION, required: true }],
   ['agent-skills-spec', { version: AGENT_SKILLS_CHECK_VERSION, required: false }],
   ['credential-material', { version: CREDENTIAL_MATERIAL_VERSION, required: true }],
   ['executable-files', { version: EXECUTABLE_FILES_VERSION, required: false }],
+  ['omitted-files', { version: OMITTED_FILES_VERSION, required: false }],
+])
+
+/**
+ * Every policy the artifact signer signs, with the checks its statements carry.
+ *
+ * The deploy updates the signer before the site, and a failed smoke rolls the
+ * site back alone. In both windows the running site stages statements under
+ * the policy before the signer's, so the signer signs that one too. When you
+ * bump `ARTIFACT_POLICY_VERSION`, replace the previous entry with the policy
+ * you bumped from. Leave it out only when the bump closes a safety gap, so the
+ * signer refuses the old policy at once.
+ *
+ * The site never reuses a build under another policy, so a statement signed
+ * under the previous one only finishes a run already in flight.
+ */
+export const SIGNABLE_ARTIFACT_POLICIES: ReadonlyMap<string, ArtifactCheckSet> = new Map([
+  [ARTIFACT_POLICY_VERSION, CURRENT_ARTIFACT_CHECKS],
+  ['2026-10-07.1', new Map([
+    ['path-policy', { version: '1', required: true }],
+    ['agent-skills-spec', { version: '2026-10-07', required: false }],
+    ['credential-material', { version: '1', required: true }],
+    ['executable-files', { version: '1', required: false }],
+  ])],
 ])
 
 export interface CheckedArtifactSource {
@@ -29,6 +73,7 @@ export interface CheckedArtifactSource {
 export async function checkArtifactSource(
   source: ResolvedSource,
   files: ArtifactSourceFile[],
+  omitted: OmittedArtifactFile[] = [],
 ): Promise<CheckedArtifactSource> {
   const fileInventory = await Promise.all(files.map(async file => ({
     path: file.path,
@@ -109,7 +154,7 @@ export async function checkArtifactSource(
     const text = decodeText(file.bytes)
     if (!text)
       continue
-    if (/-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/.test(text))
+    if (containsPrivateKey(text))
       credentialFindings.push(`${file.path} contains private key material.`)
   }
   const credentialMaterial: CheckResult = credentialFindings.length > 0
@@ -147,15 +192,38 @@ export async function checkArtifactSource(
 
   return {
     files: fileInventory,
-    checkResults: [pathPolicy, agentSkillsSpec, credentialMaterial, executableFiles],
+    checkResults: [pathPolicy, agentSkillsSpec, credentialMaterial, executableFiles, omittedFilesResult(omitted)],
   }
 }
 
-export function checksBlockArtifact(checks: CheckResult[]): boolean {
+function omittedFilesResult(omitted: OmittedArtifactFile[]): CheckResult {
+  if (omitted.length === 0)
+    return { name: 'omitted-files', version: OMITTED_FILES_VERSION, outcome: 'pass', required: false }
+  const count = omitted.length === 1
+    ? '1 file over the size limits was left out of the Artifact.'
+    : `${omitted.length} files over the size limits were left out of the Artifact.`
+  const listed = omitted.length > MAX_CHECK_FINDINGS ? ` The first ${MAX_CHECK_FINDINGS} are listed.` : ''
+  return {
+    name: 'omitted-files',
+    version: OMITTED_FILES_VERSION,
+    outcome: 'warn',
+    required: false,
+    summary: count + listed,
+    findings: omitted.slice(0, MAX_CHECK_FINDINGS).map((file) => {
+      const finding = `${file.path}: ${file.bytes.toLocaleString('en-US')} bytes, ${file.url}`
+      // A long path drops the URL first: the path is what a reader needs.
+      return finding.length <= MAX_CHECK_FINDING_CHARACTERS
+        ? finding
+        : `${file.path}: ${file.bytes.toLocaleString('en-US')} bytes`.slice(0, MAX_CHECK_FINDING_CHARACTERS)
+    }),
+  }
+}
+
+export function checksBlockArtifact(checks: CheckResult[], checkSet: ArtifactCheckSet = CURRENT_ARTIFACT_CHECKS): boolean {
   const byName = new Map(checks.map(check => [check.name, check]))
   if (byName.size !== checks.length)
     return true
-  for (const [name, expected] of CURRENT_ARTIFACT_CHECKS) {
+  for (const [name, expected] of checkSet) {
     const check = byName.get(name)
     if (!check || check.version !== expected.version || check.required !== expected.required)
       return true
@@ -163,9 +231,49 @@ export function checksBlockArtifact(checks: CheckResult[]): boolean {
   return checks.some(check => check.required && (check.outcome === 'fail' || check.outcome === 'error'))
 }
 
-export function checksPermitSigning(checks: CheckResult[]): boolean {
-  return !checksBlockArtifact(checks)
+/** Whether checks permit signing under one policy. The current policy is the default. */
+export function checksPermitSigning(checks: CheckResult[], policyVersion: string = ARTIFACT_POLICY_VERSION): boolean {
+  const checkSet = SIGNABLE_ARTIFACT_POLICIES.get(policyVersion)
+  return checkSet !== undefined
+    && !checksBlockArtifact(checks, checkSet)
     && checks.every(check => !check.required || check.outcome === 'pass')
+}
+
+/**
+ * A PEM private key block: the BEGIN line, a body with no dashes, and the END
+ * line with the same label. The body bound keeps one match linear; a 4096-bit
+ * RSA key is about 3,300 characters.
+ */
+const PRIVATE_KEY_BLOCK = /-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY-----((?:(?!-----)[\s\S]){0,16384})-----END \1PRIVATE KEY-----/g
+/** A line break, real or escaped inside a JSON or code string. */
+const BODY_LINE_BREAK = /\r?\n|(?:\\+[rn])+/
+/** A legacy PEM header such as `Proc-Type: 4,ENCRYPTED`. */
+const PEM_HEADER_LINE = /^[\w-]+:\s/
+/**
+ * Base64 of at least 48 bytes: an Ed25519 PKCS#8 key, the smallest private
+ * key format, is exactly 64 characters.
+ */
+const KEY_BODY = /^[A-Z0-9+/]{64,}={0,2}$/i
+
+/**
+ * True when the text holds a complete private key, encrypted or not.
+ *
+ * A placeholder has the BEGIN line but no key: an ellipsis, a bracketed note,
+ * or a test label in the body never reads as base64. The body may sit in a
+ * JSON string with escaped line breaks, which is how a leaked service account
+ * key usually arrives, or be indented inside YAML.
+ */
+function containsPrivateKey(text: string): boolean {
+  for (const match of text.matchAll(PRIVATE_KEY_BLOCK)) {
+    const body = match[2]!
+      .split(BODY_LINE_BREAK)
+      .map(line => line.trim())
+      .filter(line => !PEM_HEADER_LINE.test(line))
+      .join('')
+    if (KEY_BODY.test(body))
+      return true
+  }
+  return false
 }
 
 function decodeText(bytes: Uint8Array): string | null {
