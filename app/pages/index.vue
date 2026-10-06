@@ -668,6 +668,17 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
 </template>
 
 <style scoped>
+/*
+ * A compact SkillCard fills its ledger line, inset like the Repository rows
+ * beside it. Scoped here, because a global rule loses to the card's own
+ * scoped styles and the card would bleed past the ledger's edges.
+ */
+.home-freshness-ledger :deep(.skill-card--compact) {
+  margin-inline: 0;
+  border-radius: 0;
+  padding: 0.875rem 0.75rem;
+}
+
 /* Above the lifecycle band, so the search panel overlays it instead of sliding under. */
 .home-hero {
   position: relative;
