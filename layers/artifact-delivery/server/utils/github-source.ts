@@ -2,7 +2,7 @@ import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/cont
 import type { GithubReadTry } from './github-read'
 import type { TarballExtraction } from './tarball-source'
 import { z } from 'zod'
-import { canonicalSkillFolder, isRegistrySkillPath } from '#shared/skill-path'
+import { canonicalSkillFolder, isRegistrySkillPath, slugifySkillName } from '#shared/skill-path'
 import { base64ToBytes, gitBlobShaHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
 import {
@@ -110,9 +110,19 @@ export interface ArtifactSourceFile {
   gitBlobSha: string
 }
 
+/** A Skill file left out of the Artifact because it is over a size limit. */
+export interface OmittedArtifactFile {
+  /** The path inside the Skill folder. */
+  path: string
+  bytes: number
+  /** The file on GitHub at the Artifact's commit. */
+  url: string
+}
+
 export interface LoadedArtifactSource {
   source: ResolvedSource
   files: ArtifactSourceFile[]
+  omitted: OmittedArtifactFile[]
 }
 
 export interface SourceRejection {
@@ -433,10 +443,16 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         [name],
       )
     }
+    // The registry lists a Skill by its folder name made into a slug, so
+    // `emailAndPassword` runs as `emailandpassword`. An exact folder name
+    // still matches for a caller that sends one.
     const matches = tree.value.tree
       .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
       .map(entry => entry.path === 'SKILL.md' ? '.' : entry.path.slice(0, -'/SKILL.md'.length))
-      .filter(path => (path === '.' ? repository : path.split('/').at(-1)) === name)
+      .filter((path) => {
+        const folderName = path === '.' ? repository : path.split('/').at(-1)!
+        return folderName === name || slugifySkillName(folderName) === name
+      })
     return canonicalSkillFolder(matches)
       ?? reject('SOURCE_NOT_FOUND', 'No Skill matched the requested name.', [name])
   }
@@ -558,6 +574,11 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const selected = selectArtifactEntries(listed.entries, source.skillPath)
       if (selected._tag === 'rejected')
         return selected
+      const omitted = selected.omitted.map(entry => ({
+        path: entry.path,
+        bytes: entry.size,
+        url: githubBlobUrl(source, entry.path),
+      }))
 
       const choice = chooseArtifactByteSource({
         visibility: source.visibility,
@@ -567,7 +588,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       if (choice._tag === 'tarball') {
         const extracted = await loadFromTarball(source, selected.entries)
         if (extracted._tag === 'extracted')
-          return { _tag: 'loaded', value: { source, files: extracted.files } }
+          return { _tag: 'loaded', value: { source, files: extracted.files, omitted } }
         // The tarball is an optimisation, never an authority. Anything it got
         // wrong, including a file `.gitattributes export-ignore` removed from
         // the archive, falls through to the blobs API, which serves every blob
@@ -581,7 +602,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
           findings: extracted.findings.slice(0, 20),
         })
       }
-      return await loadFromBlobs(source, selected.entries)
+      const fromBlobs = await loadFromBlobs(source, selected.entries)
+      return fromBlobs._tag === 'loaded' ? { _tag: 'loaded', value: { source, files: fromBlobs.files, omitted } } : fromBlobs
     },
   }
 
@@ -629,7 +651,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
   async function loadFromBlobs(
     source: ResolvedSource,
     entries: Array<TreeEntry & { size: number }>,
-  ): Promise<LoadSourceResult> {
+  ): Promise<{ _tag: 'loaded', files: ArtifactSourceFile[] } | SourceRejection> {
     const files: ArtifactSourceFile[] = []
     for (let offset = 0; offset < entries.length; offset += 8) {
       const batch = entries.slice(offset, offset + 8)
@@ -660,7 +682,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         return rejected
       files.push(...loaded.filter((item): item is ArtifactSourceFile => !isSourceRejection(item)))
     }
-    return { _tag: 'loaded', value: { source, files } }
+    return { _tag: 'loaded', files }
   }
 }
 
@@ -719,14 +741,21 @@ function normalizeRequestedSkillPath(input: string): string | null {
   return path
 }
 
+type SizedEntry = TreeEntry & { size: number }
+
 /**
- * The blobs one Skill folder packs, or the rule that refuses them.
+ * The blobs one Skill folder packs, the files it leaves out, or the rule that
+ * refuses them.
  *
- * Every limit counts the Skill folder only. A Skill at the Repository root has
- * the whole Repository as its folder, so each size message says so: a README
- * image then counts against the Skill.
+ * Every limit counts the Skill folder only. A file the Skill does not read,
+ * such as music, video, an image, a binary, or a file in an example or test
+ * folder, is left out when it is over a limit, and the rest of the Skill is
+ * delivered: first each such file over the one-file limit, then the largest of
+ * them until the folder fits. Only the files a Skill reads decide a refusal. A
+ * Skill at the Repository root has the whole Repository as its folder, so its
+ * README images are left out rather than counted against it.
  */
-function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag: 'selected', entries: Array<TreeEntry & { size: number }> } | SourceRejection {
+function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag: 'selected', entries: SizedEntry[], omitted: SizedEntry[] } | SourceRejection {
   const findings: string[] = []
   const identities = new Map<string, string>()
   const blobs: Array<TreeEntry & { size: number }> = []
@@ -762,26 +791,161 @@ function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag:
     : ''
   if (blobs.length > MAX_ARTIFACT_FILES)
     return sourceLimitRejection(`${skillFolderLabel(skillPath)} has ${blobs.length} files. The limit is ${MAX_ARTIFACT_FILES}.`)
-  const oversized = blobs.filter(entry => entry.size > MAX_FILE_BYTES)
-  if (oversized.length > 0) {
+  const oversizedText = blobs.filter(entry => entry.size > MAX_FILE_BYTES && isReadBySkill(entry.path))
+  if (oversizedText.length > 0) {
     return sourceLimitRejection(
-      `The file \`${oversized[0]!.path}\` is ${mebibytes(oversized[0]!.size)}. The limit for one file is ${mebibytes(MAX_FILE_BYTES)}.${rootNote}`,
-      oversized.map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
+      `The file \`${oversizedText[0]!.path}\` is ${mebibytes(oversizedText[0]!.size)}. The limit for one file is ${mebibytes(MAX_FILE_BYTES)}.${rootNote}`,
+      oversizedText.map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
     )
+  }
+  const omitted = blobs.filter(entry => entry.size > MAX_FILE_BYTES)
+  const kept = blobs.filter(entry => entry.size <= MAX_FILE_BYTES)
+  // Largest first, so the fewest files go. The path breaks ties, so one
+  // commit always omits the same files.
+  for (const media of largestFirst(kept.filter(entry => !isReadBySkill(entry.path)))) {
+    if (projectedUstarBytes(kept.map(entry => entry.size)) <= MAX_ARTIFACT_BYTES)
+      break
+    kept.splice(kept.indexOf(media), 1)
+    omitted.push(media)
   }
   // The signer checks `content_bytes` against this same ceiling, and
   // `content_bytes` is the packed archive rather than the sum of the blobs. A
   // Skill that cleared a source-total check could therefore be refused after
   // the R2 write, with the signer's error instead of a named rejection. Guard
   // the number the signer will actually see.
-  const projectedBytes = projectedUstarBytes(blobs.map(entry => entry.size))
+  const projectedBytes = projectedUstarBytes(kept.map(entry => entry.size))
   if (projectedBytes > MAX_ARTIFACT_BYTES) {
     return sourceLimitRejection(
-      `${skillFolderLabel(skillPath)} packs to ${mebibytes(projectedBytes)}. The limit is ${mebibytes(MAX_ARTIFACT_BYTES)}.${rootNote}`,
-      largestFirst(blobs).map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
+      `The files the Skill reads in ${skillFolderLabel(skillPath).replace(/^The /, 'the ')} pack to ${mebibytes(projectedBytes)}. The limit is ${mebibytes(MAX_ARTIFACT_BYTES)}.${rootNote}`,
+      largestFirst(kept).map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
     )
   }
-  return { _tag: 'selected', entries: blobs.sort((a, b) => comparePath(a.path, b.path)) }
+  return {
+    _tag: 'selected',
+    entries: kept.sort((a, b) => comparePath(a.path, b.path)),
+    omitted: omitted.sort((a, b) => comparePath(a.path, b.path)),
+  }
+}
+
+/**
+ * File names a Skill reads as text. Anything else over a size limit, such as
+ * an image, audio, video, an archive or a binary, can be left out.
+ */
+const TEXT_EXTENSIONS: ReadonlySet<string> = new Set([
+  'adoc',
+  'bash',
+  'bat',
+  'bib',
+  'c',
+  'cc',
+  'cfg',
+  'cjs',
+  'conf',
+  'cpp',
+  'cs',
+  'css',
+  'csv',
+  'cts',
+  'dart',
+  'env',
+  'fish',
+  'go',
+  'gql',
+  'graphql',
+  'h',
+  'hpp',
+  'htm',
+  'html',
+  'ini',
+  'ipynb',
+  'java',
+  'js',
+  'json',
+  'json5',
+  'jsonc',
+  'jsonl',
+  'jsx',
+  'kt',
+  'less',
+  'lua',
+  'markdown',
+  'md',
+  'mdc',
+  'mdx',
+  'mjs',
+  'mts',
+  'php',
+  'pl',
+  'prompt',
+  'properties',
+  'ps1',
+  'py',
+  'r',
+  'rb',
+  'rs',
+  'rst',
+  'sass',
+  'scss',
+  'sh',
+  'sql',
+  'svelte',
+  'swift',
+  'tex',
+  'toml',
+  'ts',
+  'tsv',
+  'tsx',
+  'txt',
+  'vue',
+  'xml',
+  'yaml',
+  'yml',
+  'zsh',
+])
+const TEXT_FILE_NAMES: ReadonlySet<string> = new Set([
+  'dockerfile',
+  'gemfile',
+  'license',
+  'makefile',
+  'procfile',
+  'readme',
+])
+
+/**
+ * Folders of sample output and tests. A Skill runs its scripts and reads its
+ * references; it does not read these. tt-a1i/archify keeps five rendered
+ * examples of about 760 KB each in `examples/`.
+ */
+const NOT_READ_FOLDERS: ReadonlySet<string> = new Set([
+  '__fixtures__',
+  '__tests__',
+  'example',
+  'examples',
+  'fixtures',
+  'sample',
+  'samples',
+  'test',
+  'tests',
+])
+
+/** True for SKILL.md and for a text file outside the example and test folders. */
+function isReadBySkill(path: string): boolean {
+  if (path === 'SKILL.md')
+    return true
+  const segments = path.split('/')
+  if (segments.slice(0, -1).some(segment => NOT_READ_FOLDERS.has(segment.toLowerCase())))
+    return false
+  const name = segments.at(-1)!.toLowerCase()
+  if (TEXT_FILE_NAMES.has(name))
+    return true
+  const dot = name.lastIndexOf('.')
+  return dot > 0 && TEXT_EXTENSIONS.has(name.slice(dot + 1))
+}
+
+/** The GitHub page of one Skill file at the Artifact's commit. */
+function githubBlobUrl(source: ResolvedSource, path: string): string {
+  const repositoryPath = source.skillPath === '.' ? path : `${source.skillPath}/${path}`
+  return `https://github.com/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/blob/${source.commitSha}/${repositoryPath.split('/').map(encodeURIComponent).join('/')}`
 }
 
 /**
@@ -813,7 +977,7 @@ function mebibytes(bytes: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(2)} MiB`
 }
 
-function largestFirst(entries: Array<TreeEntry & { size: number }>): Array<TreeEntry & { size: number }> {
+function largestFirst(entries: SizedEntry[]): SizedEntry[] {
   return [...entries].sort((a, b) => b.size - a.size || comparePath(a.path, b.path))
 }
 

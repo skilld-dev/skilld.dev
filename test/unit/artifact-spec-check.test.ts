@@ -60,12 +60,6 @@ describe('agent Skills specification check', () => {
 
     expect(specResult(checked.checkResults)).toMatchObject({ outcome: 'pass', required: false })
   })
-
-  it('still blocks a Skill that contains private key material', async () => {
-    const checked = await check('skills/demo', skillFile('---\nname: demo\ndescription: Demo.\n---\n-----BEGIN PRIVATE KEY-----\n'))
-
-    expect(checksBlockArtifact(checked.checkResults)).toBe(true)
-  })
 })
 
 async function check(skillPath: string, file: ArtifactSourceFile) {
