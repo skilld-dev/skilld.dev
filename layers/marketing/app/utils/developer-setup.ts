@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { REGISTRY_MCP_URL } from '#shared/agent-setup'
 import { accountCmds, skilldSelfInstallCmd } from '#shared/skill-commands'
 
@@ -26,8 +25,6 @@ export const setupModes = {
   },
 } as const
 
-export const setupModeSchema = z.enum(['cli', 'mcp', 'api'])
-
 /** Alphabetical, so no vendor leads (VISION principle 6). */
 export const mcpApps = {
   'chatgpt': { label: 'ChatGPT' },
@@ -38,8 +35,6 @@ export const mcpApps = {
   'vscode': { label: 'VS Code' },
   'other': { label: 'Other apps' },
 } as const
-
-export const mcpAppSchema = z.enum(['chatgpt', 'claude', 'claude-code', 'codex', 'cursor', 'vscode', 'other'])
 
 /** Cursor's install link carries the server config as base64 JSON, without the name. */
 export function cursorInstallUrl(url: string = REGISTRY_MCP_URL): string {
@@ -78,8 +73,6 @@ export const apiSamples = {
   typescript: { label: 'TypeScript SDK' },
   curl: { label: 'cURL' },
 } as const
-
-export const apiSampleSchema = z.enum(['typescript', 'curl'])
 
 /**
  * One call the page prints, in both the SDK form and the cURL form. A unit
