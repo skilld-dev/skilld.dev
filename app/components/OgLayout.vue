@@ -4,9 +4,9 @@ import { OG_COLUMN_WIDTH } from '../utils/og-style'
 import { brailleNamesField, textureSvg } from '../utils/og-texture'
 
 // Every OG card is the homepage hero as one still frame: the lockup centred at
-// the top, the card's content centred under it, and the braille names field
-// in the margins. The field resolves toward the lockup's dot, which stays the
-// card's one rose element.
+// the top, the card's content centred under it, and a sparse braille names
+// field in the margins. The clear column covers the lockup, so the field stays
+// a quiet dusting there and the lockup's dot stays the card's one rose element.
 const WIDTH = 1200
 const HEIGHT = 600
 const LOCKUP_SIZE = 34
