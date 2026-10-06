@@ -14,6 +14,11 @@ export const RETENTION_SECONDS = {
   cliSignIn: DAY_SECONDS,
   /** Delivery history and preference changes support three months of reporting. */
   emailHistory: 90 * DAY_SECONDS,
+  /**
+   * The account that asked for a public Artifact build. The build deletes it
+   * when it settles; this removes one a dead build left behind.
+   */
+  runRequester: DAY_SECONDS,
 } as const
 
 export interface RetentionPurgeResult {
@@ -23,6 +28,7 @@ export interface RetentionPurgeResult {
   digestRuns: number
   weeklyRuns: number
   emailPreferenceEvents: number
+  runRequesters: number
 }
 
 /**
@@ -40,6 +46,7 @@ export async function purgeRetainedPersonalData(
   const endedTokenCutoff = now - RETENTION_SECONDS.endedCliToken
   const signInCutoff = now - RETENTION_SECONDS.cliSignIn
   const historyCutoff = now - RETENTION_SECONDS.emailHistory
+  const requesterCutoff = now - RETENTION_SECONDS.runRequester
 
   const results = await db.batch([
     db.prepare(
@@ -62,6 +69,7 @@ export async function purgeRetainedPersonalData(
     ).bind(historyCutoff),
     db.prepare(`DELETE FROM weekly_runs WHERE window_end <= ?1`).bind(historyCutoff),
     db.prepare(`DELETE FROM email_preference_events WHERE occurred_at <= ?1`).bind(historyCutoff),
+    db.prepare(`DELETE FROM artifact_resolution_requesters WHERE created_at <= ?1`).bind(requesterCutoff),
   ])
 
   const changes = results.map(result => result.meta.changes)
@@ -72,5 +80,6 @@ export async function purgeRetainedPersonalData(
     digestRuns: changes[3] ?? 0,
     weeklyRuns: changes[4] ?? 0,
     emailPreferenceEvents: changes[5] ?? 0,
+    runRequesters: changes[6] ?? 0,
   }
 }

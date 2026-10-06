@@ -190,6 +190,14 @@ function seedAccount(raw: DatabaseSync, account: Account, githubToken: string | 
     id,
     installationId,
   )
+  run(
+    `INSERT INTO artifact_resolutions (
+       id, request_fingerprint, state, requested_owner, requested_repository, selector_type, selector_value, visibility
+     ) VALUES (?, ?, 'resolving', 'acme', 'skills', 'named-skill', 'tdd', 'public')`,
+    `public-run-${login}`,
+    `public-fingerprint-${login}`,
+  )
+  run(`INSERT INTO artifact_resolution_requesters (resolution_id, account_id, created_at) VALUES (?, ?, ?)`, `public-run-${login}`, id, NOW)
   run(`INSERT INTO artifact_check_results (resolution_id, name, version, outcome, required) VALUES (?, 'skill-structure', '1', 'pass', 1)`, resolutionId)
   run(
     `INSERT INTO artifacts (id, content_sha256, content_bytes, format, r2_key) VALUES (?, ?, 128, 'skilld-tar-v1', ?)`,
