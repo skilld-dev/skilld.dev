@@ -123,7 +123,7 @@ defineOgImage('Page.takumi', {
         <p class="text-sm text-muted leading-relaxed">
           Found an accessibility barrier? Please
           <a
-            href="https://github.com/harlan-zw/skilld/issues"
+            href="https://github.com/skilld-dev/skilld/issues"
             target="_blank"
             rel="noopener noreferrer"
             class="text-default underline underline-offset-2 hover:text-[var(--color-primary-500)]"

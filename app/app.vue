@@ -133,6 +133,16 @@ watch(() => route.fullPath, () => {
           <div class="flex items-center justify-end gap-1.5 lg:flex-1">
             <SkillSearchTrigger v-if="$route.path !== '/'" />
             <HeaderNavigation />
+            <UButton
+              to="https://github.com/skilld-dev/skilld"
+              target="_blank"
+              icon="i-lucide-github"
+              aria-label="skilld CLI on GitHub (opens in new tab)"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="min-h-11 min-w-11"
+            />
             <UColorModeButton
               color="neutral"
               variant="ghost"
@@ -282,10 +292,10 @@ watch(() => route.fullPath, () => {
             @click="() => { shortcutsModalOpen = true }"
           />
           <UButton
-            to="https://github.com/harlan-zw/skilld"
+            to="https://github.com/skilld-dev/skilld"
             target="_blank"
             icon="i-lucide-github"
-            aria-label="GitHub repository (opens in new tab)"
+            aria-label="skilld CLI on GitHub (opens in new tab)"
             color="neutral"
             variant="ghost"
             size="xs"
