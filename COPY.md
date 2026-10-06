@@ -26,12 +26,10 @@ These exact strings. Do not paraphrase them per page.
 | Home caption | Try any skill before you install it. Your agent can search for its own. | guidance only: the homepage caption under the H1. It assumes the reader knows what a Skill is, so it names only what sets skilld apart. "Search for its own" is the skilld Skill behind the promo label. The homepage OG card uses it as its description |
 | Home claims line | Open-source CLI, no telemetry · A skills.sh alternative | guidance only: the homepage claims line under the search. The second item links to `/vs/skills-sh`, and the promo label closes the line |
 | Promo label | Teach your agent skilld | guidance only: the last item of the homepage claims line. It opens a popover with `npx skilld install skilld --global` |
-| Step 01: find | Find · Stay hyped. A curated registry, plus what devs talk about on X and Bluesky. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then the pitch line, then the description. Links `/skills/trending`. The braille spark motif pairs with the pitch line |
-| Step 02: run | Run · No more skill bloat. Your Agent reads the Skill now. Nothing lands on disk. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default. The run chip motif pairs with the pitch line |
-| Step 03: install | Install or fork · One install writes to 19 Agents, pinned to a commit and checked before files land. Fork for an editable copy. | guidance only: a homepage lifecycle step. Links `/cli#install`. 19 is `AGENT_TARGETS` in the CLI's `crates/skilld-core/src/target.rs`. If that count changes, change this string |
-| Step 04: update | Keep current · Keep updated. Watch repos and get a digest when their Skills change, or run `npx skilld outdated`. | guidance only: a homepage lifecycle step. Links `/cli#update`. The page prints the command through `skillOutdatedCmd`. The change grid motif pairs with the pitch line |
-| Step 05: make | Make · Guides and three authoring Skills to write and review your own. | guidance only: a homepage lifecycle step. Links `/make-skill`. The three are `generate-package-skill`, `generate-project-skill` and `review-skill` |
-| Step 06: build | Build on · Built to be built on. CLI, API, SDK, MCP and the Claude Code plugin. | guidance only: a homepage lifecycle step. Links `/developers` |
+| Step 1: find | Find Skills · Curated, plus what devs talk about. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then one line. Links `/skills` |
+| Step 2: run | Run, Fork or Install · Run leaves nothing on disk. Fork or install to keep it. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default |
+| Step 3: update | Keep up to date · Watch repos and get a digest when Skills change. | guidance only: a homepage lifecycle step. Links `/cli#update` |
+| Pitch lines | Stay hyped. · No more skill bloat. · Keep updated. · Built to be built on. | guidance only: approved pitch lines for find, run, update and build on. No page prints them since the band went to three steps. The DESIGN.md motifs pair with them |
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
@@ -220,8 +218,7 @@ above is about naming our audience, not about the provenance claim.
 technical sense: npm, PyPI, crates, RubyGems. That names a category, not a community size, so
 the scoped ban above does not cover it.
 
-**Exception, "hyped".** Harlan approved "Stay hyped" for the find step of the homepage
-lifecycle band. It names what devs talk about on X and Bluesky, which we measure and show. Use "hyped" only for social trending. "Hot", "popular" and "top" stay banned.
+**Exception, "hyped".** Harlan approved "Stay hyped" as the pitch line for finding Skills. It names what devs talk about on X and Bluesky, which we measure and show. Use "hyped" only for social trending. "Hot", "popular" and "top" stay banned.
 
 ## Open questions
 
