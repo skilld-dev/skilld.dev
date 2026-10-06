@@ -14,16 +14,16 @@
       "outputFile": "index.html",
       "shots": [
         {
-          "file": "desktop-9954800c7c.jpg",
+          "file": "desktop-2a201b3766.jpg",
           "width": 1440,
           "height": 4102,
           "viewport": "desktop",
           "alt": "Desktop screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
         },
         {
-          "file": "mobile-c67e258443.jpg",
+          "file": "mobile-da8e537494.jpg",
           "width": 390,
-          "height": 5091,
+          "height": 5065,
           "viewport": "mobile",
           "alt": "Phone screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
         }
@@ -56,6 +56,68 @@
       "sourceUrl": "https://github.com/cathrynlavery/diagram-design/blob/main/skills/diagram-design/SKILL.md"
     },
     {
+      "owner": "elayadesign",
+      "repo": "ai-design-skills",
+      "name": "landing-page-design",
+      "makes": "landing-page",
+      "authorName": "Elaya",
+      "sourceUrl": "https://github.com/elayadesign/ai-design-skills/blob/main/skills/landing-page-design/SKILL.md",
+      "prompt": "Build a landing page for Glossmere, a fictional invoicing app for freelance translators that bills per word and per language pair. Make your own assumptions about anything I left out. Save it as index.html, with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "1c1e97cb9878e236552c772092dda7adcdddbcb2",
+      "recordedAt": "2026-10-06",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-b4753ac09d.jpg",
+          "width": 1440,
+          "height": 6000,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a landing page for Glossmere, a fictional invoicing app for freelance translators that bills per word and per lang"
+        },
+        {
+          "file": "mobile-4d54ba1970.jpg",
+          "width": 390,
+          "height": 6000,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a landing page for Glossmere, a fictional invoicing app for freelance translators that bills per word and per lang"
+        }
+      ]
+    },
+    {
+      "owner": "emilkowalski",
+      "repo": "skills",
+      "name": "animate",
+      "makes": "ui-component",
+      "authorName": "Emil Kowalski",
+      "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/animate/SKILL.md",
+      "prompt": "Build hold.html: a film-roll card for Rollwick, a fictional film-photo journal app, with a hold-to-delete button. Holding fills the button over about two seconds; releasing early springs it back. Inline all CSS and JavaScript.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "recordedAt": "2026-10-06",
+      "outputFile": "hold.html",
+      "shots": [
+        {
+          "file": "desktop-92230f46d7.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build hold.html: a film-roll card for Rollwick, a fictional film-photo journal app, with a hold-to-delete button. Holdin"
+        },
+        {
+          "file": "mobile-89cf3092a6.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build hold.html: a film-roll card for Rollwick, a fictional film-photo journal app, with a hold-to-delete button. Holdin"
+        }
+      ]
+    },
+    {
       "owner": "emilkowalski",
       "repo": "skills",
       "name": "emil-design-eng",
@@ -85,6 +147,37 @@
       ],
       "authorName": "Emil Kowalski",
       "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md"
+    },
+    {
+      "owner": "gamedev-skills",
+      "repo": "awesome-gamedev-agent-skills",
+      "name": "game-feel",
+      "makes": "game",
+      "authorName": "gamedev-skills",
+      "sourceUrl": "https://github.com/gamedev-skills/awesome-gamedev-agent-skills/blob/main/skills/disciplines/game-feel/SKILL.md",
+      "prompt": "Make a tiny arcade game called Hailbroom: sweep a broom left and right with the arrow keys or mouse to bat falling hailstones back into the sky. Make every hit feel punchy. Save it as game.html with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "d4b0e35550c55ae70bdfcab4ef5a0e94610438a9",
+      "recordedAt": "2026-10-06",
+      "outputFile": "game.html",
+      "shots": [
+        {
+          "file": "desktop-ebb9d5ee7c.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Make a tiny arcade game called Hailbroom: sweep a broom left and right with the arrow keys or mouse to bat falling hails"
+        },
+        {
+          "file": "mobile-986a78ae76.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Make a tiny arcade game called Hailbroom: sweep a broom left and right with the arrow keys or mouse to bat falling hails"
+        }
+      ]
     },
     {
       "owner": "heygen-com",
@@ -234,6 +327,61 @@
         }
       ],
       "pin": 2
+    },
+    {
+      "owner": "ntcoding",
+      "repo": "claude-skillz",
+      "name": "data-visualization",
+      "makes": "chart",
+      "authorName": "Nick Tune",
+      "sourceUrl": "https://github.com/NTCoding/claude-skillz/blob/main/data-visualization/SKILL.md",
+      "prompt": "Build a one-page dashboard for Wrenfold Bikes, a town bike share. This week's rides by station: Harbour 412, Station Road 356, Market 241, College 198. Monday to Sunday: 180, 195, 170, 210, 262, 102, 88. Save it as dashboard.html with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "21c61010e6081ced1eac8e45e3f788b2c4358bcf",
+      "recordedAt": "2026-10-06",
+      "outputFile": "dashboard.html",
+      "shots": [
+        {
+          "file": "desktop-b2aa8f1a8c.jpg",
+          "width": 1440,
+          "height": 905,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a one-page dashboard for Wrenfold Bikes, a town bike share. This week's rides by station: Harbour 412, Station Roa"
+        },
+        {
+          "file": "mobile-2c917bf37f.jpg",
+          "width": 390,
+          "height": 1751,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a one-page dashboard for Wrenfold Bikes, a town bike share. This week's rides by station: Harbour 412, Station Roa"
+        }
+      ]
+    },
+    {
+      "owner": "plannotator",
+      "repo": "effective-html",
+      "name": "html",
+      "makes": "slides",
+      "authorName": null,
+      "sourceUrl": "https://github.com/plannotator/effective-html/blob/main/skills/html/SKILL.md",
+      "prompt": "Make a 7-slide pitch deck for Brothwheel, a neighborhood soup co-op that sells soup in returnable jars, where arrow keys or clicks advance the slides. Save it as deck.html, one file with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "e1e71db7ab69f2fc674225805ab8e35814d98e53",
+      "recordedAt": "2026-10-06",
+      "outputFile": "deck.html",
+      "shots": [
+        {
+          "file": "desktop-2f941e684e.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Make a 7-slide pitch deck for Brothwheel, a neighborhood soup co-op that sells soup in returnable jars, where arrow keys"
+        }
+      ]
     }
   ]
 }

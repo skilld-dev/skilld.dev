@@ -1,0 +1,1445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossmere · Invoicing for freelance translators</title>
+<meta name="description" content="Bill by the word and by language pair. Glossmere reads your CAT log, applies fuzzy match discounts and VAT, and drafts the invoice. 30 days free.">
+<link rel="canonical" href="https://glossmere.app/">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#F6F4EE">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Glossmere">
+<meta property="og:url" content="https://glossmere.app/">
+<meta property="og:title" content="Glossmere · Invoicing for freelance translators">
+<meta property="og:description" content="Bill by the word and by language pair. Glossmere reads your CAT log, applies fuzzy match discounts and VAT, and drafts the invoice. 30 days free.">
+<meta property="og:image" content="https://glossmere.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A Glossmere invoice built from a memoQ analysis log, with weighted word counts for each language pair.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Glossmere · Invoicing for freelance translators">
+<meta name="twitter:description" content="Bill by the word and by language pair. Glossmere reads your CAT log, applies fuzzy match discounts and VAT, and drafts the invoice. 30 days free.">
+<meta name="twitter:image" content="https://glossmere.app/og.png">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F5B52'/%3E%3Cpath d='M8 13c2.7-2.7 5.3 2.7 8 0s5.3 2.7 8 0M8 19.5c2.7-2.7 5.3 2.7 8 0s5.3 2.7 8 0' fill='none' stroke='%23F6F4EE' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<script>document.documentElement.classList.add('js')</script>
+<style>
+@font-face{font-family:"Geist";src:local("Geist"),url("https://cdn.jsdelivr.net/fontsource/fonts/geist:vf@latest/latin-wght-normal.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Geist Mono";src:local("Geist Mono"),url("https://cdn.jsdelivr.net/fontsource/fonts/geist-mono:vf@latest/latin-wght-normal.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+
+:root{
+  --ink:#131209;
+  --ink-soft:#3A382F;
+  --muted:#5E5B52;
+  --paper:#F6F4EE;
+  --paper-deep:#EDEAE1;
+  --chrome:#FAF8F3;
+  --card:#FFFFFF;
+  --line:#E3DFD4;
+  --line-strong:#CDC8BA;
+  --accent:#0F5B52;
+  --accent-hover:#0B4740;
+  --accent-soft:#E2EEEA;
+  --marker:#EFE07C;
+  --danger:#A8321F;
+  --danger-soft:#FBEDEA;
+  --night:#131209;
+  --ease:cubic-bezier(0.32,0.72,0,1);
+  --s-25:2px;--s-50:4px;--s-75:8px;--s-100:12px;--s-200:16px;--s-300:24px;--s-400:32px;--s-500:40px;--s-600:48px;--s-700:64px;--s-800:80px;--s-900:96px;
+  --r-sm:4px;--r-md:6px;--r-lg:8px;--r-xl:12px;--r-2xl:16px;--r-3xl:24px;--r-full:9999px;
+  --font:"Geist",ui-sans-serif,system-ui,sans-serif;
+  --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+html.menu-open{overflow:hidden}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);font-size:1rem;line-height:1.5rem;font-weight:400;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+h1,h2,h3,h4,p,ul,ol,figure,blockquote,dl,dd{margin:0}
+ul,ol{padding:0;list-style:none}
+em,i,cite,address,dfn,var,blockquote,q{font-style:normal}
+h1,h2,h3,h4{font-weight:600;text-wrap:balance}
+p,li,dd,figcaption,blockquote,td{text-wrap:pretty}
+a{color:inherit}
+button,input,select{font:inherit;color:inherit}
+::selection{background:var(--marker);color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+main:focus{outline:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* Type scale: Tailwind steps only, size and line height paired */
+.t-xs{font-size:.75rem;line-height:1rem}
+.t-sm{font-size:.875rem;line-height:1.25rem}
+.t-base{font-size:1rem;line-height:1.5rem}
+.t-lg{font-size:1.125rem;line-height:1.75rem}
+.t-xl{font-size:1.25rem;line-height:1.75rem}
+.t-2xl{font-size:1.5rem;line-height:2rem}
+
+/* Icons: Phosphor regular geometry on a 256 grid */
+.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+.i-sm{width:16px;height:16px}
+.i-lg{width:24px;height:24px}
+
+.skip{position:fixed;top:var(--s-200);left:var(--s-200);z-index:100;padding:var(--s-75) var(--s-100);background:var(--ink);color:var(--paper);border-radius:var(--r-lg);font-weight:600;text-decoration:none;transform:translateY(-200%);transition:transform .5s var(--ease)}
+.skip:focus{transform:none}
+
+.wrap{width:100%;max-width:72rem;margin-inline:auto;padding-inline:var(--s-200)}
+@media (min-width:480px){.wrap{padding-inline:var(--s-300)}}
+.section{padding-block:var(--s-700);scroll-margin-top:var(--s-800)}
+@media (min-width:768px){.section{padding-block:var(--s-900)}}
+
+.eyebrow{font-size:.875rem;line-height:1.25rem;font-weight:600;color:var(--accent)}
+.h2{margin-top:var(--s-100);max-width:680px;font-size:1.875rem;line-height:2.25rem;letter-spacing:-0.025em}
+@media (min-width:768px){.h2{font-size:2.25rem;line-height:2.5rem}}
+.lead{margin-top:var(--s-200);max-width:680px;font-size:1.125rem;line-height:1.75rem;color:var(--muted)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s-75);padding:var(--s-75) var(--s-100);border-radius:var(--r-lg);border:1px solid transparent;font-size:1rem;line-height:1.5rem;font-weight:600;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .4s var(--ease),color .4s var(--ease),border-color .4s var(--ease),transform .4s var(--ease)}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:scale(.98)}
+.btn-sm{font-size:.875rem;line-height:1.25rem}
+.btn-primary{background:var(--accent);color:#FFFFFF}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-dark{background:var(--ink);color:var(--paper)}
+.btn-dark:hover{background:#2C2A22}
+.btn-ghost{background:var(--card);border-color:var(--line-strong);color:var(--ink)}
+.btn-ghost:hover{background:var(--paper-deep)}
+.btn[disabled]{cursor:not-allowed;transform:none}
+.btn[aria-busy="true"]{position:relative;overflow:hidden}
+.btn[aria-busy="true"]::after{content:"";position:absolute;inset:0;width:40%;background:rgba(255,255,255,.2);animation:sweep 1.2s var(--ease) infinite}
+.btn-ghost[aria-busy="true"]::after{background:rgba(19,18,9,.06)}
+@keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.link-btn{padding:0;border:0;background:none;font-weight:600;color:var(--accent);text-decoration:underline;text-underline-offset:3px;cursor:pointer;border-radius:var(--r-sm);transition:color .4s var(--ease)}
+.link-btn:hover{color:var(--accent-hover)}
+.link-btn:active{transform:translateY(1px)}
+
+/* Island nav */
+.site-header{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;justify-content:center;padding-inline:var(--s-200);pointer-events:none}
+.island{pointer-events:auto;margin-top:var(--s-300);margin-inline:auto;width:max-content;max-width:100%;display:flex;align-items:center;gap:var(--s-50);padding:var(--s-50);padding-left:var(--s-200);border-radius:var(--r-full);background:rgba(255,255,255,.72);border:1px solid rgba(19,18,9,.08);-webkit-backdrop-filter:blur(24px) saturate(1.4);backdrop-filter:blur(24px) saturate(1.4);box-shadow:0 1px 2px rgba(19,18,9,.04),0 8px 24px rgba(19,18,9,.06)}
+.brand{display:inline-flex;align-items:center;gap:var(--s-75);padding-right:var(--s-100);font-size:1.125rem;line-height:1.75rem;font-weight:600;letter-spacing:-0.025em;text-decoration:none;border-radius:var(--r-full)}
+.brand svg{width:24px;height:24px;flex:none}
+.brand{transition:transform .4s var(--ease)}
+.brand:active{transform:scale(.98)}
+.nav-links{display:none}
+.nav-links a{display:block;padding:var(--s-75) var(--s-100);border-radius:var(--r-full);font-size:.875rem;line-height:1.25rem;font-weight:500;color:var(--muted);text-decoration:none;transition:background-color .4s var(--ease),color .4s var(--ease),transform .4s var(--ease)}
+.nav-links a:hover{background:rgba(19,18,9,.05);color:var(--ink)}
+.nav-links a:active{transform:scale(.98)}
+.nav-links a[aria-current]{background:rgba(19,18,9,.07);color:var(--ink)}
+.nav-cta{border-radius:var(--r-full)}
+.burger{display:none;position:relative;width:40px;height:40px;border:0;border-radius:var(--r-full);background:transparent;cursor:pointer;transition:background-color .4s var(--ease),transform .4s var(--ease)}
+.js .burger{display:block}
+.burger:hover{background:rgba(19,18,9,.06)}
+.burger:active{transform:scale(.96)}
+.burger span{position:absolute;left:12px;top:calc(50% - 1px);width:16px;height:2px;border-radius:var(--r-full);background:var(--ink);transition:transform .7s var(--ease)}
+.burger span:first-child{transform:translateY(-4px)}
+.burger span:last-child{transform:translateY(4px)}
+.burger[aria-expanded="true"] span:first-child{transform:translateY(0) rotate(45deg)}
+.burger[aria-expanded="true"] span:last-child{transform:translateY(0) rotate(-45deg)}
+@media (min-width:768px){
+  .nav-links{display:flex;gap:var(--s-25)}
+  .js .burger{display:none}
+}
+
+.menu{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;justify-content:center;padding:var(--s-900) var(--s-300) var(--s-600);background:rgba(255,255,255,.8);-webkit-backdrop-filter:blur(64px);backdrop-filter:blur(64px);opacity:0;visibility:hidden;transition:opacity .7s var(--ease),visibility 0s var(--ease) .7s}
+.menu.is-open{opacity:1;visibility:visible;transition:opacity .7s var(--ease),visibility 0s var(--ease) 0s}
+.menu ul{display:grid;gap:var(--s-75)}
+.menu li{overflow:hidden}
+.menu-link{display:block;padding-block:var(--s-75);font-size:1.875rem;line-height:2.25rem;font-weight:600;letter-spacing:-0.025em;text-decoration:none;color:var(--ink)}
+.menu-link,.menu .btn{transform:translateY(48px);opacity:0;transition:transform .7s var(--ease),opacity .7s var(--ease),color .4s var(--ease),background-color .4s var(--ease)}
+.menu-link:hover,.menu-link[aria-current]{color:var(--accent)}
+.menu-link:active{transform:translateY(1px)}
+.menu.is-open .menu-link,.menu.is-open .btn{transform:none;opacity:1}
+.menu.is-open li:nth-child(1) > *{transition-delay:100ms}
+.menu.is-open li:nth-child(2) > *{transition-delay:150ms}
+.menu.is-open li:nth-child(3) > *{transition-delay:200ms}
+.menu.is-open li:nth-child(4) > *{transition-delay:250ms}
+.menu.is-open li:nth-child(5) > *{transition-delay:300ms}
+.menu .btn{margin-top:var(--s-300);width:100%}
+.menu-foot{margin-top:var(--s-400);font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+@media (min-width:768px){.menu{display:none}}
+
+/* Scroll reveal */
+.js .reveal{opacity:0;transform:translateY(64px);filter:blur(12px);transition:opacity .9s var(--ease),transform .9s var(--ease),filter .9s var(--ease);transition-delay:var(--d,0ms)}
+.js .reveal.is-in{opacity:1;transform:none;filter:none}
+
+/* Hero */
+.hero{padding-top:var(--s-900);padding-bottom:var(--s-700);text-align:center;scroll-margin-top:0}
+.hero-copy{display:flex;flex-direction:column;align-items:center;padding-top:var(--s-400)}
+@media (min-width:768px){.hero{padding-bottom:var(--s-900)}.hero-copy{padding-top:var(--s-700)}}
+.pill{display:inline-flex;align-items:center;gap:var(--s-75);padding:var(--s-50) var(--s-100);border-radius:var(--r-full);background:var(--card);border:1px solid var(--line);font-size:.875rem;line-height:1.25rem;font-weight:500;color:var(--ink-soft)}
+.pill .i{color:var(--accent)}
+.hero h1{margin-top:var(--s-300);max-width:680px;padding-bottom:var(--s-50);font-size:1.875rem;line-height:2.25rem;letter-spacing:-0.025em;background:linear-gradient(90deg,#000000,#666666);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (min-width:480px){.hero h1{font-size:2.25rem;line-height:2.5rem}}
+@media (min-width:768px){.hero h1{font-size:3rem;line-height:1}}
+@media (min-width:1024px){.hero h1{font-size:3.75rem;line-height:1}}
+@media (forced-colors:active){.hero h1{background:none;color:CanvasText}}
+.hero-sub{margin-top:var(--s-300);max-width:680px;font-size:1.125rem;line-height:1.75rem;color:var(--muted)}
+@media (min-width:768px){.hero-sub{font-size:1.25rem;line-height:1.75rem}}
+
+/* Signup form, shared by hero and final call to action */
+.signup{margin-top:var(--s-400);width:100%;max-width:480px;text-align:left}
+.signup-shell{display:flex;flex-direction:column;gap:var(--s-50);padding:var(--s-50);background:var(--card);border:1px solid var(--line-strong);border-radius:var(--r-xl);transition:border-color .4s var(--ease),box-shadow .4s var(--ease)}
+.signup-shell:hover{border-color:#B9B3A3}
+.signup-shell:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,91,82,.18)}
+.signup.is-invalid .signup-shell{border-color:var(--danger)}
+.signup.is-invalid .signup-shell:focus-within{box-shadow:0 0 0 3px rgba(168,50,31,.16)}
+.signup input{flex:1;min-width:0;padding:var(--s-75) var(--s-100);border:0;border-radius:var(--r-lg);background:transparent;font-size:1rem;line-height:1.5rem;outline:2px solid transparent}
+.signup input::placeholder{color:#6F6B60}
+.signup .btn{border-radius:var(--r-lg)}
+@media (min-width:480px){.signup-shell{flex-direction:row}}
+.field-error{display:flex;align-items:center;gap:var(--s-75);margin-top:var(--s-75);font-size:.875rem;line-height:1.25rem;font-weight:500;color:var(--danger)}
+.field-error:empty{display:none}
+.signup-note{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--s-75) var(--s-200);margin-top:var(--s-100);font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.signup-note li{display:inline-flex;align-items:center;gap:var(--s-50)}
+.signup-note .i{color:var(--accent)}
+.signup-done{display:flex;gap:var(--s-100);padding:var(--s-200);background:var(--card);border:1px solid var(--accent);border-radius:var(--r-xl);animation:rise .7s var(--ease)}
+.done-icon{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:var(--r-full);background:var(--accent-soft);color:var(--accent)}
+.done-title{font-weight:600;outline:none}
+.done-text{margin-top:var(--s-25);font-size:.875rem;line-height:1.25rem;color:var(--muted);overflow-wrap:anywhere}
+.done-text strong{color:var(--ink);font-weight:600}
+.signup-done .link-btn{margin-top:var(--s-75);font-size:.875rem;line-height:1.25rem}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+
+.proof{margin-top:var(--s-400);display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--s-100);font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.proof strong{color:var(--ink);font-weight:600}
+.faces{display:flex}
+.face{width:32px;height:32px;display:grid;place-items:center;border-radius:var(--r-full);border:2px solid var(--paper);font-size:.75rem;line-height:1rem;font-weight:600}
+.face + .face{margin-left:calc(var(--s-75) * -1)}
+.f1{background:#DCE7F3;color:#22406A}.f2{background:#F4E3CF;color:#6B3F12}.f3{background:#E2EEEA;color:#0F5B52}.f4{background:#EBE1F2;color:#4D2A66}.f5{background:#F6DCDA;color:#7A2A22}
+
+/* Hero product mockup */
+.mock{margin:var(--s-700) auto 0;max-width:960px;padding:var(--s-75);background:var(--paper-deep);border:1px solid var(--line);border-radius:var(--r-3xl);text-align:left}
+.app{overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);box-shadow:0 1px 2px rgba(19,18,9,.04),0 24px 48px rgba(19,18,9,.08)}
+.app-bar{display:flex;align-items:center;gap:var(--s-100);padding:var(--s-100) var(--s-200);background:var(--chrome)}
+.app-bar svg.logo{width:20px;height:20px;flex:none}
+.crumb{font-size:.875rem;line-height:1.25rem;color:var(--muted);white-space:nowrap}
+.crumb b{font-weight:500;color:var(--ink)}
+.status{padding:var(--s-25) var(--s-75);border-radius:var(--r-full);background:var(--accent-soft);color:var(--accent);font-size:.75rem;line-height:1rem;font-weight:500}
+.fake-btn{margin-left:auto;display:inline-flex;align-items:center;gap:var(--s-75);padding:var(--s-50) var(--s-100);border-radius:var(--r-lg);background:var(--accent);color:#FFFFFF;font-size:.875rem;line-height:1.25rem;font-weight:600;white-space:nowrap}
+.app-body{display:grid}
+@media (min-width:768px){.app-body{grid-template-columns:288px 1fr}}
+.app-side{display:flex;flex-direction:column;gap:var(--s-200);padding:var(--s-300) var(--s-200);background:var(--chrome)}
+.k{font-size:.75rem;line-height:1rem;font-weight:500;color:var(--muted)}
+.file{display:flex;align-items:center;gap:var(--s-100);padding:var(--s-100);background:var(--card);border:1px solid var(--line);border-radius:var(--r-xl)}
+.file-icon{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent)}
+.file-name{font-family:var(--mono);font-size:.75rem;line-height:1rem;font-weight:500;color:var(--ink)}
+.file .ok{margin-left:auto;color:var(--accent)}
+.bar{display:flex;gap:var(--s-25);height:8px;margin-top:var(--s-75);border-radius:var(--r-full);overflow:hidden}
+.bar span{transform-origin:left center}
+.js .mock .bar span{transform:scaleX(0);transition:transform 1.2s var(--ease)}
+.js .mock.is-in .bar span{transform:none}
+.js .mock.is-in .bar span:nth-child(2){transition-delay:120ms}
+.js .mock.is-in .bar span:nth-child(3){transition-delay:240ms}
+.js .mock.is-in .bar span:nth-child(4){transition-delay:360ms}
+.b1{background:#0F5B52}.b2{background:#3E7F76}.b3{background:#85B3AA}.b4{background:#C2D9D2}
+.bands{display:grid;gap:var(--s-75);margin-top:var(--s-200)}
+.band{display:grid;grid-template-columns:8px 1fr auto 40px;align-items:center;gap:var(--s-75);font-size:.875rem;line-height:1.25rem}
+.band .dot{width:8px;height:8px;border-radius:var(--r-full)}
+.band .mono{text-align:right}
+.band .w{color:var(--muted)}
+.weighted{display:flex;justify-content:space-between;align-items:center;gap:var(--s-100);padding:var(--s-75) var(--s-100);border-radius:var(--r-lg);background:var(--accent-soft);color:var(--accent);font-size:.875rem;line-height:1.25rem;font-weight:500}
+.weighted .mono{font-weight:600}
+.app-main{padding:var(--s-300) var(--s-200)}
+@media (min-width:480px){.app-main{padding:var(--s-300)}}
+@media (min-width:1024px){.app-main{padding:var(--s-400)}}
+.inv-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--s-200) var(--s-300)}
+.inv-name{margin-top:var(--s-25);font-weight:600}
+.inv-addr{font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.inv-meta{font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.inv-meta .mono{display:block;margin-top:var(--s-25);font-size:1rem;line-height:1.5rem;font-weight:600;color:var(--ink)}
+@media (min-width:480px){.inv-meta{text-align:right}}
+.inv-table{width:100%;margin-top:var(--s-300);border-collapse:collapse;font-size:.875rem;line-height:1.25rem}
+.inv-table th{padding:0 0 var(--s-75);font-size:.75rem;line-height:1rem;font-weight:500;color:var(--muted);text-align:left}
+.inv-table td{padding:var(--s-100) 0;vertical-align:top}
+.inv-table tbody tr{border-top:1px solid var(--line)}
+.inv-table .num{padding-left:var(--s-200);text-align:right;white-space:nowrap}
+.inv-table td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.inv-table .desc{font-weight:500}
+.inv-table .desc span{display:block;font-size:.75rem;line-height:1rem;font-weight:400;color:var(--muted)}
+.col-rate{display:none}
+@media (min-width:640px){.col-rate{display:table-cell}}
+.inv-totals{display:grid;gap:var(--s-75);margin-top:var(--s-200);margin-left:auto;max-width:320px;font-size:.875rem;line-height:1.25rem}
+.inv-totals div{display:flex;justify-content:space-between;gap:var(--s-200)}
+.inv-totals dt{color:var(--muted)}
+.inv-totals dd{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.inv-totals .grand{padding-top:var(--s-100);border-top:1px solid var(--line);font-size:1.125rem;line-height:1.75rem;font-weight:600}
+.inv-totals .grand dt{color:var(--ink)}
+.inv-note{margin-top:var(--s-200);font-size:.75rem;line-height:1rem;color:var(--muted)}
+.tools{margin-top:var(--s-400);text-align:center;font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.tools b{font-weight:600;color:var(--ink-soft)}
+
+/* Problem to solution */
+.compare{display:grid;gap:var(--s-300);margin-top:var(--s-600)}
+@media (min-width:768px){.compare{grid-template-columns:1fr 1fr}}
+.compare-card{padding:var(--s-300);border:1px solid var(--line);border-radius:var(--r-3xl)}
+@media (min-width:768px){.compare-card{padding:var(--s-400)}}
+.compare-card.old{background:var(--paper-deep)}
+.compare-card.new{background:var(--card);border-color:var(--accent)}
+.compare-card h3{font-size:1.25rem;line-height:1.75rem}
+.compare-card ul{display:grid;gap:var(--s-200);margin-top:var(--s-300)}
+.compare-card li{display:flex;gap:var(--s-100);align-items:flex-start}
+.tick{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--r-full)}
+.old .tick{background:rgba(19,18,9,.06);color:var(--muted)}
+.old li{color:var(--ink-soft)}
+.new .tick{background:var(--accent-soft);color:var(--accent)}
+.tick .i{width:14px;height:14px;stroke-width:24}
+.stat-band{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-200) var(--s-400);margin-top:var(--s-300);padding:var(--s-300);border-radius:var(--r-3xl);background:var(--accent-soft)}
+@media (min-width:768px){.stat-band{padding:var(--s-300) var(--s-400)}}
+.stat-band .big{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1.5rem;line-height:2rem;font-weight:600;letter-spacing:-0.025em;color:var(--accent);white-space:nowrap}
+@media (min-width:768px){.stat-band .big{font-size:1.875rem;line-height:2.25rem}}
+.stat-band p{flex:1;min-width:240px;font-size:.875rem;line-height:1.25rem;color:var(--ink-soft)}
+
+/* Benefits */
+.bento{display:grid;gap:var(--s-300);margin-top:var(--s-600)}
+@media (min-width:768px){.bento{grid-template-columns:repeat(2,1fr)}.span-2{grid-column:span 2}}
+@media (min-width:1024px){.bento{grid-template-columns:repeat(3,1fr)}}
+.card{display:flex;flex-direction:column;gap:var(--s-200);padding:var(--s-300);background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl)}
+.card h3{font-size:1.25rem;line-height:1.75rem}
+.card p{color:var(--muted)}
+.icon-tile{width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:var(--r-full);background:var(--accent-soft);color:var(--accent)}
+.card-split{display:grid;gap:var(--s-300)}
+@media (min-width:1024px){.card-split{grid-template-columns:1fr 1fr;align-items:center}}
+.card-split > div{display:flex;flex-direction:column;gap:var(--s-200)}
+.rates{padding:var(--s-50) var(--s-200);background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-xl)}
+.rate-row{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-200);padding-block:var(--s-75);font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.875rem;line-height:1.25rem}
+.rate-row + .rate-row{border-top:1px solid var(--line)}
+.rate-row b{font-weight:500}
+.rate-row span{color:var(--accent);font-weight:600}
+.rate-row small{font-family:var(--font);font-size:.75rem;line-height:1rem;font-weight:400;color:var(--muted)}
+.grid-bars{display:grid;gap:var(--s-100);margin-top:auto}
+.gb{display:grid;grid-template-columns:96px 1fr 40px;align-items:center;gap:var(--s-100);font-size:.75rem;line-height:1rem;color:var(--muted)}
+.gb .track{height:8px;border-radius:var(--r-full);background:var(--paper-deep);overflow:hidden}
+.gb .fill{display:block;height:100%;width:var(--w);border-radius:var(--r-full);background:var(--accent);transform-origin:left center}
+.js .reveal .gb .fill{transform:scaleX(0);transition:transform 1.2s var(--ease) .3s}
+.js .reveal.is-in .gb .fill{transform:none}
+.gb .mono{text-align:right;color:var(--ink);font-weight:500}
+.footnote{margin-top:auto;font-size:.75rem;line-height:1rem;color:var(--muted)}
+
+/* Tagline reveal */
+.tagline-band{background:var(--night);color:var(--paper);padding-block:var(--s-900)}
+.tagline{max-width:680px;margin:var(--s-700) auto;font-size:2.25rem;line-height:2.5rem;font-weight:600;letter-spacing:-0.025em}
+.tagline .br-md{display:none}
+@media (min-width:768px){.tagline{font-size:3rem;line-height:1}.tagline .br-md{display:inline}}
+.js .tagline .w{color:rgba(246,244,238,.3);transition:color .7s var(--ease)}
+.js .tagline .w.on{color:var(--paper)}
+.js .tagline .pay .w.on{color:var(--marker)}
+
+/* How it works */
+.steps{display:grid;gap:var(--s-300);margin-top:var(--s-600)}
+@media (min-width:768px){.steps{grid-template-columns:repeat(3,1fr)}}
+.step-top{display:flex;justify-content:space-between;align-items:center}
+.step-num{font-family:var(--mono);font-size:.875rem;line-height:1.25rem;font-weight:600;color:var(--accent)}
+.demo-head{margin-top:var(--s-800)}
+.demo-head h3{font-size:1.5rem;line-height:2rem}
+.demo-head p{margin-top:var(--s-75);max-width:680px;color:var(--muted)}
+.demo{display:grid;gap:var(--s-75);margin-top:var(--s-300);padding:var(--s-75);background:var(--paper-deep);border:1px solid var(--line);border-radius:var(--r-3xl)}
+@media (min-width:1024px){.demo{grid-template-columns:5fr 7fr}}
+.panel{padding:var(--s-300);background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl)}
+.field + .field{margin-top:var(--s-200)}
+.field-label{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-100);margin-bottom:var(--s-75)}
+.field-label label{font-size:.875rem;line-height:1.25rem;font-weight:500}
+.field-label span{font-size:.75rem;line-height:1rem;color:var(--muted)}
+.input{width:100%;padding:var(--s-75) var(--s-100);background:var(--card);border:1px solid var(--line-strong);border-radius:var(--r-lg);font-size:1rem;line-height:1.5rem;outline:2px solid transparent;transition:border-color .4s var(--ease),box-shadow .4s var(--ease)}
+.input.mono{font-family:var(--mono)}
+.input:hover{border-color:#B9B3A3}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,91,82,.18)}
+.input[aria-invalid="true"]{border-color:var(--danger)}
+.input[aria-invalid="true"]:focus{box-shadow:0 0 0 3px rgba(168,50,31,.16)}
+.select{position:relative}
+.select select{appearance:none;-webkit-appearance:none;padding-right:var(--s-500);cursor:pointer}
+.select .i{position:absolute;right:var(--s-100);top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.demo-actions{display:flex;flex-wrap:wrap;gap:var(--s-100);margin-top:var(--s-300)}
+.preview{display:flex;flex-direction:column}
+.preview-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-200)}
+.preview-head h4{font-size:1rem;line-height:1.5rem}
+.lines,.skeleton{display:grid;margin-top:var(--s-200)}
+.line{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"pair amount remove" "main main main";align-items:center;gap:var(--s-75) var(--s-100);padding-block:var(--s-100)}
+@media (min-width:640px){.line{grid-template-columns:auto 1fr auto auto;grid-template-areas:"pair main amount remove"}}
+.line + .line{border-top:1px solid var(--line)}
+.line.is-new{animation:rise .7s var(--ease)}
+.pair{grid-area:pair;justify-self:start;padding:var(--s-25) var(--s-75);border-radius:var(--r-full);background:var(--accent-soft);color:var(--accent);font-family:var(--mono);font-size:.75rem;line-height:1rem;font-weight:500;white-space:nowrap}
+.line-main{grid-area:main;min-width:0}
+.line-main strong{display:block;font-size:.875rem;line-height:1.25rem;font-weight:500}
+.line-sub{font-size:.75rem;line-height:1rem;color:var(--muted)}
+.line-min{display:block;font-size:.75rem;line-height:1rem;font-weight:500;color:var(--accent)}
+.line-amount{grid-area:amount;justify-self:end;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.875rem;line-height:1.25rem;font-weight:600}
+.icon-btn{grid-area:remove;width:32px;height:32px;display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:var(--r-full);background:transparent;color:var(--muted);cursor:pointer;transition:background-color .4s var(--ease),color .4s var(--ease),transform .4s var(--ease)}
+.icon-btn:hover{background:var(--danger-soft);color:var(--danger)}
+.icon-btn:active{transform:scale(.94)}
+.skeleton .line > *{display:block;border-radius:var(--r-full);background:var(--paper-deep);animation:pulse 1.4s var(--ease) infinite alternate}
+.sk-pair{grid-area:pair;width:56px;height:20px}
+.sk-main{grid-area:main;height:32px;max-width:240px;width:100%;border-radius:var(--r-lg)!important}
+.sk-amount{grid-area:amount;justify-self:end;width:72px;height:16px}
+.sk-btn{grid-area:remove;width:32px;height:32px}
+@keyframes pulse{from{opacity:1}to{opacity:.4}}
+.total{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-200);margin-top:var(--s-200);padding:var(--s-200);border-radius:var(--r-xl);background:var(--chrome)}
+.total span{font-size:.875rem;line-height:1.25rem;font-weight:500}
+.total output{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1.5rem;line-height:2rem;font-weight:600;letter-spacing:-0.025em}
+.empty{display:flex;flex-direction:column;align-items:center;gap:var(--s-200);margin-top:var(--s-200);padding:var(--s-600) var(--s-300);border:1px dashed var(--line-strong);border-radius:var(--r-xl);text-align:center}
+.empty .icon-tile{width:48px;height:48px;background:var(--chrome);color:var(--muted)}
+.empty h5{margin:0;font-size:1rem;line-height:1.5rem;font-weight:600}
+.empty p{margin-top:var(--s-50);max-width:320px;font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.demo-note{margin-top:var(--s-200);font-size:.75rem;line-height:1rem;color:var(--muted)}
+
+/* Proof */
+.stats{display:grid;gap:var(--s-300);margin-top:var(--s-600)}
+@media (min-width:768px){.stats{grid-template-columns:repeat(3,1fr)}}
+.stat{padding:var(--s-300);background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl)}
+.stat .num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:2.25rem;line-height:2.5rem;font-weight:600;letter-spacing:-0.025em}
+.stat p{margin-top:var(--s-75);font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.quotes{display:grid;gap:var(--s-300);margin-top:var(--s-300)}
+@media (min-width:1024px){.quotes{grid-template-columns:repeat(3,1fr)}}
+.quote{display:flex;flex-direction:column;justify-content:space-between;gap:var(--s-300);padding:var(--s-300);background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl)}
+.quote blockquote{font-size:1.125rem;line-height:1.75rem;color:var(--ink)}
+.quote figcaption{display:flex;align-items:center;gap:var(--s-100)}
+.quote .face{width:40px;height:40px;border:0;font-size:.875rem;line-height:1.25rem}
+.who{font-size:.875rem;line-height:1.25rem;font-weight:600}
+.role{font-size:.75rem;line-height:1rem;color:var(--muted)}
+
+/* Pricing */
+.pricing{display:grid;gap:var(--s-600);margin-top:var(--s-600);align-items:start}
+@media (min-width:1024px){.pricing{grid-template-columns:1fr 1fr;gap:var(--s-700)}}
+.plan{padding:var(--s-400) var(--s-300);background:var(--card);border:1px solid var(--line);border-radius:var(--r-3xl)}
+@media (min-width:480px){.plan{padding:var(--s-400)}}
+@media (min-width:768px){.plan{padding:var(--s-600)}}
+.plan-top{display:flex;justify-content:space-between;align-items:center;gap:var(--s-200)}
+.plan-top h3{font-size:1.25rem;line-height:1.75rem}
+.plan-top .pill{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.price{display:flex;align-items:baseline;gap:var(--s-75);margin-top:var(--s-300)}
+.price b{font-size:3rem;line-height:1;font-weight:600;letter-spacing:-0.025em}
+.price span{color:var(--muted)}
+.annual{margin-top:var(--s-75);font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.plan ul{display:grid;gap:var(--s-100);margin-top:var(--s-400)}
+.plan li{display:flex;gap:var(--s-100);align-items:flex-start}
+.plan li .i{margin-top:var(--s-25);color:var(--accent)}
+.plan .btn{width:100%;margin-top:var(--s-400)}
+.assure h3{font-size:1.5rem;line-height:2rem}
+.assure ul{display:grid;gap:var(--s-300);margin-top:var(--s-300)}
+.assure li{display:flex;gap:var(--s-200)}
+.assure .icon-tile{background:var(--card);border:1px solid var(--line);color:var(--ink)}
+.assure h4{font-size:1rem;line-height:1.5rem}
+.assure p{margin-top:var(--s-25);color:var(--muted)}
+
+/* FAQ */
+.faq-grid{display:grid;gap:var(--s-600)}
+@media (min-width:1024px){.faq-grid{grid-template-columns:2fr 3fr;align-items:start}.faq-intro{position:sticky;top:var(--s-900)}}
+.faq-intro p a{display:inline-block;font-weight:600;transition:color .4s var(--ease),transform .4s var(--ease);color:var(--accent);text-underline-offset:3px;border-radius:var(--r-sm)}
+.faq{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl)}
+.faq-item + .faq-item{border-top:1px solid var(--line)}
+.faq-item h3{font-size:1rem;line-height:1.5rem}
+.faq-q{width:100%;display:flex;justify-content:space-between;align-items:center;gap:var(--s-200);padding:var(--s-200) var(--s-300);border:0;border-radius:var(--r-2xl);background:none;text-align:left;font-weight:600;cursor:pointer;transition:color .4s var(--ease),transform .4s var(--ease)}
+.faq-q:hover{color:var(--accent)}
+.faq-q:active{transform:translateY(1px)}
+.faq-q:focus-visible{outline-offset:-2px}
+.faq-q .i{color:var(--muted);transition:transform .7s var(--ease)}
+.faq-item.is-open .faq-q .i{transform:rotate(180deg)}
+.js .faq-a{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .7s var(--ease),visibility 0s var(--ease) .7s}
+.js .faq-item.is-open .faq-a{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows .7s var(--ease),visibility 0s var(--ease) 0s}
+.faq-a > div{min-height:0;overflow:hidden}
+.faq-a p{padding:0 var(--s-300) var(--s-300);color:var(--muted)}
+
+/* Final call to action */
+.final{display:flex;flex-direction:column;align-items:center;padding:var(--s-600) var(--s-200);background:var(--card);border:1px solid var(--line);border-radius:var(--r-3xl);text-align:center}
+@media (min-width:768px){.final{padding:var(--s-800) var(--s-600)}}
+.final .h2{margin-top:0}
+
+/* Footer */
+.site-footer{padding-block:var(--s-600) var(--s-700)}
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:var(--s-300)}
+.foot p{margin-top:var(--s-75);max-width:320px;font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.foot ul{display:flex;flex-wrap:wrap;gap:var(--s-75) var(--s-300);font-size:.875rem;line-height:1.25rem}
+.foot ul a{display:inline-block;color:var(--muted);text-underline-offset:3px;border-radius:var(--r-sm);transition:color .4s var(--ease)}
+.foot ul a:hover,.foot ul a[aria-current]{color:var(--ink)}
+.foot ul a:active,.faq-intro p a:active{transform:translateY(1px)}
+.foot ul a[aria-current]{font-weight:600}
+.foot .copy{width:100%;max-width:none;font-size:.75rem;line-height:1rem;color:var(--muted)}
+
+/* Legal pages and 404 */
+.doc{padding-block:var(--s-900)}
+.doc-inner{max-width:680px;margin-inline:auto;padding-top:var(--s-400)}
+.back{display:inline-flex;align-items:center;gap:var(--s-75);padding:var(--s-50) var(--s-100);border:1px solid var(--line);border-radius:var(--r-full);background:var(--card);font-size:.875rem;line-height:1.25rem;font-weight:600;color:var(--ink-soft);text-decoration:none;transition:background-color .4s var(--ease),transform .4s var(--ease)}
+.back:hover{background:var(--paper-deep);transform:translateX(-2px)}
+.back:active{transform:scale(.98)}
+.doc h1{margin-top:var(--s-300);font-size:2.25rem;line-height:2.5rem;letter-spacing:-0.025em;outline:none}
+.updated{margin-top:var(--s-75);font-size:.875rem;line-height:1.25rem;color:var(--muted)}
+.doc h2{margin-top:var(--s-500);font-size:1.25rem;line-height:1.75rem}
+.doc p{margin-top:var(--s-100);color:var(--ink-soft)}
+.nf{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--s-900) var(--s-300);text-align:center}
+.nf h1{margin-top:var(--s-300);font-size:2.25rem;line-height:2.5rem;letter-spacing:-0.025em;outline:none}
+@media (min-width:768px){.nf h1{font-size:3rem;line-height:1}}
+.nf p{margin-top:var(--s-200);max-width:480px;color:var(--muted)}
+.nf .btn{margin-top:var(--s-400)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms!important;transition-delay:0ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+  .js .reveal{opacity:1;transform:none;filter:none}
+  .js .mock .bar span,.js .reveal .gb .fill{transform:none}
+  .menu-link,.menu .btn{transform:none}
+}
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Glossmere",
+      "url": "https://glossmere.app/",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "description": "Invoicing for freelance translators. Glossmere reads CAT tool analysis logs, applies a rate for each language pair and a fuzzy match grid, handles VAT, and drafts the invoice.",
+      "offers": { "@type": "Offer", "price": "13.00", "priceCurrency": "EUR", "description": "30 days free, then €13 a month or €129 a year." }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Which CAT tools can Glossmere read?", "acceptedAnswer": { "@type": "Answer", "text": "Trados Studio 2019 and later (XML analysis reports), memoQ (CSV and HTML analysis exports), and Phrase (CSV analysis exports). For any other tool, type the words for each match band by hand, or email us a sample log and we will add support." } },
+        { "@type": "Question", "name": "Does Glossmere upload my source texts?", "acceptedAnswer": { "@type": "Answer", "text": "No. Glossmere reads only the analysis log, which holds file names and word counts for each match band. Your source and target texts stay on your computer." } },
+        { "@type": "Question", "name": "Can I bill by characters, lines, or hours?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Bill Chinese, Japanese, and Korean source text by the character, German clients by the standard line of 55 characters, and review or MT post editing by the hour. One invoice can mix all of them." } },
+        { "@type": "Question", "name": "How does the fuzzy match grid work?", "acceptedAnswer": { "@type": "Answer", "text": "You set a percentage for each match band, for example 60% for 75 to 94% matches. Glossmere multiplies the words in each band by that percentage and bills the weighted total. Each client can have its own grid." } },
+        { "@type": "Question", "name": "How does Glossmere handle VAT?", "acceptedAnswer": { "@type": "Answer", "text": "Glossmere picks the treatment from your country and your client's: domestic VAT, EU reverse charge with the required note, or no VAT for clients outside the EU. You can override it on any invoice. Check your first invoice with your accountant." } },
+        { "@type": "Question", "name": "What happens after the 30 day trial?", "acceptedAnswer": { "@type": "Answer", "text": "We email you 3 days before the trial ends. If you add a card, you continue at €13 a month or €129 a year. If you do not, your account becomes read only, and you can still export every invoice." } },
+        { "@type": "Question", "name": "Can I bring my existing clients and invoice numbers?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Import clients from a CSV file, and set your next invoice number during setup. Glossmere continues the sequence your accountant already knows." } },
+        { "@type": "Question", "name": "Which currencies and payment methods work?", "acceptedAnswer": { "@type": "Answer", "text": "You can invoice in 31 currencies. Clients pay by SEPA transfer, card, or PayPal. Card payments cost 1.4% plus €0.25 for European cards, and Glossmere adds no fee of its own." } }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="logo" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0F5B52"/><path d="M8 13c2.7-2.7 5.3 2.7 8 0s5.3 2.7 8 0M8 19.5c2.7-2.7 5.3 2.7 8 0s5.3 2.7 8 0" fill="none" stroke="#F6F4EE" stroke-width="2.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 256 256"><path d="M40 128h176M144 56l72 72-72 72"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 256 256"><path d="M216 128H40M112 56l-72 72 72 72"/></symbol>
+  <symbol id="i-check" viewBox="0 0 256 256"><path d="M40 144l56 56L224 72"/></symbol>
+  <symbol id="i-x" viewBox="0 0 256 256"><path d="M200 56L56 200M200 200L56 56"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 256 256"><path d="M40 128h176M128 40v176"/></symbol>
+  <symbol id="i-caret-down" viewBox="0 0 256 256"><path d="M208 96l-80 80-80-80"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 256 256"><path d="M216 56H40M104 104v64M152 104v64M200 56v152a8 8 0 0 1-8 8H64a8 8 0 0 1-8-8V56M168 56V40a16 16 0 0 0-16-16h-48a16 16 0 0 0-16 16v16"/></symbol>
+  <symbol id="i-translate" viewBox="0 0 256 256"><path d="M232 208l-56-112-56 112M136 176h80M96 32v24M32 56h128M128 56a96 96 0 0 1-96 96M61.27 88A96 96 0 0 0 160 152"/></symbol>
+  <symbol id="i-file-up" viewBox="0 0 256 256"><path d="M200 224H56a8 8 0 0 1-8-8V40a8 8 0 0 1 8-8h96l56 56v128a8 8 0 0 1-8 8ZM152 32v56h56M100 148l28-28 28 28M128 184v-64"/></symbol>
+  <symbol id="i-file-text" viewBox="0 0 256 256"><path d="M200 224H56a8 8 0 0 1-8-8V40a8 8 0 0 1 8-8h96l56 56v128a8 8 0 0 1-8 8ZM152 32v56h56M96 136h64M96 168h64"/></symbol>
+  <symbol id="i-percent" viewBox="0 0 256 256"><path d="M200 56L56 200"/><circle cx="76" cy="76" r="24"/><circle cx="180" cy="180" r="24"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 256 256"><path d="M56 104a72 72 0 0 1 144 0c0 35.82 8.3 64.6 14.9 76A8 8 0 0 1 208 192H48a8 8 0 0 1-6.88-12C47.71 168.6 56 139.81 56 104ZM96 192a32 32 0 0 0 64 0M224 71.1a103.08 103.08 0 0 0-36.06-39.1M32 71.1A103.08 103.08 0 0 1 68.06 32"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 256 256"><path d="M32 208V56a8 8 0 0 1 8-8h176a8 8 0 0 1 8 8v152l-32-16-32 16-32-16-32 16-32-16ZM80 104h96M80 136h96"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 256 256"><circle cx="128" cy="128" r="96"/><path d="M32 128h192M128 32c-24 26-40 58-40 96s16 70 40 96c24-26 40-58 40-96s-16-70-40-96Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 256 256"><circle cx="128" cy="128" r="96"/><path d="M128 72v56h56"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 256 256"><path d="M40 84h96M168 84h48M152 60v48M40 172h48M120 172h96M104 148v48"/></symbol>
+  <symbol id="i-plane" viewBox="0 0 256 256"><path d="M223.69 42.18a8 8 0 0 0-9.87-9.87l-192 58.22a8 8 0 0 0-1.25 14.93L106 149.93l44.44 85.5a8 8 0 0 0 14.93-1.25ZM106 149.93l45.25-45.25"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 256 256"><circle cx="128" cy="128" r="96"/><path d="M128 80v56"/><circle cx="128" cy="172" r="12" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-card" viewBox="0 0 256 256"><rect x="24" y="56" width="208" height="144" rx="8"/><path d="M168 168h32M120 168h16M24 96h208"/></symbol>
+  <symbol id="i-export" viewBox="0 0 256 256"><path d="M176 104h24a8 8 0 0 1 8 8v96a8 8 0 0 1-8 8H56a8 8 0 0 1-8-8v-96a8 8 0 0 1 8-8h24M88 64l40-40 40 40M128 136V24"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 256 256"><path d="M40 114.79V56a8 8 0 0 1 8-8h160a8 8 0 0 1 8 8v58.77c0 84.18-71.31 112.07-85.54 116.8a7.54 7.54 0 0 1-4.92 0C111.31 226.86 40 199 40 114.79ZM88 136l24 24 56-56"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 256 256"><path d="M168 168l56 56M40 40l60 176 28-88 88-28Z"/></symbol>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <nav class="island" aria-label="Primary">
+    <a class="brand" href="#/" aria-label="Glossmere home"><svg aria-hidden="true"><use href="#logo"/></svg>Glossmere</a>
+    <ul class="nav-links">
+      <li><a href="#features" data-spy>Features</a></li>
+      <li><a href="#how" data-spy>How it works</a></li>
+      <li><a href="#pricing" data-spy>Pricing</a></li>
+      <li><a href="#faq" data-spy>FAQ</a></li>
+    </ul>
+    <a class="btn btn-primary btn-sm nav-cta" href="#start">Start free</a>
+    <button class="burger" type="button" aria-expanded="false" aria-controls="menu" aria-label="Open menu"><span></span><span></span></button>
+  </nav>
+</header>
+
+<div class="menu" id="menu" inert>
+  <nav aria-label="Menu">
+    <ul>
+      <li><a class="menu-link" href="#features" data-spy>Features</a></li>
+      <li><a class="menu-link" href="#how" data-spy>How it works</a></li>
+      <li><a class="menu-link" href="#pricing" data-spy>Pricing</a></li>
+      <li><a class="menu-link" href="#faq" data-spy>FAQ</a></li>
+      <li><a class="btn btn-primary" href="#start">Start 30 days free<svg class="i" aria-hidden="true"><use href="#i-arrow-right"/></svg></a></li>
+    </ul>
+    <p class="menu-foot">Questions? Email hello@glossmere.app</p>
+  </nav>
+</div>
+
+<main id="main" tabindex="-1">
+<div id="view-home">
+
+  <section class="hero wrap" id="top" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <p class="pill reveal"><svg class="i i-sm" aria-hidden="true"><use href="#i-translate"/></svg>Invoicing for freelance translators</p>
+      <h1 id="hero-title" class="reveal" style="--d:100ms">Bill every word<br> at the right rate,<br> in every language pair</h1>
+      <p class="hero-sub reveal" style="--d:200ms">Drop in the analysis log from your CAT tool. Glossmere applies your rate for that pair, discounts fuzzy matches by your grid, adds the right VAT, and drafts the invoice in your client's currency.</p>
+
+      <form class="signup reveal" style="--d:300ms" novalidate data-signup>
+        <div data-fields>
+          <label class="sr-only" for="email-top">Work email</label>
+          <div class="signup-shell">
+            <input id="email-top" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" placeholder="you@yourstudio.com" required aria-describedby="email-top-error email-top-note">
+            <button class="btn btn-primary" type="submit"><span data-label>Start 30 days free</span><svg class="i" aria-hidden="true"><use href="#i-arrow-right"/></svg></button>
+          </div>
+          <p class="field-error" id="email-top-error" aria-live="polite"></p>
+          <ul class="signup-note" id="email-top-note">
+            <li><svg class="i i-sm" aria-hidden="true"><use href="#i-check"/></svg>No card needed</li>
+            <li><svg class="i i-sm" aria-hidden="true"><use href="#i-check"/></svg>Cancel from settings in two clicks</li>
+          </ul>
+        </div>
+        <div class="signup-done" data-done hidden>
+          <span class="done-icon"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>
+          <div>
+            <p class="done-title" tabindex="-1">Check your inbox</p>
+            <p class="done-text">We sent a sign in link to <strong data-email></strong>. The link works for 30 minutes.</p>
+            <button class="link-btn" type="button" data-reset>Use a different email</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="proof reveal" style="--d:400ms">
+        <div class="faces" aria-hidden="true"><span class="face f1">IV</span><span class="face f2">KA</span><span class="face f3">NH</span><span class="face f4">TB</span></div>
+        <p>Used by <strong>2,814 freelance translators</strong> in 46 countries</p>
+      </div>
+    </div>
+
+    <figure class="mock reveal" style="--d:200ms" role="img" aria-label="A Glossmere draft invoice for Lindqvist Juridik AB. A memoQ log with 6,573 words becomes 4,417.15 weighted words at €0.14 for English to Swedish, plus 1,204 words at €0.12 for Swedish to English. Total due €762.88 with VAT reverse charged.">
+      <div class="app">
+        <div class="app-bar">
+          <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+          <span class="crumb">Invoices / <b>GM 0418</b></span>
+          <span class="status">Draft</span>
+          <span class="fake-btn">Send invoice<svg class="i i-sm" aria-hidden="true"><use href="#i-plane"/></svg></span>
+        </div>
+        <div class="app-body">
+          <div class="app-side">
+            <div>
+              <p class="k">Imported log</p>
+              <div class="file" style="margin-top:var(--s-75)">
+                <span class="file-icon"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg></span>
+                <span><span class="file-name">Amendment_v3.csv</span><br><span class="k">memoQ analysis · 6,573 words</span></span>
+                <svg class="i ok" aria-hidden="true"><use href="#i-check"/></svg>
+              </div>
+            </div>
+            <div>
+              <p class="k">Match bands, EN→SV</p>
+              <div class="bar"><span class="b1" style="flex:3128"></span><span class="b2" style="flex:1046"></span><span class="b3" style="flex:412"></span><span class="b4" style="flex:1987"></span></div>
+              <div class="bands">
+                <div class="band"><span class="dot b1"></span><span>No match</span><span class="mono">3,128</span><span class="mono w">100%</span></div>
+                <div class="band"><span class="dot b2"></span><span>75 to 94%</span><span class="mono">1,046</span><span class="mono w">60%</span></div>
+                <div class="band"><span class="dot b3"></span><span>95 to 99%</span><span class="mono">412</span><span class="mono w">40%</span></div>
+                <div class="band"><span class="dot b4"></span><span>100% and repeats</span><span class="mono">1,987</span><span class="mono w">25%</span></div>
+              </div>
+            </div>
+            <div class="weighted"><span>Weighted words</span><span class="mono">4,417.15</span></div>
+          </div>
+          <div class="app-main">
+            <div class="inv-head">
+              <div>
+                <p class="k">Billed to</p>
+                <p class="inv-name">Lindqvist Juridik AB</p>
+                <p class="inv-addr">Birger Jarlsgatan 18, 114 34 Stockholm</p>
+              </div>
+              <div class="inv-meta">
+                <span class="k">Invoice</span>
+                <span class="mono">GM 0418</span>
+                Due 21 Oct 2026
+              </div>
+            </div>
+            <table class="inv-table">
+              <thead><tr><th>Description</th><th class="num">Words</th><th class="num col-rate">Rate</th><th class="num">Amount</th></tr></thead>
+              <tbody>
+                <tr><td class="desc">Share purchase agreement, amendment 3<span>EN→SV · weighted from memoQ log</span></td><td class="num">4,417.15</td><td class="num col-rate">€0.14</td><td class="num">€618.40</td></tr>
+                <tr><td class="desc">Board minutes, 12 Sept<span>SV→EN · new words</span></td><td class="num">1,204</td><td class="num col-rate">€0.12</td><td class="num">€144.48</td></tr>
+              </tbody>
+            </table>
+            <dl class="inv-totals">
+              <div><dt>Subtotal</dt><dd>€762.88</dd></div>
+              <div><dt>VAT 0%, reverse charge</dt><dd>€0.00</dd></div>
+              <div class="grand"><dt>Total due</dt><dd>€762.88</dd></div>
+            </dl>
+            <p class="inv-note">VAT reverse charged under Article 196 of Directive 2006/112/EC.</p>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <p class="tools reveal">Reads analysis logs from <b>Trados Studio</b>, <b>memoQ</b>, and <b>Phrase</b></p>
+  </section>
+
+  <section class="section wrap" id="why" aria-labelledby="why-title">
+    <div class="reveal">
+      <p class="eyebrow">Why Glossmere</p>
+      <h2 class="h2" id="why-title">A spreadsheet cannot read a CAT log</h2>
+      <p class="lead">Most translators we interviewed rebuild each invoice by hand. They copy the match bands, apply the grid, look up the rate, and convert the currency. That takes about 20 minutes per client, every month.</p>
+    </div>
+    <div class="compare">
+      <div class="compare-card old reveal">
+        <h3>Invoicing in a spreadsheet</h3>
+        <ul>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></span>Copy up to 14 match bands from each log, cell by cell</li>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></span>Remember which client pays €0.13 and which pays €0.12</li>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></span>Resend invoices that an agency rejected for a missing PO number</li>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></span>Look up the exchange rate, then explain it when the client asks</li>
+        </ul>
+      </div>
+      <div class="compare-card new reveal" style="--d:100ms">
+        <h3>Invoicing in Glossmere</h3>
+        <ul>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>Drop the log in, and weighted words appear for each band</li>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>Your rate card picks the rate for each pair and client</li>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>Each client can require a PO number before you send</li>
+          <li><span class="tick"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>The exchange rate locks on the issue date and prints on the PDF</li>
+        </ul>
+      </div>
+    </div>
+    <div class="stat-band reveal">
+      <span class="big">3 h 12 min → 41 min</span>
+      <p>Median time members spend on invoicing each month, before and after Glossmere. Survey of 612 members, March 2026.</p>
+    </div>
+  </section>
+
+  <section class="section wrap" id="features" aria-labelledby="features-title">
+    <div class="reveal">
+      <p class="eyebrow">Features</p>
+      <h2 class="h2" id="features-title">Built for the way translators bill</h2>
+      <p class="lead">Per word, per pair, per client. Glossmere does the arithmetic, so each invoice matches the job you delivered.</p>
+    </div>
+    <div class="bento">
+      <article class="card span-2 reveal">
+        <div class="card-split">
+          <div>
+            <span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-translate"/></svg></span>
+            <h3>A rate for every language pair</h3>
+            <p>Set EN→DE at €0.13 and DE→EN at €0.11 once. Every line picks the right rate, and a client can keep its own rates when you agreed on different ones.</p>
+          </div>
+          <div class="rates">
+            <div class="rate-row"><b>EN→DE</b><span>€0.13 <small>per word</small></span></div>
+            <div class="rate-row"><b>DE→EN</b><span>€0.11 <small>per word</small></span></div>
+            <div class="rate-row"><b>EN→SV</b><span>€0.14 <small>per word</small></span></div>
+            <div class="rate-row"><b>FR→EN</b><span>€0.12 <small>per word</small></span></div>
+            <div class="rate-row"><b>JA→EN</b><span>¥14 <small>per character</small></span></div>
+          </div>
+        </div>
+      </article>
+      <article class="card reveal" style="--d:100ms">
+        <span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-percent"/></svg></span>
+        <h3>Your fuzzy match grid, applied</h3>
+        <p>Glossmere reads Trados Studio, memoQ, and Phrase logs, then weights each match band by your own percentages.</p>
+        <div class="grid-bars">
+          <div class="gb"><span>No match</span><span class="track"><span class="fill" style="--w:100%"></span></span><span class="mono">100%</span></div>
+          <div class="gb"><span>75 to 94%</span><span class="track"><span class="fill" style="--w:60%"></span></span><span class="mono">60%</span></div>
+          <div class="gb"><span>95 to 99%</span><span class="track"><span class="fill" style="--w:40%"></span></span><span class="mono">40%</span></div>
+          <div class="gb"><span>Repeats</span><span class="track"><span class="fill" style="--w:25%"></span></span><span class="mono">25%</span></div>
+        </div>
+      </article>
+      <article class="card reveal">
+        <span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-clock"/></svg></span>
+        <h3>Minimums and surcharges</h3>
+        <p>Short jobs bill at your €35 minimum. Weekend or 24 hour delivery adds your surcharge, and the PDF shows the reason on the line.</p>
+      </article>
+      <article class="card reveal" style="--d:100ms">
+        <span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-globe"/></svg></span>
+        <h3>VAT and currency, sorted</h3>
+        <p>EU reverse charge with the right legal note, 31 currencies, and an exchange rate that locks on the issue date.</p>
+      </article>
+      <article class="card reveal" style="--d:200ms">
+        <span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg></span>
+        <h3>Paid 9.4 days sooner</h3>
+        <p>Reminders go out 3 days before and 7 days after the due date, in your words and in your client's language.</p>
+        <p class="footnote">Median across 1,906 members, April to June 2026.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="tagline-band" id="promise" aria-label="Our promise">
+    <div class="wrap">
+      <p class="tagline" data-tagline>You translate the words.<br class="br-md"> Glossmere counts them,<br class="br-md"> prices them by the pair,<br class="br-md"> and gets every one <span class="pay">paid.</span></p>
+    </div>
+  </section>
+
+  <section class="section wrap" id="how" aria-labelledby="how-title">
+    <div class="reveal">
+      <p class="eyebrow">How it works</p>
+      <h2 class="h2" id="how-title">From CAT log to sent invoice in three steps</h2>
+      <p class="lead">Setup takes about 6 minutes. After that, a typical invoice takes under 2.</p>
+    </div>
+    <ol class="steps">
+      <li class="card reveal">
+        <div class="step-top"><span class="step-num">01</span><span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg></span></div>
+        <h3>Set your rate card once</h3>
+        <p>Add each language pair, your rate per word or character, and your fuzzy grid. Copy a grid to another client in one click.</p>
+      </li>
+      <li class="card reveal" style="--d:100ms">
+        <div class="step-top"><span class="step-num">02</span><span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-file-up"/></svg></span></div>
+        <h3>Drop in the analysis log</h3>
+        <p>Drag the export from Trados Studio, memoQ, or Phrase onto the client. Glossmere reads each match band and drafts the lines.</p>
+      </li>
+      <li class="card reveal" style="--d:200ms">
+        <div class="step-top"><span class="step-num">03</span><span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-plane"/></svg></span></div>
+        <h3>Check it and send</h3>
+        <p>Add a PO number if the client needs one, then send. Clients pay by SEPA transfer or card, and you see the payment the same day.</p>
+      </li>
+    </ol>
+
+    <div class="demo-head reveal" id="demo">
+      <h3>Try the rate engine with your own numbers</h3>
+      <p>Pick a language pair, enter the words from a recent job, and see what the line should bill.</p>
+    </div>
+    <div class="demo reveal">
+      <form class="panel" id="calc" novalidate aria-label="Rate calculator">
+        <div class="field">
+          <div class="field-label"><label for="pair">Language pair</label></div>
+          <div class="select">
+            <select class="input" id="pair" name="pair">
+              <option value="EN→DE" data-rate="0.13">EN→DE · €0.13 per word</option>
+              <option value="DE→EN" data-rate="0.11">DE→EN · €0.11 per word</option>
+              <option value="EN→SV" data-rate="0.14">EN→SV · €0.14 per word</option>
+              <option value="SV→EN" data-rate="0.12">SV→EN · €0.12 per word</option>
+              <option value="FR→EN" data-rate="0.12">FR→EN · €0.12 per word</option>
+              <option value="EN→ES" data-rate="0.09">EN→ES · €0.09 per word</option>
+            </select>
+            <svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label"><label for="w-fresh">New words</label><span id="w-fresh-hint">Billed at 100%</span></div>
+          <input class="input mono" id="w-fresh" name="fresh" inputmode="numeric" autocomplete="off" value="2,400" aria-describedby="w-fresh-hint w-fresh-error">
+          <p class="field-error" id="w-fresh-error" aria-live="polite"></p>
+        </div>
+        <div class="field">
+          <div class="field-label"><label for="w-fuzzy">Fuzzy matches, 75 to 99%</label><span id="w-fuzzy-hint">Billed at 60%</span></div>
+          <input class="input mono" id="w-fuzzy" name="fuzzy" inputmode="numeric" autocomplete="off" value="860" aria-describedby="w-fuzzy-hint w-fuzzy-error">
+          <p class="field-error" id="w-fuzzy-error" aria-live="polite"></p>
+        </div>
+        <div class="field">
+          <div class="field-label"><label for="w-reps">Repetitions and 100% matches</label><span id="w-reps-hint">Billed at 25%</span></div>
+          <input class="input mono" id="w-reps" name="reps" inputmode="numeric" autocomplete="off" value="310" aria-describedby="w-reps-hint w-reps-error">
+          <p class="field-error" id="w-reps-error" aria-live="polite"></p>
+        </div>
+        <div class="demo-actions">
+          <button class="btn btn-dark" type="submit"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Add line</button>
+          <button class="btn btn-ghost" type="button" data-sample><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span data-label>Load sample memoQ log</span></button>
+        </div>
+        <p class="field-error" id="calc-error" aria-live="polite"></p>
+      </form>
+
+      <div class="panel preview">
+        <div class="preview-head">
+          <div>
+            <h4>Draft invoice</h4>
+            <p class="k">Lindqvist Juridik AB, demo</p>
+          </div>
+          <span class="k mono" data-count></span>
+        </div>
+        <ul class="skeleton" data-skeleton hidden aria-hidden="true">
+          <li class="line"><span class="sk-pair"></span><span class="sk-main"></span><span class="sk-amount"></span><span class="sk-btn"></span></li>
+          <li class="line"><span class="sk-pair"></span><span class="sk-main"></span><span class="sk-amount"></span><span class="sk-btn"></span></li>
+          <li class="line"><span class="sk-pair"></span><span class="sk-main"></span><span class="sk-amount"></span><span class="sk-btn"></span></li>
+        </ul>
+        <ul class="lines" data-lines aria-label="Invoice lines"></ul>
+        <div class="empty" data-empty hidden>
+          <span class="icon-tile"><svg class="i i-lg" aria-hidden="true"><use href="#i-receipt"/></svg></span>
+          <div>
+            <h5>No lines yet</h5>
+            <p>Add a language pair with the form, or load a sample memoQ log to see a full draft.</p>
+          </div>
+          <button class="btn btn-ghost" type="button" data-sample><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span data-label>Load sample memoQ log</span></button>
+        </div>
+        <div class="total" data-total-row>
+          <span>Total before VAT</span>
+          <output data-total aria-live="polite">€0.00</output>
+        </div>
+        <p class="demo-note">Lines under €35.00 bill at the minimum fee. Weights: new 100%, fuzzy 60%, repeats 25%.</p>
+        <p class="sr-only" aria-live="polite" data-announce></p>
+      </div>
+    </div>
+    <template id="line-tpl">
+      <li class="line">
+        <span class="pair" data-pair></span>
+        <div class="line-main"><strong data-weighted></strong><span class="line-sub" data-detail></span><span class="line-min" data-min hidden>Minimum fee applied</span></div>
+        <span class="line-amount" data-amount></span>
+        <button class="icon-btn" type="button" data-remove><svg class="i i-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+      </li>
+    </template>
+  </section>
+
+  <section class="section wrap" id="proof" aria-labelledby="proof-title">
+    <div class="reveal">
+      <p class="eyebrow">From translators</p>
+      <h2 class="h2" id="proof-title">Translators who stopped invoicing on Sunday nights</h2>
+    </div>
+    <div class="stats">
+      <div class="stat reveal"><p class="num">61,409</p><p>invoices sent by members last quarter</p></div>
+      <div class="stat reveal" style="--d:100ms"><p class="num">9.4 days</p><p>sooner paid, median across members</p></div>
+      <div class="stat reveal" style="--d:200ms"><p class="num">41 min</p><p>spent on invoicing each month</p></div>
+    </div>
+    <div class="quotes">
+      <figure class="quote reveal">
+        <blockquote><p>“I bill four agencies, and each one has its own fuzzy grid. Glossmere keeps all four, and my invoices stopped coming back with questions.”</p></blockquote>
+        <figcaption><span class="face f1" aria-hidden="true">IV</span><span><span class="who">Ilse Vandermeer</span><br><span class="role">DE→NL and EN→NL, legal, Utrecht</span></span></figcaption>
+      </figure>
+      <figure class="quote reveal" style="--d:100ms">
+        <blockquote><p>“Japanese source bills by the character and English by the word. Glossmere puts both on one invoice, with the yen rate printed where my clients look for it.”</p></blockquote>
+        <figcaption><span class="face f2" aria-hidden="true">KA</span><span><span class="who">Kenji Arai</span><br><span class="role">JA→EN, game localization, Osaka</span></span></figcaption>
+      </figure>
+      <figure class="quote reveal" style="--d:200ms">
+        <blockquote><p>“In my first month it found €412.60 in repetitions I had never billed across three agencies. That covers three years of the subscription.”</p></blockquote>
+        <figcaption><span class="face f3" aria-hidden="true">NH</span><span><span class="who">Noor Haddad</span><br><span class="role">AR→FR and EN→FR, medical, Lyon</span></span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section wrap" id="pricing" aria-labelledby="pricing-title">
+    <div class="reveal">
+      <p class="eyebrow">Pricing</p>
+      <h2 class="h2" id="pricing-title">One plan with every feature, free for 30 days</h2>
+    </div>
+    <div class="pricing">
+      <div class="plan reveal">
+        <div class="plan-top"><h3>Glossmere</h3><span class="pill">30 days free</span></div>
+        <p class="price"><b>€13</b><span>per month</span></p>
+        <p class="annual">Or €129 a year, which saves €27. Prices exclude VAT.</p>
+        <ul>
+          <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Unlimited invoices and clients</li>
+          <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Rate cards for every language pair</li>
+          <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>A fuzzy match grid for each client</li>
+          <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Trados Studio, memoQ, and Phrase import</li>
+          <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>31 currencies with VAT handling</li>
+          <li><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Payment reminders in your client's language</li>
+        </ul>
+        <a class="btn btn-primary" href="#start">Start 30 days free<svg class="i" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+      </div>
+      <div class="assure reveal" style="--d:100ms">
+        <h3>Trying it costs you nothing</h3>
+        <ul>
+          <li><span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-card"/></svg></span><div><h4>No card to start</h4><p>You add a card only if you decide to stay.</p></div></li>
+          <li><span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-cursor"/></svg></span><div><h4>Cancel in two clicks</h4><p>From settings, at any time. No email to support and no exit survey.</p></div></li>
+          <li><span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg></span><div><h4>Refund on annual plans</h4><p>Email us within 30 days of paying, and we refund the full €129.</p></div></li>
+          <li><span class="icon-tile"><svg class="i" aria-hidden="true"><use href="#i-export"/></svg></span><div><h4>Your data leaves with you</h4><p>Export every client, rate card, and invoice as CSV and PDF.</p></div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="faq" aria-labelledby="faq-title">
+    <div class="faq-grid">
+      <div class="faq-intro reveal">
+        <p class="eyebrow">FAQ</p>
+        <h2 class="h2" id="faq-title">Questions translators ask us</h2>
+        <p class="lead">Something else? Email <a href="mailto:hello@glossmere.app">hello@glossmere.app</a>. A translator on our team replies within one working day.</p>
+      </div>
+      <div class="faq reveal" style="--d:100ms">
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-1">Which CAT tools can Glossmere read?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-1"><div><p>Trados Studio 2019 and later (XML analysis reports), memoQ (CSV and HTML analysis exports), and Phrase (CSV analysis exports). For any other tool, type the words for each match band by hand, or email us a sample log and we will add support.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-2">Does Glossmere upload my source texts?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-2"><div><p>No. Glossmere reads only the analysis log, which holds file names and word counts for each match band. Your source and target texts stay on your computer.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-3">Can I bill by characters, lines, or hours?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-3"><div><p>Yes. Bill Chinese, Japanese, and Korean source text by the character, German clients by the standard line of 55 characters, and review or MT post editing by the hour. One invoice can mix all of them.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-4">How does the fuzzy match grid work?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-4"><div><p>You set a percentage for each match band, for example 60% for 75 to 94% matches. Glossmere multiplies the words in each band by that percentage and bills the weighted total. Each client can have its own grid.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-5">How does Glossmere handle VAT?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-5"><div><p>Glossmere picks the treatment from your country and your client's: domestic VAT, EU reverse charge with the required note, or no VAT for clients outside the EU. You can override it on any invoice. Check your first invoice with your accountant.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-6">What happens after the 30 day trial?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-6"><div><p>We email you 3 days before the trial ends. If you add a card, you continue at €13 a month or €129 a year. If you do not, your account becomes read only, and you can still export every invoice.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-7">Can I bring my existing clients and invoice numbers?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-7"><div><p>Yes. Import clients from a CSV file, and set your next invoice number during setup. Glossmere continues the sequence your accountant already knows.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <h3><button class="faq-q" type="button" aria-expanded="false" aria-controls="faq-8">Which currencies and payment methods work?<svg class="i" aria-hidden="true"><use href="#i-caret-down"/></svg></button></h3>
+          <div class="faq-a" id="faq-8"><div><p>You can invoice in 31 currencies. Clients pay by SEPA transfer, card, or PayPal. Card payments cost 1.4% plus €0.25 for European cards, and Glossmere adds no fee of its own.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="start" aria-labelledby="start-title">
+    <div class="final reveal">
+      <h2 class="h2" id="start-title">Price your next invoice word by word</h2>
+      <p class="lead">Start your 30 days free. Bring one CAT log and see the weighted total before you decide.</p>
+      <form class="signup" novalidate data-signup>
+        <div data-fields>
+          <label class="sr-only" for="email-end">Work email</label>
+          <div class="signup-shell">
+            <input id="email-end" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" placeholder="you@yourstudio.com" required aria-describedby="email-end-error email-end-note">
+            <button class="btn btn-primary" type="submit"><span data-label>Start 30 days free</span><svg class="i" aria-hidden="true"><use href="#i-arrow-right"/></svg></button>
+          </div>
+          <p class="field-error" id="email-end-error" aria-live="polite"></p>
+          <ul class="signup-note" id="email-end-note">
+            <li><svg class="i i-sm" aria-hidden="true"><use href="#i-check"/></svg>No card needed</li>
+            <li><svg class="i i-sm" aria-hidden="true"><use href="#i-check"/></svg>Cancel from settings in two clicks</li>
+          </ul>
+        </div>
+        <div class="signup-done" data-done hidden>
+          <span class="done-icon"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>
+          <div>
+            <p class="done-title" tabindex="-1">Check your inbox</p>
+            <p class="done-text">We sent a sign in link to <strong data-email></strong>. The link works for 30 minutes.</p>
+            <button class="link-btn" type="button" data-reset>Use a different email</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+
+<article class="doc wrap" id="view-privacy" hidden aria-labelledby="privacy-title">
+  <div class="doc-inner">
+    <a class="back" href="#/"><svg class="i i-sm" aria-hidden="true"><use href="#i-arrow-left"/></svg>Back to Glossmere</a>
+    <h1 id="privacy-title" tabindex="-1">Privacy policy</h1>
+    <p class="updated">Last updated 18 September 2026</p>
+    <h2>What we collect</h2>
+    <p>Your name, email address, and the business details you add to invoices. For each client, their name, address, and VAT number. From each analysis log, file names and word counts for each match band.</p>
+    <h2>What we never collect</h2>
+    <p>Source or target texts. Glossmere reads the analysis log only, and the log holds counts, not content.</p>
+    <h2>Where your data lives</h2>
+    <p>On servers in Frankfurt, Germany, encrypted at rest. Payment details go straight to our payment processor and never touch our servers.</p>
+    <h2>Cookies and tracking</h2>
+    <p>This page sets no cookies and runs no analytics. It loads the Geist typeface from jsDelivr, which sees your IP address. The app sets one session cookie after you sign in.</p>
+    <h2>Your rights</h2>
+    <p>Export or delete your account from settings at any time. For anything else, email privacy@glossmere.app and we reply within 5 working days.</p>
+  </div>
+</article>
+
+<article class="doc wrap" id="view-terms" hidden aria-labelledby="terms-title">
+  <div class="doc-inner">
+    <a class="back" href="#/"><svg class="i i-sm" aria-hidden="true"><use href="#i-arrow-left"/></svg>Back to Glossmere</a>
+    <h1 id="terms-title" tabindex="-1">Terms of service</h1>
+    <p class="updated">Last updated 18 September 2026</p>
+    <h2>The trial</h2>
+    <p>Your first 30 days are free and need no card. We email you 3 days before the trial ends.</p>
+    <h2>Billing</h2>
+    <p>After the trial, Glossmere costs €13 a month or €129 a year, plus VAT where it applies. Your price stays fixed for 12 months from the day you subscribe.</p>
+    <h2>Cancelling and refunds</h2>
+    <p>Cancel from settings in two clicks. Monthly plans run to the end of the paid month. Annual plans get a full refund if you ask within 30 days of payment.</p>
+    <h2>Your content</h2>
+    <p>Your invoices, clients, and rate cards belong to you. We process them only to run the service, and you can export them as CSV and PDF at any time.</p>
+    <h2>Responsibility for invoices</h2>
+    <p>Glossmere calculates totals and suggests a VAT treatment. You approve every invoice before it goes out, and you remain responsible for its content.</p>
+    <h2>Governing law</h2>
+    <p>Belgian law governs these terms. The courts of Ghent handle any dispute.</p>
+  </div>
+</article>
+
+<section class="nf" id="view-404" hidden aria-labelledby="nf-title">
+  <span class="pill mono">404</span>
+  <h1 id="nf-title" tabindex="-1">Lost in translation</h1>
+  <p>We could not find a page at this address. The link may have a typo, or the page moved.</p>
+  <a class="btn btn-primary" href="#/"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg>Back to Glossmere</a>
+</section>
+</main>
+
+<footer class="site-footer wrap">
+  <div class="foot">
+    <div>
+      <a class="brand" href="#/" aria-label="Glossmere home"><svg aria-hidden="true"><use href="#logo"/></svg>Glossmere</a>
+      <p>Invoicing for freelance translators. Made in Ghent, Belgium.</p>
+    </div>
+    <ul>
+      <li><a href="#/privacy" data-route="privacy">Privacy policy</a></li>
+      <li><a href="#/terms" data-route="terms">Terms of service</a></li>
+      <li><a href="mailto:hello@glossmere.app">hello@glossmere.app</a></li>
+    </ul>
+    <p class="copy">© 2026 Glossmere BV</p>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const $ = (sel, el = document) => el.querySelector(sel)
+  const $$ = (sel, el = document) => [...el.querySelectorAll(sel)]
+  const root = document.documentElement
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  /* Scroll reveal: IntersectionObserver only, no scroll listener */
+  const revealer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue
+      entry.target.classList.add('is-in')
+      revealer.unobserve(entry.target)
+    }
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 })
+  $$('.reveal').forEach((el) => revealer.observe(el))
+
+  /* Fluid island menu */
+  const burger = $('.burger')
+  const menu = $('#menu')
+  const main = $('#main')
+  const footer = $('.site-footer')
+  const isMenuOpen = () => burger.getAttribute('aria-expanded') === 'true'
+  const setMenu = (open) => {
+    burger.setAttribute('aria-expanded', String(open))
+    burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu')
+    menu.classList.toggle('is-open', open)
+    menu.inert = !open
+    main.inert = open
+    footer.inert = open
+    root.classList.toggle('menu-open', open)
+    if (open) $('a', menu).focus({ preventScroll: true })
+  }
+  burger.addEventListener('click', () => setMenu(!isMenuOpen()))
+  menu.addEventListener('click', (event) => { if (event.target.closest('a')) setMenu(false) })
+  $('.island').addEventListener('click', (event) => { if (event.target.closest('a') && isMenuOpen()) setMenu(false) })
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !isMenuOpen()) return
+    setMenu(false)
+    burger.focus()
+  })
+  matchMedia('(min-width: 768px)').addEventListener('change', (event) => { if (event.matches && isMenuOpen()) setMenu(false) })
+
+  /* Current section in the nav */
+  const spyLinks = $$('[data-spy]')
+  const setCurrent = (id) => spyLinks.forEach((a) => {
+    if (a.hash === `#${id}`) a.setAttribute('aria-current', 'location')
+    else a.removeAttribute('aria-current')
+  })
+  const spy = new IntersectionObserver((entries) => {
+    for (const entry of entries) if (entry.isIntersecting) setCurrent(entry.target.id)
+  }, { rootMargin: '-45% 0px -54% 0px' })
+  $$('#view-home > section[id]').forEach((section) => spy.observe(section))
+
+  /* Hash routes for legal pages and the 404 */
+  const home = $('#view-home')
+  const routes = {
+    '': { view: home, title: 'Glossmere · Invoicing for freelance translators' },
+    privacy: { view: $('#view-privacy'), title: 'Privacy policy · Glossmere' },
+    terms: { view: $('#view-terms'), title: 'Terms of service · Glossmere' },
+  }
+  const notFound = { view: $('#view-404'), title: 'Page not found · Glossmere' }
+  const allViews = [...Object.values(routes).map((r) => r.view), notFound.view]
+  let currentView = null
+
+  const resolve = (hash) => {
+    if (hash.startsWith('#/')) {
+      const name = hash.slice(2).replace(/\/+$/, '')
+      return { _tag: 'Page', name, route: routes[name] ?? notFound }
+    }
+    const raw = hash.slice(1)
+    // A malformed escape like #%E0 still works as a literal id, so fall back to the raw text
+    const id = (() => { try { return decodeURIComponent(raw) } catch { return raw } })()
+    const target = id ? document.getElementById(id) : null
+    if (target && !home.contains(target)) return { _tag: 'Stay' }
+    return { _tag: 'Anchor', target, route: routes[''] }
+  }
+
+  const render = () => {
+    const match = resolve(location.hash)
+    if (match._tag === 'Stay') return
+    const { view, title } = match.route
+    const changed = view !== currentView
+    allViews.forEach((v) => { v.hidden = v !== view })
+    document.title = title
+    $$('[data-route]').forEach((a) => {
+      if (match._tag === 'Page' && a.dataset.route === match.name) a.setAttribute('aria-current', 'page')
+      else a.removeAttribute('aria-current')
+    })
+    if (match._tag === 'Page') {
+      window.scrollTo({ top: 0, behavior: changed ? 'instant' : 'auto' })
+      if (changed && view !== home) $('h1', view).focus({ preventScroll: true })
+    } else if (changed && match.target) {
+      match.target.scrollIntoView({ behavior: 'instant' })
+    }
+    currentView = view
+  }
+  addEventListener('hashchange', render)
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href^="#/"]')
+    if (!link || link.hash !== location.hash) return
+    event.preventDefault()
+    render()
+  })
+  render()
+
+  /* Tagline: words light up one at a time in reading order */
+  const tagline = $('[data-tagline]')
+  const splitWords = (el) => {
+    for (const node of [...el.childNodes]) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const frag = document.createDocumentFragment()
+        for (const part of node.textContent.split(/(\s+)/)) {
+          if (!part) continue
+          if (/^\s+$/.test(part)) { frag.append(part); continue }
+          const span = document.createElement('span')
+          span.className = 'w'
+          span.textContent = part
+          frag.append(span)
+        }
+        node.replaceWith(frag)
+      } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'BR') {
+        splitWords(node)
+      }
+    }
+  }
+  splitWords(tagline)
+  const words = $$('.w', tagline)
+  if (reducedMotion) {
+    words.forEach((w) => w.classList.add('on'))
+  } else {
+    let queued = false
+    const paint = () => {
+      queued = false
+      const rect = tagline.getBoundingClientRect()
+      const vh = innerHeight
+      const progress = Math.min(1, Math.max(0, (vh * 0.85 - rect.top) / (vh * 0.4 + rect.height)))
+      const lit = Math.round(progress * words.length)
+      words.forEach((w, i) => w.classList.toggle('on', i < lit))
+    }
+    const onScroll = () => {
+      if (queued) return
+      queued = true
+      requestAnimationFrame(paint)
+    }
+    new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) addEventListener('scroll', onScroll, { passive: true })
+      else removeEventListener('scroll', onScroll)
+      paint()
+    }).observe(tagline)
+  }
+
+  /* Rate engine demo */
+  const WEIGHTS = { fresh: 1, fuzzy: 0.6, reps: 0.25 }
+  const MIN_FEE = 35
+  const MAX_LINES = 8
+  const eur = new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' })
+  const count = new Intl.NumberFormat('en-IE', { maximumFractionDigits: 2 })
+  const round2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100
+
+  const priceLine = (line) => {
+    const weighted = round2(line.fresh * WEIGHTS.fresh + line.fuzzy * WEIGHTS.fuzzy + line.reps * WEIGHTS.reps)
+    const raw = round2(weighted * line.rate)
+    return { weighted, amount: Math.max(raw, MIN_FEE), minimum: raw < MIN_FEE }
+  }
+
+  const parseCount = (raw) => {
+    const s = raw.replace(/[\s,]/g, '')
+    if (s === '') return { _tag: 'Ok', value: 0 }
+    if (!/^\d+$/.test(s)) return { _tag: 'Err', message: 'Use whole numbers, like 1,250.' }
+    if (s.length > 7) return { _tag: 'Err', message: 'Enter 9,999,999 words or fewer.' }
+    return { _tag: 'Ok', value: Number(s) }
+  }
+
+  const calc = $('#calc')
+  const pairSelect = $('#pair')
+  const fields = ['fresh', 'fuzzy', 'reps'].map((key) => ({ key, input: $(`#w-${key}`), error: $(`#w-${key}-error`) }))
+  const calcError = $('#calc-error')
+  const list = $('[data-lines]')
+  const skeleton = $('[data-skeleton]')
+  const empty = $('[data-empty]')
+  const totalRow = $('[data-total-row]')
+  const totalOut = $('[data-total]')
+  const countOut = $('[data-count]')
+  const announce = $('[data-announce]')
+  const template = $('#line-tpl')
+  const sampleButtons = $$('[data-sample]')
+  const warnIcon = '<svg class="i i-sm" aria-hidden="true"><use href="#i-warning"/></svg>'
+
+  let lines = []
+  let nextId = 1
+  let loading = false
+
+  const showError = (el, message) => { el.innerHTML = message ? `${warnIcon}<span>${message}</span>` : '' }
+  const totalOf = (ls) => round2(ls.reduce((sum, l) => sum + priceLine(l).amount, 0))
+
+  const lineNode = (line, isNew) => {
+    const node = template.content.firstElementChild.cloneNode(true)
+    const priced = priceLine(line)
+    const parts = [`${count.format(line.fresh)} new`]
+    if (line.fuzzy) parts.push(`${count.format(line.fuzzy)} fuzzy`)
+    if (line.reps) parts.push(`${count.format(line.reps)} repeats`)
+    parts.push(`${eur.format(line.rate)} per word`)
+    $('[data-pair]', node).textContent = line.pair
+    $('[data-weighted]', node).textContent = `${count.format(priced.weighted)} weighted words`
+    $('[data-detail]', node).textContent = parts.join(' · ')
+    $('[data-min]', node).hidden = !priced.minimum
+    $('[data-amount]', node).textContent = eur.format(priced.amount)
+    const remove = $('[data-remove]', node)
+    remove.setAttribute('aria-label', `Remove ${line.pair} line, ${eur.format(priced.amount)}`)
+    remove.dataset.id = String(line.id)
+    if (isNew) node.classList.add('is-new')
+    return node
+  }
+
+  const renderLines = (newId) => {
+    list.replaceChildren(...lines.map((l) => lineNode(l, l.id === newId)))
+    const hasLines = lines.length > 0
+    list.hidden = !hasLines || loading
+    empty.hidden = hasLines || loading
+    skeleton.hidden = !loading
+    totalRow.hidden = !hasLines || loading
+    countOut.textContent = loading ? 'Reading log' : lines.length === 1 ? '1 line' : `${lines.length} lines`
+    totalOut.textContent = eur.format(totalOf(lines))
+  }
+
+  calc.addEventListener('submit', (event) => {
+    event.preventDefault()
+    if (loading) return
+    const parsed = fields.map((f) => ({ ...f, result: parseCount(f.input.value) }))
+    let firstBad = null
+    for (const f of parsed) {
+      const bad = f.result._tag === 'Err'
+      f.input.setAttribute('aria-invalid', String(bad))
+      showError(f.error, bad ? f.result.message : '')
+      if (bad && !firstBad) firstBad = f.input
+    }
+    if (firstBad) { firstBad.focus(); return }
+    const [fresh, fuzzy, reps] = parsed.map((f) => f.result.value)
+    if (fresh + fuzzy + reps === 0) {
+      fields[0].input.setAttribute('aria-invalid', 'true')
+      showError(fields[0].error, 'Add at least one word to this line.')
+      fields[0].input.focus()
+      return
+    }
+    if (lines.length >= MAX_LINES) {
+      showError(calcError, `This demo holds ${MAX_LINES} lines. Remove one to add another.`)
+      return
+    }
+    showError(calcError, '')
+    const option = pairSelect.selectedOptions[0]
+    const line = { id: nextId++, pair: option.value, rate: Number(option.dataset.rate), fresh, fuzzy, reps }
+    lines = [...lines, line]
+    renderLines(line.id)
+    announce.textContent = `Added ${line.pair} line. Total ${eur.format(totalOf(lines))}.`
+  })
+
+  fields.forEach((f) => f.input.addEventListener('input', () => {
+    if (f.input.getAttribute('aria-invalid') !== 'true') return
+    const result = parseCount(f.input.value)
+    if (result._tag === 'Ok') { f.input.setAttribute('aria-invalid', 'false'); showError(f.error, '') }
+  }))
+
+  list.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove]')
+    if (!button) return
+    const id = Number(button.dataset.id)
+    const index = lines.findIndex((l) => l.id === id)
+    if (index < 0) return
+    const removed = lines[index]
+    lines = lines.filter((l) => l.id !== id)
+    showError(calcError, '')
+    renderLines()
+    announce.textContent = `Removed ${removed.pair} line. ${lines.length ? `Total ${eur.format(totalOf(lines))}.` : 'The draft is empty.'}`
+    const buttons = $$('[data-remove]', list)
+    const next = buttons[Math.min(index, buttons.length - 1)]
+    if (next) next.focus()
+    else $('[data-sample]', empty).focus()
+  })
+
+  const SAMPLE = [
+    { pair: 'EN→SV', rate: 0.14, fresh: 3128, fuzzy: 1458, reps: 1987 },
+    { pair: 'SV→EN', rate: 0.12, fresh: 1204, fuzzy: 0, reps: 0 },
+    { pair: 'DE→EN', rate: 0.11, fresh: 96, fuzzy: 40, reps: 12 },
+  ]
+  const setSampleBusy = (busy) => sampleButtons.forEach((b) => {
+    b.disabled = busy
+    b.setAttribute('aria-busy', String(busy))
+    $('[data-label]', b).textContent = busy ? 'Reading log' : 'Load sample memoQ log'
+  })
+  sampleButtons.forEach((button) => button.addEventListener('click', async () => {
+    if (loading) return
+    const hadFocus = document.activeElement === button
+    loading = true
+    setSampleBusy(true)
+    showError(calcError, '')
+    renderLines()
+    announce.textContent = 'Reading sample memoQ log.'
+    await wait(900)
+    lines = SAMPLE.map((l) => ({ ...l, id: nextId++ }))
+    loading = false
+    setSampleBusy(false)
+    renderLines()
+    lines.forEach((l, i) => { const n = list.children[i]; if (n) n.classList.add('is-new') })
+    announce.textContent = `Sample log loaded. ${lines.length} lines, total ${eur.format(totalOf(lines))}.`
+    if (hadFocus) sampleButtons[0].focus()
+  }))
+
+  lines = [{ id: nextId++, pair: 'EN→DE', rate: 0.13, fresh: 2400, fuzzy: 860, reps: 310 }]
+  renderLines()
+
+  /* Trial signup, shared by the hero and the final call to action */
+  const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/
+  const checkEmail = (raw) => {
+    const value = raw.trim()
+    if (!value) return { _tag: 'Err', message: 'Enter your email address to start your trial.' }
+    if (!EMAIL.test(value)) return { _tag: 'Err', message: 'Check the email address. It should look like ilse@vandermeer.nl.' }
+    return { _tag: 'Ok', value }
+  }
+
+  $$('[data-signup]').forEach((form) => {
+    const input = $('input', form)
+    const button = $('button[type="submit"]', form)
+    const label = $('[data-label]', button)
+    const error = $('.field-error', form)
+    const fieldsBox = $('[data-fields]', form)
+    const done = $('[data-done]', form)
+    let tried = false
+
+    const setInvalid = (message) => {
+      form.classList.toggle('is-invalid', Boolean(message))
+      input.setAttribute('aria-invalid', String(Boolean(message)))
+      showError(error, message)
+    }
+
+    input.addEventListener('input', () => {
+      if (!tried) return
+      const result = checkEmail(input.value)
+      setInvalid(result._tag === 'Err' ? result.message : '')
+    })
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault()
+      if (button.disabled) return
+      tried = true
+      const result = checkEmail(input.value)
+      if (result._tag === 'Err') { setInvalid(result.message); input.focus(); return }
+      setInvalid('')
+      button.disabled = true
+      button.setAttribute('aria-busy', 'true')
+      input.readOnly = true
+      label.textContent = 'Setting up your trial'
+      await wait(1100)
+      $('[data-email]', done).textContent = result.value
+      fieldsBox.hidden = true
+      done.hidden = false
+      $('.done-title', done).focus()
+    })
+
+    $('[data-reset]', form).addEventListener('click', () => {
+      done.hidden = true
+      fieldsBox.hidden = false
+      button.disabled = false
+      button.removeAttribute('aria-busy')
+      input.readOnly = false
+      label.textContent = 'Start 30 days free'
+      input.value = ''
+      tried = false
+      setInvalid('')
+      input.focus()
+    })
+  })
+
+  /* FAQ accordion */
+  $$('.faq-q').forEach((button) => button.addEventListener('click', () => {
+    const open = button.getAttribute('aria-expanded') !== 'true'
+    button.setAttribute('aria-expanded', String(open))
+    button.closest('.faq-item').classList.toggle('is-open', open)
+  }))
+})()
+</script>
+</body>
+</html>

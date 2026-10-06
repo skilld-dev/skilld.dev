@@ -26,6 +26,21 @@ export const DEMO_GROUPS = [
     label: 'Diagrams and explainers',
     line: 'Systems and flows drawn so a reader can follow them.',
   },
+  {
+    makes: 'slides',
+    label: 'Slides and decks',
+    line: 'A talk or a pitch as a deck you can click through.',
+  },
+  {
+    makes: 'chart',
+    label: 'Charts and dashboards',
+    line: 'Data drawn so the point lands at a glance.',
+  },
+  {
+    makes: 'game',
+    label: 'Games and playables',
+    line: 'Small games you can play right here.',
+  },
 ] as const
 
 export type DemoMakes = typeof DEMO_GROUPS[number]['makes']
