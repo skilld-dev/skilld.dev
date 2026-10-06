@@ -95,6 +95,14 @@
         "retry_delay": 60,
         "max_concurrency": 1
       },
+      // One build per invocation: a large build spends up to 900 of the
+      // invocation's 1,000 subrequests, so builds never share a batch. Two
+      // consumers finish about 20 builds a minute (4 to 7 s each in traces of
+      // 2026-10-07). A larger burst waits in the queue, and the CLI stops
+      // waiting after 60 s. Ten builds at once make about 35 D1 queries a
+      // second at a 0.4 ms median, so D1 is not the limit. The read App's
+      // 5,000 GitHub requests an hour bound sustained cold builds, whatever
+      // this number is.
       {
         "queue": "skilld-artifact-build",
         "max_batch_size": 1,
@@ -102,7 +110,7 @@
         "max_retries": 4,
         "retry_delay": 60,
         "dead_letter_queue": "skilld-artifact-build-dlq",
-        "max_concurrency": 2
+        "max_concurrency": 10
       }
     ]
   },
