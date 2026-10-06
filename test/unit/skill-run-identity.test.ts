@@ -22,7 +22,7 @@ function db() {
       owner TEXT, repo TEXT, name TEXT, sha TEXT, modified_at INTEGER
     )`)
     harness.raw.exec('CREATE TABLE repos (owner TEXT, repo TEXT)')
-    harness.raw.exec(readFileSync('migrations/0144_repository_moves.sql', 'utf8'))
+    harness.raw.exec(readFileSync('migrations/0145_repository_moves.sql', 'utf8'))
   }
   return harness
 }

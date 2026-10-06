@@ -18,7 +18,7 @@ function db() {
       rendered_skill_path TEXT, source_resolved INTEGER DEFAULT 1
     )`)
     harness.raw.exec('CREATE TABLE repos (owner TEXT, repo TEXT)')
-    harness.raw.exec(readFileSync('migrations/0144_repository_moves.sql', 'utf8'))
+    harness.raw.exec(readFileSync('migrations/0145_repository_moves.sql', 'utf8'))
   }
   return harness
 }

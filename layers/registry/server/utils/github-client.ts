@@ -266,7 +266,14 @@ export interface RepoSummary {
   headTreeSha: string | null
 }
 
-function repoSummaryFromGql(r: RepoSummaryGql & { databaseId: number }): RepoSummary {
+/**
+ * Parse one GraphQL Repository into a summary, or null without a Repository
+ * ID. The schema allows a null ID, and a Repository without one cannot be
+ * followed across a move.
+ */
+function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary | null {
+  if (typeof r.databaseId !== 'number')
+    return null
   const branch = r.defaultBranchRef?.name || 'main'
   const meta: RepoMeta = {
     name: r.name,
@@ -317,11 +324,11 @@ export async function getRepoSummary(
   const r = out.data?.repository
   if (!r)
     return { status: 404, data: null, rateLimit: out.rateLimit, notModified: false }
-  // The schema allows a null ID. A Repository without one cannot be followed
-  // across a move, so the read fails like any other malformed answer.
-  if (typeof r.databaseId !== 'number')
-    return { status: 502, data: null, rateLimit: out.rateLimit, notModified: false }
-  return { status: 200, data: repoSummaryFromGql(r), rateLimit: out.rateLimit, notModified: false }
+  // A Repository without an ID fails like any other malformed answer.
+  const summary = repoSummaryFromGql(r)
+  return summary
+    ? { status: 200, data: summary, rateLimit: out.rateLimit, notModified: false }
+    : { status: 502, data: null, rateLimit: out.rateLimit, notModified: false }
 }
 
 /**
@@ -389,7 +396,7 @@ export async function getRepoSummariesBatch(
       const r = out.data?.[`r${i}`]
       // A summary without a usable Repository ID cannot be followed across a
       // move, so it reads as no summary and the per-repository sync owns it.
-      summaries.push(r && typeof r.databaseId === 'number' ? repoSummaryFromGql(r) : null)
+      summaries.push(r ? repoSummaryFromGql(r) : null)
     }
   }
   return { _tag: 'read', summaries, rateLimit, requests: sent }
