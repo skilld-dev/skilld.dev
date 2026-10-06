@@ -2,6 +2,7 @@ import type { ResolvedSource } from '../../layers/artifact-delivery/server/schem
 import type { ArtifactSourceFile } from '../../layers/artifact-delivery/server/utils/github-source'
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
+import { checkResultSchema } from '../../layers/artifact-delivery/server/schemas/contracts'
 import { checkArtifactSource, checksBlockArtifact, createArtifactCheckScanner } from '../../layers/artifact-delivery/server/utils/checks'
 
 // Keys are generated per run, so the repository never holds key material.
@@ -71,6 +72,25 @@ describe('credential material check over streamed bytes', () => {
 
     expect(credentialResult(streamedCheck(binary, 512))).toMatchObject({ outcome: 'pass' })
     expect(credentialResult(await check(binary))).toMatchObject({ outcome: 'pass' })
+  })
+})
+
+describe('check results for a Skill of 2,000 files', () => {
+  it('keeps every result inside the limits the skilld CLI verifies', async () => {
+    // The old 900 file limit hid this: the schema allows 100 findings of 500 characters.
+    const files = [
+      file('SKILL.md', '---\nname: demo\ndescription: Demo.\n---\n'),
+      ...Array.from({ length: 150 }, (_, index): ArtifactSourceFile => ({ ...file(`scripts/${'s'.repeat(600)}-${index}.sh`, 'echo\n'), mode: 493 })),
+    ]
+
+    const checked = await checkArtifactSource(source(), files)
+
+    for (const result of checked.checkResults)
+      expect(checkResultSchema.safeParse(result).success).toBe(true)
+    expect(checked.checkResults.find(result => result.name === 'executable-files')).toMatchObject({
+      outcome: 'warn',
+      summary: 'The Skill contains executable files. The first 100 of 150 are listed.',
+    })
   })
 })
 

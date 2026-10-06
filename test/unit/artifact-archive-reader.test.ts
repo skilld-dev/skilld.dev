@@ -61,6 +61,44 @@ describe('reading Skill files from the Repository archive', () => {
     expect(inflated.pulledBytes).toBeLessThan(200_000)
   })
 
+  it('inflates the archive in small writes, so a file of zeros never arrives at once', async () => {
+    // 8 MiB of zeros gzips to about 8 KiB: one network chunk could inflate
+    // to the whole file. The default inflater is the runtime's own.
+    const zeros = new Uint8Array(8 * 1024 * 1024)
+    const noise = bytesOfLength(100_000)
+    const plan = [packed('SKILL.md', skill), packed('assets/blank.bin', zeros), packed('assets/noise.bin', noise)]
+    // One 100 KB response chunk, as a fast network may deliver.
+    const archive = archiveOf([
+      { path: 'skills/demo/SKILL.md', bytes: skill },
+      { path: 'skills/demo/assets/blank.bin', bytes: zeros },
+      { path: 'skills/demo/assets/noise.bin', bytes: noise },
+    ])
+    const largest: number[] = []
+    const reader = createGithubArchiveReader({
+      fetch: (async () => new Response(archive, { status: 200 })) as unknown as typeof fetch,
+      owner: 'skilld-dev',
+      repository: 'skills',
+      commitSha,
+      skillPath: 'skills/demo',
+      files: plan,
+      maxArchiveBytes: 64 * 1024 * 1024,
+      budget: { githubReads: 0 },
+    })
+    let received = 0
+    const outcome = await reader({
+      begin: async () => {},
+      chunk: async (bytes) => {
+        received += bytes.byteLength
+        largest.push(bytes.byteLength)
+      },
+      end: async () => ({ _tag: 'verified' }),
+    }, new Set())
+
+    expect(outcome).toEqual({ _tag: 'read' })
+    expect(received).toBe(skill.byteLength + zeros.byteLength + noise.byteLength)
+    expect(inputWrites.largest).toBeLessThanOrEqual(16 * 1024)
+  })
+
   it('reads a Skill at the Repository root', async () => {
     const github = githubFetch({ archive: archiveOf([
       { path: 'SKILL.md', bytes: skill },
@@ -232,6 +270,37 @@ describe('reading Skill files from the Repository archive', () => {
 })
 
 interface ReadFile { path: string, origin: FileOrigin, bytes: Uint8Array }
+
+/** The largest write the runtime's inflater received. */
+const inputWrites = { largest: 0 }
+const NativeDecompressionStream = globalThis.DecompressionStream
+globalThis.DecompressionStream = class extends NativeDecompressionStream {
+  constructor(format: CompressionFormat) {
+    super(format)
+    const writable = this.writable
+    const writer = writable.getWriter()
+    writer.releaseLock()
+    const inner = writable.getWriter.bind(writable)
+    Object.defineProperty(this, 'writable', {
+      value: new WritableStream<BufferSource>({
+        async write(chunk) {
+          inputWrites.largest = Math.max(inputWrites.largest, (chunk as Uint8Array).byteLength)
+          const target = inner()
+          await target.write(chunk)
+          target.releaseLock()
+        },
+        async close() {
+          const target = inner()
+          await target.close()
+        },
+        async abort(reason) {
+          const target = inner()
+          await target.abort(reason)
+        },
+      }),
+    })
+  }
+} as typeof DecompressionStream
 
 /**
  * Node's `DecompressionStream` reads its whole input before it answers, so it

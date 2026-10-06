@@ -155,8 +155,8 @@ export function createArtifactCheckScanner(source: ResolvedSource): ArtifactChec
             version: PATH_POLICY_VERSION,
             outcome: 'fail',
             required: true,
-            summary: 'A Skill path cannot be represented by the Artifact format.',
-            findings: pathFindings,
+            summary: `A Skill path cannot be represented by the Artifact format.${listedNote(pathFindings)}`,
+            findings: boundedFindings(pathFindings),
           }
         : {
             name: 'path-policy',
@@ -170,8 +170,8 @@ export function createArtifactCheckScanner(source: ResolvedSource): ArtifactChec
             version: CREDENTIAL_MATERIAL_VERSION,
             outcome: 'fail',
             required: true,
-            summary: 'The Skill contains private key material.',
-            findings: credentialFindings,
+            summary: `The Skill contains private key material.${listedNote(credentialFindings)}`,
+            findings: boundedFindings(credentialFindings),
           }
         : {
             name: 'credential-material',
@@ -185,8 +185,8 @@ export function createArtifactCheckScanner(source: ResolvedSource): ArtifactChec
             version: EXECUTABLE_FILES_VERSION,
             outcome: 'warn',
             required: false,
-            summary: 'The Skill contains executable files.',
-            findings: executableFindings,
+            summary: `The Skill contains executable files.${listedNote(executableFindings)}`,
+            findings: boundedFindings(executableFindings),
           }
         : {
             name: 'executable-files',
@@ -206,6 +206,21 @@ export function createArtifactCheckScanner(source: ResolvedSource): ArtifactChec
       }
     },
   }
+}
+
+/**
+ * The findings a check result carries. The skilld CLI refuses more than 100,
+ * or one longer than 500 characters, and a Skill may now hold 2,000 files.
+ */
+function boundedFindings(findings: string[]): string[] {
+  return findings.slice(0, MAX_CHECK_FINDINGS).map(finding => finding.slice(0, MAX_CHECK_FINDING_CHARACTERS))
+}
+
+/** Names how many findings a result leaves unlisted, or nothing when it lists them all. */
+function listedNote(findings: string[]): string {
+  return findings.length > MAX_CHECK_FINDINGS
+    ? ` The first ${MAX_CHECK_FINDINGS} of ${findings.length.toLocaleString('en-US')} are listed.`
+    : ''
 }
 
 function agentSkillsSpecResult(source: ResolvedSource, skillChunks: Uint8Array[] | null): CheckResult {

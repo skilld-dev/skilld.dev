@@ -5,6 +5,7 @@ import type { GithubReadTry } from './github-read'
 import { z } from 'zod'
 import { canonicalSkillFolder, isRegistrySkillPath, slugifySkillName } from '#shared/skill-path'
 import { createGithubArchiveReader } from './archive-reader'
+import { splitUstarPath } from './checks'
 import { base64ToBytes, gitBlobShaHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
 import {
@@ -94,14 +95,17 @@ export const PRIVATE_ARTIFACT_LIMITS: ArtifactLimits = {
 }
 
 /**
- * The file list a statement may carry, estimated at 128 bytes a file plus its
- * path. D1 stores a row of at most 2,000,000 bytes, and the Resolution row
- * holds the check results, the statement, and the attestation, which repeats
- * the statement and adds it again as base64. 384 KiB of files keeps that row
- * under 1.9 MB with 100 KB of check results.
+ * The file list a statement may carry. One entry is at most 126 bytes of JSON
+ * plus its path.
+ *
+ * D1 stores a row of at most 2,000,000 bytes. The Resolution row holds the
+ * check results, the statement, and the attestation, which repeats the
+ * statement and adds it again as base64: about 3.34 statements and the check
+ * results once more. With 100 KB of check results, a 448 KiB file list keeps
+ * that row near 1.97 MB.
  */
-const MAX_FILE_LIST_BYTES = 384 * 1024
-const FILE_LIST_ENTRY_BYTES = 128
+const MAX_FILE_LIST_BYTES = 448 * 1024
+const FILE_LIST_ENTRY_BYTES = 126
 
 /**
  * Uncompressed archive bytes one pass reads before it stops. Measured
@@ -1017,6 +1021,11 @@ export function selectArtifactEntries(entries: TreeEntry[], skillPath: string, l
       largestFirst(kept).map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
     )
   }
+  // A packed file needs a USTAR header, and the scan writes headers as the
+  // bytes stream. Refuse such a path before any byte is read.
+  const unfit = kept.filter(entry => !splitUstarPath(entry.path)).map(entry => entry.path)
+  if (unfit.length > 0)
+    return reject('INVALID_SOURCE', 'A Skill path cannot be represented by the Artifact format.', unfit)
   const fileListBytes = [...kept, ...linked]
     .reduce((total, entry) => total + FILE_LIST_ENTRY_BYTES + new TextEncoder().encode(entry.path).byteLength, 0)
   if (fileListBytes > MAX_FILE_LIST_BYTES) {

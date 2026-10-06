@@ -1,6 +1,7 @@
 import type { ArtifactSourceFile } from '../../layers/artifact-delivery/server/utils/github-source'
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
+import { completeAttestation, createAttestationStatement, encodeAttestationStatement } from '../../layers/artifact-delivery/server/utils/attestation'
 import {
   createPublicGithubSourceClient,
   MAX_LINKED_BYTES,
@@ -103,12 +104,26 @@ describe('public Artifact limits', () => {
   })
 
   it('refuses a file list too long to sign in one D1 row', () => {
-    const longName = 'a'.repeat(400)
-    const selected = selectArtifactEntries(skillWith(Array.from({ length: 1500 }, (_, index) => [`references/${longName}-${index}.md`, 10])), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
+    // Each path is 238 bytes, the most a USTAR header holds is 256.
+    const folder = `references/${'d'.repeat(130)}`
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 1500 }, (_, index) => [`${folder}/${'n'.repeat(85)}-${String(index).padStart(4, '0')}.md`, 10])), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
 
     expect(selected).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     if (selected._tag === 'rejected')
       expect(selected.summary).toMatch(/too long to sign/)
+  })
+
+  it('refuses a path the Artifact format cannot hold before it reads a byte', () => {
+    // cat-xierluo/legal-skills: a file name of 106 UTF-8 bytes.
+    const path = `references/case-types/61-${'暂时解除乘坐飞机、高铁限制措施申请'.repeat(2)}书.md`
+    const selected = selectArtifactEntries(skillWith([[path, 1_000]]), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
+
+    expect(selected).toMatchObject({
+      _tag: 'rejected',
+      code: 'INVALID_SOURCE',
+      summary: 'A Skill path cannot be represented by the Artifact format.',
+      findings: [path],
+    })
   })
 
   it('leaves media out of a root Skill, so the README images never block it', async () => {
@@ -124,6 +139,40 @@ describe('public Artifact limits', () => {
         }],
       },
     })
+  })
+})
+
+describe('the D1 row a signed Skill fills', () => {
+  it('stays under 2,000,000 bytes for the longest file list a build accepts', async () => {
+    // 2,000 files whose paths fill the 448 KiB file list, and 100 KB of check results.
+    const pathBytes = Math.floor(448 * 1024 / 2000) - 126 - 1
+    const entries = skillWith(Array.from({ length: 1999 }, (_, index) => [`r/${String(index).padStart(4, '0')}-${'p'.repeat(pathBytes - 7)}`, 999_999]))
+    const selected = selectArtifactEntries(entries, 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
+    expect(selected._tag).toBe('selected')
+    if (selected._tag !== 'selected')
+      return
+    const checkResults = Array.from({ length: 5 }, (_, index) => ({
+      name: `check-${index}`,
+      version: '1',
+      outcome: 'warn' as const,
+      required: false,
+      summary: 's'.repeat(400),
+      findings: Array.from({ length: 40 }, () => 'f'.repeat(500)),
+    }))
+    const statement = encodeAttestationStatement(createAttestationStatement({
+      artifactId: `sha256:${'a'.repeat(64)}`,
+      createdAt: new Date(0).toISOString(),
+      source: resolvedSource(),
+      contentSha256: 'a'.repeat(64),
+      contentBytes: 1,
+      files: selected.entries.map(entry => ({ path: entry.path, mode: 420, size: entry.size, sha256: 'b'.repeat(64) })),
+      checkResults,
+    }))
+    const attestation = JSON.stringify(completeAttestation(statement, { algorithm: 'Ed25519', keyId: 'skilld-production-2026-08', value: 'C'.repeat(86) }))
+    const row = [JSON.stringify(checkResults), statement, attestation].reduce((total, column) => total + Buffer.byteLength(column), 0)
+
+    expect(Buffer.byteLength(JSON.stringify(checkResults))).toBeGreaterThan(100_000)
+    expect(row).toBeLessThan(2_000_000)
   })
 })
 

@@ -410,11 +410,25 @@ function archiveEntries(
   }
 }
 
+/**
+ * The largest write the inflater takes. Gzip shrinks a run of zeros about
+ * 1,000 to 1, and an inflater answers each write in full, so one network
+ * chunk of 1 MiB could arrive as a gigabyte. Writes of 16 KiB cap that at
+ * about 16 MiB.
+ */
+const INFLATE_WRITE_BYTES = 16 * 1024
+
 function gunzipStream(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const sliced = body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      for (let offset = 0; offset < chunk.byteLength; offset += INFLATE_WRITE_BYTES)
+        controller.enqueue(chunk.subarray(offset, offset + INFLATE_WRITE_BYTES))
+    },
+  }))
   // `DecompressionStream` declares its writable side as `BufferSource`, which
   // the `ReadableStream<Uint8Array>` pipe signature refuses. Both sides carry
   // `Uint8Array` at runtime.
-  return body.pipeThrough(new DecompressionStream('gzip') as unknown as ReadableWritablePair<Uint8Array, Uint8Array>)
+  return sliced.pipeThrough(new DecompressionStream('gzip') as unknown as ReadableWritablePair<Uint8Array, Uint8Array>)
 }
 
 function headerPath(header: Uint8Array): string {
