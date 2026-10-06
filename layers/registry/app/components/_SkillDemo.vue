@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SkillDemoView } from '../../server/utils/skill-demos'
+import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
 
 /**
  * One demo (GLOSSARY "demo"): the prompt, the output an Agent made with this
@@ -15,6 +16,8 @@ const desktopShot = computed(() => demo.shots.find(shot => shot.viewport === 'de
 const mobileShot = computed(() => demo.shots.find(shot => shot.viewport === 'mobile' && shot !== desktopShot.value))
 const recordedOn = computed(() => DATE_FORMAT.format(new Date(`${demo.recordedAt}T00:00:00Z`)))
 const commitUrl = computed(() => `https://github.com/${demo.owner}/${demo.repo}/commit/${demo.skillCommit}`)
+const shortCommit = computed(() => demo.skillCommit.slice(0, 7))
+const recordedLabel = computed(() => `Agent output, recorded with ${demo.agent} (${demo.model}) on ${recordedOn.value} from commit ${shortCommit.value}`)
 
 const live = ref(false)
 </script>
@@ -25,9 +28,12 @@ const live = ref(false)
       <h2 id="demo-heading" class="section-label">
         Demo
       </h2>
-      <p class="data-label">
-        Agent output, recorded with {{ demo.agent }} ({{ demo.model }}) on {{ recordedOn }} from
-        <a :href="commitUrl" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-default">{{ demo.skillCommit.slice(0, 7) }}</a>
+      <!-- Short form on screen; the sentence it stands for is the title and the screen reader text. -->
+      <p class="data-label inline-flex items-center gap-1.5" :title="recordedLabel">
+        <span class="sr-only">{{ recordedLabel }}</span>
+        <UIcon :name="demoAgentIcon(demo.agent)" class="size-3.5 shrink-0 text-default" aria-hidden="true" />
+        <span aria-hidden="true">{{ demoModelLabel(demo.model) }} · {{ recordedOn }} ·</span>
+        <a :href="commitUrl" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-default" :aria-label="`Skill commit ${shortCommit}`">{{ shortCommit }}</a>
       </p>
     </div>
 
@@ -45,10 +51,12 @@ const live = ref(false)
       />
     </div>
     <!-- Each shot is the whole page, so it sits in a window the size of one screen and scrolls. -->
-    <div v-else class="skill-demo__shots mt-4" :class="{ 'skill-demo__shots--pair': mobileShot }">
+    <!-- One shot per device: the phone shot on phones when one exists, the desktop shot elsewhere. -->
+    <div v-else class="mt-4">
       <div
         v-if="desktopShot"
         class="skill-demo__window"
+        :class="{ 'skill-demo__window--desktop-only': mobileShot }"
         :style="{ aspectRatio: '16 / 10' }"
         :tabindex="desktopShot.height > desktopShot.width * 10 / 16 ? 0 : undefined"
         role="group"
@@ -67,7 +75,6 @@ const live = ref(false)
       <div
         v-if="mobileShot"
         class="skill-demo__window skill-demo__window--mobile"
-        :style="{ aspectRatio: '390 / 844' }"
         :tabindex="mobileShot.height > 844 ? 0 : undefined"
         role="group"
         aria-label="Phone screenshot. Scroll to see the whole page."
@@ -123,18 +130,6 @@ const live = ref(false)
   background: var(--ui-bg-muted);
 }
 
-.skill-demo__shots {
-  display: grid;
-  gap: 0.75rem;
-  align-items: start;
-}
-
-@media (min-width: 48rem) {
-  .skill-demo__shots--pair {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 11rem);
-  }
-}
-
 .skill-demo__window {
   overflow-x: hidden;
   overflow-y: auto;
@@ -156,14 +151,23 @@ const live = ref(false)
   height: auto;
 }
 
-/* The phone shot repeats the desktop one, so small screens show only the desktop. */
+/*
+ * Full width and a fixed height, not an aspect ratio: a max-height on an
+ * aspect-ratio box shrinks its width too, which left a narrow strip.
+ */
 .skill-demo__window--mobile {
-  display: none;
+  height: min(70svh, 48rem);
 }
 
 @media (min-width: 48rem) {
   .skill-demo__window--mobile {
-    display: block;
+    display: none;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .skill-demo__window--desktop-only {
+    display: none;
   }
 }
 
@@ -174,5 +178,13 @@ const live = ref(false)
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   background: #fff;
+}
+
+/* On a phone the live page gets a phone-shaped frame, like its screenshot. */
+@media (max-width: 47.99rem) {
+  .skill-demo__frame {
+    aspect-ratio: auto;
+    height: min(70svh, 48rem);
+  }
 }
 </style>

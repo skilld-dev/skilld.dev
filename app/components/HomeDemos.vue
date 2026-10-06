@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
 /**
  * Skills with a demo, newest first: what the Agent made, before a visitor
@@ -33,21 +34,43 @@ function cover(demo: HomeDemoItem) {
       </header>
       <ul class="home-demos__grid mt-8 list-none p-0">
         <li v-for="demo in demos" :key="`${demo.owner}/${demo.repo}/${demo.name}`" class="min-w-0">
-          <NuxtLink :to="`${demo.skillPath}#demo`" class="home-demos__card">
-            <img
-              v-if="cover(demo)"
-              :src="cover(demo)!.src"
-              :width="cover(demo)!.width"
-              :height="cover(demo)!.height"
-              :alt="cover(demo)!.alt"
-              loading="lazy"
-              decoding="async"
-              class="home-demos__shot"
-            >
-            <span class="block px-4 pt-3 font-mono text-sm text-default">/{{ demo.name }}</span>
-            <span class="block px-4 font-mono text-xs text-muted">{{ demo.owner }}/{{ demo.repo }}</span>
-            <span class="block px-4 pt-2 pb-4 text-sm leading-relaxed text-muted line-clamp-2">{{ demo.prompt }}</span>
-          </NuxtLink>
+          <article class="home-demos__card">
+            <NuxtLink :to="`${demo.skillPath}#demo`" class="home-demos__link block">
+              <img
+                v-if="cover(demo)"
+                :src="cover(demo)!.src"
+                :width="cover(demo)!.width"
+                :height="cover(demo)!.height"
+                :alt="cover(demo)!.alt"
+                loading="lazy"
+                decoding="async"
+                class="home-demos__shot"
+              >
+              <span class="block px-4 pt-3 font-mono text-sm text-default">/{{ demo.name }}</span>
+              <span class="px-4 pt-1 text-sm leading-relaxed text-muted line-clamp-2">{{ demo.prompt }}</span>
+            </NuxtLink>
+            <!-- Provenance (VISION principle 1): who wrote the Skill, and its SKILL.md. -->
+            <p class="flex items-center gap-2 px-4 pt-3 pb-4 text-xs text-muted">
+              <img
+                :src="githubAvatarProxyUrl(demo.owner, 40)"
+                alt=""
+                width="20"
+                height="20"
+                class="size-5 shrink-0 rounded-full border border-default bg-muted"
+                loading="lazy"
+                decoding="async"
+              >
+              <span class="min-w-0 truncate">{{ demo.authorName ?? demo.owner }}</span>
+              <a
+                v-if="demo.sourceUrl"
+                :href="demo.sourceUrl"
+                target="_blank"
+                rel="noopener"
+                class="ml-auto inline-flex min-h-6 shrink-0 items-center font-mono underline underline-offset-2 hover:text-default"
+                :aria-label="`SKILL.md for ${demo.name} on GitHub`"
+              >SKILL.md</a>
+            </p>
+          </article>
         </li>
       </ul>
     </div>
@@ -73,7 +96,8 @@ function cover(demo: HomeDemoItem) {
 }
 
 .home-demos__card {
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   overflow: hidden;
   border: 1px solid var(--ui-border);
@@ -83,7 +107,7 @@ function cover(demo: HomeDemoItem) {
 }
 
 .home-demos__card:hover,
-.home-demos__card:focus-visible {
+.home-demos__card:focus-within {
   border-color: var(--ui-border-accented);
 }
 

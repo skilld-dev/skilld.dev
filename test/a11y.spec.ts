@@ -600,6 +600,8 @@ describe('accessibility: components', () => {
       repo: 'skills',
       name,
       skillPath: `/gh/anthropics/skills/${name}`,
+      authorName: 'Anthropic',
+      sourceUrl: `https://github.com/anthropics/skills/blob/main/skills/${name}/SKILL.md`,
       prompt: 'Build a landing page for Tidepool.',
       shots: [shot],
     }))
@@ -610,7 +612,7 @@ describe('accessibility: components', () => {
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
-    expect([...container.querySelectorAll('li > a')].map(link => link.getAttribute('href'))).toEqual([
+    expect([...container.querySelectorAll('.home-demos__link')].map(link => link.getAttribute('href'))).toEqual([
       '/gh/anthropics/skills/one#demo',
       '/gh/anthropics/skills/two#demo',
       '/gh/anthropics/skills/three#demo',

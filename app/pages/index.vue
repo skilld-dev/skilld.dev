@@ -92,7 +92,7 @@ if (import.meta.server) {
   serverTimingHeader.value = homeDataTimings.join(', ')
 }
 
-// Below the fold, so it never holds up the first paint.
+// Lazy: the section sits under the hero, and its images load lazily anyway.
 const { data: demosData } = useLazyFetch<{ items: HomeDemoItem[] }>('/api/skill-demos', { key: 'home-skill-demos' })
 
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
@@ -261,6 +261,9 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
 
     <HomeLifecycle />
 
+    <!-- The first content section: what Skills make, before any list of them. -->
+    <HomeDemos :demos="demosData?.items ?? []" />
+
     <section
       v-if="showTrending || trendingStatus === 'pending'"
       id="trending"
@@ -338,8 +341,6 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
         </template>
       </div>
     </section>
-
-    <HomeDemos :demos="demosData?.items ?? []" />
 
     <HomeAgents />
 
