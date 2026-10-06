@@ -110,6 +110,7 @@ interface DemoEntry {
   model: string
   skillCommit: string
   recordedAt: string
+  pin?: number
   outputFile?: string
   video?: Video
   shots: Shot[]
@@ -341,8 +342,9 @@ async function upsert(entry: DemoEntry): Promise<void> {
 async function writeEntry(entry: DemoEntry): Promise<void> {
   const manifest = JSON.parse(await readFile(MANIFEST, 'utf8')) as { demos: DemoEntry[] }
   const key = (demo: DemoEntry) => `${demo.owner}/${demo.repo}/${demo.name}`.toLowerCase()
+  const previous = manifest.demos.find(demo => key(demo) === key(entry))
   const demos = manifest.demos.filter(demo => key(demo) !== key(entry))
-  demos.push(entry)
+  demos.push(previous?.pin && !entry.pin ? { ...entry, pin: previous.pin } : entry)
   demos.sort((a, b) => key(a).localeCompare(key(b)))
   await writeFile(MANIFEST, `${JSON.stringify({ demos }, null, 2)}\n`)
 }

@@ -671,7 +671,7 @@ describe('accessibility: components', () => {
     })
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
-    expect(container.textContent).toContain('Agent output, recorded with Claude Code')
+    expect(container.textContent).toContain('Recorded with Claude Code, Opus 5.5')
     expect(container.textContent).toContain('Recorded on an older version of this Skill.')
 
     await wrapper.get('button[aria-pressed="false"]').trigger('click')

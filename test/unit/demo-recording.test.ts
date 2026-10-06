@@ -5,6 +5,8 @@ describe('demoModelLabel', () => {
   it('reads a Claude model id as its family and version', () => {
     expect(demoModelLabel('claude-opus-5-5')).toBe('Opus 5.5')
     expect(demoModelLabel('claude-haiku-4-5-20251001')).toBe('Haiku 4.5')
+    expect(demoModelLabel('claude-sonnet-4-6')).toBe('Sonnet 4.6')
+    expect(demoModelLabel('claude-opus-4-20250514')).toBe('Opus 4')
   })
 
   it('prints any other model id as recorded', () => {

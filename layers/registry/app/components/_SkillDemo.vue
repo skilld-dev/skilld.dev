@@ -10,14 +10,9 @@ import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
  */
 const { demo } = defineProps<{ demo: SkillDemoView }>()
 
-const DATE_FORMAT = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-
 const desktopShot = computed(() => demo.shots.find(shot => shot.viewport === 'desktop') ?? demo.shots[0])
 const mobileShot = computed(() => demo.shots.find(shot => shot.viewport === 'mobile' && shot !== desktopShot.value))
-const recordedOn = computed(() => DATE_FORMAT.format(new Date(`${demo.recordedAt}T00:00:00Z`)))
-const commitUrl = computed(() => `https://github.com/${demo.owner}/${demo.repo}/commit/${demo.skillCommit}`)
-const shortCommit = computed(() => demo.skillCommit.slice(0, 7))
-const recordedLabel = computed(() => `Agent output, recorded with ${demo.agent} (${demo.model}) on ${recordedOn.value} from commit ${shortCommit.value}`)
+const recordedLabel = computed(() => `Recorded with ${demo.agent}, ${demoModelLabel(demo.model)}`)
 
 const live = ref(false)
 </script>
@@ -32,8 +27,7 @@ const live = ref(false)
       <p class="data-label inline-flex items-center gap-1.5" :title="recordedLabel">
         <span class="sr-only">{{ recordedLabel }}</span>
         <UIcon :name="demoAgentIcon(demo.agent)" class="size-3.5 shrink-0 text-default" aria-hidden="true" />
-        <span aria-hidden="true">{{ demoModelLabel(demo.model) }} · {{ recordedOn }} ·</span>
-        <a :href="commitUrl" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-default" :aria-label="`Skill commit ${shortCommit}`">{{ shortCommit }}</a>
+        <span aria-hidden="true">{{ demoModelLabel(demo.model) }}</span>
       </p>
     </div>
 

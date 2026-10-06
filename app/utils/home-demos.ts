@@ -1,5 +1,5 @@
 import type { SkillCardSkill } from '~/types/skill-card'
-import { AGENT_LOGOS } from './agent-logos'
+import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
 
 /**
  * The fields the homepage reads from `/api/skill-demos`. Declared here, not
@@ -111,38 +111,21 @@ export function demoCardSkill(demo: HomeDemoItem): SkillCardSkill {
   }
 }
 
-/** `claude-opus-5-5` reads as `Opus 5.5`. A model id outside that shape stays as it is. */
-export function demoModelLabel(model: string): string {
-  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/.exec(model)
-  if (!match)
-    return model
-  const [, family = '', major, minor] = match
-  const version = minor ? `${major}.${minor}` : major
-  return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${version}`
-}
-
-const SHORT_DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-const LONG_DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 
 export interface DemoRecordingView {
   /** The Agent's logo, or a generic one for an Agent the site has no logo for. */
   icon: string
   /** `Opus 5.5`. */
   model: string
-  /** `6 Oct`. */
-  day: string
-  /** The COPY.md provenance line without the commit, for screen readers and the title. */
+  /** The COPY.md provenance line, for screen readers and the title. */
   sentence: string
 }
 
 /** How a demo was recorded, short enough for a card. */
-export function demoRecording(demo: Pick<HomeDemoItem, 'agent' | 'model' | 'recordedAt'>): DemoRecordingView {
-  const date = new Date(`${demo.recordedAt}T00:00:00Z`)
-  const icon = AGENT_LOGOS.find(agent => agent.label === demo.agent)?.icon ?? 'i-lucide-bot'
+export function demoRecording(demo: Pick<HomeDemoItem, 'agent' | 'model'>): DemoRecordingView {
   return {
-    icon,
+    icon: demoAgentIcon(demo.agent),
     model: demoModelLabel(demo.model),
-    day: SHORT_DATE.format(date),
-    sentence: `Agent output, recorded with ${demo.agent} (${demo.model}) on ${LONG_DATE.format(date)}`,
+    sentence: `Recorded with ${demo.agent}, ${demoModelLabel(demo.model)}`,
   }
 }

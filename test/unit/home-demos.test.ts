@@ -1,6 +1,6 @@
 import type { HomeDemoItem } from '../../app/utils/home-demos'
 import { describe, expect, it } from 'vitest'
-import { demoModelLabel, demoPhoneRatio, demoRecording, formatDemoDuration } from '../../app/utils/home-demos'
+import { demoPhoneRatio, demoRecording, formatDemoDuration } from '../../app/utils/home-demos'
 
 function demo(overrides: Partial<HomeDemoItem> = {}): HomeDemoItem {
   return {
@@ -22,25 +22,12 @@ function demo(overrides: Partial<HomeDemoItem> = {}): HomeDemoItem {
   }
 }
 
-describe('demoModelLabel', () => {
-  it('names a Claude model by family and version', () => {
-    expect(demoModelLabel('claude-opus-5-5')).toBe('Opus 5.5')
-    expect(demoModelLabel('claude-sonnet-4-6')).toBe('Sonnet 4.6')
-    expect(demoModelLabel('claude-opus-4-1-20250805')).toBe('Opus 4.1')
-  })
-
-  it('keeps a model id it does not know', () => {
-    expect(demoModelLabel('gpt-6-luna')).toBe('gpt-6-luna')
-  })
-})
-
 describe('demoRecording', () => {
-  it('gives the card the Agent logo, the model and the day, and readers the sentence', () => {
+  it('gives the card the Agent logo and the model, and readers the sentence', () => {
     expect(demoRecording(demo())).toEqual({
       icon: 'i-simple-icons-claude',
       model: 'Opus 5.5',
-      day: '6 Oct',
-      sentence: 'Agent output, recorded with Claude Code (claude-opus-5-5) on 6 Oct 2026',
+      sentence: 'Recorded with Claude Code, Opus 5.5',
     })
   })
 

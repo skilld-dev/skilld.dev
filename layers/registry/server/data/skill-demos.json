@@ -164,7 +164,8 @@
           "viewport": "desktop",
           "alt": "A frame from the video the Agent rendered for: /brag: make a short launch video for this project. Save the final video as launch.mp4 in this folder."
         }
-      ]
+      ],
+      "pin": 1
     }
   ]
 }

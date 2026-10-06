@@ -53,6 +53,8 @@ const demoSchema = z.object({
   /** The Skill's source commit when the demo was recorded. */
   skillCommit: z.string().regex(/^[0-9a-f]{40}$/),
   recordedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Lower comes first on the homepage. Unpinned demos follow, newest first. */
+  pin: z.number().int().positive().optional(),
   /** File name inside `server/demos/<owner>/<repo>/<name>/`, served sandboxed as the live demo. */
   outputFile: z.string().regex(/^[\w-]+\.html$/).optional(),
   video: videoSchema.optional(),
@@ -76,7 +78,9 @@ export function findSkillDemo(owner: string, repo: string, name: string, demos: 
 }
 
 export function listSkillDemos(demos: readonly SkillDemoRecord[] = SKILL_DEMOS): readonly SkillDemoRecord[] {
-  return [...demos].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
+  return [...demos].sort((a, b) =>
+    (a.pin ?? Number.POSITIVE_INFINITY) - (b.pin ?? Number.POSITIVE_INFINITY)
+    || b.recordedAt.localeCompare(a.recordedAt))
 }
 
 function demoBase(demo: SkillDemoRecord): string {

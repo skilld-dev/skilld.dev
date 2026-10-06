@@ -3,8 +3,8 @@ import type { HomeDemoItem } from '~/utils/home-demos'
 import { demoRecording } from '~/utils/home-demos'
 
 /**
- * How a demo was recorded, as a card can afford it: the Agent's logo, the
- * model and the day. Screen readers and the tooltip get the full sentence.
+ * How a demo was recorded, as a card can afford it: the Agent's logo and the
+ * model. Screen readers and the tooltip get the sentence.
  */
 const { demo } = defineProps<{ demo: HomeDemoItem }>()
 
@@ -15,7 +15,6 @@ const recording = computed(() => demoRecording(demo))
   <span class="demo-recording" :title="recording.sentence">
     <UIcon :name="recording.icon" class="demo-recording__icon" aria-hidden="true" />
     <span class="demo-recording__part" aria-hidden="true">{{ recording.model }}</span>
-    <span class="demo-recording__part" aria-hidden="true"><span class="demo-recording__sep">·</span>{{ recording.day }}</span>
     <span class="sr-only">{{ recording.sentence }}</span>
   </span>
 </template>
@@ -34,13 +33,8 @@ const recording = computed(() => demoRecording(demo))
   font-variant-numeric: tabular-nums;
 }
 
-/* A narrow card breaks between the model and the day, never inside either. */
 .demo-recording__part {
   white-space: nowrap;
-}
-
-.demo-recording__sep {
-  margin-inline-end: 0.375rem;
 }
 
 .demo-recording__icon {

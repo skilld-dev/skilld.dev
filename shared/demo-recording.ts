@@ -14,9 +14,10 @@ export function demoAgentIcon(agent: string): string {
 
 /** `claude-opus-5-5` reads as `Opus 5.5`. Any other id prints as recorded. */
 export function demoModelLabel(model: string): string {
-  const match = /^claude-([a-z]+)-(\d+)-(\d+)/.exec(model)
+  // A minor version is one or two digits; a dated id ends in eight.
+  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/.exec(model)
   if (!match)
     return model
-  const [, family, major, minor] = match as unknown as [string, string, string, string]
-  return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${major}.${minor}`
+  const [, family = '', major, minor] = match
+  return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${minor ? `${major}.${minor}` : major}`
 }

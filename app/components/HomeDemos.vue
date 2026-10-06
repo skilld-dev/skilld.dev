@@ -35,7 +35,6 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
 <template>
   <DefineStage v-slot="{ demo, eager }">
     <div class="home-demos__stage-head">
-      <span class="data-label" aria-hidden="true">Agent output</span>
       <DemoRecording :demo />
       <NuxtLink :to="demoHref(demo)" class="home-demos__open">
         Open the demo<span class="sr-only"> of /{{ demo.name }}</span>
@@ -60,7 +59,7 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
         layout="row"
         metric="none"
         :description="false"
-        :actions="['source', 'run']"
+        :actions="['run']"
         surface="home-demos"
       />
     </div>
@@ -77,39 +76,42 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
       </p>
 
       <div class="home-demos__grid mt-8">
-        <ol class="home-demos__list list-none p-0" aria-label="Prompts">
-          <li v-for="(demo, index) in demos" :key="demoKey(demo)" class="home-demos__entry">
-            <button
-              type="button"
-              class="home-demos__pick"
-              :aria-pressed="index === picked"
-              :aria-controls="stageId"
-              @click="() => { picked = index }"
-            >
-              <span class="home-demos__pick-head">
-                <span class="home-demos__dot" aria-hidden="true" />
-                <img
-                  :src="githubAvatarProxyUrl(demo.owner, 40)"
-                  alt=""
-                  width="20"
-                  height="20"
-                  loading="lazy"
-                  decoding="async"
-                  class="home-demos__avatar"
-                >
-                <span class="home-demos__name">/{{ demo.name }}</span>
-                <span class="home-demos__by">{{ author(demo) }}</span>
-              </span>
-              <span class="home-demos__say line-clamp-2">
-                <span class="sr-only">You say: </span>{{ demo.prompt }}
-              </span>
-            </button>
-            <!-- Phones: the stage opens under the picked prompt. -->
-            <div v-if="index === picked" class="home-demos__inline">
-              <ReuseStage :demo />
-            </div>
-          </li>
-        </ol>
+        <!-- Wide screens: the list scrolls inside the stage's height. -->
+        <div class="home-demos__rail">
+          <ol class="home-demos__list list-none p-0" aria-label="Prompts">
+            <li v-for="(demo, index) in demos" :key="demoKey(demo)" class="home-demos__entry">
+              <button
+                type="button"
+                class="home-demos__pick"
+                :aria-pressed="index === picked"
+                :aria-controls="stageId"
+                @click="() => { picked = index }"
+              >
+                <span class="home-demos__pick-head">
+                  <span class="home-demos__dot" aria-hidden="true" />
+                  <img
+                    :src="githubAvatarProxyUrl(demo.owner, 40)"
+                    alt=""
+                    width="20"
+                    height="20"
+                    loading="lazy"
+                    decoding="async"
+                    class="home-demos__avatar"
+                  >
+                  <span class="home-demos__name">/{{ demo.name }}</span>
+                  <span class="home-demos__by">{{ author(demo) }}</span>
+                </span>
+                <span class="home-demos__say line-clamp-2">
+                  <span class="sr-only">You say: </span>{{ demo.prompt }}
+                </span>
+              </button>
+              <!-- Phones: the stage opens under the picked prompt. -->
+              <div v-if="index === picked" class="home-demos__inline">
+                <ReuseStage :demo />
+              </div>
+            </li>
+          </ol>
+        </div>
 
         <div :id="stageId" class="home-demos__stage">
           <Transition name="home-demos-swap" mode="out-in">
@@ -139,7 +141,29 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
 
 .home-demos__list {
   display: grid;
+  align-content: start;
   gap: 0.5rem;
+}
+
+@media (min-width: 64rem) {
+  .home-demos__grid {
+    align-items: stretch;
+  }
+
+  .home-demos__rail {
+    position: relative;
+  }
+
+  /* Out of flow, so the stage alone sets the row height and the list scrolls in it. */
+  .home-demos__list {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    /* Room for the focus ring, which the scroll box would clip. */
+    padding: 3px 0.5rem 3px 3px;
+  }
 }
 
 .home-demos__pick {
@@ -305,8 +329,11 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
   outline-offset: 2px;
 }
 
+/* The Skill row's hover fill follows the rounded corners of everything around it. */
 .home-demos__id {
   margin-block-start: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
 }
 
 .home-demos-swap-enter-active,
