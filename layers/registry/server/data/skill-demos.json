@@ -87,6 +87,37 @@
       "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md"
     },
     {
+      "owner": "gamedev-skills",
+      "repo": "awesome-gamedev-agent-skills",
+      "name": "game-feel",
+      "makes": "game",
+      "authorName": "gamedev-skills",
+      "sourceUrl": "https://github.com/gamedev-skills/awesome-gamedev-agent-skills/blob/main/skills/disciplines/game-feel/SKILL.md",
+      "prompt": "Make a tiny arcade game called Hailbroom: sweep a broom left and right with the arrow keys or mouse to bat falling hailstones back into the sky. Make every hit feel punchy. Save it as game.html with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "3727d02499efac5d4703ccdc5e59e54e60e954b7",
+      "recordedAt": "2026-10-06",
+      "outputFile": "game.html",
+      "shots": [
+        {
+          "file": "desktop-ebb9d5ee7c.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Make a tiny arcade game called Hailbroom: sweep a broom left and right with the arrow keys or mouse to bat falling hails"
+        },
+        {
+          "file": "mobile-986a78ae76.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Make a tiny arcade game called Hailbroom: sweep a broom left and right with the arrow keys or mouse to bat falling hails"
+        }
+      ]
+    },
+    {
       "owner": "heygen-com",
       "repo": "hyperframes",
       "name": "hyperframes",
