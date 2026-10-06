@@ -13,6 +13,7 @@ const heads: Record<string, string> = {
   'acme/fresh': 'tree-fresh',
   'acme/busy': 'tree-busy',
   'acme/discovered': 'tree-discovered',
+  'acme/renamed': 'tree-same',
 }
 
 function graphqlAnswer(_input: unknown, init?: RequestInit): Response {
@@ -95,6 +96,22 @@ describe('prefetchUnchangedRepos', () => {
     expect(harness.raw.prepare(`SELECT stars, repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'unchanged'`).get())
       .toEqual({ stars: 77, repo_meta_synced_at: NOW })
     expect(harness.raw.prepare(`SELECT repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'changed'`).get())
+      .toEqual({ repo_meta_synced_at: null })
+  })
+
+  it('queues a Repository GitHub moved, so its sync job can move the rows', async () => {
+    harness.raw.exec(`
+      INSERT INTO repos (owner, repo, last_tree_sha, pushed_at, stars, source_owner, source_repo)
+      VALUES ('acme', 'old-name', 'tree-same', 100, 1, 'acme', 'renamed');
+      INSERT INTO skills (owner, repo, name, display_name, slug) VALUES ('acme', 'old-name', 'one', 'One', 'one');
+    `)
+    vi.stubGlobal('fetch', vi.fn(graphqlAnswer))
+
+    const result = await prefetchUnchangedRepos({ db: harness.db, bindings, now: NOW }, [candidate('old-name')])
+
+    expect(result).toMatchObject({ _tag: 'prefetched', unchanged: 0 })
+    expect(result.queue.map(item => `${item.owner}/${item.repo}`)).toEqual(['acme/old-name'])
+    expect(harness.raw.prepare(`SELECT repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'old-name'`).get())
       .toEqual({ repo_meta_synced_at: null })
   })
 
