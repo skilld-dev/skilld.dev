@@ -548,6 +548,42 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('headerNavigation opens the Developers panel with no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('_HeaderNavigation'),
+      { attachTo: container },
+    )
+    const trigger = wrapper.get('#header-developers-trigger')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+
+    await trigger.trigger('click')
+    await nextTick()
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    // reka-ui renders an aria-hidden focus proxy after an open trigger. It
+    // moves focus into the panel as soon as it gets focus, and Shift+Tab skips
+    // it, so focus never rests there. Only that span leaves the scan.
+    const results = await axe.run(
+      { include: [container], exclude: [['[data-navigation-menu-trigger] + span[aria-hidden="true"]']] },
+      AXE_OPTIONS,
+    )
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+
+    // The panel's label points at the fixed trigger id that replaces reka-ui's.
+    const panel = container.querySelector('[aria-labelledby]')!
+    expect(container.querySelector(`#${panel.getAttribute('aria-labelledby')}`)).toBe(trigger.element)
+    expect([...panel.querySelectorAll('a')].map(link => link.getAttribute('href'))).toEqual([
+      '/cli',
+      '/developers?setup=mcp',
+      '/developers?setup=api',
+      '/make-skill',
+      '/skillgen',
+      '/developers',
+    ])
+    wrapper.unmount()
+  })
+
   it('runChip compact has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
