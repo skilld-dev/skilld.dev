@@ -460,7 +460,7 @@ useHead(computed(() => ({
                 color="neutral"
                 variant="ghost"
               />
-              <BadgeEmbedControl v-bind="repositoryBadgeInput" />
+              <BadgeEmbedControl v-if="repoSource?.seoIndexable" v-bind="repositoryBadgeInput" />
             </div>
           </div>
         </div>
@@ -713,9 +713,11 @@ useHead(computed(() => ({
           </div>
         </section>
 
-        <USeparator class="my-8" />
+        <template v-if="repoSource?.seoIndexable">
+          <USeparator class="my-8" />
 
-        <BadgeReadmeSnippet v-bind="repositoryBadgeInput" />
+          <BadgeReadmeSnippet v-bind="repositoryBadgeInput" />
+        </template>
       </template>
     </section>
   </div>
