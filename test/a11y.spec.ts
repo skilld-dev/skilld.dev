@@ -479,6 +479,18 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('sparkDots has no violations and stays out of the accessibility tree', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('SparkDots'),
+      { attachTo: container, props: { levels: [0, 1, 2, 3, 4, 0, 2] } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+    wrapper.unmount()
+  })
+
   it('trendingMark has no violations and stays out of the accessibility tree', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
