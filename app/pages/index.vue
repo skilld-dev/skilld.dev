@@ -110,17 +110,6 @@ const heroTextureNames = computed(() =>
 )
 
 /**
- * The CLI's own line, "Search, run, install, and keep them current", as doors
- * into the sections of the /cli page.
- */
-const heroVerbs = [
-  { label: 'search', to: '/cli#search' },
-  { label: 'run', to: '/cli#run' },
-  { label: 'install', to: '/cli#install' },
-  { label: 'keep current', to: '/cli#update' },
-] as const
-
-/**
  * Track order, measured 2026-09-04 rather than assumed.
  *
  * `/api/clusters` sorts by how many Skills a track holds, which is supply.
@@ -214,35 +203,20 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
           Agent skills for you<br class="hidden sm:inline">
           and your agent<span class="sr-only">.</span><span class="home-hero-dot" aria-hidden="true" />
         </h1>
-        <!-- The product map: the CLI's own four verbs, each a door into /cli,
-             then the one quiet link to the whole CLI page. -->
-        <nav class="home-hero__verbs mt-5 font-mono text-sm" aria-label="What skilld does">
-          <ul class="home-hero__verb-list list-none p-0">
-            <li v-for="verb in heroVerbs" :key="verb.to">
-              <NuxtLink :to="verb.to" class="home-hero__verb">
-                {{ verb.label }}
-              </NuxtLink>
-            </li>
-          </ul>
-          <span class="home-hero__verbs-rule" aria-hidden="true" />
-          <NuxtLink to="/cli" class="home-hero__cli">
-            The skilld CLI<UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
-          </NuxtLink>
-        </nav>
         <!-- What sets skilld apart, so the caption assumes the reader knows
              what a Skill is. Run comes before install, and the skilld Skill
-             behind the promo below lets the agent search on its own. -->
-        <p class="home-hero__caption mx-auto mt-3 text-base leading-relaxed text-muted text-balance">
+             behind the promo below lets the agent search on its own. The
+             lifecycle band under the hero maps the CLI's verbs. -->
+        <p class="home-hero__caption mx-auto mt-5 text-base leading-relaxed text-muted text-balance">
           Try any skill before you install it. Your agent can search for its own.
         </p>
 
-        <HomeSearch class="mx-auto mt-8 max-w-xl text-left" />
+        <HomeSearch class="mx-auto mt-7 max-w-xl text-left" />
 
         <ul class="home-hero__claims home-hero-claims data-label mx-auto mt-5 list-none p-0" aria-label="About skilld">
           <li>
             <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI, no telemetry</a>
           </li>
-          <li>Analytics without cookies or IPs</li>
           <li>
             <NuxtLink to="/vs/skills-sh">
               A skills.sh alternative
@@ -782,70 +756,10 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   }
 }
 
-/* The verb line: four ink verbs on stone dots, a hairline, then the CLI door. */
-.home-hero__verbs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem 1rem;
-}
-
-.home-hero__verb-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.home-hero__verb-list > li + li::before {
-  content: '·';
-  padding-inline: 0.55em;
-  color: var(--ui-text-dimmed);
-}
-
 /* Inline-block drops the space the template formatter leaves inside a link,
    so the underline starts on the first letter. */
-.home-hero__verb,
 .home-hero__claims a {
   display: inline-block;
-}
-
-.home-hero__verb,
-.home-hero__cli {
-  color: var(--ui-text);
-  text-decoration-line: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 0.25em;
-  transition: text-decoration-color 200ms ease-out, color 200ms ease-out;
-}
-
-.home-hero__verb:hover,
-.home-hero__cli:hover {
-  text-decoration-color: currentColor;
-}
-
-.home-hero__cli {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: var(--ui-text-muted);
-}
-
-.home-hero__cli:hover {
-  color: var(--ui-text);
-}
-
-.home-hero__verbs-rule {
-  display: none;
-  width: 1px;
-  height: 0.9rem;
-  background: var(--ui-border-accented);
-}
-
-@media (min-width: 40rem) {
-  .home-hero__verbs-rule {
-    display: block;
-  }
 }
 
 .home-hero__caption {
@@ -872,8 +786,8 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   white-space: nowrap;
 }
 
-/* Separators only where the line fits on one row. At 12px the four claims
-   measure about 830px, inside the 848px hero column. */
+/* Separators only where the line fits on one row. At 12px the three claims
+   measure about 590px, inside the 848px hero column. */
 @media (min-width: 64rem) {
   .home-hero__claims {
     flex-wrap: nowrap;
@@ -905,9 +819,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   text-decoration-color: currentColor;
 }
 
-.home-hero__promo:focus-visible,
-.home-hero__verb:focus-visible,
-.home-hero__cli:focus-visible {
+.home-hero__promo:focus-visible {
   outline: 2px solid var(--ui-border-inverted);
   outline-offset: 2px;
   border-radius: 2px;
