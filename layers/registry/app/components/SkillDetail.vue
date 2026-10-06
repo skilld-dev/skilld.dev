@@ -2258,7 +2258,7 @@ useHead(computed(() => ({
             role="region"
           >
             <SkillBehaviors
-              v-if="data.raw"
+              v-if="data.raw || behaviors.length"
               :behaviors="behaviors"
             />
             <SkillThirdPartyChecks

@@ -12,10 +12,10 @@ describe('skillPageBehaviors', () => {
     })
 
     expect(behaviors.map(behavior => [behavior.id, behavior.tier, behavior.locations])).toEqual([
-      ['privilege', 'ask', [{ path: 'SKILL.md', line: 7, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md#L7' }]],
-      ['shell', 'show', [{ path: 'SKILL.md', line: 6, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md#L6' }]],
+      ['privilege', 'ask', [{ path: 'SKILL.md', line: 7, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md?plain=1#L7' }]],
+      ['shell', 'show', [{ path: 'SKILL.md', line: 6, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md?plain=1#L6' }]],
       ['scripts', 'show', [{ path: 'scripts/install.sh', line: null, url: 'https://github.com/acme/skills/blob/main/skills/setup/scripts/install.sh' }]],
-      ['packages', 'show', [{ path: 'SKILL.md', line: 7, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md#L7' }]],
+      ['packages', 'show', [{ path: 'SKILL.md', line: 7, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md?plain=1#L7' }]],
     ])
   })
 
