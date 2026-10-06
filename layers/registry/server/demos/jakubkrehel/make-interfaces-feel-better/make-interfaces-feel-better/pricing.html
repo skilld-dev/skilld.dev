@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pricing · Glintwork</title>
+  <meta name="description" content="Glintwork plans and prices. Start free, then upgrade to Pro or Studio when your edits need more.">
+  <script>
+    // Set billing before first paint, so a ?billing=yearly link never animates on load.
+    document.documentElement.dataset.billing =
+      new URLSearchParams(location.search).get('billing') === 'yearly' ? 'yearly' : 'monthly'
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f3ef;
+      --ink: #18171c;
+      --ink-muted: #5f5d66;
+      --amber: #ffb53d;
+      --amber-hover: #ffc566;
+      --amber-deep: #b45309;
+      --ease-out: cubic-bezier(0.2, 0, 0, 1);
+      --shadow-card:
+        0 0 0 1px rgb(0 0 0 / 0.06),
+        0 1px 2px rgb(0 0 0 / 0.04),
+        0 4px 12px rgb(0 0 0 / 0.04);
+      --shadow-card-raised:
+        0 0 0 1px rgb(0 0 0 / 0.08),
+        0 2px 4px rgb(0 0 0 / 0.05),
+        0 16px 40px rgb(0 0 0 / 0.09);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    h2, h3, p, ul { margin: 0; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Section */
+
+    .pricing {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 96px 24px;
+    }
+
+    .pricing-intro {
+      max-width: 600px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .eyebrow {
+      color: var(--amber-deep);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .pricing-title {
+      margin-top: 12px;
+      font-size: clamp(32px, 4.2vw, 46px);
+      font-weight: 650;
+      line-height: 1.1;
+      letter-spacing: -0.025em;
+      text-wrap: balance;
+    }
+
+    .pricing-lede {
+      margin-top: 16px;
+      color: var(--ink-muted);
+      font-size: 18px;
+      text-wrap: pretty;
+    }
+
+    /* Billing toggle: pill track (r = 26) wraps pill thumb (r = 22) with 4px padding. */
+
+    .billing-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 36px;
+    }
+
+    .billing {
+      position: relative;
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      min-inline-size: 0;
+      margin: 0;
+      padding: 4px;
+      border: 0;
+      border-radius: 999px;
+      background: rgb(24 23 28 / 0.06);
+      box-shadow: inset 0 0 0 1px rgb(24 23 28 / 0.05);
+    }
+
+    .billing-thumb {
+      position: absolute;
+      inset-block: 4px;
+      inset-inline-start: 4px;
+      width: calc(50% - 4px);
+      border-radius: 999px;
+      background: #fff;
+      box-shadow:
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 1px 2px rgb(0 0 0 / 0.08),
+        0 2px 6px rgb(0 0 0 / 0.05);
+      transition: translate 260ms var(--ease-out);
+    }
+
+    [data-billing="yearly"] .billing-thumb { translate: 100% 0; }
+
+    .billing-option {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 28px;
+      color: var(--ink-muted);
+      font-size: 15px;
+      font-weight: 550;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color 150ms var(--ease-out);
+    }
+
+    /* The native radio covers the whole segment: full hit area, native keyboard, visible focus ring. */
+    .billing-option input {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      margin: 0;
+      border-radius: 999px;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .billing-option input:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    html:not([data-billing="yearly"]) .billing-option[data-period="monthly"],
+    [data-billing="yearly"] .billing-option[data-period="yearly"] {
+      color: var(--ink);
+    }
+
+    /* Hangs off the segment corner, so the toggle stays narrow and centered on small screens. */
+    .billing-save {
+      position: absolute;
+      top: -14px;
+      right: -10px;
+      z-index: 2;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #fde3b5;
+      color: #7c3a06;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 16px;
+      box-shadow: 0 0 0 2px var(--bg);
+      pointer-events: none;
+    }
+
+    /* Plans: card (r = 24) wraps panel (r = 16) with 8px padding. */
+
+    .plans {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+      align-items: stretch;
+      margin: 48px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .plan {
+      --plan-bg: #fff;
+      --panel-bg: #f7f6f2;
+      --text: var(--ink);
+      --muted: var(--ink-muted);
+      --check: var(--amber-deep);
+      --focus: var(--ink);
+      --shadow: var(--shadow-card);
+      --shadow-hover: var(--shadow-card-raised);
+
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 8px;
+      border-radius: 24px;
+      background: var(--plan-bg);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      transition: box-shadow 200ms var(--ease-out);
+    }
+
+    .plan:focus-within { box-shadow: var(--shadow-hover); }
+
+    @media (hover: hover) and (pointer: fine) {
+      .plan:hover { box-shadow: var(--shadow-hover); }
+    }
+
+    .plan-featured {
+      --plan-bg: #18171c;
+      --panel-bg: #25242b;
+      --text: #f4f3ef;
+      --muted: #b4b2ae;
+      --check: var(--amber);
+      --focus: var(--amber);
+      --shadow:
+        0 0 0 1px rgb(0 0 0 / 0.9),
+        0 2px 4px rgb(0 0 0 / 0.08),
+        0 12px 32px rgb(0 0 0 / 0.14);
+      --shadow-hover:
+        0 0 0 1px rgb(0 0 0 / 0.9),
+        0 4px 8px rgb(0 0 0 / 0.1),
+        0 24px 56px rgb(0 0 0 / 0.2);
+    }
+
+    .plan-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      border-radius: 16px;
+      background: var(--panel-bg);
+    }
+
+    .plan-featured .plan-panel {
+      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+    }
+
+    .plan-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 28px;
+    }
+
+    .plan-name {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .plan-badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--amber);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .plan-summary {
+      min-height: 48px;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 15px;
+      text-wrap: pretty;
+    }
+
+    .price {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 24px;
+    }
+
+    .price-amount {
+      font-size: 46px;
+      font-weight: 650;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .price-unit {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .price-note {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /*
+      Both billing values stay in the DOM, stacked in one grid cell.
+      Transitions cross-fade them and stay interruptible. The cell keeps
+      the widest value's size, so nothing shifts when billing changes.
+    */
+    .swap { display: inline-grid; }
+    .price-note.swap { display: grid; }
+
+    .swap > * {
+      grid-area: 1 / 1;
+      transition:
+        opacity 200ms var(--ease-out),
+        translate 200ms var(--ease-out),
+        visibility 0s linear 0s;
+    }
+
+    [data-billing="yearly"] .swap > [data-period="monthly"],
+    html:not([data-billing="yearly"]) .swap > [data-period="yearly"] {
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity 160ms var(--ease-out),
+        translate 160ms var(--ease-out),
+        visibility 0s linear 160ms;
+    }
+
+    /* Monthly leaves upward, yearly arrives from below, and the reverse on the way back. */
+    [data-billing="yearly"] .swap > [data-period="monthly"] { translate: 0 -6px; }
+    html:not([data-billing="yearly"]) .swap > [data-period="yearly"] { translate: 0 6px; }
+
+    /* Buttons */
+
+    .button {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      margin-top: 24px;
+      padding: 0 20px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition-property: background-color, box-shadow, scale;
+      transition-duration: 150ms;
+      transition-timing-function: var(--ease-out);
+    }
+
+    .button:active { scale: 0.96; }
+
+    .button:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .button-primary {
+      background: var(--ink);
+      color: #fff;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.1);
+    }
+
+    .button-accent {
+      background: var(--amber);
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.35);
+    }
+
+    .button-secondary {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 0 0 1px rgb(24 23 28 / 0.1), 0 1px 2px rgb(0 0 0 / 0.05);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .button-primary:hover { background: #33313a; }
+      .button-accent:hover { background: var(--amber-hover); }
+      .button-secondary:hover {
+        background: #fdfcfa;
+        box-shadow: 0 0 0 1px rgb(24 23 28 / 0.18), 0 2px 4px rgb(0 0 0 / 0.07);
+      }
+    }
+
+    /* Features */
+
+    .features {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 24px 24px 20px;
+      list-style: none;
+      font-size: 15px;
+    }
+
+    .features-lead {
+      font-weight: 600;
+    }
+
+    .feature {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 12px;
+      align-items: start;
+      text-wrap: pretty;
+    }
+
+    /* 18px icon on a 22.5px line: nudge down to sit on the first line's x-height. */
+    .feature svg {
+      width: 18px;
+      height: 18px;
+      margin-top: 2.5px;
+      color: var(--check);
+    }
+
+    /* Footer */
+
+    .pricing-foot {
+      margin-top: 32px;
+      color: var(--ink-muted);
+      font-size: 14px;
+      text-align: center;
+      text-wrap: pretty;
+    }
+
+    .text-link {
+      color: var(--ink);
+      font-weight: 550;
+      text-decoration-line: underline;
+      text-decoration-color: rgb(24 23 28 / 0.3);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      border-radius: 4px;
+      transition: text-decoration-color 150ms var(--ease-out);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .text-link:hover { text-decoration-color: currentColor; }
+    }
+
+    .text-link:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 3px;
+    }
+
+    /* Layout */
+
+    @media (max-width: 960px) {
+      .plans {
+        grid-template-columns: minmax(0, 440px);
+        justify-content: center;
+      }
+
+      .plan-summary { min-height: 0; }
+    }
+
+    @media (max-width: 480px) {
+      .pricing { padding: 64px 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .swap > *,
+      [data-billing="yearly"] .swap > [data-period="monthly"],
+      html:not([data-billing="yearly"]) .swap > [data-period="yearly"] {
+        translate: none;
+      }
+      .button:active { scale: none; }
+      .billing-thumb { transition-duration: 0ms; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9.25" opacity="0.35" />
+      <path d="M8.25 12.25l2.5 2.5 5-5.5" />
+    </symbol>
+  </svg>
+
+  <section class="pricing" aria-labelledby="pricing-title">
+    <header class="pricing-intro">
+      <p class="eyebrow">Pricing</p>
+      <h2 id="pricing-title" class="pricing-title">Pick the plan that fits how you shoot</h2>
+      <p class="pricing-lede">Start free and upgrade when your edits need more. Change or cancel your plan at any time.</p>
+    </header>
+
+    <div class="billing-wrap">
+      <fieldset class="billing">
+        <legend class="sr-only">Billing period</legend>
+        <span class="billing-thumb" aria-hidden="true"></span>
+        <label class="billing-option" data-period="monthly">
+          <input type="radio" name="billing" value="monthly" checked>
+          <span>Monthly</span>
+        </label>
+        <label class="billing-option" data-period="yearly">
+          <input type="radio" name="billing" value="yearly">
+          <span>Yearly</span>
+          <span class="billing-save">2 months free</span>
+        </label>
+      </fieldset>
+    </div>
+    <p class="sr-only" role="status" data-billing-status></p>
+
+    <ul class="plans">
+      <li>
+        <article class="plan" aria-labelledby="plan-free">
+          <div class="plan-panel">
+            <div class="plan-head">
+              <h3 id="plan-free" class="plan-name">Free</h3>
+            </div>
+            <p class="plan-summary">The essentials for quick edits on your phone or laptop.</p>
+            <p class="price">
+              <span class="price-amount">$0</span>
+              <span class="price-unit">per month</span>
+            </p>
+            <p class="price-note">Free forever. No card needed.</p>
+            <a class="button button-secondary" href="#signup-free">Start for free</a>
+          </div>
+          <ul class="features">
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Exposure, color, and crop tools</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>JPEG and HEIC editing</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Exports up to 2K</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>5 GB cloud library on 1 device</li>
+          </ul>
+        </article>
+      </li>
+
+      <li>
+        <article class="plan plan-featured" aria-labelledby="plan-pro">
+          <div class="plan-panel">
+            <div class="plan-head">
+              <h3 id="plan-pro" class="plan-name">Pro</h3>
+              <span class="plan-badge">Most popular</span>
+            </div>
+            <p class="plan-summary">Every editing tool for photographers who shoot RAW.</p>
+            <p class="price">
+              <span class="price-amount swap">
+                <span data-period="monthly">$12</span>
+                <span data-period="yearly">$10</span>
+              </span>
+              <span class="price-unit">per month</span>
+            </p>
+            <p class="price-note swap">
+              <span data-period="monthly">Billed monthly</span>
+              <span data-period="yearly">Billed $120 yearly. Save $24.</span>
+            </p>
+            <a class="button button-accent" href="#signup-pro">Start 14-day trial<span class="sr-only"> of Pro</span></a>
+          </div>
+          <ul class="features">
+            <li class="features-lead">Everything in Free, plus:</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>RAW support for 900+ cameras</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>AI masking and object removal</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Batch edits and custom presets</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Exports up to 8K</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>200 GB cloud library on 3 devices</li>
+          </ul>
+        </article>
+      </li>
+
+      <li>
+        <article class="plan" aria-labelledby="plan-studio">
+          <div class="plan-panel">
+            <div class="plan-head">
+              <h3 id="plan-studio" class="plan-name">Studio</h3>
+            </div>
+            <p class="plan-summary">For working pros who deliver photos to clients.</p>
+            <p class="price">
+              <span class="price-amount swap">
+                <span data-period="monthly">$24</span>
+                <span data-period="yearly">$20</span>
+              </span>
+              <span class="price-unit">per month</span>
+            </p>
+            <p class="price-note swap">
+              <span data-period="monthly">Billed monthly</span>
+              <span data-period="yearly">Billed $240 yearly. Save $48.</span>
+            </p>
+            <a class="button button-primary" href="#signup-studio">Start 14-day trial<span class="sr-only"> of Studio</span></a>
+          </div>
+          <ul class="features">
+            <li class="features-lead">Everything in Pro, plus:</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>2 TB cloud library on any device</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Client galleries with proofing</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Tethered capture</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Custom watermarks and print exports</li>
+            <li class="feature"><svg aria-hidden="true"><use href="#icon-check" /></svg>Priority support</li>
+          </ul>
+        </article>
+      </li>
+    </ul>
+
+    <p class="pricing-foot">
+      Prices in USD. Taxes may apply.
+      <a class="text-link" href="#compare">Compare every feature</a>
+    </p>
+  </section>
+
+  <script>
+    const parseBilling = (value) => (value === 'yearly' ? 'yearly' : 'monthly')
+
+    const announcements = {
+      monthly: 'Prices now show monthly billing.',
+      yearly: 'Prices now show yearly billing. You get 2 months free.',
+    }
+
+    const mountBillingToggle = ({ root, radios, status }) => {
+      const apply = (billing) => {
+        root.dataset.billing = billing
+        for (const radio of radios)
+          radio.checked = radio.value === billing
+      }
+
+      apply(parseBilling(root.dataset.billing))
+
+      for (const radio of radios) {
+        radio.addEventListener('change', () => {
+          const billing = parseBilling(radio.value)
+          apply(billing)
+          status.textContent = announcements[billing]
+          const url = new URL(location.href)
+          url.searchParams.set('billing', billing)
+          history.replaceState(history.state, '', url)
+        })
+      }
+    }
+
+    mountBillingToggle({
+      root: document.documentElement,
+      radios: document.querySelectorAll('input[name="billing"]'),
+      status: document.querySelector('[data-billing-status]'),
+    })
+  </script>
+</body>
+</html>

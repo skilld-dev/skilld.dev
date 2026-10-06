@@ -14,6 +14,7 @@ import { SkillDetailResponseSchema } from '../../schemas/skill-responses'
 import { getTree, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { skillPageBehaviors } from '../../utils/skill-behaviors'
+import { findSkillDemo, presentSkillDemo } from '../../utils/skill-demos'
 import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
@@ -352,6 +353,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   })
   // `current_sha` is the blob sha of SKILL.md, not a commit, so it cannot pin a link.
   const sourceCommitSha = row.latest_revision_sha ?? null
+  const skillDemo = findSkillDemo(skill.owner, skill.repo, skill.name)
   const pushedAtIso = epochToIso(row.pushed_at)
   const createdAtIso = epochToIso(row.repo_created_at)
   const repoSkillCount = row.repo_skill_count ?? 0
@@ -434,6 +436,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     likeCount: row.like_count ?? 0,
     // Best rank first. Display only, like likes: never trust or indexability (ADR-0011).
     trendingAwards: parseSkillTrendingAwards(row.trending_awards),
+    demo: skillDemo ? presentSkillDemo(skillDemo, sourceCommitSha) : null,
     faqs: faqRow?.payload.faqs ?? [],
     summary: summaryRow?.payload?.text
       ? { text: summaryRow.payload.text }

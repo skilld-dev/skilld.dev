@@ -2,6 +2,7 @@
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
+import type { HomeDemoItem } from '../utils/home-demos'
 import { agentSetupPrompt } from '#shared/agent-setup'
 import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
 import { avatarProxyUrl } from '#shared/image-proxy'
@@ -99,6 +100,9 @@ if (import.meta.server) {
   homeDataTimings.push(`home-data;dur=${(performance.now() - homeDataStartedAt).toFixed(1)}`)
   serverTimingHeader.value = homeDataTimings.join(', ')
 }
+
+// Lazy: the section sits under the hero, and its images load lazily anyway.
+const { data: demosData } = useLazyFetch<{ items: HomeDemoItem[] }>('/api/skill-demos', { key: 'home-skill-demos' })
 
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
@@ -270,6 +274,9 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
     </section>
 
     <HomeLifecycle />
+
+    <!-- The first content section: what Skills make, before any list of them. -->
+    <HomeDemos :demos="demosData?.items ?? []" />
 
     <section
       v-if="showTrending || trendingStatus === 'pending'"

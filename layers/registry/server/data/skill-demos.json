@@ -1,0 +1,200 @@
+{
+  "demos": [
+    {
+      "owner": "anthropics",
+      "repo": "skills",
+      "name": "frontend-design",
+      "prompt": "Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as index.html.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f",
+      "recordedAt": "2026-10-06",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 4102,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
+        },
+        {
+          "file": "mobile.jpg",
+          "width": 390,
+          "height": 5091,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
+        }
+      ],
+      "authorName": "Anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md"
+    },
+    {
+      "owner": "cathrynlavery",
+      "repo": "diagram-design",
+      "name": "diagram-design",
+      "prompt": "Keep the default style guide. Draw an architecture diagram for Tidewhisk, a fictional ferry-booking service: web app, API gateway, booking service, seat cache, payments worker, database, and SMS notifier. Inline all CSS and JavaScript. Save it as diagram.html.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "da7cd27a37d8a78f99c30accbe40e0ab901a6840",
+      "recordedAt": "2026-10-06",
+      "outputFile": "diagram.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 927,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Keep the default style guide. Draw an architecture diagram for Tidewhisk, a fictional ferry-booking service: web app, AP"
+        }
+      ],
+      "authorName": "Cathryn Lavery",
+      "sourceUrl": "https://github.com/cathrynlavery/diagram-design/blob/main/skills/diagram-design/SKILL.md"
+    },
+    {
+      "owner": "emilkowalski",
+      "repo": "skills",
+      "name": "emil-design-eng",
+      "prompt": "Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show three stacked toasts on load that stay until dismissed, expand on hover, and dismiss on swipe. Inline all CSS and JavaScript.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "85e8e2363b713506e1d5b6e07a0eb2da66be1bc3",
+      "recordedAt": "2026-10-06",
+      "outputFile": "toast.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show"
+        },
+        {
+          "file": "mobile.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show"
+        }
+      ],
+      "authorName": "Emil Kowalski",
+      "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md"
+    },
+    {
+      "owner": "heygen-com",
+      "repo": "hyperframes",
+      "name": "hyperframes",
+      "authorName": "HeyGen",
+      "sourceUrl": "https://github.com/heygen-com/hyperframes/blob/main/skills/hyperframes/SKILL.md",
+      "prompt": "Make a 12-second 1920x1080 promo video for Fernlight, a fictional plant-care app: a title card, three feature beats, and an end card. Render it as promo.mp4 in this folder.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "69a2169bde0c134f42979e1911755084b1c29962",
+      "recordedAt": "2026-10-06",
+      "video": {
+        "file": "video.mp4",
+        "poster": "poster.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 12
+      },
+      "shots": [
+        {
+          "file": "poster.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: Make a 12-second 1920x1080 promo video for Fernlight, a fictional plant-care app: a title card, three feature beats, and"
+        }
+      ]
+    },
+    {
+      "owner": "humanlayer",
+      "repo": "skills",
+      "name": "show-me",
+      "prompt": "Show me how Cogwhistle, a fictional bike-courier dispatch app, assigns a new delivery to a rider, from order to pickup. Write it as one focused HTML file named flow.html in this folder, with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "bba9d13ab34f0a87f1cc33df4dd196372393ddfc",
+      "recordedAt": "2026-10-06",
+      "outputFile": "flow.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 1060,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Show me how Cogwhistle, a fictional bike-courier dispatch app, assigns a new delivery to a rider, from order to pickup. "
+        }
+      ],
+      "authorName": "HumanLayer",
+      "sourceUrl": "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
+    },
+    {
+      "owner": "jakubkrehel",
+      "repo": "make-interfaces-feel-better",
+      "name": "make-interfaces-feel-better",
+      "prompt": "Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a monthly and yearly toggle, and full hover and focus states. Inline all CSS and JavaScript.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "27355fc332ce3dee6af7107b9224152ad3812066",
+      "recordedAt": "2026-10-06",
+      "outputFile": "pricing.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 1164,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a"
+        },
+        {
+          "file": "mobile.jpg",
+          "width": 390,
+          "height": 2192,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a"
+        }
+      ],
+      "authorName": "Jakub Krehel",
+      "sourceUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/main/skills/make-interfaces-feel-better/SKILL.md"
+    },
+    {
+      "owner": "latent-spaces",
+      "repo": "brag",
+      "name": "brag",
+      "authorName": "Latent Spaces",
+      "sourceUrl": "https://github.com/latent-spaces/brag/blob/main/skills/brag/SKILL.md",
+      "prompt": "/brag: make a short launch video for this project. Save the final video as launch.mp4 in this folder.",
+      "setup": "The folder held the Tidepool landing page from the frontend-design demo, and a one-line README.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "c893c5ed52aed84e3e2ee56787de869fccdae6b0",
+      "recordedAt": "2026-10-06",
+      "video": {
+        "file": "video.mp4",
+        "poster": "poster.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 21
+      },
+      "shots": [
+        {
+          "file": "poster.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: /brag: make a short launch video for this project. Save the final video as launch.mp4 in this folder."
+        }
+      ],
+      "pin": 1
+    }
+  ]
+}
