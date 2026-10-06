@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
       - name: Prepare post and verify destination
         id: prepare
         run: pnpm exec tsx scripts/weekly-social.ts prepare ${{ matrix.destination }}

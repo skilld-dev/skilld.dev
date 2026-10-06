@@ -50,7 +50,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
         with:
           install-args: ''
 
