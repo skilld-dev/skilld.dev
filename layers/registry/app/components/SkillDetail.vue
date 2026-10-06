@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
+import type { RunCheckFlagsResponse } from '#shared/run-check-flags'
 import type { TrendingAward } from '#shared/trending-award'
 import type { SkillDemoView } from '../../server/utils/skill-demos'
 import type { ZipState } from '../utils/skill-zip'
@@ -303,6 +304,16 @@ function retryRelated(): void {
   void loadRelated()
 }
 
+// The run check flag, from artifact delivery (ADR-0001). It renders with the
+// page, so the flag never moves the run block after the first paint. The
+// route reads only flagged rows, so most Skills cost one empty index read.
+const runFlagFetch = useFetch<RunCheckFlagsResponse>('/api/run-checks/flags', {
+  query: { skill: slug },
+  watch: [slug],
+  default: () => ({ items: [] }),
+})
+const runFlag = computed(() => runFlagFetch.data.value?.items[0] ?? null)
+
 const liveSkillFetch = useAsyncData<LiveSkill | null>(
   () => `skill-live:${slug.value}`,
   () => $fetch<LiveSkill>(`/api/skill-live/${slug.value}`),
@@ -327,7 +338,7 @@ const initialFileFetch = props.file
   : null
 
 if (import.meta.server)
-  await Promise.all([skillFetch, liveSkillFetch, ...(initialFileFetch ? [initialFileFetch] : [])])
+  await Promise.all([skillFetch, liveSkillFetch, runFlagFetch, ...(initialFileFetch ? [initialFileFetch] : [])])
 
 const { data, status, error, refresh } = skillFetch
 
@@ -1728,6 +1739,8 @@ useHead(computed(() => ({
           :run-copied="copied"
           :install-copied="installCopied"
           :copy-error="commandCopyError"
+          :run-flag="runFlag"
+          :source-url="skillFileUrl || githubUrl"
           @copy="copySkillCommand"
         />
       </div>
@@ -1751,6 +1764,8 @@ useHead(computed(() => ({
               :run-copied="copied"
               :install-copied="installCopied"
               :copy-error="commandCopyError"
+              :run-flag="runFlag"
+              :source-url="skillFileUrl || githubUrl"
               @download="downloadSkillZip"
               @copy="copySkillCommand"
             />

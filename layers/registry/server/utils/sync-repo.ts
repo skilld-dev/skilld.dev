@@ -2,13 +2,13 @@
 
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
-import { isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
+import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { repoStarObservationStatements } from './repo-history'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
 import { skillContentSha256 } from './skill-content-hash'
-import { parseSkillFile } from './skill-frontmatter'
+import { parseSkillFile, registrySkillName } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { parseSkillMd } from './skill-md-render'
 import { resolveSkillTrust } from './skill-trust'
@@ -879,6 +879,13 @@ export async function syncRepo(
     })
   }
   stats.skillsSeen = skillFiles.length
+  // Agent folders and plugin mirrors copy one Skill under one name. Writing
+  // every copy over the one row stored whichever was written last, and the
+  // next push moved it again. Only the copy `skilld run` resolves is read.
+  const canonicalPaths = new Set(canonicalSkillPaths(
+    skillFiles.map(file => file.path),
+    folder => registrySkillName(folder, repo),
+  ))
 
   const now = checkedAt
   const stars = meta.stargazers_count ?? 0
@@ -976,7 +983,9 @@ export async function syncRepo(
     ? skillFiles.length
     : Math.max(1, Math.floor(opts.maxSkillFiles))
   const chunkEnd = Math.min(skillFiles.length, chunkStart + chunkSize)
-  const chunkFiles = skillFiles.slice(chunkStart, chunkEnd)
+  // Offsets count every SKILL.md in tree order, copies included, so a
+  // checkpoint keeps its meaning whichever copies a chunk then skips.
+  const chunkFiles = skillFiles.slice(chunkStart, chunkEnd).filter(file => canonicalPaths.has(file.path))
   const isFinalChunk = chunkEnd >= skillFiles.length
 
   for (const slice of slices(chunkFiles, SKILL_SLICE_SIZE)) {

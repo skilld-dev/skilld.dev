@@ -142,6 +142,9 @@ export default defineNuxtConfig({
       'error.count',
       'failed.count',
       'failed.tasks',
+      // `artifact-github-credential`: which fallback token a build read GitHub
+      // with after the read App gave none.
+      'github.credential',
       'github.endpoint',
       'github.step',
       'item.count',
@@ -573,7 +576,9 @@ export default defineNuxtConfig({
     // inside the 36000s nuxt-skew-protection keeps old chunks for.
     // `scripts/check-edge-cache.ts` proves it after each deploy.
     '/skills/trending': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
-    // Demos change only on deploy.
+    // Demos change on deploy, and when a run check flag hides one. A flag
+    // takes two failed checks, so a day of stale serving on a quiet colo is
+    // within the time the checks themselves take.
     '/skills/demos': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
     // The homepage is the same shape as the board: rendered signed out, no
     // cookie read, and fed by the same feeds, so the same lifetimes hold. A

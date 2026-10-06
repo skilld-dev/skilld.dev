@@ -13,7 +13,10 @@ declare module 'h3' {
   }
 }
 
-/** One allowance across v1 operations, keyed by verified account or Cloudflare's client IP. */
+/**
+ * One allowance across v1 operations, keyed by verified account or Cloudflare's client IP.
+ * Resolution polls draw from a separate allowance under the same key.
+ */
 export function createApiRateLimitHandler(resolveUser: (event: H3Event) => Promise<UserSession['user'] | null>) {
   return defineEventHandler(async (event) => {
     const path = event.path.split('?')[0]!
@@ -30,7 +33,9 @@ export function createApiRateLimitHandler(resolveUser: (event: H3Event) => Promi
     const { env, requestId } = event.context.platform
     // Do not trust X-Forwarded-For. Missing Cloudflare identity shares a conservative bucket.
     const key = user ? `account:${user.id}` : `guest:${getHeader(event, 'cf-connecting-ip') ?? 'unknown'}`
-    const limiter = user ? env.API_ACCOUNT_RATE_LIMIT : env.API_GUEST_RATE_LIMIT
+    const limiter = isResolutionPoll(event.method, path)
+      ? env.API_RESOLUTION_POLL_RATE_LIMIT
+      : user ? env.API_ACCOUNT_RATE_LIMIT : env.API_GUEST_RATE_LIMIT
     const { success } = await limiter.limit({ key })
     if (success)
       return
@@ -51,4 +56,17 @@ export function createApiRateLimitHandler(resolveUser: (event: H3Event) => Promi
       instance: event.path,
     })
   })
+}
+
+const RESOLUTION_POLL_PATH = /^\/api\/v1\/resolutions\/[^/]+$/
+
+/**
+ * A read of one Resolution while its build runs.
+ *
+ * The server sets the poll rate through `pollAfterMs`, so a poll is not a
+ * request the caller chose to make. A one-minute build costs sixty polls,
+ * which used to spend the whole guest allowance (ADR-0012).
+ */
+function isResolutionPoll(method: string, path: string): boolean {
+  return method === 'GET' && RESOLUTION_POLL_PATH.test(path)
 }

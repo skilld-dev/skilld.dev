@@ -783,6 +783,13 @@ async function failWithRejection(
   )
 }
 
+/**
+ * The wait a retryable failure names when its cause named none. GitHub asks
+ * for at least a minute after a secondary rate limit, and the build queue
+ * gives up only after several minutes of failed attempts.
+ */
+export const DEFAULT_RETRY_AFTER_SECONDS = 60
+
 export async function failResolution(
   dependencies: Pick<ArtifactBuildDependencies, 'db' | 'now'>,
   row: NonNullable<Awaited<ReturnType<typeof getResolution>>>,
@@ -796,9 +803,13 @@ export async function failResolution(
   // The upstream reset header is an absolute epoch; error_retry_after means a
   // relative delay in seconds, like HTTP Retry-After. Store the delay a reader
   // can add to now, and never let a clock skew store zero or a negative one.
-  const errorRetryAfter = retryAtEpochSeconds === undefined
+  // A retryable failure whose cause named no time still names one, so the
+  // CLI never prints "may be retried" without saying when.
+  const errorRetryAfter = !retryable
     ? undefined
-    : Math.max(1, retryAtEpochSeconds - now)
+    : retryAtEpochSeconds === undefined
+      ? DEFAULT_RETRY_AFTER_SECONDS
+      : Math.max(1, retryAtEpochSeconds - now)
   const advanced = await transitionResolution(dependencies.db, row, 'failed', {
     errorCode: code,
     errorRetryable: retryable,

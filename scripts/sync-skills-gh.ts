@@ -18,8 +18,8 @@
 
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
-import { parseSkillFile } from '../layers/registry/server/utils/skill-frontmatter'
-import { isRegistrySkillPath, isSkilldCacheSkill } from '../shared/skill-path'
+import { parseSkillFile, registrySkillName } from '../layers/registry/server/utils/skill-frontmatter'
+import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '../shared/skill-path'
 
 const args = process.argv.slice(2)
 const target = args[0]
@@ -81,7 +81,9 @@ interface Skill {
 }
 
 const skills: Skill[] = []
-for (const file of skillFiles) {
+// One copy per Skill name, the one the production sync and `skilld run` pick.
+const canonicalPaths = new Set(canonicalSkillPaths(skillFiles.map(file => file.path), folder => registrySkillName(folder, repo)))
+for (const file of skillFiles.filter(file => canonicalPaths.has(file.path))) {
   const segments = file.path.split('/')
   if (segments.length < 2)
     continue

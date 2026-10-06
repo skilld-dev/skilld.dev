@@ -11,6 +11,15 @@ NUXT_OG_IMAGE_SECRET=
 NUXT_IMAGE_PROXY_KEY=
 NUXT_AI_READY_RUNTIME_SYNC_SECRET=
 GITHUB_TOKEN=
+# Public Artifact builds read GitHub with this token when it is set. Use a token
+# from another GitHub account, so runs keep a quota the registry sync cannot spend.
+ARTIFACT_GITHUB_TOKEN=
+# Public Artifact builds read GitHub as the read App: metadata read only,
+# installed on skilld-dev. Its installation has a quota nothing else spends.
+# The key is a PKCS #8 PEM. Without these, builds use the tokens above.
+SKILLD_READ_APP_ID=
+SKILLD_READ_APP_INSTALLATION_ID=
+SKILLD_READ_APP_PRIVATE_KEY_PKCS8=
 ARTIFACT_PRIVATE_ACCESS_ENABLED=false
 GITHUB_APP_ID=
 GITHUB_APP_CLIENT_ID=

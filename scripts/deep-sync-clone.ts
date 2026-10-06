@@ -23,10 +23,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
-import { parseSkillFile } from '#layers/registry/server/utils/skill-frontmatter'
+import { parseSkillFile, registrySkillName } from '#layers/registry/server/utils/skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from '#layers/registry/server/utils/skill-indexability'
 import { resolveSkillTrust } from '#layers/registry/server/utils/skill-trust'
-import { isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
+import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 
 const execFileP = promisify(execFile)
 async function runP(cmd: string, args: string[], opts: { timeout?: number, maxBuffer?: number, cwd?: string } = {}): Promise<{ stdout: string, stderr: string, code: number }> {
@@ -311,7 +311,9 @@ async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<
 
     const seenNames: string[] = []
 
-    for (const skillPath of skillPaths) {
+    // One copy per Skill name, the one the production sync and `skilld run` pick.
+    const canonicalPaths = canonicalSkillPaths(skillPaths, folder => registrySkillName(folder, repo))
+    for (const skillPath of canonicalPaths) {
       const skillDir = skillPath.includes('/') ? skillPath.slice(0, skillPath.lastIndexOf('/')) : ''
       const dirName = skillDir.split('/').pop() ?? repo
       const raw = await gitReadFile(dir, skillPath)

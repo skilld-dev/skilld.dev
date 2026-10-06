@@ -1,6 +1,11 @@
 import type { QueueBatch } from '#cf-jobs/server'
 import type { ArtifactBuildDependencies } from './build'
-import type { GithubObjectCache, GithubReadFailure } from './github-source'
+import type {
+  ArtifactGithubCredentialEnv,
+  ArtifactGithubCredentialReport,
+  ArtifactGithubCredentialRuntime,
+} from './github-read-credential'
+import type { GithubObjectCache, GithubReadFailure, PublicGithubSourceClient } from './github-source'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { z } from 'zod'
 import { emitOperationalEvent } from '#server/utils/operational-event'
@@ -11,6 +16,12 @@ import {
   githubAppUserTokenDependenciesFromEnv,
   loadAccountGithubAppUserToken,
 } from './github-app'
+import {
+  createArtifactGithubCredential,
+  createInstallationTokenCache,
+  parseArtifactGithubCredentialConfig,
+  withGithubCredential,
+} from './github-read-credential'
 import { createGithubSourceClient, createPublicGithubSourceClient } from './github-source'
 import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from './private-crypto'
 import { privateArtifactAccessEnabled } from './private-feature'
@@ -24,6 +35,17 @@ const artifactBuildMessageSchema = z.object({
   version: z.literal(1),
   resolutionId: z.string().uuid(),
 }).strict()
+
+/**
+ * The wait before each retry of a build attempt that threw. A fifth failed
+ * attempt fails the Resolution as SERVICE_UNAVAILABLE.
+ *
+ * The CLI waits 60 seconds for a Resolution, so the first retry comes within
+ * that window: one transient GitHub or signer error no longer fails the run.
+ * It used to wait 60 seconds. The later waits still ride out a long GitHub
+ * network fault, such as the one on 2026-09-30.
+ */
+export const ARTIFACT_BUILD_RETRY_DELAYS_SECONDS: readonly number[] = [5, 30, 120, 480]
 
 export async function enqueueArtifactBuild(env: Cloudflare.Env, resolutionId: string, delaySeconds?: number): Promise<void> {
   const message = { version: 1, resolutionId }
@@ -82,8 +104,9 @@ export async function consumeArtifactBuildBatch(
       attempt: message.attempts,
       error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
     }))
-    if (message.attempts < 5) {
-      message.retry({ delaySeconds: Math.min(3600, 60 * 2 ** Math.max(0, message.attempts - 1)) })
+    const delaySeconds = ARTIFACT_BUILD_RETRY_DELAYS_SECONDS[message.attempts - 1]
+    if (delaySeconds !== undefined) {
+      message.retry({ delaySeconds })
       continue
     }
     const row = await getResolution(dependencies.db, parsed.data.resolutionId)
@@ -136,6 +159,51 @@ export function createKvGithubObjectCache(kv: KVNamespace): GithubObjectCache {
   }
 }
 
+/**
+ * One installation token cache per isolate. A token lives an hour, so it
+ * outlives the queue batch that minted it.
+ */
+const installationTokens = createInstallationTokenCache()
+
+/**
+ * The GitHub source public Artifact builds read with.
+ *
+ * GitHub counts a personal token's quota per account, and the registry sync
+ * and `/gh` page views spend `GITHUB_TOKEN` to zero before each hourly
+ * reset. Every run that needed GitHub in those minutes failed RATE_LIMITED.
+ * Builds read with the read App's installation token, whose bucket nothing
+ * else spends, then `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`.
+ */
+export function createArtifactGithubSource(
+  env: ArtifactGithubCredentialEnv,
+  runtime: ArtifactGithubCredentialRuntime = defaultGithubSourceRuntime(),
+  cache?: GithubObjectCache,
+): PublicGithubSourceClient {
+  const credential = createArtifactGithubCredential(parseArtifactGithubCredentialConfig(env), runtime)
+  return withGithubCredential(
+    credential,
+    token => createPublicGithubSourceClient({ fetch: runtime.fetch, token, onReadFailure: reportGithubReadFailure, cache }),
+  )
+}
+
+function defaultGithubSourceRuntime(): ArtifactGithubCredentialRuntime {
+  return {
+    fetch: globalThis.fetch.bind(globalThis),
+    now: () => Math.floor(Date.now() / 1000),
+    tokenCache: installationTokens,
+    report: reportGithubCredential,
+  }
+}
+
+function reportGithubCredential(event: ArtifactGithubCredentialReport): void {
+  emitOperationalEvent(createWideEvent({
+    'operation': 'artifact-github-credential',
+    'outcome': event.outcome,
+    'reason': event.reason,
+    'github.credential': event.fallback,
+  }))
+}
+
 export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
   const runtimeFetch = globalThis.fetch.bind(globalThis)
   const privateDependencies = privateArtifactAccessEnabled(env)
@@ -143,12 +211,7 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     : {}
   return {
     db: env.DB,
-    github: createPublicGithubSourceClient({
-      fetch: runtimeFetch,
-      token: env.GITHUB_TOKEN,
-      onReadFailure: reportGithubReadFailure,
-      cache: createKvGithubObjectCache(env.KV_CACHE),
-    }),
+    github: createArtifactGithubSource(env, defaultGithubSourceRuntime(), createKvGithubObjectCache(env.KV_CACHE)),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
