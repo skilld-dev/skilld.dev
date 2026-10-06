@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Wrenfold Bikes: weekly rides</title>
+<style>
+  :root {
+    --bg: #f3f5f4;
+    --surface: #ffffff;
+    --border: #dce2df;
+    --text: #15201c;
+    --muted: #4f5b57;
+    --grid: #e4e8e6;
+    --axis: #9aa5a1;
+    --mark: #0e6b62;
+    --mark-strong: #08433d;
+    --band: #edf1ef;
+    --focus: #1d4ed8;
+    --tip-bg: #15201c;
+    --tip-text: #ffffff;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1211;
+      --surface: #161c1a;
+      --border: #28312e;
+      --text: #e7eeeb;
+      --muted: #a2afaa;
+      --grid: #232b28;
+      --axis: #5c6863;
+      --mark: #4fc4b4;
+      --mark-strong: #8be3d6;
+      --band: #1c2422;
+      --focus: #8ab4ff;
+      --tip-bg: #e7eeeb;
+      --tip-text: #0e1211;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+  }
+
+  header { margin-bottom: 24px; }
+
+  .brand {
+    margin: 0 0 4px;
+    color: var(--mark);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.2;
+  }
+
+  .lede {
+    margin: 6px 0 0;
+    color: var(--muted);
+  }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .kpi { padding: 16px 18px; }
+
+  .kpi-label {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .kpi-value {
+    margin: 2px 0;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .kpi-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .charts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .chart-card { padding: 20px 20px 12px; }
+
+  .chart-card h2 {
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.35;
+  }
+
+  .chart-card .sub {
+    margin: 4px 0 12px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .chart { width: 100%; }
+  .chart svg { display: block; overflow: visible; }
+
+  .hint {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  /* Chart marks */
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .baseline { stroke: var(--axis); stroke-width: 1; }
+  .tick { fill: var(--muted); font-size: 12px; }
+  .cat { fill: var(--text); font-size: 14px; }
+  .val { fill: var(--text); font-size: 13px; font-weight: 700; }
+  .val-sub { fill: var(--muted); font-weight: 400; }
+  .halo { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .peak { font-size: 15px; }
+  .band { fill: var(--band); }
+  .band-label { fill: var(--muted); font-size: 12px; font-weight: 600; }
+  .ref { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .ref-label { fill: var(--muted); font-size: 12px; }
+  .line { fill: none; stroke: var(--mark); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+
+  .bar { fill: var(--mark); }
+  .dot { fill: var(--surface); stroke: var(--mark); stroke-width: 2.5; }
+  .dot.is-peak { fill: var(--mark); }
+
+  .hit { fill: transparent; }
+  .ring { fill: none; stroke: var(--focus); stroke-width: 2; opacity: 0; }
+
+  .mark { cursor: default; outline: none; }
+  .mark:hover .bar, .mark:focus .bar { fill: var(--mark-strong); }
+  .mark:hover .dot, .mark:focus .dot { fill: var(--mark); stroke: var(--mark-strong); }
+  .mark:focus-visible .ring { opacity: 1; }
+
+  /* Tooltip */
+  .tip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    display: grid;
+    gap: 1px;
+    min-width: 140px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--tip-bg);
+    color: var(--tip-text);
+    font-size: 13px;
+    line-height: 1.4;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  }
+
+  .tip[hidden] { display: none; }
+  .tip strong { font-size: 14px; }
+
+  /* Data tables */
+  details {
+    margin-top: 16px;
+    padding: 14px 20px;
+  }
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .tables {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    margin-top: 12px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  caption {
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  th, td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+
+  th { color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; }
+  tfoot td { font-weight: 700; border-bottom: 0; }
+
+  footer {
+    margin-top: 20px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  footer p { margin: 2px 0; }
+
+  .warn { color: #a33a00; font-weight: 600; }
+
+  @media (prefers-color-scheme: dark) {
+    .warn { color: #ffb38a; }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-width: 900px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .charts, .tables { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 460px) {
+    .kpis { grid-template-columns: minmax(0, 1fr); }
+    h1 { font-size: 24px; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .bar, .dot { transition: fill 120ms ease-out; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="brand">Wrenfold Bikes</p>
+    <h1>Weekly rides</h1>
+    <p class="lede">Rides this week, by station and by day, Monday to Sunday.</p>
+  </header>
+
+  <noscript><p class="card kpi">This dashboard needs JavaScript to draw its charts.</p></noscript>
+
+  <ul class="kpis" id="kpis" aria-label="Key figures"></ul>
+
+  <section class="charts">
+    <article class="card chart-card" id="stations-card">
+      <h2 id="stations-title"></h2>
+      <p class="sub">Rides by station, this week</p>
+      <p class="sr-only" id="stations-desc"></p>
+      <div class="chart" id="stations-chart"></div>
+      <p class="hint">Hover or focus a bar for details. Use the arrow keys to move between bars.</p>
+      <div class="tip" aria-hidden="true" hidden></div>
+    </article>
+
+    <article class="card chart-card" id="days-card">
+      <h2 id="days-title"></h2>
+      <p class="sub">Rides per day, Monday to Sunday. The dashed line is the daily average.</p>
+      <p class="sr-only" id="days-desc"></p>
+      <div class="chart" id="days-chart"></div>
+      <p class="hint">Hover or focus a day for details. Use the arrow keys to move between days.</p>
+      <div class="tip" aria-hidden="true" hidden></div>
+    </article>
+  </section>
+
+  <details class="card">
+    <summary>Show the data as tables</summary>
+    <div class="tables" id="tables"></div>
+  </details>
+
+  <footer>
+    <p>Source: Wrenfold Bikes ride counts for this week.</p>
+    <p id="check"></p>
+  </footer>
+</main>
+
+<script>
+  // Single source of truth. Every figure, title, and table below derives from these arrays.
+  const stations = [
+    { name: 'Harbour', rides: 412 },
+    { name: 'Station Road', rides: 356 },
+    { name: 'Market', rides: 241 },
+    { name: 'College', rides: 198 },
+  ]
+
+  const days = [
+    { short: 'Mon', name: 'Monday', rides: 180, weekend: false },
+    { short: 'Tue', name: 'Tuesday', rides: 195, weekend: false },
+    { short: 'Wed', name: 'Wednesday', rides: 170, weekend: false },
+    { short: 'Thu', name: 'Thursday', rides: 210, weekend: false },
+    { short: 'Fri', name: 'Friday', rides: 262, weekend: false },
+    { short: 'Sat', name: 'Saturday', rides: 102, weekend: true },
+    { short: 'Sun', name: 'Sunday', rides: 88, weekend: true },
+  ]
+
+  // ---------- Pure helpers ----------
+
+  const fmt = new Intl.NumberFormat('en-GB')
+  const sum = xs => xs.reduce((a, b) => a + b, 0)
+  const mean = xs => sum(xs) / xs.length
+  const pct = (part, whole) => Math.round((part / whole) * 100)
+  const maxBy = (xs, f) => xs.reduce((best, x) => (f(x) > f(best) ? x : best))
+
+  const niceTicks = (max, count) => {
+    const raw = max / count
+    const mag = 10 ** Math.floor(Math.log10(raw))
+    const norm = raw / mag
+    const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag
+    const top = Math.ceil(max / step) * step
+    return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step)
+  }
+
+  const compare = (value, reference) => {
+    const diff = Math.round(value - reference)
+    if (diff === 0) return 'Equal to the daily average'
+    return `${fmt.format(Math.abs(diff))} ${diff > 0 ? 'above' : 'below'} the daily average`
+  }
+
+  // Signed difference for table cells, with a true minus sign.
+  const signed = (value, reference) => {
+    const diff = Math.round(value - reference)
+    return diff > 0 ? `+${fmt.format(diff)}` : diff < 0 ? `−${fmt.format(-diff)}` : '0'
+  }
+
+  const summarise = () => {
+    const stationTotal = sum(stations.map(s => s.rides))
+    const dayTotal = sum(days.map(d => d.rides))
+    const topStation = maxBy(stations, s => s.rides)
+    const peakDay = maxBy(days, d => d.rides)
+    const dailyAvg = mean(days.map(d => d.rides))
+    const weekdays = days.filter(d => !d.weekend)
+    const weekend = days.filter(d => d.weekend)
+    const weekdayAvg = mean(weekdays.map(d => d.rides))
+    const weekendAvg = mean(weekend.map(d => d.rides))
+    const weekendTotal = sum(weekend.map(d => d.rides))
+    return {
+      stationTotal,
+      dayTotal,
+      topStation,
+      topShare: pct(topStation.rides, stationTotal),
+      peakDay,
+      peakAboveAvg: pct(peakDay.rides - dailyAvg, dailyAvg),
+      dailyAvg,
+      weekendTotal,
+      weekendShare: pct(weekendTotal, dayTotal),
+      weekendDrop: pct(weekdayAvg - weekendAvg, weekdayAvg),
+    }
+  }
+
+  // ---------- DOM helpers ----------
+
+  const NS = 'http://www.w3.org/2000/svg'
+
+  const svgEl = (tag, attrs = {}, children = []) => {
+    const node = document.createElementNS(NS, tag)
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value))
+    node.append(...children)
+    return node
+  }
+
+  const svgText = (content, attrs = {}) => {
+    const node = svgEl('text', attrs)
+    node.textContent = content
+    return node
+  }
+
+  const htmlEl = (tag, attrs = {}, children = []) => {
+    const node = document.createElement(tag)
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value))
+    node.append(...children)
+    return node
+  }
+
+  // ---------- Tooltip and keyboard behaviour shared by both charts ----------
+
+  const showTip = (card, tip, mark) => {
+    tip.replaceChildren(
+      htmlEl('strong', {}, [mark.title]),
+      ...mark.lines.map(line => htmlEl('span', {}, [line])),
+    )
+    tip.hidden = false
+    const anchor = mark.anchor.getBoundingClientRect()
+    const box = card.getBoundingClientRect()
+    const left = Math.max(8, Math.min(anchor.left - box.left + anchor.width / 2 - tip.offsetWidth / 2, box.width - tip.offsetWidth - 8))
+    const above = anchor.top - box.top - tip.offsetHeight - 10
+    const top = above >= 8 ? above : anchor.bottom - box.top + 10
+    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`
+  }
+
+  const bindMarks = (card, marks) => {
+    const tip = card.querySelector('.tip')
+    const hide = () => { tip.hidden = true }
+    const focusAt = i => {
+      marks.forEach((m, j) => m.node.setAttribute('tabindex', j === i ? '0' : '-1'))
+      marks[i].node.focus()
+    }
+    const keys = {
+      ArrowRight: i => Math.min(i + 1, marks.length - 1),
+      ArrowDown: i => Math.min(i + 1, marks.length - 1),
+      ArrowLeft: i => Math.max(i - 1, 0),
+      ArrowUp: i => Math.max(i - 1, 0),
+      Home: () => 0,
+      End: () => marks.length - 1,
+    }
+    marks.forEach((mark, i) => {
+      const { node } = mark
+      node.setAttribute('tabindex', i === 0 ? '0' : '-1')
+      node.setAttribute('role', 'img')
+      node.setAttribute('aria-label', mark.label)
+      node.addEventListener('pointerenter', () => showTip(card, tip, mark))
+      node.addEventListener('pointerleave', hide)
+      node.addEventListener('focus', () => showTip(card, tip, mark))
+      node.addEventListener('blur', hide)
+      node.addEventListener('keydown', event => {
+        if (event.key === 'Escape') return hide()
+        const next = keys[event.key]
+        if (!next) return
+        event.preventDefault()
+        focusAt(next(i))
+      })
+    })
+    hide()
+  }
+
+  // ---------- Charts ----------
+
+  // Horizontal bars: position on a common zero baseline, the most accurate encoding for comparison.
+  const stationChart = (width, total) => {
+    const narrow = width < 420
+    const m = { top: 4, right: narrow ? 82 : 96, bottom: 30, left: narrow ? 100 : 116 }
+    const rowH = 48
+    const barH = 26
+    const plotBottom = m.top + stations.length * rowH
+    const height = plotBottom + m.bottom
+    const ticks = niceTicks(Math.max(...stations.map(s => s.rides)), narrow ? 3 : 5)
+    const xMax = ticks.at(-1)
+    const x = v => m.left + (v / xMax) * (width - m.left - m.right)
+
+    const grid = svgEl('g', { 'aria-hidden': 'true' }, [
+      ...ticks.map(t => svgEl('line', { class: t === 0 ? 'baseline' : 'grid-line', x1: x(t), x2: x(t), y1: m.top, y2: plotBottom })),
+      ...ticks.map(t => svgText(fmt.format(t), { class: 'tick', x: x(t), y: plotBottom + 18, 'text-anchor': 'middle' })),
+      svgText('Rides', { class: 'tick', x: m.left - 12, y: plotBottom + 18, 'text-anchor': 'end' }),
+    ])
+
+    const marks = stations.map((s, i) => {
+      const rowTop = m.top + i * rowH
+      const mid = rowTop + rowH / 2
+      const share = pct(s.rides, total)
+      const value = svgEl('text', { class: 'val', x: x(s.rides) + 8, y: mid, dy: '0.35em' }, [])
+      value.append(
+        svgEl('tspan', {}, [fmt.format(s.rides)]),
+        svgEl('tspan', { class: 'val-sub', dx: 4 }, [`(${share}%)`]),
+      )
+      const node = svgEl('g', { class: 'mark' }, [
+        svgEl('rect', { class: 'hit', x: 0, y: rowTop, width, height: rowH }),
+        svgEl('rect', { class: 'ring', x: 1, y: rowTop + 2, width: width - 2, height: rowH - 4, rx: 6 }),
+        svgText(s.name, { class: 'cat', x: m.left - 12, y: mid, dy: '0.35em', 'text-anchor': 'end' }),
+        svgEl('rect', { class: 'bar', x: m.left, y: mid - barH / 2, width: Math.max(0, x(s.rides) - m.left), height: barH, rx: 2 }),
+        value,
+      ])
+      return {
+        node,
+        anchor: value,
+        title: s.name,
+        lines: [`${fmt.format(s.rides)} rides`, `${share}% of all rides`, `Rank ${i + 1} of ${stations.length}`],
+        label: `${s.name}: ${fmt.format(s.rides)} rides, ${share}% of all rides, rank ${i + 1} of ${stations.length}.`,
+      }
+    })
+
+    const svg = svgEl('svg', {
+      width,
+      height,
+      viewBox: `0 0 ${width} ${height}`,
+      role: 'group',
+      'aria-labelledby': 'stations-title',
+      'aria-describedby': 'stations-desc',
+    }, [grid, ...marks.map(mk => mk.node)])
+    return { svg, marks }
+  }
+
+  // Line over the week: shows the shape of change from day to day.
+  const dayChart = (width, stats) => {
+    const narrow = width < 420
+    const m = { top: 34, right: narrow ? 58 : 66, bottom: 34, left: narrow ? 38 : 44 }
+    const height = 300
+    const plotW = width - m.left - m.right
+    const plotH = height - m.top - m.bottom
+    const step = plotW / days.length
+    const ticks = niceTicks(Math.max(...days.map(d => d.rides)), 6)
+    const yMax = ticks.at(-1)
+    const x = i => m.left + step * (i + 0.5)
+    const y = v => m.top + plotH - (v / yMax) * plotH
+    const firstWeekend = days.findIndex(d => d.weekend)
+    const yAvg = y(stats.dailyAvg)
+
+    const back = svgEl('g', { 'aria-hidden': 'true' }, [
+      ...(firstWeekend >= 0 ? [
+        svgEl('rect', { class: 'band', x: m.left + step * firstWeekend, y: m.top, width: step * (days.length - firstWeekend), height: plotH }),
+        svgText('Weekend', { class: 'band-label', x: m.left + step * (firstWeekend + (days.length - firstWeekend) / 2), y: m.top + 16, 'text-anchor': 'middle' }),
+      ] : []),
+      ...ticks.map(t => svgEl('line', { class: t === 0 ? 'baseline' : 'grid-line', x1: m.left, x2: m.left + plotW, y1: y(t), y2: y(t) })),
+      ...ticks.map(t => svgText(fmt.format(t), { class: 'tick', x: m.left - 8, y: y(t), dy: '0.35em', 'text-anchor': 'end' })),
+      svgText('Rides', { class: 'tick', x: m.left - 8, y: m.top - 14, 'text-anchor': 'end' }),
+      ...days.map((d, i) => svgText(d.short, { class: 'tick', x: x(i), y: height - m.bottom + 20, 'text-anchor': 'middle' })),
+      svgEl('line', { class: 'ref', x1: m.left, x2: m.left + plotW, y1: yAvg, y2: yAvg }),
+      svgText('Average', { class: 'ref-label', x: m.left + plotW + 6, y: yAvg - 4 }),
+      svgText(fmt.format(Math.round(stats.dailyAvg)), { class: 'ref-label', x: m.left + plotW + 6, y: yAvg + 12 }),
+      svgEl('path', { class: 'line', d: days.map((d, i) => `${i ? 'L' : 'M'}${x(i)},${y(d.rides)}`).join(' ') }),
+    ])
+
+    const marks = days.map((d, i) => {
+      const isPeak = d === stats.peakDay
+      const dot = svgEl('circle', { class: isPeak ? 'dot is-peak' : 'dot', cx: x(i), cy: y(d.rides), r: isPeak ? 6 : 4.5 })
+      const node = svgEl('g', { class: 'mark' }, [
+        svgEl('rect', { class: 'hit', x: m.left + step * i, y: m.top, width: step, height: plotH }),
+        svgEl('rect', { class: 'ring', x: m.left + step * i + 2, y: m.top + 2, width: step - 4, height: plotH - 4, rx: 6 }),
+        dot,
+        svgText(fmt.format(d.rides), { class: `val halo${isPeak ? ' peak' : ''}`, x: x(i), y: y(d.rides) - (isPeak ? 14 : 12), 'text-anchor': 'middle' }),
+      ])
+      const share = pct(d.rides, stats.dayTotal)
+      const versus = compare(d.rides, stats.dailyAvg)
+      return {
+        node,
+        anchor: dot,
+        title: d.name,
+        lines: [`${fmt.format(d.rides)} rides`, `${share}% of the week`, versus],
+        label: `${d.name}: ${fmt.format(d.rides)} rides, ${share}% of the week, ${versus.toLowerCase()}.`,
+      }
+    })
+
+    const svg = svgEl('svg', {
+      width,
+      height,
+      viewBox: `0 0 ${width} ${height}`,
+      role: 'group',
+      'aria-labelledby': 'days-title',
+      'aria-describedby': 'days-desc',
+    }, [back, ...marks.map(mk => mk.node)])
+    return { svg, marks }
+  }
+
+  // Render on first layout and again when the container width changes.
+  const mount = (host, card, draw) => {
+    let lastWidth = 0
+    new ResizeObserver(() => {
+      const width = Math.floor(host.clientWidth)
+      if (width === lastWidth || width === 0) return
+      lastWidth = width
+      const { svg, marks } = draw(width)
+      host.replaceChildren(svg)
+      bindMarks(card, marks)
+    }).observe(host)
+  }
+
+  // ---------- Page ----------
+
+  const kpi = (label, value, note) => htmlEl('li', { class: 'card kpi' }, [
+    htmlEl('p', { class: 'kpi-label' }, [label]),
+    htmlEl('p', { class: 'kpi-value' }, [value]),
+    htmlEl('p', { class: 'kpi-note' }, [note]),
+  ])
+
+  const table = (caption, head, rows, foot) => htmlEl('table', {}, [
+    htmlEl('caption', {}, [caption]),
+    htmlEl('thead', {}, [htmlEl('tr', {}, head.map((h, i) => htmlEl('th', { scope: 'col', class: i ? 'num' : '' }, [h])))]),
+    htmlEl('tbody', {}, rows.map(r => htmlEl('tr', {}, r.map((c, i) => i ? htmlEl('td', { class: 'num' }, [c]) : htmlEl('th', { scope: 'row' }, [c]))))),
+    htmlEl('tfoot', {}, [htmlEl('tr', {}, foot.map((c, i) => htmlEl('td', { class: i ? 'num' : '' }, [c])))]),
+  ])
+
+  const render = () => {
+    const s = summarise()
+    const byId = id => document.getElementById(id)
+
+    byId('kpis').replaceChildren(
+      kpi('Total rides', fmt.format(s.stationTotal), `This week, across ${stations.length} stations`),
+      kpi('Busiest station', s.topStation.name, `${fmt.format(s.topStation.rides)} rides, ${s.topShare}% of the total`),
+      kpi('Busiest day', s.peakDay.name, `${fmt.format(s.peakDay.rides)} rides, ${s.peakAboveAvg}% above the daily average`),
+      kpi('Weekend rides', fmt.format(s.weekendTotal), `${s.weekendShare}% of the week's rides`),
+    )
+
+    byId('stations-title').textContent = `${s.topStation.name} has the most rides: ${s.topShare}% of the week's total`
+    byId('stations-desc').textContent = `Bar chart of rides by station. ${stations.map(st => `${st.name}, ${fmt.format(st.rides)}`).join('. ')}.`
+    byId('days-title').textContent = `Rides peak on ${s.peakDay.name}. Weekend days average ${s.weekendDrop}% fewer rides than weekdays.`
+    byId('days-desc').textContent = `Line chart of rides per day. ${days.map(d => `${d.name}, ${fmt.format(d.rides)}`).join('. ')}. The daily average is ${fmt.format(Math.round(s.dailyAvg))}.`
+
+    byId('tables').replaceChildren(
+      table('Rides by station', ['Station', 'Rides', 'Share'],
+        stations.map(st => [st.name, fmt.format(st.rides), `${pct(st.rides, s.stationTotal)}%`]),
+        ['Total', fmt.format(s.stationTotal), '100%']),
+      table('Rides by day', ['Day', 'Rides', 'Compared with daily average'],
+        days.map(d => [d.name, fmt.format(d.rides), signed(d.rides, s.dailyAvg)]),
+        ['Total', fmt.format(s.dayTotal), `Average ${fmt.format(Math.round(s.dailyAvg))}`]),
+    )
+
+    const check = byId('check')
+    if (s.stationTotal === s.dayTotal) {
+      check.textContent = `Station totals and daily totals both sum to ${fmt.format(s.stationTotal)} rides.`
+    } else {
+      check.className = 'warn'
+      check.textContent = `Check the data: station totals sum to ${fmt.format(s.stationTotal)}, daily totals sum to ${fmt.format(s.dayTotal)}.`
+    }
+
+    mount(byId('stations-chart'), byId('stations-card'), width => stationChart(width, s.stationTotal))
+    mount(byId('days-chart'), byId('days-card'), width => dayChart(width, s))
+  }
+
+  render()
+</script>
+</body>
+</html>
