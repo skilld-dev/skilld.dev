@@ -11,7 +11,9 @@ Maintainers set it up from [/skillgen](https://skilld.dev/skillgen).
 
 Installing the App alone queues nothing.
 A signed-in maintainer turns Skillgen on for each repository, and `skillgen_repositories` records it.
-Turning it on needs admin or maintain access, a public repository, a root `package.json`, and the Skill where the Worker reads it.
+Turning it on needs admin or maintain access, a public repository, and a published package with a Skill.
+`workers/skill-harness/src/package-skills.ts` holds the package rule. The site and the Worker both import it.
+A package sits at the root or under `packages/<name>/`, with its Skill in `skills/<dir>/SKILL.md` beside its `package.json`.
 Skillgen supports npm packages only.
 
 Before the Worker queues a job, it asks `POST /api/internal/skillgen/opt-ins` which repositories in the event opted in.
@@ -52,8 +54,11 @@ New tag creation starts another job automatically.
 
 ## Source and publication checks
 
-Each job reads the root `package.json` from the exact tag commit.
-The tag must equal its package version, with an optional `v` prefix.
+Each job lists the packages with a Skill on the default branch.
+It reads each one's `package.json` from the exact tag commit, and skips private packages.
+The tag must equal a package version, as `1.2.3`, `v1.2.3`, or `name@1.2.3`.
+If several packages match one tag, the job splits into one job per package.
+Each split job opens its own draft on a branch named after the package directory.
 If the package publication follows the tag, the job waits for it.
 The whole job has a thirty minute deadline.
 

@@ -1,8 +1,8 @@
 import type { SkillgenOptInResult, SkillgenRepositoryEntry } from '../../shared/contracts/skillgen'
-import type { SkillgenRepositoryRow } from '../utils/skillgen'
+import type { SkillgenInspectedRow } from '../utils/skillgen'
 
-export function skillgenRepositoriesPresenter(rows: SkillgenRepositoryRow[]): { items: SkillgenRepositoryEntry[] } {
-  return { items: rows.map(row => ({ owner: row.owner, repo: row.repo, optedIn: row.optedIn })) }
+export function skillgenRepositoriesPresenter(rows: SkillgenInspectedRow[]): { items: SkillgenRepositoryEntry[] } {
+  return { items: rows.map(row => ({ owner: row.owner, repo: row.repo, optedIn: row.optedIn, eligibility: row.eligibility })) }
 }
 
 export function skillgenOptInPresenter(result: SkillgenOptInResult): SkillgenOptInResult {

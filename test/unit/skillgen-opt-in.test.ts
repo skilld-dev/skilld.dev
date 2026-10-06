@@ -11,65 +11,79 @@ import {
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const ref = { owner: 'harlan-zw', repo: 'nuxt-skew-protection' }
-const prefix = '/repos/harlan-zw/nuxt-skew-protection'
 
 function file(text: string): Response {
   return Response.json({ encoding: 'base64', content: btoa(text) })
 }
 
-/** A GitHub stub: each path answers its listed response, anything else 404s. */
-function github(routes: Record<string, () => Response>) {
-  return async (path: string) => routes[path]?.() ?? new Response(null, { status: 404 })
+/**
+ * A GitHub stub for one repository: its permissions, the default branch tree,
+ * and the `package.json` files by path. Any other path answers 404.
+ */
+function repository(name: string, files: Record<string, unknown>, options: { private?: boolean, maintain?: boolean } = {}) {
+  const prefix = `/repos/harlan-zw/${name}`
+  // GitHub matches owner and repository names without case.
+  return async (requested: string) => {
+    const path = requested.toLowerCase()
+    if (path === prefix)
+      return Response.json({ full_name: `Harlan-Zw/${name}`, private: options.private ?? false, permissions: { admin: false, maintain: options.maintain ?? true } })
+    if (path === `${prefix}/git/trees/head?recursive=1`)
+      return Response.json({ truncated: false, tree: Object.keys(files).map(file => ({ path: file, type: 'blob' })) })
+    const contents = path.startsWith(`${prefix}/contents/`) ? requested.slice(`${prefix}/contents/`.length) : undefined
+    if (contents !== undefined && files[contents] !== undefined)
+      return file(JSON.stringify(files[contents]))
+    return new Response(null, { status: 404 })
+  }
 }
 
-const maintained = () => Response.json({ full_name: 'Harlan-Zw/nuxt-skew-protection', private: false, permissions: { admin: false, maintain: true } })
-
 describe('skillgen eligibility', () => {
-  it('accepts a maintained npm package whose Skill sits under its unscoped name', async () => {
-    const result = await checkSkillgenEligibility(github({
-      [prefix]: maintained,
-      [`${prefix}/contents/package.json`]: () => file(JSON.stringify({ name: '@harlan-zw/nuxt-skew-protection' })),
-      [`${prefix}/contents/skills/nuxt-skew-protection/SKILL.md`]: () => file('---\nname: x\n---'),
+  it('accepts a root package whose Skill sits in skills/', async () => {
+    const result = await checkSkillgenEligibility(repository('nuxt-skew-protection', {
+      'package.json': { name: 'nuxt-skew-protection', version: '1.6.2' },
+      'skills/nuxt-skew-protection/SKILL.md': '',
     }), ref)
     // GitHub's casing is stored, so later lookups match what the Worker sends.
-    expect(result).toEqual({ _tag: 'Eligible', owner: 'Harlan-Zw', repo: 'nuxt-skew-protection' })
+    expect(result).toEqual({ _tag: 'Eligible', owner: 'Harlan-Zw', repo: 'nuxt-skew-protection', packages: ['nuxt-skew-protection'] })
   })
 
-  it('accepts a root SKILL.md', async () => {
-    const result = await checkSkillgenEligibility(github({
-      [prefix]: maintained,
-      [`${prefix}/contents/package.json`]: () => file(JSON.stringify({ name: 'nuxt-skew-protection' })),
-      [`${prefix}/contents/SKILL.md`]: () => file('---\nname: x\n---'),
-    }), ref)
-    expect(result._tag).toBe('Eligible')
+  it('accepts a monorepo whose published package keeps its Skill under packages/', async () => {
+    const result = await checkSkillgenEligibility(repository('ripast', {
+      'package.json': { name: 'ripast-monorepo', private: true },
+      'packages/cli/package.json': { name: '@ripast/cli', version: '0.5.0' },
+      'packages/cli/skills/ripast/SKILL.md': '',
+      'packages/core/package.json': { name: '@ripast/core', version: '0.5.0' },
+    }), { owner: 'harlan-zw', repo: 'ripast' })
+    expect(result).toMatchObject({ _tag: 'Eligible', packages: ['@ripast/cli'] })
   })
 
-  it('refuses a repository without a root package.json, since only npm is supported', async () => {
-    expect(await checkSkillgenEligibility(github({ [prefix]: maintained }), ref)).toEqual({ _tag: 'NoPackageJson' })
-    expect(await checkSkillgenEligibility(github({
-      [prefix]: maintained,
-      [`${prefix}/contents/package.json`]: () => file('not json'),
-    }), ref)).toEqual({ _tag: 'NoPackageJson' })
+  it('names every package with a Skill, and ignores Skills in test fixtures', async () => {
+    const result = await checkSkillgenEligibility(repository('nuxt-seo', {
+      'package.json': { private: true, version: '5.3.16' },
+      'packages/nuxt-seo/package.json': { name: '@nuxtjs/seo', version: '5.3.16' },
+      'packages/nuxt-seo/skills/nuxtjs-seo/SKILL.md': '',
+      'packages/nuxt-seo/test/fixtures/basic/skills/internal/SKILL.md': '',
+      'packages/devtools-layer/package.json': { name: 'nuxtseo-layer-devtools', version: '5.3.16' },
+      'packages/devtools-layer/skills/devtools-layer-skilld/SKILL.md': '',
+    }), { owner: 'harlan-zw', repo: 'nuxt-seo' })
+    expect(result).toMatchObject({ _tag: 'Eligible', packages: ['nuxtseo-layer-devtools', '@nuxtjs/seo'] })
   })
 
-  it('names the Skill path it expected when none exists', async () => {
-    expect(await checkSkillgenEligibility(github({
-      [prefix]: maintained,
-      [`${prefix}/contents/package.json`]: () => file(JSON.stringify({ name: '@scope/widget' })),
-    }), ref)).toEqual({ _tag: 'NoSkill', expected: 'skills/widget/SKILL.md' })
+  it('tells a missing package apart from a missing Skill and an unpublished package', async () => {
+    expect(await checkSkillgenEligibility(repository('docs', { 'README.md': '' }), { owner: 'harlan-zw', repo: 'docs' })).toEqual({ _tag: 'NoPackage' })
+    expect(await checkSkillgenEligibility(repository('tool', { 'packages/tool/package.json': { name: 'tool' } }), { owner: 'harlan-zw', repo: 'tool' })).toEqual({ _tag: 'NoSkill' })
+    expect(await checkSkillgenEligibility(repository('app', {
+      'package.json': { name: 'app', private: true },
+      'skills/app/SKILL.md': '',
+    }), { owner: 'harlan-zw', repo: 'app' })).toEqual({ _tag: 'UnpublishedPackage' })
   })
 
-  it('refuses an account with only push access, and a private repository', async () => {
-    expect(await checkSkillgenEligibility(github({
-      [prefix]: () => Response.json({ full_name: 'harlan-zw/nuxt-skew-protection', private: false, permissions: { admin: false, maintain: false, push: true } }),
-    }), ref)).toEqual({ _tag: 'NotMaintainer' })
-    expect(await checkSkillgenEligibility(github({
-      [prefix]: () => Response.json({ full_name: 'harlan-zw/nuxt-skew-protection', private: true, permissions: { admin: true } }),
-    }), ref)).toEqual({ _tag: 'NotPublic' })
+  it('refuses an account without maintain access, and a private repository', async () => {
+    expect(await checkSkillgenEligibility(repository('nuxt-skew-protection', {}, { maintain: false }), ref)).toEqual({ _tag: 'NotMaintainer' })
+    expect(await checkSkillgenEligibility(repository('nuxt-skew-protection', {}, { private: true }), ref)).toEqual({ _tag: 'NotPublic' })
   })
 
   it('reports a GitHub failure instead of a refusal', async () => {
-    expect(await checkSkillgenEligibility(github({ [prefix]: () => new Response(null, { status: 502 }) }), ref))
+    expect(await checkSkillgenEligibility(async () => new Response(null, { status: 502 }), ref))
       .toEqual({ _tag: 'GithubUnavailable', status: 502 })
   })
 })

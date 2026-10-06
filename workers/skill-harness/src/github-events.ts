@@ -7,7 +7,8 @@ const installationRepository = z.object({ id: z.number().int().positive(), name,
   .transform(value => ({ id: value.id, name: value.name, private: value.private, owner: { login: value.full_name.split('/')[0]! } }))
 const installation = z.object({ id: z.number().int().positive() })
 const tag = z.string().min(1).max(200).refine(value => [...value].every(char => char.charCodeAt(0) > 32))
-export interface TagRequest { owner: string, name: string, repositoryId: number, installationId: number, tag: string }
+/** `packagePath` names one monorepo package, set when a tag that several packages share splits into one job each. */
+export interface TagRequest { owner: string, name: string, repositoryId: number, installationId: number, tag: string, packagePath?: string }
 
 export function parseGithubEvent(event: string, payload: unknown): { _tag: 'Tags', tags: TagRequest[] } | { _tag: 'Ignored' } | { _tag: 'Invalid' } {
   if (event === 'create') {

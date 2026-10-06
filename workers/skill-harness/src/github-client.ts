@@ -3,16 +3,24 @@ import type { TagRequest } from './github-events'
 import { z } from 'zod'
 import { parseJson, parseProofInput, readBoundedBody } from './contracts'
 import { matchesNpmProvenance } from './npm-provenance'
+import { packageJsonPath, packageSkillCandidates, packageSkillRoot, tagMatchesVersion } from './package-skills'
 
 const sha = z.string().regex(/^[a-f0-9]{40}$/)
 const commit = z.object({ sha })
 const repoSchema = z.object({ id: z.number().int().positive(), private: z.boolean(), default_branch: z.string().min(1).max(200) })
-const packageSchema = z.object({ name: z.string().regex(/^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/), version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i) })
+const packageSchema = z.object({ name: z.string().regex(/^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/), version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i), private: z.boolean().optional() })
 const treeSchema = z.object({ truncated: z.boolean(), tree: z.array(z.object({ path: z.string(), type: z.string(), sha })).max(20_000) })
 const contentSchema = z.object({ encoding: z.literal('base64'), content: z.string().max(96 * 1024) })
 const npmSchema = z.object({ name: z.string(), version: z.string(), gitHead: sha.optional(), dist: z.object({ integrity: z.string(), attestations: z.object({ url: z.string().url() }).optional() }) })
 export type GithubRequest = (path: string, method?: string, body?: unknown) => Promise<unknown>
-export interface PreparedTag extends TagRequest { targetSha: string, baseSha: string, baseBranch: string, skillRoot: string, input: ProofInput }
+/** `packageDir` is `''` for a package at the repository root, else `packages/<dir>`. */
+export interface PreparedTag extends TagRequest { targetSha: string, baseSha: string, baseBranch: string, packageDir: string, skillRoot: string, input: ProofInput }
+type Prepared
+  = | { _tag: 'Prepared', value: PreparedTag }
+    | { _tag: 'Skipped', reason: string }
+    | { _tag: 'Pending', reason: string }
+    /** Several packages with Skills share the tag. Each gets its own job and pull request. */
+    | { _tag: 'Split', tag: string, packageDirs: string[] }
 
 function base64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -50,11 +58,34 @@ async function githubJson(path: string, token: string, fetcher: typeof fetch, me
 }
 
 async function readContent(api: GithubRequest, prefix: string, path: string, ref: string): Promise<string> {
-  const value = contentSchema.parse(await api(`${prefix}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}`))
+  const value = await readOptionalContent(api, prefix, path, ref)
+  if (value === undefined)
+    throw new Error('GITHUB_CONTENT_MISSING')
+  return value
+}
+
+async function readOptionalContent(api: GithubRequest, prefix: string, path: string, ref: string): Promise<string | undefined> {
+  const response = await api(`${prefix}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}`)
+  if (response === null)
+    return undefined
+  const value = contentSchema.parse(response)
   return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(Uint8Array.from(atob(value.content.replace(/\s/g, '')), char => char.charCodeAt(0)))
 }
 
-export async function prepareTag(request: TagRequest, api: GithubRequest, fetcher: typeof fetch): Promise<{ _tag: 'Prepared', value: PreparedTag } | { _tag: 'Skipped', reason: string } | { _tag: 'Pending', reason: string }> {
+/** The published package at `packageDir` on the tag commit, or undefined when it is missing, private, or unnamed. */
+async function readPackage(api: GithubRequest, prefix: string, packageDir: string, ref: string): Promise<z.infer<typeof packageSchema> | undefined> {
+  const text = await readOptionalContent(api, prefix, packageJsonPath(packageDir), ref)
+  const parsed = text === undefined ? undefined : parseJson(text)
+  const pkg = parsed?._tag === 'Ok' ? packageSchema.safeParse(parsed.value) : undefined
+  return pkg?.success && !pkg.data.private ? pkg.data : undefined
+}
+
+/**
+ * Resolves a tag to the one package whose Skill it updates. Monorepos keep
+ * packages under `packages/`, so the Skills on the default branch name the
+ * candidates and the tag's version picks among them.
+ */
+export async function prepareTag(request: TagRequest, api: GithubRequest, fetcher: typeof fetch): Promise<Prepared> {
   const prefix = `/repos/${request.owner}/${request.name}`
   const repository = repoSchema.parse(await api(prefix))
   if (repository.private || repository.id !== request.repositoryId)
@@ -67,9 +98,29 @@ export async function prepareTag(request: TagRequest, api: GithubRequest, fetche
     tag = tags[0].name
   }
   const target = commit.parse(await api(`${prefix}/commits/${encodeURIComponent(tag)}`)).sha
-  const pkg = packageSchema.parse(JSON.parse(await readContent(api, prefix, 'package.json', target)))
-  if (tag !== pkg.version && tag !== `v${pkg.version}`)
+  const baseSha = commit.parse(await api(`${prefix}/commits/${encodeURIComponent(repository.default_branch)}`)).sha
+  const tree = treeSchema.parse(await api(`${prefix}/git/trees/${baseSha}?recursive=1`))
+  if (tree.truncated)
+    return { _tag: 'Skipped', reason: 'REPOSITORY_TREE_TOO_LARGE' }
+  const paths = new Set(tree.tree.filter(entry => entry.type === 'blob').map(entry => entry.path))
+  const candidates = packageSkillCandidates(paths).filter(candidate => request.packagePath === undefined || candidate.packageDir === request.packagePath)
+  if (!candidates.length)
+    return { _tag: 'Skipped', reason: 'EXISTING_SKILL_REQUIRED' }
+  const matches = []
+  for (const candidate of candidates) {
+    const pkg = await readPackage(api, prefix, candidate.packageDir, target)
+    if (pkg && tagMatchesVersion(tag, pkg.name, pkg.version))
+      matches.push({ candidate, pkg })
+  }
+  const [match] = matches
+  if (!match)
     return { _tag: 'Skipped', reason: 'TAG_VERSION_MISMATCH' }
+  if (matches.length > 1)
+    return { _tag: 'Split', tag, packageDirs: matches.map(item => item.candidate.packageDir) }
+  const { candidate, pkg } = match
+  const skillRoot = packageSkillRoot(candidate, pkg.name)
+  if (skillRoot === undefined)
+    return { _tag: 'Skipped', reason: 'AMBIGUOUS_SKILL' }
   const npm = await fetcher(`https://registry.npmjs.org/${encodeURIComponent(pkg.name)}/${encodeURIComponent(pkg.version)}`, { redirect: 'manual', signal: AbortSignal.timeout(15_000) })
   if (npm.status === 404)
     return { _tag: 'Pending', reason: 'PACKAGE_NOT_PUBLISHED' }
@@ -94,15 +145,6 @@ export async function prepareTag(request: TagRequest, api: GithubRequest, fetche
     if (parsed?._tag !== 'Ok' || !matchesNpmProvenance(parsed.value, { ...request, tag, targetSha: target, packageName: pkg.name, version: pkg.version, integrity: published.data.dist.integrity }))
       return { _tag: 'Skipped', reason: 'PACKAGE_TAG_PROVENANCE_MISMATCH' }
   }
-  const baseSha = commit.parse(await api(`${prefix}/commits/${encodeURIComponent(repository.default_branch)}`)).sha
-  const tree = treeSchema.parse(await api(`${prefix}/git/trees/${baseSha}?recursive=1`))
-  if (tree.truncated)
-    return { _tag: 'Skipped', reason: 'REPOSITORY_TREE_TOO_LARGE' }
-  const expectedRoot = `skills/${pkg.name.split('/').at(-1)}`
-  const paths = new Set(tree.tree.filter(entry => entry.type === 'blob').map(entry => entry.path))
-  const skillRoot = paths.has(`${expectedRoot}/SKILL.md`) ? expectedRoot : paths.has('SKILL.md') ? '' : undefined
-  if (skillRoot === undefined)
-    return { _tag: 'Skipped', reason: 'EXISTING_SKILL_REQUIRED' }
   const rootPrefix = skillRoot ? `${skillRoot}/` : ''
   const currentSkill = []
   let bytes = 0
@@ -122,7 +164,7 @@ export async function prepareTag(request: TagRequest, api: GithubRequest, fetche
   const input = parseProofInput({ spec: `${pkg.name}@${pkg.version}`, name: skillName, currentSkill })
   if (input._tag === 'Err')
     return { _tag: 'Skipped', reason: 'INVALID_SKILL_BASELINE' }
-  const value = { ...request, tag, targetSha: target, baseSha, baseBranch: repository.default_branch, skillRoot, input: input.value }
+  const value = { ...request, tag, targetSha: target, baseSha, baseBranch: repository.default_branch, packageDir: candidate.packageDir, skillRoot, input: input.value }
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 96 * 1024)
     return { _tag: 'Skipped', reason: 'BASELINE_TOO_LARGE' }
   return { _tag: 'Prepared', value }
@@ -142,7 +184,8 @@ export async function publishSkill(context: PreparedTag, files: ProofInput['curr
   const prefix = `/repos/${context.owner}/${context.name}`
   if (commit.parse(await api(`${prefix}/commits/${encodeURIComponent(context.baseBranch)}`)).sha !== context.baseSha)
     return { _tag: 'Conflict' }
-  const branch = `skilld/${context.targetSha}`
+  // A monorepo package adds its directory, so two packages released by one tag never share a branch.
+  const branch = `skilld/${context.targetSha}${context.packageDir ? `-${context.packageDir.split('/').at(-1)}` : ''}`
   const existingPulls = z.array(pull).parse(await api(`${prefix}/pulls?state=all&head=${encodeURIComponent(`${context.owner}:${branch}`)}`))
   if (existingPulls[0])
     return { _tag: 'Published', url: existingPulls[0].html_url }
@@ -159,7 +202,8 @@ export async function publishSkill(context: PreparedTag, files: ProofInput['curr
     entries.push({ path: context.skillRoot ? `${context.skillRoot}/${file.path}` : file.path, mode: '100644', type: 'blob', sha: null })
   const base = z.object({ tree: z.object({ sha }) }).parse(await api(`${prefix}/git/commits/${context.baseSha}`))
   const tree = commit.parse(await api(`${prefix}/git/trees`, 'POST', { base_tree: base.tree.sha, tree: entries }))
-  const title = `docs(skills): update for ${context.tag}`.slice(0, 69)
+  const packageName = context.input.spec.slice(0, context.input.spec.lastIndexOf('@'))
+  const title = (context.packageDir ? `docs(skills): update ${packageName} for ${context.tag}` : `docs(skills): update for ${context.tag}`).slice(0, 69)
   const generated = commit.parse(await api(`${prefix}/git/commits`, 'POST', { message: title, tree: tree.sha, parents: [context.baseSha] }))
   await api(`${prefix}/git/refs`, 'POST', { ref: `refs/heads/${branch}`, sha: generated.sha })
   const body = `🤖 This draft was written by the skilld GitHub App.\n\nUpdates the existing Skill for ${context.input.spec}.\nSource tag: ${context.tag}. Source commit: ${context.targetSha}.\n\nThe Harness generated these files and a separate review accepted them.\nA maintainer must check the examples before merging.\n\n> 🤖 AI disclosure: [Harlan Agent Kit](https://github.com/harlan-zw/harlan-agent-kit) modified this description. [My AI open-source policy](https://harlanzw.com/blog/ai-in-open-source).`
