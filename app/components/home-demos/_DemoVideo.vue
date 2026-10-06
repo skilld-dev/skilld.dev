@@ -102,7 +102,7 @@ const duration = computed(() => formatDemoDuration(video.durationSeconds))
       @playing="() => { playing = true }"
     />
     <span class="demo-video__chip" aria-hidden="true">
-      <UIcon :name="playing ? 'i-lucide-volume-x' : 'i-lucide-play'" class="size-3 shrink-0" />
+      <UIcon name="i-lucide-play" class="size-3 shrink-0" />
       {{ duration }}
     </span>
     <span class="sr-only">Film, {{ duration }}.</span>
