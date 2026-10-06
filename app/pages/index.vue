@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
-import type { TrendingFeedItem, TrendingFeedResponse } from '~~/server/api/feed/trending.get'
+import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
-import { TRENDING_RANGES } from '#shared/trending-range'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 
 const title = 'Agent skills for you and your agent · skilld'
@@ -104,19 +103,6 @@ const showTrending = computed(() => trendingRepos.value.length >= MIN_TRENDING_T
 function trendingShareLabel(authorCount: number): string {
   return authorCount === 1 ? '1 dev shared it' : `${authorCount} devs shared it`
 }
-
-/**
- * The one Skill a trending card can offer a run command for. A repository
- * with several Skills gets none: the posts are about the repository, so
- * picking one of its Skills would be a guess.
- */
-function soleTrendingSkill(repo: TrendingFeedItem): TrendingFeedItem['skills'][number] | null {
-  return repo.skillCount === 1 ? repo.skills[0] ?? null : null
-}
-
-const trendingCards = computed(() =>
-  trendingSectionRepos.value.map(repo => ({ repo, runSkill: soleTrendingSkill(repo) })),
-)
 
 /** Real Skill names from this week's trending repositories, for the hero texture. */
 const heroTextureNames = computed(() =>
@@ -289,88 +275,73 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
     >
       <span class="home-watermark" aria-hidden="true">Week</span>
       <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
-        <header class="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 id="trending-heading" class="home-h2 text-balance">
-              <span class="home-ink">Trending skills</span> this week.
-            </h2>
-            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Devs posted about these skills this week. We count each dev once, and every card links the source.
-            </p>
-            <p v-if="trendingSectionRepos.length" class="data-label mt-3">
-              {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
-            </p>
-          </div>
-          <nav class="flex flex-wrap gap-1" aria-label="Trending boards">
-            <UButton
-              v-for="option in TRENDING_RANGES"
-              :key="option.id"
-              :to="option.path"
-              :label="option.label"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              class="min-h-11"
-            />
-          </nav>
+        <header>
+          <h2 id="trending-heading" class="home-h2 text-balance">
+            <span class="home-ink">Trending skills</span> this week.
+          </h2>
+          <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+            We watch what skills devs are talking about and then rank them for you so you can go out and touch some grass.
+          </p>
         </header>
 
         <div v-if="trendingStatus === 'pending'" class="relative mt-8 h-10">
           <TextureConverge loading label="Loading trending skills" />
         </div>
 
-        <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
-          <li v-for="{ repo, runSkill } in trendingCards" :key="`${repo.owner}/${repo.repo}`" class="min-w-0">
-            <article class="home-trending-card">
-              <div class="flex min-w-0 items-center gap-2">
-                <img
-                  :src="githubAvatarProxyUrl(repo.owner, 64)"
-                  alt=""
-                  width="24"
-                  height="24"
-                  class="size-6 shrink-0 rounded-full border border-default bg-muted"
-                  loading="lazy"
-                  decoding="async"
-                >
-                <NuxtLink
-                  :to="repoHubPath(repo.owner, repo.repo)"
-                  class="home-trending-card__link min-w-0 flex-1 truncate font-medium text-default"
-                >
-                  {{ repo.owner }}/{{ repo.repo }}
-                </NuxtLink>
-                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
-                  {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
-                </span>
-              </div>
-              <p v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
-                {{ repo.evidence.text }}
-              </p>
-              <RunChip
-                v-if="runSkill"
-                :owner="repo.owner"
-                :repo="repo.repo"
-                :skill="runSkill.name"
-                surface="home-trending-card"
-                variant="compact"
-                class="home-trending-card__action mt-3"
-              />
-              <p class="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-xs text-muted">
-                <span>{{ trendingShareLabel(repo.authorCount) }}</span>
-                <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
-                <a
-                  v-if="repo.evidence"
-                  :href="repo.evidence.url"
-                  target="_blank"
-                  rel="noopener"
-                  class="home-trending-card__action inline-flex min-h-6 items-center gap-1 font-mono underline underline-offset-4 hover:text-default"
-                >
-                  Source
-                  <UIcon name="i-lucide-arrow-up-right" class="size-3.5 shrink-0" aria-hidden="true" />
-                </a>
-              </p>
-            </article>
-          </li>
-        </ol>
+        <template v-else>
+          <ol class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
+            <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`" class="min-w-0">
+              <article class="home-trending-card">
+                <div class="flex min-w-0 items-center gap-2">
+                  <img
+                    :src="githubAvatarProxyUrl(repo.owner, 64)"
+                    alt=""
+                    width="24"
+                    height="24"
+                    class="size-6 shrink-0 rounded-full border border-default bg-muted"
+                    loading="lazy"
+                    decoding="async"
+                  >
+                  <NuxtLink
+                    :to="repoHubPath(repo.owner, repo.repo)"
+                    class="home-trending-card__link min-w-0 flex-1 truncate font-medium text-default"
+                  >
+                    {{ repo.owner }}/{{ repo.repo }}
+                  </NuxtLink>
+                  <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
+                    {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
+                  </span>
+                </div>
+                <p v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
+                  {{ repo.evidence.text }}
+                </p>
+                <p class="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-xs text-muted">
+                  <span>{{ trendingShareLabel(repo.authorCount) }}</span>
+                  <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
+                  <a
+                    v-if="repo.evidence"
+                    :href="repo.evidence.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="home-trending-card__action inline-flex min-h-6 items-center gap-1 font-mono underline underline-offset-4 hover:text-default"
+                  >
+                    Source
+                    <UIcon name="i-lucide-arrow-up-right" class="size-3.5 shrink-0" aria-hidden="true" />
+                  </a>
+                </p>
+              </article>
+            </li>
+          </ol>
+          <UButton
+            to="/skills/trending"
+            label="All trending skills"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            trailing-icon="i-lucide-arrow-right"
+            class="mt-4 min-h-11"
+          />
+        </template>
       </div>
     </section>
 
@@ -386,7 +357,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
             Skills for <span class="home-ink">your work</span>.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-            Pick a track. Busiest first, measured from what devs shared this week.
+            Skills grouped by the job in front of you. The tracks devs talk about most come first.
           </p>
         </div>
         <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" :order="TRACK_DEMAND_ORDER" />
@@ -427,30 +398,28 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       <div class="editorial-band__content home-freshness-shell mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <header class="home-freshness-header">
           <div class="min-w-0">
-            <h2 id="freshness-heading" class="home-h2 max-w-[15ch] text-balance">
+            <h2 id="freshness-heading" class="home-h2 text-balance">
               Keep up with <span class="home-ink">skill changes</span>.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.
             </p>
-            <div class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
               <UButton
                 to="/me"
                 label="Watch your starred repos"
-                trailing-icon="i-lucide-arrow-right"
-                size="lg"
-                class="min-h-11 justify-center"
-              />
-              <UButton
-                to="/digest/preview"
-                external
-                label="See an example digest"
                 color="neutral"
                 variant="outline"
-                trailing-icon="i-lucide-arrow-up-right"
-                size="lg"
-                class="min-h-11 justify-center"
+                trailing-icon="i-lucide-arrow-right"
+                class="min-h-11"
               />
+              <a
+                href="/digest/preview"
+                class="inline-flex min-h-11 items-center gap-1 text-sm text-default underline underline-offset-4 hover:text-primary"
+              >
+                See an example digest
+                <UIcon name="i-lucide-arrow-up-right" class="size-3.5 shrink-0" aria-hidden="true" />
+              </a>
             </div>
             <p class="data-label mt-3">
               To watch a repo, sign in with GitHub. Off in one click.
