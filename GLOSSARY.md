@@ -28,6 +28,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
 | behavior | `skilld-protocol/behaviors`, Skill page | Skill 1—N behavior | "Skill behaviors" |
+| task search | search box, `layers/registry` | sentence 1—N Skill | "Find skills for this task" |
 
 Collisions
 
@@ -271,6 +272,14 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Use for:** "the weekly", lowercase. It sits beside **digest**, which is the separate watched-Repository email. They are not the same send.
 
 **Never:** newsletter, roundup, trending digest.
+
+### task search
+
+**Is:** the search box action for a sentence. A language model runs a few registry searches for the task and keeps the Skills that fit. It only filters and orders search results; it never adds a Skill. It runs only when a visitor selects "Find skills for this task".
+
+**Use for:** that action, its status messages in the search panel, and the privacy page. The route is `POST /api/skills/task-search`.
+
+**Never:** AI search, smart search, deep search, agent search, ask skilld. Those sell the model as the product, and VISION.md says skilld is not AI-powered.
 
 ## Naming new things
 

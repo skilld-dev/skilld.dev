@@ -31,6 +31,7 @@ export function useSkillSearchBox(options: { inputs: () => (HTMLInputElement | n
     rememberQuery,
     loadTypeaheadIndex,
     submitRepository,
+    findForTask,
   } = search
 
   const keyboardSelection = ref(false)
@@ -74,6 +75,11 @@ export function useSkillSearchBox(options: { inputs: () => (HTMLInputElement | n
     }
     if (row._tag === 'all') {
       await goToResults()
+      return
+    }
+    // Task search answers inside the panel, so the panel stays open.
+    if (row._tag === 'task') {
+      await findForTask()
       return
     }
     if (state.value._tag !== 'repository')

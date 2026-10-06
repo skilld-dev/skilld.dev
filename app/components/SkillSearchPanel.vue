@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SearchRepository, SearchRow, SearchSkill } from '../composables/useSkillSearch'
+import type { SearchRepository, SearchRow, SearchSkill, TaskSearchStatus } from '../composables/useSkillSearch'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { searchCellId } from '../composables/useSkillSearch'
 import { SEARCH_GRID_ID } from '../composables/useSkillSearchBox'
@@ -15,6 +15,7 @@ const {
   recentSearches,
   retry,
   submitRepository,
+  taskSearch,
 } = useSkillSearch()
 
 /**
@@ -48,8 +49,46 @@ function rowKey(row: SearchRow): string {
     return `skill:${row.skill.owner}/${row.skill.repo}/${row.skill.name}`
   if (row._tag === 'repository' || row._tag === 'index')
     return `${row._tag}:${row.repository.owner}/${row.repository.repo}`
-  return 'all'
+  return row._tag
 }
+
+interface TaskRowCopy {
+  title: string
+  detail: string
+  icon: string
+  /** Only an idle or failed task search starts when its row is selected. */
+  actionable: boolean
+}
+
+/** What the task search row says for each status. COPY.md holds these strings. */
+function taskRowCopy(status: Exclude<TaskSearchStatus, { _tag: 'found' }>): TaskRowCopy {
+  switch (status._tag) {
+    case 'idle':
+      return { title: 'Find skills for this task', detail: 'A language model runs a few searches and keeps the skills that fit. Takes about 5 seconds.', icon: 'i-lucide-search-check', actionable: true }
+    case 'running':
+      return { title: 'Finding skills for this task…', detail: 'This takes about 5 seconds.', icon: 'i-lucide-loader-circle', actionable: false }
+    case 'none':
+      return { title: 'No skill fits this task', detail: 'The search results are the closest matches.', icon: 'i-lucide-circle-slash', actionable: false }
+    case 'limited':
+      return status.scope === 'visitor'
+        ? { title: 'Too many task searches in a row', detail: 'Try again in a minute.', icon: 'i-lucide-clock', actionable: false }
+        : { title: 'Task search reached today\'s limit', detail: 'Try again tomorrow.', icon: 'i-lucide-clock', actionable: false }
+    case 'off':
+      return { title: 'Task search is off right now', detail: 'The search results still work.', icon: 'i-lucide-circle-slash', actionable: false }
+    case 'failed':
+      return { title: 'Couldn\'t finish the task search', detail: 'Select to try again.', icon: 'i-lucide-rotate-ccw', actionable: true }
+  }
+}
+
+/** Task search takes seconds, so its progress and outcome are announced. */
+const taskAnnouncement = computed(() => {
+  const status = taskSearch.value
+  if (status._tag === 'idle')
+    return ''
+  if (status._tag === 'found')
+    return `Found ${status.skills.length} ${status.skills.length === 1 ? 'skill' : 'skills'} for this task.`
+  return taskRowCopy(status).title
+})
 
 function isActive(index: number, column: 0 | 1): boolean {
   return index === activeIndex.value && activeColumn.value === column
@@ -212,6 +251,19 @@ function retryRepositoryIndex(): void {
         </p>
       </div>
 
+      <!-- Task search found Skills: they replace the search results until the query changes. -->
+      <div
+        v-if="state._tag === 'ready' && taskSearch._tag === 'found'"
+        class="border-b border-default px-3 pb-2 pt-3"
+      >
+        <p class="section-label">
+          Skills for this task
+        </p>
+        <p class="mt-1 text-xs text-muted">
+          A language model picked these from a few searches of the registry.
+        </p>
+      </div>
+
       <!--
         A grid, not a listbox: a Skill row holds a second control, its run
         chip, and an option may not contain one. The combobox points at one
@@ -232,11 +284,19 @@ function retryRepositoryIndex(): void {
           :class="{ 'search-row--active': index === activeIndex }"
           @mousemove="hover(index)"
         >
+          <!--
+            The box closes the panel when focus leaves it. Task search answers
+            inside the panel, so a press on its row keeps focus in the box.
+          -->
           <div
             :id="searchCellId(index, 0)"
             role="gridcell"
             :aria-selected="isActive(index, 0)"
+            :aria-disabled="row._tag === 'task' && !taskRowCopy(row.status).actionable ? true : undefined"
+            :aria-busy="row._tag === 'task' && row.status._tag === 'running' ? true : undefined"
             class="search-row__open"
+            :class="{ 'search-row__open--static': row._tag === 'task' && !taskRowCopy(row.status).actionable }"
+            @mousedown="(event) => { if (row._tag === 'task') event.preventDefault() }"
             @click="emit('select', row)"
           >
             <template v-if="row._tag === 'skill'">
@@ -318,6 +378,19 @@ function retryRepositoryIndex(): void {
               <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0 text-muted" aria-hidden="true" />
             </template>
 
+            <template v-else-if="row._tag === 'task'">
+              <UIcon
+                :name="taskRowCopy(row.status).icon"
+                class="size-3.5 shrink-0 text-muted"
+                :class="{ 'motion-safe:animate-spin': row.status._tag === 'running' }"
+                aria-hidden="true"
+              />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-mono text-sm text-highlighted">{{ taskRowCopy(row.status).title }}</span>
+                <span class="mt-0.5 block text-xs text-muted">{{ taskRowCopy(row.status).detail }}</span>
+              </span>
+            </template>
+
             <template v-else>
               <UIcon name="i-lucide-search" class="size-3.5 shrink-0 text-muted" aria-hidden="true" />
               <span class="min-w-0 flex-1 truncate font-mono text-sm">
@@ -348,6 +421,10 @@ function retryRepositoryIndex(): void {
         </div>
       </div>
     </div>
+
+    <p class="sr-only" role="status" aria-live="polite">
+      {{ taskAnnouncement }}
+    </p>
 
     <!-- Keyboard affordances, stated rather than assumed. Touch has no keys. -->
     <div class="search-panel__keys flex items-center gap-4 whitespace-nowrap border-t border-default px-3 py-2">
@@ -394,6 +471,11 @@ function retryRepositoryIndex(): void {
   min-height: 2.75rem;
   padding: 0.5rem 0.75rem;
   cursor: pointer;
+}
+
+/* A task search row that is only reporting a status has nothing to select. */
+.search-row__open--static {
+  cursor: default;
 }
 
 .search-row__open[aria-selected='true'] {

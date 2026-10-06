@@ -105,6 +105,24 @@ Every ranked section says what orders it. ADR-0004 and ADR-0010 set the rules.
 The 20 in the trending header is `DEMOTED_STARRED_REPOSITORIES` in `shared/trending-range.ts`. The page and the ranking read that one constant.
 Never call a ranked section top, popular, hot, best, or a leaderboard.
 
+### Task search
+
+The search panel offers task search for a sentence, in a row at its foot. GLOSSARY.md defines the term.
+Name the model's part plainly, as a language model. Never call the action AI search or smart search.
+The strings live in `taskRowCopy` in `app/components/SkillSearchPanel.vue`.
+
+Each status shows a title, then a detail line:
+
+- Offer: `Find skills for this task`. `A language model runs a few searches and keeps the skills that fit. Takes about 5 seconds.`
+- Running: `Finding skills for this task…`. `This takes about 5 seconds.`
+- Nothing fits: `No skill fits this task`. `The search results are the closest matches.`
+- Visitor limit: `Too many task searches in a row`. `Try again in a minute.`
+- Daily limit: `Task search reached today's limit`. `Try again tomorrow.`
+- Off: `Task search is off right now`. `The search results still work.`
+- Failed: `Couldn't finish the task search`. `Select to try again.`
+
+Found Skills replace the search results under the heading `Skills for this task`, with the line `A language model picked these from a few searches of the registry.`
+
 ## Discord digest
 
 The weekly card uses `Trending skills this week` as its title and links to the trending page.

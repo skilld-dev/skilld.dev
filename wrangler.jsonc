@@ -12,7 +12,11 @@
   },
   "ratelimits": [
     { "name": "API_GUEST_RATE_LIMIT", "namespace_id": "2401001", "simple": { "limit": 60, "period": 60 } },
-    { "name": "API_ACCOUNT_RATE_LIMIT", "namespace_id": "2401002", "simple": { "limit": 600, "period": 60 } }
+    { "name": "API_ACCOUNT_RATE_LIMIT", "namespace_id": "2401002", "simple": { "limit": 600, "period": 60 } },
+    // Task search runs a paid model. The longest period a rate limit binding
+    // takes is 60 seconds; the daily ceiling is the spend budget in
+    // runtimeConfig.taskSearch, across every visitor.
+    { "name": "TASK_SEARCH_RATE_LIMIT", "namespace_id": "2401003", "simple": { "limit": 3, "period": 60 } }
   ],
   "cache": {
     "enabled": true,
