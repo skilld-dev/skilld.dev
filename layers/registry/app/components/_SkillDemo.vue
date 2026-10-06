@@ -32,7 +32,7 @@ const live = ref(false)
     </div>
 
     <p class="skill-demo__prompt mt-3 text-sm leading-relaxed text-default">
-      <span class="data-label mr-2">You say</span>{{ demo.prompt }}
+      <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
     <p v-if="demo.setup" class="mt-2 text-xs leading-relaxed text-muted">
       <span class="data-label mr-2">Folder</span>{{ demo.setup }}
@@ -57,6 +57,7 @@ const live = ref(false)
         playsinline
         preload="none"
         class="skill-demo__video"
+        :style="{ maxInlineSize: `${demo.video.width}px` }"
         :aria-label="`Video the Agent rendered with ${demo.name}`"
       >
         <source :src="demo.video.src" type="video/mp4">
@@ -137,10 +138,12 @@ const live = ref(false)
 </template>
 
 <style scoped>
+/* Never wider than the film was rendered, and centred when the panel is wider. */
 .skill-demo__video {
   display: block;
   width: 100%;
   height: auto;
+  margin-inline: auto;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   background: var(--ui-bg-muted);

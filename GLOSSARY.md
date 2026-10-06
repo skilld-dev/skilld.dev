@@ -94,6 +94,8 @@ Collisions
 
 **Rule:** a demo shows the Agent's output, never the Skill author's work. It always names how it was recorded.
 
+**Groups:** demos group by what the Skill makes, on `/skills/demos`: films and launch videos, landing pages, UI components, and diagrams and explainers. A group is not a track: tracks sort Skills by kind of work.
+
 ### install
 
 **Is:** `skilld install`. Skill files land in the project and the lockfile records them. The opt-in second step.

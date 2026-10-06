@@ -612,6 +612,7 @@ describe('accessibility: components', () => {
       repo: 'skills',
       name,
       skillPath: `/gh/anthropics/skills/${name}`,
+      makes: 'landing-page' as const,
       authorName: 'Anthropic',
       sourceUrl: `https://github.com/anthropics/skills/blob/main/skills/${name}/SKILL.md`,
       prompt: `Build the ${name} page for Tidepool.`,
@@ -619,6 +620,7 @@ describe('accessibility: components', () => {
       model: 'claude-opus-5-5',
       recordedAt: '2026-10-06',
       shots: [shot],
+      liveUrl: null,
       video: null,
     }))
     const container = createIsolatedContainer()
@@ -631,7 +633,7 @@ describe('accessibility: components', () => {
     const picks = [...container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')]
     expect(picks).toHaveLength(3)
     expect(picks[0]?.getAttribute('aria-pressed')).toBe('true')
-    const stage = () => container.querySelector('.home-demos__stage .home-demos__open')?.getAttribute('href')
+    const stage = () => container.querySelector('.demo-index__stage .demo-stage__open')?.getAttribute('href')
     expect(stage()).toBe('/gh/anthropics/skills/one#demo')
 
     picks[1]!.click()
@@ -639,6 +641,41 @@ describe('accessibility: components', () => {
     await new Promise(done => setTimeout(done, 400))
     expect(picks[1]?.getAttribute('aria-pressed')).toBe('true')
     expect(stage()).toBe('/gh/anthropics/skills/two#demo')
+    expect(container.querySelector('a[href="/skills/demos"]')?.textContent).toContain('All 3 demos')
+    wrapper.unmount()
+  })
+
+  it('demoIndex opens on a shared demo and reports each pick', async () => {
+    const shot = { src: '/d.jpg', width: 1440, height: 900, alt: 'Desktop screenshot', viewport: 'desktop' as const }
+    const demos = ['one', 'two'].map(name => ({
+      owner: 'o',
+      repo: 'r',
+      name,
+      skillPath: `/gh/o/r/${name}`,
+      makes: 'diagram' as const,
+      authorName: null,
+      sourceUrl: null,
+      prompt: `Draw ${name}.`,
+      agent: 'Claude Code',
+      model: 'claude-opus-5-5',
+      recordedAt: '2026-10-06',
+      shots: [shot],
+      liveUrl: null,
+      video: null,
+    }))
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('DemoIndex'),
+      { attachTo: container, props: { demos, initialKey: 'o/r/two' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    const picks = [...container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')]
+    expect(picks[1]?.getAttribute('aria-pressed')).toBe('true')
+
+    picks[0]!.click()
+    await nextTick()
+    expect(wrapper.emitted('pick')?.[0]?.[0]).toMatchObject({ name: 'one' })
     wrapper.unmount()
   })
 
@@ -829,6 +866,7 @@ describe('accessibility: component coverage', () => {
     'StatsLeaderboard', // Tested at page level
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
     '_ChipSwitch', // The switch above RunChip and CliInstallChip, axe-scanned and clicked through both
+    'DemoStage', // The stage DemoIndex and /skills/demos render, scanned inside the HomeDemos and DemoIndex tests
     'home-demos/_DemoMedia', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoPicture', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoRecording', // A part of HomeDemos, scanned inside the HomeDemos tests

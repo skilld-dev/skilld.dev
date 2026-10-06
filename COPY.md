@@ -39,8 +39,12 @@ These exact strings. Do not paraphrase them per page.
 | Agents way: terminal | From a terminal · Teaches your agent to search and run Skills in every project. | guidance only: the second way, over `npx skilld install skilld --global` |
 | Agents way: MCP | In ChatGPT, Claude, and other MCP apps · Add the server once. Then ask the chat to find a Skill. | guidance only: the third way, over the MCP server URL. Its link, "Setup steps for each app", opens `/developers?setup=mcp` |
 | Home section: demos | See what skills make. · Each demo is one recorded run: the prompt, and what the Agent built with the Skill. | guidance only: the homepage demo section heading and line. The section hides below three demos |
+| Nav: demos | Skill Demos | guidance only: the header link after Trending Skills, and the same item in the mobile menu. Links `/skills/demos` |
+| Demos link | All {n} demos | guidance only: under the homepage demo section. Links `/skills/demos` |
+| Demos page | See what skills make · Each demo is one recorded run: the prompt, and what the Agent built with the Skill. Pick a prompt to see the output, or open it live. | guidance only: the `/skills/demos` H1 and line. The meta title is "Claude skill examples: see what each one makes" for the admitted query |
+| Demo groups | Films and launch videos · Landing pages · UI components · Diagrams and explainers | guidance only: `DEMO_GROUPS` in `shared/demo-groups.ts`: the `/skills/demos` group headings and their lines |
 | Demo stage | Open the demo | guidance only: the homepage demo stage link to the Skill page Demo panel |
-| Demo panel | Demo · You say · Open live demo · Open in a new tab · Run it yourself | guidance only: the Skill page Demo panel. "Show screenshots" replaces "Open live demo" while the live output shows |
+| Demo panel | Demo · Prompt · Open live demo · Open in a new tab · Run it yourself | guidance only: the Skill page Demo panel. "Show screenshots" replaces "Open live demo" while the live output shows |
 | Demo provenance | {Agent logo} {model}, such as Opus 5.5 | guidance only: the recording line on the Skill page panel and the homepage stage. Screen readers and the title get "Recorded with {agent}, {model}". No date and no GitHub link: the Skill page is where visitors inspect a Skill |
 | Demo outdated | Recorded on an older version of this Skill. | guidance only: under the Demo panel when the Skill moved past the recorded commit |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |

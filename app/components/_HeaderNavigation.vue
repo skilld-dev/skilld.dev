@@ -45,6 +45,18 @@ watch(() => route.fullPath, () => {
       <NavigationMenuItem>
         <NavigationMenuLink as-child>
           <UButton
+            to="/skills/demos"
+            label="Skill Demos"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            class="whitespace-nowrap"
+          />
+        </NavigationMenuLink>
+      </NavigationMenuItem>
+      <NavigationMenuItem>
+        <NavigationMenuLink as-child>
+          <UButton
             to="/skills"
             label="Find Skills"
             color="neutral"

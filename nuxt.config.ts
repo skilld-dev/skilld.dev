@@ -573,6 +573,8 @@ export default defineNuxtConfig({
     // inside the 36000s nuxt-skew-protection keeps old chunks for.
     // `scripts/check-edge-cache.ts` proves it after each deploy.
     '/skills/trending': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
+    // Demos change only on deploy.
+    '/skills/demos': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
     // The homepage is the same shape as the board: rendered signed out, no
     // cookie read, and fed by the same feeds, so the same lifetimes hold. A
     // render measured 300 to 480 ms to first byte from Sydney on 2026-10-01.
