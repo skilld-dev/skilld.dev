@@ -4,13 +4,16 @@ import { readBody } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 
 const saved: unknown[] = []
+const MOVED = 'Each package with a Skill is private or has no name. Skillgen updates published npm packages only.'
 
 registerEndpoint('/api/me/skillgen', {
   method: 'GET',
   handler: () => ({
     items: [
-      { owner: 'harlan-zw', repo: 'nuxt-skew-protection', optedIn: false },
-      { owner: 'harlan-zw', repo: 'monorepo', optedIn: false },
+      { owner: 'harlan-zw', repo: 'nuxt-link-checker', optedIn: false, eligibility: { _tag: 'Eligible', packages: ['nuxt-link-checker'] } },
+      { owner: 'harlan-zw', repo: 'ripast', optedIn: false, eligibility: { _tag: 'Eligible', packages: ['@ripast/cli'] } },
+      { owner: 'harlan-zw', repo: 'docs', optedIn: false, eligibility: { _tag: 'Ineligible', message: 'Skillgen supports npm packages only. Add a package.json at the root or under packages/.' } },
+      { owner: 'harlan-zw', repo: 'nuxt-skew-protection', optedIn: true, eligibility: { _tag: 'Eligible', packages: ['nuxt-skew-protection'] } },
     ],
   }),
 })
@@ -20,35 +23,37 @@ registerEndpoint('/api/me/skillgen', {
   handler: async (event) => {
     const body = await readBody<{ owner: string, repo: string, optedIn: boolean }>(event)
     saved.push(body)
-    if (body.repo === 'monorepo')
-      return { _tag: 'Refused', message: 'Skillgen supports npm packages only. Add a package.json with a name at the repository root.' }
+    // The repository changed after the list loaded.
+    if (body.repo === 'ripast')
+      return { _tag: 'Refused', message: MOVED }
     return { _tag: 'Saved', ...body }
   },
 })
 
 describe('skillgen repository switches', () => {
-  it('turns one repository on and shows why another was refused', async () => {
+  it('shows blocked repositories with their reason and turns on every ready one', async () => {
     const wrapper = await mountSuspended(
       await import('../../layers/identity/app/components/_SkillgenRepositories.vue').then(module => module.default),
     )
-    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.findAll('button[role="switch"]')).toHaveLength(3))
 
-    const switches = wrapper.findAll('button[role="switch"]')
-    expect(switches.map(control => control.attributes('aria-checked'))).toEqual(['false', 'false'])
-    expect(wrapper.text()).toContain('harlan-zw/nuxt-skew-protection')
+    // The blocked repository has no switch, and its reason shows before any click.
+    expect(wrapper.text()).toContain('Add a package.json at the root or under packages/.')
+    expect(wrapper.text()).toContain('1 of 3 on')
+    expect(wrapper.text()).toContain('@ripast/cli')
 
-    await switches[0]!.trigger('click')
-    await flushPromises()
-    await switches[1]!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Turn on all (2)')!.trigger('click')
+    await vi.waitFor(() => expect(saved).toHaveLength(2))
     await flushPromises()
 
     expect(saved).toEqual([
-      { owner: 'harlan-zw', repo: 'nuxt-skew-protection', optedIn: true },
-      { owner: 'harlan-zw', repo: 'monorepo', optedIn: true },
+      { owner: 'harlan-zw', repo: 'nuxt-link-checker', optedIn: true },
+      { owner: 'harlan-zw', repo: 'ripast', optedIn: true },
     ])
-    await vi.waitFor(() => expect(wrapper.find('[role="alert"]').exists()).toBe(true))
-    const after = wrapper.findAll('button[role="switch"]')
-    expect(after.map(control => control.attributes('aria-checked'))).toEqual(['true', 'false'])
-    expect(wrapper.get('[role="alert"]').text()).toBe('Skillgen supports npm packages only. Add a package.json with a name at the repository root.')
+    // The refused repository moves to the blocked group with the new reason.
+    await vi.waitFor(() => expect(wrapper.findAll('button[role="switch"]')).toHaveLength(2))
+    expect(wrapper.findAll('button[role="switch"]').map(control => control.attributes('aria-checked'))).toEqual(['true', 'true'])
+    expect(wrapper.text()).toContain(MOVED)
+    expect(wrapper.text()).toContain('2 of 2 on')
   })
 })

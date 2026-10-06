@@ -56,15 +56,17 @@ const codeClass = 'font-mono text-xs text-default'
               Check your repository
             </h3>
             <ul class="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted">
-              <li>A public GitHub repository with the npm package's <code :class="codeClass">package.json</code> at its root. Skillgen supports npm packages only.</li>
               <li>
-                A Skill at <code :class="codeClass">skills/&lt;package&gt;/SKILL.md</code>, or a <code :class="codeClass">SKILL.md</code> at the root. Leave the scope out of the package name.
+                A public GitHub repository with a published npm package. Its <code :class="codeClass">package.json</code> sits at the root, or in a monorepo under <code :class="codeClass">packages/&lt;name&gt;/</code>. Skillgen supports npm packages only.
+              </li>
+              <li>
+                A Skill in <code :class="codeClass">skills/&lt;name&gt;/SKILL.md</code> beside that <code :class="codeClass">package.json</code>. A root package may keep one <code :class="codeClass">SKILL.md</code> at the root instead.
               </li>
               <li>
                 Up to 9 files and 64 KiB in total: <code :class="codeClass">SKILL.md</code> and Markdown files under <code :class="codeClass">references/</code>.
               </li>
               <li>
-                Release tags that match the package version, such as <code :class="codeClass">1.4.0</code> or <code :class="codeClass">v1.4.0</code>.
+                Release tags that match the package version, such as <code :class="codeClass">1.4.0</code>, <code :class="codeClass">v1.4.0</code> or <code :class="codeClass">name@1.4.0</code>. If one tag releases several packages with Skills, each gets its own draft.
               </li>
               <li>
                 npm links each version to its tag commit, through provenance or <code :class="codeClass">gitHead</code>.

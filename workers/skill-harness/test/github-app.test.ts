@@ -64,7 +64,7 @@ describe('gitHub tag events', () => {
 })
 
 describe('skill publication', () => {
-  const context = { owner: 'harlan-zw', name: 'package', repositoryId: 10, installationId: 20, tag: 'v1.0.0', targetSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), baseBranch: 'main', skillRoot: 'skills/package', input: { spec: 'package@1.0.0', name: 'package', currentSkill: [{ path: 'SKILL.md', content: 'old' }] } }
+  const context = { owner: 'harlan-zw', name: 'package', repositoryId: 10, installationId: 20, tag: 'v1.0.0', targetSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), baseBranch: 'main', packageDir: '', skillRoot: 'skills/package', input: { spec: 'package@1.0.0', name: 'package', currentSkill: [{ path: 'SKILL.md', content: 'old' }] } }
   it('stops before writing when the base moves', async () => {
     const calls: string[] = []
     const result = await publishSkill(context, [{ path: 'SKILL.md', content: 'new' }], async (path, method) => {
@@ -137,7 +137,7 @@ describe('tag preparation', () => {
     if (path.includes('/commits/main'))
       return { sha: base }
     if (path.includes('/git/trees/'))
-      return { truncated: false, tree: [{ path: 'skills/package/SKILL.md', type: 'blob', sha: 'c'.repeat(40) }] }
+      return { truncated: false, tree: [{ path: 'package.json', type: 'blob', sha: 'c'.repeat(40) }, { path: 'skills/package/SKILL.md', type: 'blob', sha: 'c'.repeat(40) }] }
     if (path.includes('/contents/skills/package/SKILL.md'))
       return { encoding: 'base64', content: btoa('---\nname: package\ndescription: Package guidance.\n---\n') }
     throw new Error(`Unexpected GitHub request ${path}`)
@@ -152,6 +152,88 @@ describe('tag preparation', () => {
   it('rejects a package built from a different commit', async () => {
     const fetcher = async () => Response.json({ name: 'package', version: '1.0.0', gitHead: 'd'.repeat(40), dist: { integrity: 'unused' } })
     expect(await prepareTag(request, api, fetcher)).toEqual({ _tag: 'Skipped', reason: 'PACKAGE_TAG_PROVENANCE_MISMATCH' })
+  })
+})
+
+describe('monorepo tag preparation', () => {
+  const target = 'a'.repeat(40)
+  const base = 'b'.repeat(40)
+  const encoded = (value: unknown) => ({ encoding: 'base64', content: btoa(typeof value === 'string' ? value : JSON.stringify(value)) })
+
+  /** A GitHub stub for one monorepo: package.json files by directory, and Skill files on main. */
+  function monorepo(name: string, tag: string, packages: Record<string, unknown>, skills: string[]) {
+    const tree = [
+      ...Object.keys(packages).map(dir => ({ path: dir ? `${dir}/package.json` : 'package.json', type: 'blob', sha: 'c'.repeat(40) })),
+      ...skills.map(path => ({ path, type: 'blob', sha: 'c'.repeat(40) })),
+    ]
+    return async (path: string) => {
+      if (path === `/repos/harlan-zw/${name}`)
+        return { id: 10, private: false, default_branch: 'main' }
+      if (path.endsWith(`/commits/${tag}`))
+        return { sha: target }
+      if (path.endsWith('/commits/main'))
+        return { sha: base }
+      if (path.includes('/git/trees/'))
+        return { truncated: false, tree }
+      for (const [dir, pkg] of Object.entries(packages)) {
+        if (path.includes(`/contents/${dir ? `${dir}/` : ''}package.json?ref=${target}`))
+          return encoded(pkg)
+      }
+      for (const skill of skills) {
+        if (path.includes(`/contents/${skill}?ref=${base}`))
+          return encoded('---\nname: guide\ndescription: Package guidance.\n---\n')
+      }
+      return null
+    }
+  }
+  const published = (name: string, version: string) => async () => Response.json({ name, version, gitHead: target, dist: { integrity: 'unused' } })
+
+  it('prepares the one package whose Skill and version match the tag', async () => {
+    const api = monorepo('ripast', 'v0.5.0', {
+      '': { name: 'ripast-monorepo', private: true },
+      'packages/cli': { name: '@ripast/cli', version: '0.5.0' },
+      'packages/core': { name: '@ripast/core', version: '0.5.0' },
+    }, ['packages/cli/skills/ripast/SKILL.md'])
+    const result = await prepareTag({ owner: 'harlan-zw', name: 'ripast', repositoryId: 10, installationId: 20, tag: 'v0.5.0' }, api, published('@ripast/cli', '0.5.0'))
+    expect(result).toMatchObject({ _tag: 'Prepared', value: { packageDir: 'packages/cli', skillRoot: 'packages/cli/skills/ripast', input: { spec: '@ripast/cli@0.5.0' } } })
+  })
+
+  const nuxtSeo = monorepo('nuxt-seo', 'v5.3.16', {
+    '': { private: true, version: '5.3.16' },
+    'packages/nuxt-seo': { name: '@nuxtjs/seo', version: '5.3.16' },
+    'packages/devtools-layer': { name: 'nuxtseo-layer-devtools', version: '5.3.16' },
+  }, ['packages/nuxt-seo/skills/nuxtjs-seo/SKILL.md', 'packages/devtools-layer/skills/devtools-layer-skilld/SKILL.md', 'packages/nuxt-seo/test/fixtures/basic/skills/internal/SKILL.md'])
+  const nuxtSeoTag = { owner: 'harlan-zw', name: 'nuxt-seo', repositoryId: 10, installationId: 20, tag: 'v5.3.16' }
+
+  it('splits a tag that two packages with Skills share into one job each', async () => {
+    expect(await prepareTag(nuxtSeoTag, nuxtSeo, published('@nuxtjs/seo', '5.3.16')))
+      .toEqual({ _tag: 'Split', tag: 'v5.3.16', packageDirs: ['packages/devtools-layer', 'packages/nuxt-seo'] })
+  })
+
+  it('prepares only the package a split job names', async () => {
+    const result = await prepareTag({ ...nuxtSeoTag, packagePath: 'packages/nuxt-seo' }, nuxtSeo, published('@nuxtjs/seo', '5.3.16'))
+    expect(result).toMatchObject({ _tag: 'Prepared', value: { packageDir: 'packages/nuxt-seo', skillRoot: 'packages/nuxt-seo/skills/nuxtjs-seo', input: { spec: '@nuxtjs/seo@5.3.16' } } })
+  })
+
+  it('names the package in the branch and title, so two packages never share a pull request', async () => {
+    const writes: { path: string, body: unknown }[] = []
+    const context = { owner: 'harlan-zw', name: 'nuxt-seo', repositoryId: 10, installationId: 20, tag: 'v5.3.16', targetSha: target, baseSha: base, baseBranch: 'main', packageDir: 'packages/nuxt-seo', skillRoot: 'packages/nuxt-seo/skills/nuxtjs-seo', input: { spec: '@nuxtjs/seo@5.3.16', name: 'nuxtjs-seo', currentSkill: [{ path: 'SKILL.md', content: 'old' }] } }
+    await publishSkill(context, [{ path: 'SKILL.md', content: 'new' }], async (path, method, body) => {
+      if (method === 'POST') {
+        writes.push({ path, body })
+        return path.endsWith('/pulls') ? { html_url: 'https://github.com/harlan-zw/nuxt-seo/pull/9' } : { sha: 'd'.repeat(40) }
+      }
+      if (path.includes('/pulls?'))
+        return []
+      if (path.includes('/git/ref/'))
+        return null
+      if (path.includes('/git/commits/'))
+        return { tree: { sha: 'e'.repeat(40) } }
+      return { sha: base }
+    })
+    expect(writes.find(write => write.path.endsWith('/git/refs'))?.body).toMatchObject({ ref: `refs/heads/skilld/${target}-nuxt-seo` })
+    expect(writes.find(write => write.path.endsWith('/pulls'))?.body).toMatchObject({ title: 'docs(skills): update @nuxtjs/seo for v5.3.16', head: `skilld/${target}-nuxt-seo` })
+    expect(writes.find(write => write.path.endsWith('/git/trees'))?.body).toMatchObject({ tree: [{ path: 'packages/nuxt-seo/skills/nuxtjs-seo/SKILL.md' }] })
   })
 })
 
