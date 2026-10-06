@@ -40,6 +40,7 @@ const ACCOUNT_ROW_DELETES = [
    WHERE installation_id IN (SELECT installation_id FROM github_app_installations WHERE account_id = ?1)`,
   `DELETE FROM github_app_installations WHERE account_id = ?1`,
   `DELETE FROM github_app_user_authorizations WHERE account_id = ?1`,
+  `DELETE FROM skillgen_repositories WHERE user_id = ?1`,
   `DELETE FROM users WHERE id = ?1`,
 ] as const
 

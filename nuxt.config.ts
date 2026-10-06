@@ -409,6 +409,8 @@ export default defineNuxtConfig({
     adminSecret: '',
     tokenKey: '',
     checkinToken: '',
+    // Shared with the skill-harness Worker as SKILLGEN_SITE_TOKEN. It reads Skillgen opt-ins.
+    skillgenToken: '',
     publicSiteUrl: 'https://skilld.dev',
     // Task search, the search box's opt-in model answer. Set the Worker
     // variable NUXT_TASK_SEARCH_ENABLED=false to switch it off without a

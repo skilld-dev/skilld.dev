@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { githubInstallationClient, prepareTag, publishSkill } from '../src/github-client'
 import { parseGithubEvent, verifyGithubSignature } from '../src/github-events'
+import { githubWebhook } from '../src/github-routes'
 
 const repository = { id: 10, name: 'package', private: false, owner: { login: 'harlan-zw' } }
 const installation = { id: 20 }
@@ -151,5 +152,66 @@ describe('tag preparation', () => {
   it('rejects a package built from a different commit', async () => {
     const fetcher = async () => Response.json({ name: 'package', version: '1.0.0', gitHead: 'd'.repeat(40), dist: { integrity: 'unused' } })
     expect(await prepareTag(request, api, fetcher)).toEqual({ _tag: 'Skipped', reason: 'PACKAGE_TAG_PROVENANCE_MISMATCH' })
+  })
+})
+
+describe('gitHub webhook', () => {
+  async function sign(secret: string, body: string): Promise<string> {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const digest = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)))
+    return `sha256=${Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')}`
+  }
+
+  function setup(site: (request: Request) => Response) {
+    const enqueued: unknown[] = []
+    const siteRequests: Request[] = []
+    const env = {
+      GITHUB_APP_ID: '123',
+      GITHUB_APP_PRIVATE_KEY_PKCS8: 'key',
+      GITHUB_APP_WEBHOOK_SECRET: 'secret',
+      SKILLD_SITE_URL: 'https://skilld.dev',
+      SKILLGEN_SITE_TOKEN: 'site-token',
+      GITHUB_JOBS: { getByName: () => ({ enqueue: async (tag: unknown) => {
+        enqueued.push(tag)
+        return { _tag: 'Accepted', id: `job-${enqueued.length}` }
+      } }) },
+    } as unknown as HarnessEnv
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      siteRequests.push(request.clone())
+      return site(request)
+    }) as typeof fetch
+    async function deliver(event: string, payload: unknown): Promise<Response> {
+      const body = JSON.stringify(payload)
+      return githubWebhook(new Request('https://example.com/github/webhook', {
+        method: 'POST',
+        body,
+        headers: { 'x-github-event': event, 'x-hub-signature-256': await sign('secret', body) },
+      }), env, fetcher)
+    }
+    return { enqueued, siteRequests, deliver }
+  }
+
+  const compact = (name: string, id: number) => ({ id, name, full_name: `Maintainer/${name}`, private: false })
+
+  it('queues only the repositories their maintainers opted in on skilld.dev', async () => {
+    const { enqueued, siteRequests, deliver } = setup(() => Response.json({ repositories: ['maintainer/opted'] }))
+    const response = await deliver('installation', { action: 'created', installation, repositories: [compact('opted', 1), compact('silent', 2)] })
+
+    expect(response.status).toBe(202)
+    expect(await response.json()).toEqual({ accepted: true, jobs: ['job-1'] })
+    expect(enqueued).toEqual([{ owner: 'Maintainer', name: 'opted', repositoryId: 1, installationId: 20, tag: '@latest' }])
+    expect(siteRequests[0]!.url).toBe('https://skilld.dev/api/internal/skillgen/opt-ins')
+    expect(siteRequests[0]!.headers.get('authorization')).toBe('Bearer site-token')
+    expect(await siteRequests[0]!.json()).toEqual({ repositories: ['Maintainer/opted', 'Maintainer/silent'] })
+  })
+
+  it('queues nothing when skilld.dev cannot answer', async () => {
+    const { enqueued, deliver } = setup(() => new Response(null, { status: 500 }))
+    const response = await deliver('create', { ref_type: 'tag', ref: 'v2.0.0', repository, installation })
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ code: 'OPT_IN_UNAVAILABLE' })
+    expect(enqueued).toEqual([])
   })
 })
