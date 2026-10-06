@@ -491,22 +491,16 @@ export function createGithubAppClient(config: GithubAppConfig): GithubAppClient 
     },
 
     async createRepositoryToken(installationId, repositoryId) {
-      const jwt = await createGithubAppJwt(config)
-      const result = await request(
-        `/app/installations/${installationId}/access_tokens`,
-        jwt,
-        installationTokenSchema,
-        {
-          method: 'POST',
-          body: {
-            repository_ids: [repositoryId],
-            permissions: { contents: 'read', metadata: 'read' },
-          },
+      const result = await requestInstallationToken({
+        fetch: config.fetch,
+        jwt: await createGithubAppJwt(config),
+        installationId,
+        body: {
+          repository_ids: [repositoryId],
+          permissions: { contents: 'read', metadata: 'read' },
         },
-      )
-      return result._tag === 'ok'
-        ? { _tag: 'created', token: result.value.token, expiresAt: result.value.expires_at }
-        : result
+      })
+      return result._tag === 'created' ? result : { _tag: 'not-found' }
     },
 
     async userCanAccessRepository(userToken, installationId, repositoryId) {
@@ -547,21 +541,81 @@ export async function verifyGithubWebhookSignature(
   return different === 0
 }
 
+export type InstallationTokenResult
+  = | { _tag: 'created', token: string, expiresAt: string }
+    /** GitHub answered 401, 403 or 404: the App, its key or the installation is gone. */
+    | { _tag: 'refused', status: number }
+
+/**
+ * Exchange an App JWT for an installation access token.
+ *
+ * A refusal is a value. Any other failure, such as a 5xx or an unreadable
+ * answer, throws: it says nothing about the App.
+ */
+export async function requestInstallationToken(input: {
+  fetch: typeof globalThis.fetch
+  jwt: string
+  installationId: number
+  body: { repository_ids?: number[], permissions: Record<string, 'read'> }
+}): Promise<InstallationTokenResult> {
+  const fetched = await fetchNoRedirect(input.fetch, `${GITHUB_API}/app/installations/${input.installationId}/access_tokens`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${input.jwt}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'skilld.dev',
+      'X-GitHub-Api-Version': GITHUB_API_VERSION,
+    },
+    body: JSON.stringify(input.body),
+    signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+  })
+  if (fetched._tag === 'unexpected-redirect')
+    throw new Error(`GitHub App request redirected ${fetched.status}`)
+  const response = fetched.response
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    await response.body?.cancel()
+    return { _tag: 'refused', status: response.status }
+  }
+  if (!response.ok)
+    throw new Error(`GitHub App request returned ${response.status}`)
+  const value = installationTokenSchema.safeParse(await readBoundedJson(response, MAX_GITHUB_TOKEN_RESPONSE_BYTES))
+  if (!value.success)
+    throw new Error('GitHub App returned an invalid response')
+  return { _tag: 'created', token: value.data.token, expiresAt: value.data.expires_at }
+}
+
 async function createGithubAppJwt(config: GithubAppConfig): Promise<string> {
   const privateKey = decodeCanonicalBase64Url(config.privateKeyPkcs8)
   if (!privateKey)
     throw new Error('GitHub App private key is malformed')
-  const issuedAt = config.now() - 60
+  return await signGithubAppJwt({ issuer: config.clientId, privateKeyPkcs8: privateKey, now: config.now() })
+}
+
+/**
+ * An RS256 GitHub App JWT. `issuer` is the App's client ID or its App ID;
+ * GitHub accepts either.
+ *
+ * It is valid for ten minutes from a minute in the past, which absorbs clock
+ * drift between the Worker and GitHub. Ten minutes is GitHub's maximum.
+ */
+export async function signGithubAppJwt(input: {
+  issuer: string
+  privateKeyPkcs8: Uint8Array
+  /** Unix seconds. */
+  now: number
+}): Promise<string> {
+  const issuedAt = input.now - 60
   const header = bytesToBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })))
   const payload = bytesToBase64Url(new TextEncoder().encode(JSON.stringify({
     iat: issuedAt,
     exp: issuedAt + 600,
-    iss: config.clientId,
+    iss: input.issuer,
   })))
   const unsigned = `${header}.${payload}`
   const imported = await crypto.subtle.importKey(
     'pkcs8',
-    toArrayBuffer(privateKey),
+    toArrayBuffer(input.privateKeyPkcs8),
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['sign'],
