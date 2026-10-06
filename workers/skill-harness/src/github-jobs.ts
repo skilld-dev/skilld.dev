@@ -14,7 +14,9 @@ type State = Job & (
 
 export class GithubJobs extends DurableObject<HarnessEnv> {
   async enqueue(request: TagRequest, retryOf?: string): Promise<{ _tag: 'Accepted', id: string } | { _tag: 'Busy' }> {
-    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([request.installationId, request.repositoryId, request.tag])))
+    // A split job names its package, so siblings from one tag never share a key.
+    const identity = [request.installationId, request.repositoryId, request.tag, ...(request.packagePath === undefined ? [] : [request.packagePath])]
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(identity)))
     const key = retryOf ? `retry-${retryOf}` : `event-${Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')}`
     const result = await this.ctx.storage.transaction(async (storage) => {
       const previous = await storage.get<string>(key)
@@ -95,7 +97,17 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
         await this.finish(state, prepared)
         return
       }
-      const key = `target-${state.request.repositoryId}-${prepared.value.targetSha}`
+      if (prepared._tag === 'Split') {
+        for (const packagePath of prepared.packageDirs) {
+          if ((await this.enqueue({ ...state.request, tag: prepared.tag, packagePath }))._tag === 'Busy') {
+            await this.finish(state, { _tag: 'Failed', code: 'APP_QUEUE_FULL', detail: 'The queue had no room for every package of this tag.' })
+            return
+          }
+        }
+        await this.finish(state, { _tag: 'Skipped', reason: 'SPLIT_BY_PACKAGE' })
+        return
+      }
+      const key = `target-${state.request.repositoryId}-${prepared.value.targetSha}${prepared.value.packageDir ? `-${prepared.value.packageDir}` : ''}`
       const previous = await this.ctx.storage.get<string>(key)
       if (previous && !await followsRetryChain(previous, state.id, id => this.ctx.storage.get<string>(`retry-${id}`))) {
         await this.finish(state, { _tag: 'Skipped', reason: 'TARGET_ALREADY_PROCESSED' })

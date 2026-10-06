@@ -1,8 +1,6 @@
 import { z } from 'zod'
+import { REGISTRY_MCP_URL } from '#shared/agent-setup'
 import { accountCmds, skilldSelfInstallCmd } from '#shared/skill-commands'
-
-/** The discovery MCP server. `nuxt.config.ts` mounts it at `mcp.route`. */
-export const REGISTRY_MCP_URL = 'https://skilld.dev/api/mcp'
 
 /** The key every app's config files the server under. */
 const SERVER_NAME = 'skilld'
