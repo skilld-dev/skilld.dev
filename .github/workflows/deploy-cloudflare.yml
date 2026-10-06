@@ -31,9 +31,17 @@ jobs:
     # advanced while Test was still running, and passed only by coincidence
     # otherwise. `head_sha` alone is the commit that was tested, and it is what
     # the checkout below already uses.
+    #
+    # `head_branch` alone is not proof of main. A fork's pull request from a
+    # branch named `main` reports `head_branch == 'main'`, and its Test run
+    # concludes `success` because every job skips fork code. Only a push to
+    # this repository may deploy, or that fork's code would build with these
+    # secrets.
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.target != 'harness-proof') ||
       (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.head_branch == 'main')
     runs-on: [self-hosted, linux, x64, harlan-desktop-deploy]
     timeout-minutes: 20
