@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { BRAND_DARK, svgDataUri } from '#shared/brand-mark'
 import { ogCount, ogInitials, ogText } from '../../utils/og-props'
-import { fileMinimap, textureSeed, textureSvg } from '../../utils/og-texture'
+import { OG_MUTED, OG_RULE, OG_SURFACE, ogLineStyle, ogTitleSize, ogTitleStyle } from '../../utils/og-style'
 
 // Declared as the wire types the OG image URL can deliver, not as the types the
 // template wants. An owner such as `24601` arrives as a number.
@@ -25,87 +24,50 @@ const safeRepo = computed(() => ogText(props.repo) || 'skills')
 const safeReason = computed(() => ogText(props.reason))
 const safeReasonHandle = computed(() => ogText(props.reasonHandle))
 const safeCuratorCount = computed(() => ogCount(props.curatorCount))
-
-// The File minimap texture. Each Skill seeds its own files from its owner,
-// repository and name, so a card keeps its texture between renders.
-const texture = computed(() => svgDataUri(textureSvg(
-  fileMinimap({
-    region: { x: 780, y: 0, width: 420, height: 600 },
-    seed: textureSeed(`${safeOwner.value}/${safeRepo.value}/${safeName.value}`),
-    fade: 300,
-  }),
-  { width: 1200, height: 600, ink: BRAND_DARK.ink, radius: 1.6 },
-)))
+// A Skill name often has no space to wrap at, so it shrinks to one line.
+const titleSize = computed(() => ogTitleSize(safeDisplayName.value, { max: 84, min: 40 }))
 </script>
 
 <template>
   <OgLayout>
-    <img :src="texture" alt="" width="1200" height="600" :style="{ position: 'absolute', top: 0, left: 0 }">
-    <div class="px-15 py-14 flex flex-col justify-center gap-10 h-full">
-      <OgBrand :size="36" />
+    <div v-if="safeDisplayName" :style="{ ...ogTitleStyle(titleSize, 1), wordBreak: 'break-all' }">
+      {{ safeDisplayName }}
+    </div>
 
-      <div v-if="safeDisplayName" class="flex flex-col max-w-full gap-4">
-        <div
-          class="tracking-tighter font-mono leading-none"
-          :class="safeDisplayName.length > 20 ? 'text-5xl' : 'text-6xl'"
-          :style="{ lineClamp: 1, textOverflow: 'ellipsis', wordBreak: 'break-all' }"
+    <div v-if="safeOwner" class="flex items-center justify-center mt-7" :style="{ gap: '14px' }">
+      <span
+        class="flex items-center justify-center rounded-full overflow-hidden shrink-0"
+        :style="{ width: '44px', height: '44px', background: OG_SURFACE }"
+      >
+        <img
+          v-if="safeOwnerAvatar"
+          :src="safeOwnerAvatar"
+          :alt="safeOwner"
+          width="44"
+          height="44"
+          class="w-full h-full object-cover"
         >
-          {{ safeDisplayName }}
-        </div>
-        <div v-if="safeOwner" class="flex items-center gap-3">
-          <span
-            class="flex items-center justify-center rounded-full overflow-hidden shrink-0"
-            :style="{ width: '48px', height: '48px', background: 'oklch(0.22 0.012 60)' }"
-          >
-            <img
-              v-if="safeOwnerAvatar"
-              :src="safeOwnerAvatar"
-              :alt="safeOwner"
-              width="48"
-              height="48"
-              class="w-full h-full object-cover"
-            >
-            <span v-else class="font-medium text-xl" :style="{ color: 'oklch(0.62 0.01 60)' }">
-              {{ ownerInitials }}
-            </span>
-          </span>
-          <span
-            class="text-4xl font-mono tracking-tight leading-none"
-            :style="{ color: 'oklch(0.62 0.01 60)' }"
-          >
-            {{ safeOwner }}{{ safeRepo !== 'skills' ? `/${safeRepo}` : '' }}
-          </span>
-        </div>
-      </div>
+        <span v-else class="font-medium text-xl" :style="{ color: OG_MUTED }">
+          {{ ownerInitials }}
+        </span>
+      </span>
+      <span class="font-mono text-3xl tracking-tight" :style="{ color: OG_MUTED }">
+        {{ safeOwner }}{{ safeRepo !== 'skills' ? `/${safeRepo}` : '' }}
+      </span>
+    </div>
 
-      <div
-        v-if="safeReason"
-        class="flex flex-col gap-2"
-        :style="{
-          borderLeft: '3px solid oklch(0.36 0.012 60)',
-          paddingLeft: '16px',
-          maxWidth: '860px',
-        }"
-      >
-        <span
-          class="text-3xl leading-snug"
-          :style="{ color: 'oklch(0.93 0.005 60)', lineClamp: 3, textOverflow: 'ellipsis' }"
-        >
-          &ldquo;{{ safeReason }}&rdquo;
-        </span>
-        <span v-if="safeReasonHandle" class="flex items-center gap-2">
-          <span class="text-2xl font-mono" :style="{ color: 'oklch(0.62 0.01 60)' }">
-            @{{ safeReasonHandle }}
-          </span>
-        </span>
-      </div>
-      <div
-        v-else-if="safeCuratorCount > 0"
-        class="text-3xl"
-        :style="{ color: 'oklch(0.62 0.01 60)' }"
-      >
-        {{ safeCuratorCount }} curator{{ safeCuratorCount !== 1 ? 's' : '' }} using this skill
-      </div>
+    <div
+      v-if="safeReason"
+      class="flex flex-col items-center mt-8"
+      :style="{ width: '100%', borderTop: `2px solid ${OG_RULE}`, paddingTop: '24px', gap: '8px' }"
+    >
+      <OgLines :text="`“${safeReason}”`" :size="28" color="oklch(0.9 0.006 60)" />
+      <span v-if="safeReasonHandle" class="font-mono text-2xl" :style="{ color: OG_MUTED }">
+        @{{ safeReasonHandle }}
+      </span>
+    </div>
+    <div v-else-if="safeCuratorCount > 0" class="mt-6" :style="ogLineStyle(28, 1)">
+      {{ safeCuratorCount }} curator{{ safeCuratorCount !== 1 ? 's' : '' }} using this skill
     </div>
   </OgLayout>
 </template>

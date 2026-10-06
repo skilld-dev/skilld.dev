@@ -22,7 +22,12 @@ useHead({
   templateParams: { separator: '·' },
 })
 
-defineOgImage('Splash.takumi', {}, { alt: 'skilld, curated agent skills by humans' })
+// The card repeats the hero: the H1 and the caption from COPY.md, with the
+// H1 broken where the page breaks it.
+defineOgImage('Page.takumi', {
+  title: 'Agent skills for you\nand your agent',
+  description: 'Try any skill before you install it. Your agent can search for its own.',
+}, { alt: 'skilld, agent skills for you and your agent' })
 
 const serverTimingHeader = useResponseHeader('Server-Timing')
 const homeDataStartedAt = performance.now()
