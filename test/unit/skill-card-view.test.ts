@@ -46,6 +46,10 @@ describe('skill card view', () => {
     expect(view().metric).toMatchObject({ _tag: 'stars', text: '12k', title: '12,345 GitHub stars' })
   })
 
+  it('counts stars in the singular for one star', () => {
+    expect(view({ stars: 1 }).metric).toMatchObject({ text: '1', title: '1 GitHub star' })
+  })
+
   it('counts likes in the singular for one like', () => {
     expect(view({}, { metric: 'likes' }).metric).toMatchObject({ _tag: 'likes', text: '1', title: '1 like' })
     expect(view({ likeCount: 0 }, { metric: 'likes' }).metric).toMatchObject({ text: '0', title: '0 likes' })

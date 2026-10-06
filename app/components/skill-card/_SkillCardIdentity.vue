@@ -18,6 +18,11 @@ const { view, size, terse = false, accent = true, wrap = false } = defineProps<{
   wrap?: boolean
 }>()
 
+const emit = defineEmits<{
+  /** The avatar failed, which means the GitHub account is gone. */
+  avatarError: []
+}>()
+
 /** The author names the owner, so the byline needs only the Repository after it. */
 const where = computed(() => view.author ? view.repo : view.source)
 </script>
@@ -33,6 +38,7 @@ const where = computed(() => view.author ? view.repo : view.source)
       class="skill-id__avatar"
       loading="lazy"
       decoding="async"
+      @error="emit('avatarError')"
     >
     <div class="skill-id__text">
       <p class="skill-id__name-line">

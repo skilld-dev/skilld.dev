@@ -1366,3 +1366,10 @@
   opacity: 0.28;
   pointer-events: none;
 }
+
+/* A compact SkillCard fills its ledger line, inset like the rows beside it. */
+.home-freshness-ledger .skill-card--compact {
+  margin-inline: 0;
+  border-radius: 0;
+  padding: 0.875rem 0.75rem;
+}

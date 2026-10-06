@@ -191,6 +191,8 @@ const board = computed<TrendingBoardRow[]>(() => {
         ...namedSkills.value.map((s): TrendingBoardRow => ({
           key: s.registryPath,
           owner: s.owner,
+          repo: s.repo,
+          name: s.name,
           title: s.canonicalName,
           to: s.registryPath,
           subtitle: `${s.owner}/${s.repo}`,
@@ -214,6 +216,8 @@ const board = computed<TrendingBoardRow[]>(() => {
         ...fallback.value.map((s): TrendingBoardRow => ({
           key: s.registryPath,
           owner: s.owner,
+          repo: s.repo,
+          name: s.name,
           title: s.canonicalName,
           to: s.registryPath,
           subtitle: `${s.owner}/${s.repo}`,

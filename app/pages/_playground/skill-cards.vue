@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import type { TrendingBoardRow } from '#shared/trending-range'
 import type { SkillCardSkill } from '~/types/skill-card'
+import { boardPost } from '#shared/trending-range'
 
 // Dev-only lab for SkillCard. 404s in production.
 // Every context below is a real embed on the site, with its real props.
@@ -26,6 +28,175 @@ const SKILLS: SkillCardSkill[] = [
   { owner: 'zarazhangrui', repo: 'frontend-slides', name: 'frontend-slides', registryPath: '/gh/zarazhangrui/frontend-slides', description: 'Create stunning, animation-rich HTML presentations from scratch or by converting PowerPoint files. Use when the user wants to build a presentation, convert a PPT/PPTX to web, or create slides for a talk/pitch. Helps non-designers discover their aesthetic through visual exploration rather than abstract choices.', stars: 30131, likeCount: 0, modifiedAt: 1779812977, pushedAt: 1782245299, authorName: 'Zara Zhang', skillFileUrl: 'https://github.com/zarazhangrui/frontend-slides/blob/main/SKILL.md' },
 
 ]
+
+// Three rows from the production trending feed on 2026-10-06, with their posts.
+const BOARD_FEED = [
+  {
+    owner: 'lemomo-ai',
+    repo: 'lemo-opuscar',
+    name: 'lemo-opuscar',
+    registryPath: '/gh/lemomo-ai/lemo-opuscar',
+    description: 'Direct and produce a short film made entirely in code, in one of the styles of the Lemo-Opuscar library (e.g. Impasto Oil Painting 油画厚涂, Watercolor Brush 水彩笔刷, Chinese Ink Wash 中国水墨, Ukiyo-e 浮世绘, Whiteboard Explainer 白板讲解). Use when the user asks for a video, film, short, promo, explainer or animation (视频、短片、动画、宣传片) in a named style; when they want a film made about their own topic and haven\'t chosen a style (help them choose); or when they ask which film styles there are. Not for editing or converting existing video files.',
+    stars: 1188,
+    mentionsByDay: [
+      0,
+      1,
+      1,
+      1,
+      1,
+      2,
+      0,
+    ],
+    posts: [
+      {
+        url: 'https://x.com/ScaleWthAI/status/2106386087463772495',
+        authorHandle: 'ScaleWthAI',
+        authorName: 'Saman Ahmed',
+        authorAvatar: 'https://pbs.twimg.com/profile_images/2074400881127415808/k8socXL7_normal.jpg',
+        text: 'Claude Opus 5.5 is turning GitHub into a playground for creators.\n\nIn just one week, people shipped everything from coded music videos to full 3D games.\n\n1. PDoomVideo: the Opus 5.5 P(doom) music video, every frame in code (1.5k stars)\nhttps://t.co/D3jokz8BXG\n\n2. awesome-opus5-5-videos: 475 viral Opus 5.5 videos with their prompts (1k stars)\nhttps://t.co/TN6YIciyfj\n\n3. tidewater: a WebGPU fishing game built with Opus 5.5 (988 stars)\nhttps://t.co/z2XcLNsrRU\n\n4. claude-opus-5-…',
+        postedAt: 1791036552,
+        platform: 'x',
+        favouriteCount: 191,
+      },
+      {
+        url: 'https://bsky.app/profile/did:plc:rrpul7rxm2s4opncn6pwr475/post/3mx2apobtg72w',
+        authorHandle: 'todaystopainews.bsky.social',
+        authorName: 'Today\'s Top AI News',
+        authorAvatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:rrpul7rxm2s4opncn6pwr475/bafkreibhx5ue3qth44hxivzlcdqvqbnfmfeyq5ez35mvm2yuggsgvkkwbi',
+        text: 'Claude Code skill for short films (no video model): 43 film styles, each with a style prompt and demo film generated entirely in code by Claude Opus 5.5 (including OPUSCAR 98). Developed by Lemomo.\n\n#technology #anthropic #ai #artificialintelligence #opensource #news #claude\nGitHub - lemomo-ai/lemo-opuscar: Claude Code skill for short films with no video model: 43 film styl\nClaude Code skill for short films with no video model: 43 film styles, each a style prompt plus a demo…',
+        postedAt: 1791111607,
+        platform: 'bsky',
+        favouriteCount: 2,
+      },
+      {
+        url: 'https://bsky.app/profile/did:plc:apt3rm34z7q7azvcyrydbkaf/post/3mx26mwmxag24',
+        authorHandle: 'vulcanfeynman.bsky.social',
+        authorName: 'Vulcan Feynman',
+        authorAvatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:apt3rm34z7q7azvcyrydbkaf/bafkreif3rnhsni24xhopdljbp4hcza23zk2s2fdcs4x6rsfoqulvbmbld4',
+        text: '42/68\ngit clone github.com/lemomo-ai/le... clawd-case\ncd clawd-case\nexport LEMO_OPUSCAR_HOME="$PWD"\nsh plugin/skills/lemo-opuscar/scripts/setup.sh deps voice\nfor BANK in salamander freepats karoryfer vcsl vsco2ce; do\n  sh tools/fetch.sh instruments "$BANK"\ndone\nGitHub - lemomo-ai/lemo-opuscar: Claude Code skill for short films with no video model: 43 film styles, each a style prompt plus a demo film made entirely in code by Claude Opus 5.5 (incl. OPUSCAR 98)...\nClaude Code s…',
+        postedAt: 1791109364,
+        platform: 'bsky',
+        favouriteCount: 1,
+      },
+    ],
+  },
+  {
+    owner: 'nanaism',
+    repo: 'yomiyasu',
+    name: 'yomiyasu',
+    registryPath: '/gh/nanaism/yomiyasu',
+    description: 'AIが生成した不自然な日本語を、人間が読みやすく情報密度の高い自然な文章へ書き直すAgent Skill。「この文章を読みやすくして」「aiっぽさをなくして」「AI臭さを消して」「自然な日本語にして」「文章を脱臭して」という依頼や、技術記事、業務仕様書・PR説明文、エッセイ・noteの推敲時に使用する。非生物主語の解体、比喩的動詞の具体化、絵文字や文末コロンの完全排除、不要な補足カッコの削除、英単語前後の不自然な半角空白の排除、過剰な太字・箇条書き・否定対比の平文化を行い、文単体で誰が何をどうしたかが伝わる文章へ再構築する。',
+    stars: 1369,
+    mentionsByDay: [
+      0,
+      1,
+      1,
+      1,
+      2,
+      1,
+      0,
+    ],
+    posts: [
+      {
+        url: 'https://x.com/Marco_Ramilli/status/2106717225407172828',
+        authorHandle: 'Marco_Ramilli',
+        authorName: 'Marco Ramilli',
+        authorAvatar: 'https://pbs.twimg.com/profile_images/1975172551979536384/uGtyi7pM_normal.jpg',
+        text: '🤖 yomiyasu\n⭐ 1,355 stars\n\nTired of robotic AI-generated Japanese? Polish your LLM outputs into natural, human-grade prose with this seamless agent skill.\n\n🔗 https://t.co/RCSINWNrI7\n\n#AI #MachineLearning https://t.co/51ifeCwaiz',
+        postedAt: 1791115502,
+        platform: 'x',
+        favouriteCount: 5,
+      },
+      {
+        url: 'https://bsky.app/profile/did:plc:iy3szmwg4hajieka5kbhmcy5/post/3mwxbee7wbs25',
+        authorHandle: 'yug1224.com',
+        authorName: 'ぷーじ',
+        authorAvatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:iy3szmwg4hajieka5kbhmcy5/bafkreifxzudsbphb5qmp7g5x3jgg3r4chrbp7725qkymameyw53g23a7tu',
+        text: 'AI生成の日本語を自然な文章に整えてくれるAgent Skillらしい\n文章の硬さが気になる時に使えそうかな\n\nyug1224 starred nanaism/yomiyasu\nhttps://github.com/nanaism/yomiyasu\nGitHub - nanaism/yomiyasu: AI生成の日本語を自然な日本語へ推敲するAgent Skill / Agent Skill for Refining AI-Generated Japanese into Natural Japanese',
+        postedAt: 1791009224,
+        platform: 'bsky',
+        favouriteCount: 2,
+      },
+      {
+        url: 'https://bsky.app/profile/did:plc:3odpz5wxuofzbd7dat3chhzx/post/3mwwto32zyd2u',
+        authorHandle: 'sarubot.bsky.social',
+        authorName: 'さるぼっと@IT最新動向を配信',
+        authorAvatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:3odpz5wxuofzbd7dat3chhzx/bafkreicwxwa74xc2x3bymxnqjenavsi44idsfhh52pk3ejiaiz76wum4pe',
+        text: 'yomiyasu — AIの不自然な日本語を劇的に改善、今週スター急上昇中のAgent Skill！\n\n・単なる禁止語置換ではなく、文構造の修正や非生物主語の解体など7つの原則で推敲\n・Claude CodeやCursor等に組み込んで直接実行できるPython製ツール\n・技術記事や仕様書作成時の「AI臭さ」を排除し、推敲コストを大幅削減\n\n#LLM #GitHub\nyomiyasu\nAI生成の日本語を自然な日本語へ推敲するAgent Skill / Agent Skill for Refining AI-Generated Japanese into Natural Japanese',
+        postedAt: 1790994518,
+        platform: 'bsky',
+        favouriteCount: 1,
+      },
+    ],
+  },
+  {
+    owner: 'virgiliojr94',
+    repo: 'book-to-skill',
+    name: 'book-to-skill',
+    registryPath: '/gh/virgiliojr94/book-to-skill',
+    description: 'Converts books and documents (PDF, EPUB, DOCX, HTML, Markdown, plain text, RTF, MOBI/AZW with Calibre) into structured agent skills, extracting frameworks, mental models, principles, techniques, and anti-patterns. Use when the user wants to study a document through GitHub Copilot CLI, Amp, Claude Code, Hermes Agent, OpenCode, or OpenClaw, apply an author\'s frameworks while working, or build a reusable knowledge base from a file.',
+    stars: 33687,
+    mentionsByDay: [
+      0,
+      0,
+      0,
+      0,
+      2,
+      1,
+      0,
+    ],
+    posts: [
+      {
+        url: 'https://x.com/tom_doerr/status/2106234841888899211',
+        authorHandle: 'tom_doerr',
+        authorName: 'Tom Dörr',
+        authorAvatar: 'https://pbs.twimg.com/profile_images/1905090420142379008/Ydq5So7B_normal.jpg',
+        text: 'book-to-skill converts technical books into agent skills for tools like Claude Code to reference directly\n\nhttps://t.co/GFnX15PgCP https://t.co/ipieS50aYd',
+        postedAt: 1791000492,
+        platform: 'x',
+        favouriteCount: 705,
+      },
+      {
+        url: 'https://x.com/krip_tom/status/2106335895364497584',
+        authorHandle: 'krip_tom',
+        authorName: 'Tom ⟦■■■■□⟧ loading agents',
+        authorAvatar: 'https://pbs.twimg.com/profile_images/1999869092963012611/6z55afgE_normal.jpg',
+        text: 'Stop pasting the PDF into chat — turn the book into a skill the agent loads.\n\nbook-to-skill: open-source tool that turns a technical book PDF into a Claude Code skill, so the agent can study, reference, and apply it while coding.\n\nhttps://t.co/JgvV4hfw6b',
+        postedAt: 1791024585,
+        platform: 'x',
+        favouriteCount: 4,
+      },
+      {
+        url: 'https://x.com/som_dutt_/status/2106624262098542615',
+        authorHandle: 'som_dutt_',
+        authorName: 'Som Dutt | AI/ML Analyst',
+        authorAvatar: 'https://pbs.twimg.com/profile_images/1826872762545135616/4Ky0Gxte_normal.jpg',
+        text: 'Claude Code + book-to-skill: Convert Any Technical Book Into an Agent Skill Claude Can Reference Directly\n\nAnswers cost 24x–51x fewer tokens than pasting the whole book into context.\nYour agent opens only the chapter a question needs.\nThe structuring work happens once, at conversion.\n\n📊 What one conversion builds:\n→ SKILL.md: key mental models and a chapter map, ~4,000 tokens\n→ Chapter files: ~1,000 tokens each, pulled only when asked\n→ glossary.md: key terms with chapter r…',
+        postedAt: 1791093337,
+        platform: 'x',
+        favouriteCount: 1,
+      },
+    ],
+  },
+] as const
+
+// The day the fixture was read, so the post ages stay fixed and hydrate cleanly.
+const clock = 1_791_250_000
+const boardRows: TrendingBoardRow[] = BOARD_FEED.map(item => ({
+  key: item.registryPath,
+  owner: item.owner,
+  repo: item.repo,
+  name: item.name,
+  title: item.name,
+  to: item.registryPath,
+  subtitle: `${item.owner}/${item.repo}`,
+  description: item.description,
+  stars: item.stars,
+  starSeries: [],
+  names: [item.name],
+  skill: { owner: item.owner, repo: item.repo, name: item.name },
+  reason: { _tag: 'posts', posts: item.posts.map(post => boardPost(post, clock)), mentionsByDay: [...item.mentionsByDay] },
+}))
 
 function pick(key: string): SkillCardSkill {
   const skill = SKILLS.find(s => `${s.owner}/${s.repo}/${s.name}` === key)
@@ -57,7 +228,6 @@ const collection = [
   { skill: designHtml, note: 'For the moment a mock has to become real markup.' },
   { skill: slides, note: null },
 ]
-const board = [grillMe, impeccable, brainstorming, frontendDesign]
 const compact = [frontendDesign, impeccable, perf, designHtml, taste, cloudflare, slides, brainstorming]
 const dependencies = ['frontend-design', 'web-artifacts-builder', 'canvas-design', 'theme-factory']
 </script>
@@ -224,22 +394,9 @@ const dependencies = ['frontend-design', 'web-artifacts-builder', 'canvas-design
           Trending board
         </h2>
         <p class="lab-context__props">
-          /skills/trending, tracks · layout row · rank · trending · meta slot: why it ranked · run
+          /skills/trending, tracks · TrendingBoardItem · layout row · rank · meta slot: why it ranked · aside slot: posts · run
         </p>
-        <div>
-          <ol class="editorial-ledger list-none p-0">
-            <li v-for="(skill, index) in board" :key="skill.registryPath">
-              <SkillCard :skill layout="row" :rank="index + 1" :trending="index < 2" :actions="['run']">
-                <template v-if="index < 2" #meta>
-                  <BrailleSpark :counts="[0, 1, 3, 2, 5, 8, 13]" period="in 7 days" />
-                </template>
-                <template v-else #meta>
-                  <span>Ranked by GitHub stars</span>
-                </template>
-              </SkillCard>
-            </li>
-          </ol>
-        </div>
+        <BoardRankedList :rows="boardRows" surface="lab-board" />
       </section>
 
       <!-- 9. Compact index: trending "Earlier on this board", community, related -->

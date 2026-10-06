@@ -56,7 +56,7 @@ function metricView(skill: SkillCardSkill, metric: SkillCardMetric): SkillCardMe
     // Zero can mean the stars were never fetched, so it stays hidden.
     if (count <= 0)
       return null
-    return { _tag: 'stars', count, text: formatGithubStars(count), title: `${count.toLocaleString('en')} GitHub stars` }
+    return { _tag: 'stars', count, text: formatGithubStars(count), title: `${count.toLocaleString('en')} GitHub ${count === 1 ? 'star' : 'stars'}` }
   }
   if (metric === 'likes') {
     const count = skill.likeCount ?? 0

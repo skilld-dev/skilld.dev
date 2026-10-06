@@ -52,6 +52,11 @@ const {
   surface?: string
 }>()
 
+const emit = defineEmits<{
+  /** The owner's avatar failed, which means the GitHub account is gone. */
+  avatarError: [owner: string]
+}>()
+
 const slots = defineSlots<{
   /** Inline facts beside the metric, such as "Watching for changes" or a braille spark. */
   meta?: () => unknown
@@ -59,6 +64,8 @@ const slots = defineSlots<{
   footer?: () => unknown
   /** Extra controls before the run pill. */
   actions?: () => unknown
+  /** Rows only: a wide block under the words, such as the posts about a trending Skill. */
+  aside?: () => unknown
 }>()
 
 const resolvedSurface = skillCardSurface({ layout, surface })
@@ -95,7 +102,7 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   <article v-if="view.layout === 'card'" class="skill-card skill-card--card">
     <div class="flex min-w-0 items-start gap-3">
       <span v-if="rankText" class="skill-card__rank" :class="{ 'skill-card__rank--lead': rankLead }" aria-hidden="true">{{ rankText }}</span>
-      <SkillCardIdentity :view :size="32" :accent="markAccent" wrap class="min-w-0 flex-1" />
+      <SkillCardIdentity :view :size="32" :accent="markAccent" wrap class="min-w-0 flex-1" @avatar-error="emit('avatarError', view.owner)" />
     </div>
 
     <p v-if="view.note" class="skill-card__note mt-3 line-clamp-2">
@@ -144,7 +151,7 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   <div v-else-if="view.layout === 'row'" class="skill-card skill-card--row-shell">
     <div class="skill-card--row" :class="{ 'skill-card--ranked': rankText }" :style="{ '--skill-card-metric': metricWidth }">
       <span v-if="rankText" class="skill-card__rank skill-card__row-rank" :class="{ 'skill-card__rank--lead': rankLead }" aria-hidden="true">{{ rankText }}</span>
-      <SkillCardIdentity :view :size="36" :accent="markAccent" wrap class="skill-card__row-id" />
+      <SkillCardIdentity :view :size="36" :accent="markAccent" wrap class="skill-card__row-id" @avatar-error="emit('avatarError', view.owner)" />
 
       <div v-if="view.note || view.description || $slots.footer" class="skill-card__row-body">
         <p v-if="view.note" class="skill-card__note line-clamp-2">
@@ -162,7 +169,12 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
         <slot name="meta" />
       </p>
 
-      <div v-if="view.metricKind !== 'none' || hasControls" class="skill-card__row-end">
+      <div v-if="$slots.aside" class="skill-card__raise skill-card__row-aside">
+        <slot name="aside" />
+      </div>
+
+      <!-- Always drawn on wide rows, so a row without a run pill still holds the column and its neighbours line up. -->
+      <div class="skill-card__row-end" :class="{ 'skill-card__row-end--empty': view.metricKind === 'none' && !hasControls }">
         <span v-if="view.metricKind !== 'none'" class="skill-card__row-metric">
           <SkillCardMetricLabel v-if="view.metric" :metric="view.metric" short />
         </span>
@@ -193,7 +205,7 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   <div v-else class="skill-card skill-card--compact" :class="{ 'skill-card--face': view.byline === 'full' }">
     <span v-if="rankText" class="skill-card__rank" aria-hidden="true">{{ rankText }}</span>
     <div class="min-w-0 flex-1">
-      <SkillCardIdentity :view :size="28" :accent="markAccent" terse>
+      <SkillCardIdentity :view :size="28" :accent="markAccent" terse @avatar-error="emit('avatarError', view.owner)">
         <SkillCardMetricLabel v-if="view.metric" :metric="view.metric" short />
         <span v-if="$slots.meta" class="skill-card__meta skill-card__raise"><slot name="meta" /></span>
       </SkillCardIdentity>
@@ -370,7 +382,8 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
     'id'
     'body'
     'meta'
-    'end';
+    'end'
+    'aside';
   align-items: center;
   padding: 0.875rem 0.5rem;
   transition: background-color 200ms ease-out;
@@ -382,7 +395,8 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
     'rank id'
     'body body'
     'meta meta'
-    'end end';
+    'end end'
+    'aside aside';
   column-gap: 0.75rem;
 }
 
@@ -411,6 +425,12 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   margin-block-start: 0.5rem;
 }
 
+.skill-card__row-aside {
+  grid-area: aside;
+  min-inline-size: 0;
+  margin-block-start: 0.875rem;
+}
+
 .skill-card__row-end {
   grid-area: end;
   display: flex;
@@ -423,6 +443,10 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
 
 .skill-card__row-end .skill-card__controls {
   margin-inline-start: auto;
+}
+
+.skill-card__row-end--empty {
+  display: none;
 }
 
 .skill-card__row-metric {
@@ -438,8 +462,9 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.5fr) auto;
     grid-template-areas:
       'id body end'
-      'id meta end';
-    grid-template-rows: auto 1fr;
+      'id meta end'
+      'id aside end';
+    grid-template-rows: auto auto 1fr;
     column-gap: 1.5rem;
     align-items: start;
   }
@@ -448,7 +473,8 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
     grid-template-columns: 1.25rem minmax(0, 1.1fr) minmax(0, 1.5fr) auto;
     grid-template-areas:
       'rank id body end'
-      'rank id meta end';
+      'rank id meta end'
+      'rank id aside end';
     column-gap: 1rem;
   }
 
@@ -471,6 +497,16 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   .skill-card__row-metric {
     justify-content: flex-end;
     min-inline-size: var(--skill-card-metric);
+  }
+
+  /* Room for the run pill on every row, whether or not this one offers it. */
+  .skill-card__row-end {
+    min-inline-size: calc(var(--skill-card-metric) + 4.5rem);
+    justify-content: flex-end;
+  }
+
+  .skill-card__row-end--empty {
+    display: flex;
   }
 }
 

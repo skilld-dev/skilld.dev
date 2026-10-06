@@ -12,10 +12,10 @@ const { metric, short = false } = defineProps<{
 <template>
   <span class="skill-metric" :title="metric.title">
     <template v-if="metric._tag === 'stars'">
-      <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />{{ metric.text }}<span class="sr-only"> GitHub stars</span>
+      <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />{{ metric.text }}<span class="sr-only"> GitHub {{ metric.count === 1 ? 'star' : 'stars' }}</span>
     </template>
     <template v-else-if="metric._tag === 'likes'">
-      <UIcon name="i-lucide-heart" class="size-3" aria-hidden="true" />{{ metric.text }}<span class="sr-only"> likes</span>
+      <UIcon name="i-lucide-heart" class="size-3" aria-hidden="true" />{{ metric.text }}<span class="sr-only"> {{ metric.count === 1 ? 'like' : 'likes' }}</span>
     </template>
     <template v-else>
       <template v-if="!short">Updated</template>
