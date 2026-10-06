@@ -3,12 +3,12 @@ title: skilld CLI reference
 description: Every skilld command with its help text. Generated from the CLI help for skilld 3.3.0.
 label: Reference
 author: Harlan Wilton
-command: npm install --global skilld
+command: curl -fsSL https://skilld.dev/install.sh | sh
 publishedAt: 2026-09-01
 updatedAt: 2026-10-02
 ---
 
-Generated from `skilld --help` for skilld `3.3.0`. Run `npx skilld <command>` or install the CLI once with `npm install --global skilld`.
+Generated from `skilld --help` for skilld `3.3.0`. Run `npx skilld <command>`, or install the CLI once. On macOS and Linux, run `curl -fsSL https://skilld.dev/install.sh | sh`. On Windows, run `irm https://skilld.dev/install.ps1 | iex` in PowerShell. With Node.js, run `npm install --global skilld`.
 
 The npm package selects a native executable for your system. It has no JavaScript engine or fallback.
 

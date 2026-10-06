@@ -42,7 +42,8 @@ These exact strings. Do not paraphrase them per page.
 | CLI line | Search, run, install, and keep Skills current. | guidance only: the `/cli` line under the H1. It is the CLI's own `--help` line, so change it in the CLI first |
 | CLI intro | Give your Agent Skills that real maintainers write. A run reads the current source every time, and one command updates the Skills you install. Install the skilld Skill once, and your Agent searches and loads Skills on its own. | guidance only: the `/cli` intro under the line |
 | CLI claims line | Open-source CLI · No telemetry · 19 Agent targets | guidance only: the `/cli` claims line. The page counts the `--agent` values of `skilld install --help` |
-| CLI install label | Install the CLI | guidance only: the label beside `npm install --global skilld` on `/cli` |
+| CLI install label | Install the CLI | guidance only: the label beside the CLI install chip on `/cli`. A switch above the chip picks `macOS / Linux`, `Windows`, or `npm`, and `macOS / Linux` is preselected |
+| CLI install consequence | One native binary. It upgrades itself from signed releases. · Needs Node.js. npm handles upgrades. | guidance only: the line under the CLI install chip on `/cli`. The first is for `macOS / Linux` and `Windows`, the second for `npm`. `crates/skilld-command/src/upgrade.rs` in the CLI decides both. If it changes, change these strings |
 | Claim: open source | open-source CLI | guidance only: the CLI. Never call skilld.dev or its site open source |
 | Claim: telemetry | no telemetry | guidance only: the CLI. Its README states that it sends no telemetry or analytics. Never say it of the site, which keeps anonymous analytics |
 | Claim: privacy | analytics without cookies or IPs | guidance only: analytics and privacy copy. Never the bare "privacy-friendly" |
