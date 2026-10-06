@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { onClickOutside, onKeyDown } from '@vueuse/core'
+import HeaderNavigation from '~/components/_HeaderNavigation.vue'
+import { developerMenuItems } from '~/utils/developer-menu'
 import { isEditableElement } from '~/utils/input'
 
 const title = 'skilld'
@@ -130,47 +132,7 @@ watch(() => route.fullPath, () => {
 
           <div class="flex items-center justify-end gap-1.5 lg:flex-1">
             <SkillSearchTrigger v-if="$route.path !== '/'" />
-            <!--
-            The braille mark makes Trending outweigh its siblings without an
-            emoji. Stone only: the logo dot is the header's one rose element.
-            It is decorative and hidden from screen readers; the label carries
-            the meaning. `gap-1.5` because the button's own layout does not
-            space sibling spans.
-          -->
-            <UButton
-              to="/skills/trending"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              class="hidden gap-1.5 whitespace-nowrap lg:inline-flex"
-            >
-              <TrendingMark :accent="false" />
-              <span>Trending Skills</span>
-            </UButton>
-            <UButton
-              to="/skills"
-              label="Find Skills"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              class="hidden lg:inline-flex"
-            />
-            <UButton
-              to="/cli"
-              label="CLI"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              class="hidden lg:inline-flex"
-            />
-            <UButton
-              to="/make-skill"
-              label="Make a skill"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              class="hidden lg:inline-flex"
-            />
+            <HeaderNavigation />
             <UColorModeButton
               color="neutral"
               variant="ghost"
@@ -223,22 +185,34 @@ watch(() => route.fullPath, () => {
               block
               class="min-h-11 justify-start"
             />
-            <UButton
-              to="/cli"
-              label="CLI"
-              color="neutral"
-              variant="ghost"
-              block
-              class="min-h-11 justify-start"
-            />
-            <UButton
-              to="/make-skill"
-              label="Make a skill"
-              color="neutral"
-              variant="ghost"
-              block
-              class="min-h-11 justify-start"
-            />
+            <USeparator class="my-1" />
+            <!-- Not a heading: this menu renders before the page's h1. -->
+            <p
+              id="mobile-navigation-developers"
+              class="section-label px-2.5 py-2"
+            >
+              Developers
+            </p>
+            <ul
+              aria-labelledby="mobile-navigation-developers"
+              class="flex flex-col gap-1"
+            >
+              <li
+                v-for="item in developerMenuItems"
+                :key="item.to"
+              >
+                <UButton
+                  :to="item.to"
+                  :label="item.label"
+                  :icon="item.icon"
+                  color="neutral"
+                  variant="ghost"
+                  block
+                  class="min-h-11 justify-start"
+                  :ui="{ leadingIcon: 'text-muted' }"
+                />
+              </li>
+            </ul>
             <USeparator class="my-1" />
             <HeaderAccount variant="menu" />
           </nav>

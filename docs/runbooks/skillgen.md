@@ -1,10 +1,24 @@
-# GitHub App pilot
+# Skillgen GitHub App
 
 <!-- eslint-disable harlanzw/ai-deslop-buzzwords -- GLOSSARY.md defines Harness as a product noun. -->
 
-The pilot maintains an existing package skill through draft pull requests.
-It accepts public repositories listed in `GITHUB_PILOT_REPOSITORIES`.
-The first repository is `harlan-zw/nuxt-skew-protection`.
+Skillgen is the `skilld-skillgen` GitHub App.
+It maintains an existing package skill through draft pull requests.
+It runs only on a public repository whose maintainer turned it on at `/me?view=skillgen`.
+Maintainers set it up from [/skillgen](https://skilld.dev/skillgen).
+
+## Opt-in
+
+Installing the App alone queues nothing.
+A signed-in maintainer turns Skillgen on for each repository, and `skillgen_repositories` records it.
+Turning it on needs admin or maintain access, a public repository, a root `package.json`, and the Skill where the Worker reads it.
+Skillgen supports npm packages only.
+
+Before the Worker queues a job, it asks `POST /api/internal/skillgen/opt-ins` which repositories in the event opted in.
+If the site does not answer, the webhook returns 503 and queues nothing. Redeliver the event from the App settings.
+
+The site and the Worker share one secret.
+Set `NUXT_SKILLGEN_TOKEN` on the site Worker and `SKILLGEN_SITE_TOKEN` on `skilld-harness-proof` to the same value.
 
 ## Register the App
 
@@ -20,7 +34,6 @@ Open the printed local URL in your personal GitHub browser.
 The helper creates a public App owned by `skilld-dev`.
 Use a GitHub account allowed to register Apps for that organization.
 Other accounts can install the App on selected repositories.
-The Worker still processes only its configured pilot repositories.
 It saves the converted App secrets with mode `600`.
 It converts the signing key to PKCS8 before saving it.
 It rejects a callback with invalid state or a missing registration cookie.
@@ -33,7 +46,7 @@ Pass the file through stdin. Never print its contents.
 Also configure the model credential and `PROOF_TOKEN` described in the [Harness runbook](./skill-harness-proof.md).
 Deploy through the existing Actions workflow with `target=harness-proof`.
 
-Use the saved installation URL. Select only the pilot repository.
+Use the saved installation URL. Select only the package repository.
 Installation starts a job for its latest tag.
 New tag creation starts another job automatically.
 
@@ -51,7 +64,7 @@ It does not independently verify Sigstore signatures.
 The baseline comes from an exact default branch commit.
 Supported locations are `skills/<package-name>/SKILL.md` and the root `SKILL.md`.
 The baseline can include Markdown files under `references/`.
-It must fit the Harness limits and the pilot's 64 KiB baseline limit.
+It must fit the Harness limits and the App's 64 KiB baseline limit.
 
 The App mints a single-repository installation token for each GitHub phase.
 The container receives no GitHub or model credential.
@@ -81,5 +94,7 @@ Duplicate deliveries reuse a job.
 Different tags resolving to the same commit reuse the recorded target.
 Generation failures persist as job outcomes. They produce no pull request.
 
-This pilot has one global queue and one active container.
+The App has one global queue and one active container.
+Jobs run one at a time, and the thirty minute deadline includes time in the queue.
+If 64 jobs are queued, the webhook answers 503. GitHub does not redeliver it.
 Organization keys and optional shared capacity require separate onboarding and budgets.

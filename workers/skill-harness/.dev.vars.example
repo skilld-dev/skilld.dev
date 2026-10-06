@@ -4,3 +4,5 @@ ANTHROPIC_API_KEY=example
 GITHUB_APP_ID=example
 GITHUB_APP_PRIVATE_KEY_PKCS8=example
 GITHUB_APP_WEBHOOK_SECRET=example
+# Shared with the site as NUXT_SKILLGEN_TOKEN. Reads Skillgen opt-ins.
+SKILLGEN_SITE_TOKEN=example

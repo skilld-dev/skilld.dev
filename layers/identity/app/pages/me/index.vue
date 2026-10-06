@@ -9,6 +9,7 @@ import type {
 } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
 import { accountDeletionConfirmed } from '../../../shared/contracts/account'
+import SkillgenRepositories from '../../components/_SkillgenRepositories.vue'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
@@ -166,9 +167,9 @@ function sourceDescription(source: string): string {
 const route = useRoute()
 const view = computed(() => {
   const value = route.query.view
-  return value === 'email' || value === 'repositories' || value === 'account' ? value : 'skills'
+  return value === 'email' || value === 'repositories' || value === 'skillgen' || value === 'account' ? value : 'skills'
 })
-const viewTitle = computed(() => ({ skills: 'Your skills', email: 'Email updates', repositories: 'Repository coverage', account: 'Account' })[view.value])
+const viewTitle = computed(() => ({ skills: 'Your skills', email: 'Email updates', repositories: 'Repository coverage', skillgen: 'Skillgen', account: 'Account' })[view.value])
 useSeoMeta({ title: viewTitle, robots: 'noindex' })
 const toast = useToast()
 async function clearWelcomeQuery() {
@@ -486,6 +487,8 @@ async function deleteAccount() {
             />
           </div>
         </section>
+
+        <SkillgenRepositories v-if="view === 'skillgen'" />
 
         <section v-if="view === 'repositories'">
           <p class="mt-2 text-sm leading-relaxed text-muted">
