@@ -1,7 +1,9 @@
 import type { SourceRequest } from '../schemas/contracts'
 import type { ResolutionAccess } from './request-resolution'
+import type { RunCheckColumns } from './run-check-state'
 import type { CreateResolutionResult, ResolutionRow } from './state'
 import { z } from 'zod'
+import { nextRunCheckState, runCheckColumns, runCheckStateOf } from './run-check-state'
 import { ACTIVE_BUILD_STATES, getResolution, parseCheckResults } from './state'
 
 /** One Skill whose page shows `skilld run OWNER/REPOSITORY/NAME`. */
@@ -60,6 +62,8 @@ const checkRowSchema = z.object({
   detail: z.string().nullable(),
   retryable: z.union([z.literal(0), z.literal(1)]),
   failing_since: z.number().int().nullable(),
+  failure_streak: z.number().int().nonnegative(),
+  failed_at: z.number().int().nullable(),
   settled_at: z.number().int().nullable(),
   pending_resolution_id: z.string().nullable(),
   requested_at: z.number().int().nullable(),
@@ -105,56 +109,27 @@ export async function runSkillRunSweep(dependencies: SkillRunSweepDependencies):
       continue
     report.settled++
     const skill = { owner: row.owner, repository: row.repository, name: row.name }
+    const previous = runCheckStateOf(row)
     if (settled._tag === 'ready') {
-      if (row.outcome === 'failing' && row.retryable === 0)
+      if (previous._tag === 'failing')
         report.recovered.push(skill)
-      await writeSettled(dependencies.db, row, { outcome: 'ready', tag: null, detail: null, retryable: false, failingSince: null }, now)
-      rows.set(skillKey(skill), { ...row, outcome: 'ready', tag: null, detail: null, retryable: 0, pending_resolution_id: null, settled_at: now })
-      continue
     }
-    const failure = { ...skill, tag: settled.tag, detail: settled.detail }
-    const sameFailure = row.outcome === 'failing' && row.tag === settled.tag
-    if (settled.retryable)
-      report.transientFailures.push(failure)
-    else if (!sameFailure)
-      report.newFailures.push(failure)
-    // A retryable failure says nothing about the Skill. Over a known failure it
-    // keeps that failure, so the next check that sees it again is not new.
-    if (settled.retryable && row.outcome === 'failing' && row.retryable === 0) {
-      await writeSettled(dependencies.db, row, {
-        outcome: 'failing',
-        tag: row.tag,
-        detail: row.detail,
-        retryable: false,
-        failingSince: row.failing_since,
-      }, now)
-      rows.set(skillKey(skill), { ...row, pending_resolution_id: null, settled_at: now })
-      continue
+    else {
+      const failure = { ...skill, tag: settled.tag, detail: settled.detail }
+      if (settled.retryable)
+        report.transientFailures.push(failure)
+      else if (!(previous._tag === 'failing' && previous.tag === settled.tag))
+        report.newFailures.push(failure)
     }
-    const failingSince = sameFailure ? row.failing_since ?? now : now
-    await writeSettled(dependencies.db, row, {
-      outcome: 'failing',
-      tag: settled.tag,
-      detail: settled.detail,
-      retryable: settled.retryable,
-      failingSince,
-    }, now)
-    rows.set(skillKey(skill), {
-      ...row,
-      outcome: 'failing',
-      tag: settled.tag,
-      detail: settled.detail,
-      retryable: settled.retryable ? 1 : 0,
-      failing_since: failingSince,
-      pending_resolution_id: null,
-      settled_at: now,
-    })
+    const next = runCheckColumns(nextRunCheckState(previous, settled, now))
+    await writeSettled(dependencies.db, row, next, now)
+    rows.set(skillKey(skill), { ...row, ...next, pending_resolution_id: null, settled_at: now })
   }
 
   const runnable = await dependencies.listRunnableSkills()
   report.failing = runnable.filter((skill) => {
     const row = rows.get(skillKey(skill))
-    return row?.outcome === 'failing' && row.retryable === 0
+    return row !== undefined && runCheckStateOf(row)._tag === 'failing'
   }).length
 
   const due = runnable
@@ -220,7 +195,7 @@ export function settleResolution(resolution: ResolutionRow | null, pendingSecond
 async function loadCheckRows(db: D1Database): Promise<Map<string, CheckRow>> {
   const result = await db.prepare(
     `SELECT owner, repository, name, outcome, tag, detail, retryable, failing_since,
-            settled_at, pending_resolution_id, requested_at
+            failure_streak, failed_at, settled_at, pending_resolution_id, requested_at
      FROM artifact_run_checks`,
   ).all<Record<string, unknown>>()
   const rows = new Map<string, CheckRow>()
@@ -231,27 +206,24 @@ async function loadCheckRows(db: D1Database): Promise<Map<string, CheckRow>> {
   return rows
 }
 
-async function writeSettled(
-  db: D1Database,
-  row: CheckRow,
-  settled: { outcome: 'ready' | 'failing', tag: string | null, detail: string | null, retryable: boolean, failingSince: number | null },
-  now: number,
-): Promise<void> {
+async function writeSettled(db: D1Database, row: CheckRow, columns: RunCheckColumns, now: number): Promise<void> {
   await db.prepare(
     `UPDATE artifact_run_checks
      SET outcome = ?4, tag = ?5, detail = ?6, retryable = ?7, failing_since = ?8,
-         settled_at = ?9, settled_resolution_id = pending_resolution_id,
-         pending_resolution_id = NULL
+         failure_streak = ?9, failed_at = ?10, settled_at = ?11,
+         settled_resolution_id = pending_resolution_id, pending_resolution_id = NULL
      WHERE owner = ?1 AND repository = ?2 AND name = ?3`,
   ).bind(
     row.owner,
     row.repository,
     row.name,
-    settled.outcome,
-    settled.tag,
-    settled.detail,
-    settled.retryable ? 1 : 0,
-    settled.failingSince,
+    columns.outcome,
+    columns.tag,
+    columns.detail,
+    columns.retryable,
+    columns.failing_since,
+    columns.failure_streak,
+    columns.failed_at,
     now,
   ).run()
 }

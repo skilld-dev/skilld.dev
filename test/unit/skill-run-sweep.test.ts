@@ -5,6 +5,7 @@ import type { RunnableSkill, SkillRunSweepDependencies } from '../../layers/arti
 import { describe, expect, it, vi } from 'vitest'
 import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
 import { requestResolution } from '../../layers/artifact-delivery/server/utils/request-resolution'
+import { loadRunCheckFlags } from '../../layers/artifact-delivery/server/utils/run-check-flags'
 import { runSkillRunSweep } from '../../layers/artifact-delivery/server/utils/run-sweep'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -15,6 +16,7 @@ const MIGRATIONS = [
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
   'migrations/0142_artifact_run_checks.sql',
+  'migrations/0143_artifact_run_check_streak.sql',
 ]
 const NOW = 1_791_000_000
 const archify: RunnableSkill = { owner: 'tt-a1i', repository: 'archify', name: 'archify' }
@@ -76,6 +78,26 @@ describe('skilld run sweep', () => {
     expect(interrupted.transientFailures).toHaveLength(1)
     expect(interrupted.failing).toBe(1)
     expect(resumed.newFailures).toEqual([])
+    harness.close()
+  })
+
+  it('flags a Skill once two checks in a row fail, and never for a spent quota', async () => {
+    const harness = createHarness([archify, busy])
+    const blocked: SourceRejection = { _tag: 'rejected', code: 'INVALID_SOURCE', summary: 'Too large.', findings: [] }
+    const spent: SourceRejection = { _tag: 'rejected', code: 'RATE_LIMITED', summary: 'Spent.', findings: [] }
+
+    await runSkillRunSweep(harness.dependencies)
+    await harness.buildEach({ archify: blocked, busy: spent })
+    await runSkillRunSweep(harness.dependencies)
+    const afterOne = await loadRunCheckFlags(harness.dependencies.db, null)
+    await harness.buildEach({ archify: blocked, busy: spent })
+    await runSkillRunSweep(harness.dependencies)
+    const afterTwo = await loadRunCheckFlags(harness.dependencies.db, null)
+    const named = await loadRunCheckFlags(harness.dependencies.db, { owner: 'TT-A1I', repository: 'Archify', name: 'archify' })
+
+    expect(afterOne).toEqual([])
+    expect(afterTwo).toEqual([{ ...archify, tag: 'CHECK_BLOCKED:source-policy', detail: 'Too large.', failedAt: NOW + 2 * 15 * 60 }])
+    expect(named).toEqual(afterTwo)
     harness.close()
   })
 

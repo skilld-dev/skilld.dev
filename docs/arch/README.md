@@ -18,7 +18,7 @@ Use the names exactly. Drift breeds shallow modules.
 - **app**: `/`, `/community`, `/@<login>/*`, `/collections/new`, `api/community|collections|feed|*`. Owns native data.
 - **marketing**: `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`, `/compare/*`. Comark renders its Markdown. Owns SEO content. [Comparison requirements](comparisons.md) cover editorial evidence and admission.
 - **admin**: existing.
-- **artifact delivery:** `/api/v1/resolutions|artifacts|trusted-root|github/connections`. Owns exact source resolution, checks, signing, grants, and transient delivery.
+- **artifact delivery:** `/api/v1/resolutions|artifacts|trusted-root|github/connections`, and the internal `/api/run-checks/flags`. Owns exact source resolution, checks, signing, grants, transient delivery, and the run checks behind the run check flag.
 
 Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilities. Each layer is deletion-testable.
 
