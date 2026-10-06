@@ -102,7 +102,7 @@ describe('skill publication', () => {
     })
     expect(result).toEqual({ _tag: 'Conflict' })
   })
-  it('publishes only Skill changes and marks the pull request as a draft', async () => {
+  it('publishes only Skill changes in a pull request ready for review', async () => {
     const writes: { path: string, body: unknown }[] = []
     const result = await publishSkill(context, [{ path: 'SKILL.md', content: 'new' }], async (path, method, body) => {
       if (method === 'POST') {
@@ -119,7 +119,7 @@ describe('skill publication', () => {
     })
     expect(result).toEqual({ _tag: 'Published', url: 'https://github.com/harlan-zw/package/pull/2' })
     expect(writes.find(write => write.path.endsWith('/git/trees'))?.body).toMatchObject({ tree: [{ path: 'skills/package/SKILL.md', mode: '100644', type: 'blob', sha: 'd'.repeat(40) }] })
-    expect(writes.find(write => write.path.endsWith('/pulls'))?.body).toMatchObject({ draft: true, base: 'main' })
+    expect(writes.find(write => write.path.endsWith('/pulls'))?.body).toMatchObject({ draft: false, base: 'main' })
   })
 })
 
