@@ -15,8 +15,9 @@
  *    `npx skilld run`, then gets the prompt word for word. `--seed` copies a
  *    folder in first, and `--setup` says so on the demo.
  * 3. An HTML output gets full-page screenshots at desktop width, and at phone
- *    width when the page fits a phone. An MP4 output is re-encoded small and
- *    gets a poster frame.
+ *    width when the page fits a phone. A page taller than one screen also gets
+ *    a poster: its first screen alone, which the Skill page paints first. An
+ *    MP4 output is re-encoded small and gets a poster frame.
  * 4. Uploads the media to the `skilld-demo-media` R2 bucket with `cf`, under
  *    content-hashed names, copies an HTML page to the registry's
  *    `server/demos/`, and upserts the entry in `server/data/skill-demos.json`.
@@ -112,6 +113,8 @@ interface Shot {
   height: number
   alt: string
   viewport: 'desktop' | 'mobile'
+  /** The first screen, for a shot taller than one. */
+  poster?: { file: string, height: number }
 }
 
 interface Video {
@@ -317,12 +320,17 @@ async function screenshot(page: string, dir: string, prompt: string): Promise<Sh
     const shotHeight = Math.max(height, Math.min(pageHeight, MAX_SHOT_HEIGHT))
     const file = `${viewport}.jpg`
     await tab.screenshot({ path: join(dir, file), type: 'jpeg', quality: 82, fullPage: true, clip: { x: 0, y: 0, width, height: shotHeight } })
+    // The first screen alone, so the Skill page can paint the demo before the whole page downloads.
+    const poster = shotHeight > height ? `${viewport}-poster.jpg` : null
+    if (poster)
+      await tab.screenshot({ path: join(dir, poster), type: 'jpeg', quality: 82, clip: { x: 0, y: 0, width, height } })
     shots.push({
       file,
       width,
       height: shotHeight,
       viewport,
       alt: `${viewport === 'desktop' ? 'Desktop' : 'Phone'} screenshot of the page the Agent built for: ${prompt.slice(0, 120)}`,
+      ...(poster ? { poster: { file: poster, height } } : {}),
     })
     await context.close()
   }
@@ -456,11 +464,14 @@ async function publishMedia(owner: string, repo: string, name: string, dir: stri
 
 /** Stages, uploads, and renames the media of one demo. */
 async function publishDemoMedia(owner: string, repo: string, name: string, dir: string, media: Pick<DemoEntry, 'video' | 'shots'>): Promise<Pick<DemoEntry, 'video' | 'shots'>> {
-  const files = [...new Set([...media.shots.map(shot => shot.file), ...(media.video ? [media.video.file, media.video.poster] : [])])]
+  const files = [...new Set([
+    ...media.shots.flatMap(shot => shot.poster ? [shot.file, shot.poster.file] : [shot.file]),
+    ...(media.video ? [media.video.file, media.video.poster] : []),
+  ])]
   const names = await publishMedia(owner, repo, name, dir, files)
   const to = (file: string) => names.get(file) ?? file
   return {
-    shots: media.shots.map(shot => ({ ...shot, file: to(shot.file) })),
+    shots: media.shots.map(shot => ({ ...shot, file: to(shot.file), ...(shot.poster ? { poster: { ...shot.poster, file: to(shot.poster.file) } } : {}) })),
     ...(media.video ? { video: { ...media.video, file: to(media.video.file), poster: to(media.video.poster) } } : {}),
   }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SkillDemoView } from '../../server/utils/skill-demos'
 import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
+import SkillDemoShot from './_SkillDemoShot.vue'
 
 /**
  * One demo (GLOSSARY "demo"): the prompt, the output an Agent made with this
@@ -15,6 +16,10 @@ const mobileShot = computed(() => demo.shots.find(shot => shot.viewport === 'mob
 const recordedLabel = computed(() => `Recorded with ${demo.agent}, ${demoModelLabel(demo.model)}`)
 
 const live = ref(false)
+
+/** The screens each twin window hides on; the styles below repeat them. */
+const PHONE_WINDOW_MEDIA = '(max-width: 47.99rem)'
+const DESKTOP_WINDOW_MEDIA = '(min-width: 48rem)'
 </script>
 
 <template>
@@ -66,42 +71,26 @@ const live = ref(false)
     <!-- Each shot is the whole page, so it sits in a window the size of one screen and scrolls. -->
     <!-- One shot per device: the phone shot on phones when one exists, the desktop shot elsewhere. -->
     <div v-else class="mt-4">
-      <div
+      <SkillDemoShot
         v-if="desktopShot"
+        :shot="desktopShot"
+        :skip-media="mobileShot ? PHONE_WINDOW_MEDIA : undefined"
         class="skill-demo__window"
         :class="{ 'skill-demo__window--desktop-only': mobileShot }"
         :style="{ aspectRatio: '16 / 10' }"
         :tabindex="desktopShot.height > desktopShot.width * 10 / 16 ? 0 : undefined"
         role="group"
         aria-label="Desktop screenshot. Scroll to see the whole page."
-      >
-        <img
-          :src="desktopShot.src"
-          :width="desktopShot.width"
-          :height="desktopShot.height"
-          :alt="desktopShot.alt"
-          loading="lazy"
-          decoding="async"
-          class="skill-demo__shot"
-        >
-      </div>
-      <div
+      />
+      <SkillDemoShot
         v-if="mobileShot"
+        :shot="mobileShot"
+        :skip-media="DESKTOP_WINDOW_MEDIA"
         class="skill-demo__window skill-demo__window--mobile"
         :tabindex="mobileShot.height > 844 ? 0 : undefined"
         role="group"
         aria-label="Phone screenshot. Scroll to see the whole page."
-      >
-        <img
-          :src="mobileShot.src"
-          :width="mobileShot.width"
-          :height="mobileShot.height"
-          :alt="mobileShot.alt"
-          loading="lazy"
-          decoding="async"
-          class="skill-demo__shot"
-        >
-      </div>
+      />
     </div>
 
     <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -169,12 +158,6 @@ const live = ref(false)
 .skill-demo__window:focus-visible {
   outline: 2px solid var(--ui-border-accented);
   outline-offset: 2px;
-}
-
-.skill-demo__shot {
-  display: block;
-  width: 100%;
-  height: auto;
 }
 
 /*
