@@ -321,7 +321,7 @@ Three textures replace the noise field. Each has one job, and none appears outsi
 | --- | --- | --- |
 | **Braille names** | Hero, OG cards, CLI | Rows of real Skill names in braille. Far from the rose dot they thin to sparse dots. Near it they resolve into letters. Each hop of the pick sends three rings outward, half a second apart. Every cell is a real character, so the same field prints in a terminal |
 | **Converge** | Dividers and loading | Scattered dots fall into one line and end on a rose dot. Many Skills in, one out. It reads as progress |
-| **File minimap** | Skill pages and per-Skill OG cards | Each Skill as its own `SKILL.md`: frontmatter, headings, lists and code drawn as rows of dots. The rose dot is the cursor on the last changed line |
+| **File minimap** | Skill pages | Each Skill as its own `SKILL.md`: frontmatter, headings, lists and code drawn as rows of dots. The rose dot is the cursor on the last changed line |
 
 Rules for every texture:
 
@@ -332,14 +332,14 @@ Rules for every texture:
 5. **One per region.** No other motion runs in the same viewport region as a moving texture.
 6. **Converge is the loader.** At small sizes the file minimap looks like a skeleton loader. Do not use it as one.
 
-**On OG cards.** An OG card is one still frame, drawn server side as SVG dots. The OG renderer has only Plus Jakarta Sans and IBM Plex Mono, and neither has braille glyphs, so a card never relies on a glyph or a canvas. The lockup's dot is the card's one rose element. Textures on a card draw stone only, or use the lockup's dot as their focal point. `app/utils/og-texture.ts` draws them.
+**On OG cards.** An OG card is the homepage hero as one still frame, drawn server side. The OG renderer has only Plus Jakarta Sans and IBM Plex Mono, and neither has braille glyphs, so the texture is SVG dots, never a glyph or a canvas. `OgLayout` draws the frame for every card: the lockup centred at the top, the content centred under it, and Braille names in the margins. The field resolves toward the lockup's dot, which is the card's one rose element. The title takes the hero H1's face, Plus Jakarta Sans 600 at −0.045em. A Skill name has no space to wrap at, so it shrinks to fit one line. Text that needs two lines breaks into two of even length, since the renderer's `text-wrap: balance` pushes the lines off centre. `app/utils/og-texture.ts` draws the dots, `app/utils/og-style.ts` holds the type, and `OgLines` draws the even lines.
 
-| Card | Texture |
+| Card | Content |
 | --- | --- |
-| Splash (`/`) | Braille names. The focal point is the lockup's dot, so the noise resolves into the wordmark |
-| Skill | File minimap down the right edge, faded in from the left. Each Skill seeds its own files from its owner, repository and name |
-| Make a skill | One `SKILL.md` drawn large from its frontmatter down |
-| Page, Collection, Curator | None |
+| Page | Title and description. `/` uses it with the hero H1 and caption |
+| Skill | Name, then owner, then the curator note or the curator count |
+| Collection | Name, description, curator, then the curator note or the first Skills |
+| Curator | Avatar, name, handle with counts, description, then the first Skills |
 
 ### Motifs
 
@@ -455,6 +455,7 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **One geometry feeds every placement**: `shared/brand-mark.ts` holds the coordinates and the outlined wordmark. `AppLogo`, the OG lockup and every file in `public/` come from it, and `pnpm brand:assets` writes the files. The old chevron lived in hand-written copies, and their rose shades and wordmark weights had drifted apart. Confirmed 2026-10-06.
 - **Three textures replace the noise field**: Braille names for the hero, OG cards and the CLI; Converge for dividers and loading; File minimap for Skill pages and per-Skill OG cards. One job each, so no texture becomes wallpaper. Confirmed 2026-10-06.
 - **The lockup dot is an OG card's one rose element**: the 4px rose top bar, the rose quote rails and the rose avatar ring went stone. On the Splash card, the braille field radiates from the lockup's dot, so the texture spends no second rose. Confirmed 2026-10-06.
+- **OG cards repeat the homepage hero**: every card centres the lockup, a Plus Jakarta Sans title and its detail, with Braille names in the margins. Harlan chose this over a left-aligned editorial card and a card that leads with the run command. It supersedes the per-card textures above: the Skill card's file minimap, the Make a skill card's large `SKILL.md`, and the separate Splash and Make a skill templates are gone. Confirmed 2026-10-06.
 - **The braille spark replaces the trending flame**: seven braille bars for seven days of mentions, today in rose. The emoji exception for Trending is retired. The spark keeps the sourced mention count beside it, which the flame never carried. Confirmed 2026-10-06.
 - **Run and install read as different materials**: run is a dashed border with a hollow dot, because nothing stays; install is a solid border with a filled dot, because files land. Run is preselected. Confirmed 2026-10-06.
 - **Trending shares the /skills shell**: `/skills/trending` uses the full-width layout from `/skills`. Its heading replaces `CompactPageHeader` and lines up with the results column. A sticky 14rem sidebar holds the range links, then the weekly CTA and the skilld install. Nothing sits right of the board, so the board takes every column the sidebar leaves. Rows switch on their own width, and the post carousel shows two cards where it has room. On narrow screens the ranges are a compact row above the board, and the CTA stays after the fifth row. Harlan asked for this on 2026-10-06. It supersedes the 2026-10-01 call that dropped the 9/3 sidebar for taking a quarter of the board's width: that sidebar sat right of a 64rem board, and this one sits left of a board that runs the full page width.

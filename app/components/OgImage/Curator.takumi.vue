@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ogCount, ogInitials, ogText, ogTextList } from '../../utils/og-props'
+import { OG_DIMMED, OG_MUTED, OG_RULE, OG_SURFACE, ogLineStyle, ogTitleSize, ogTitleStyle } from '../../utils/og-style'
 
 // Declared as the wire types the OG image URL can deliver, not as the types the
 // template wants. A login such as `24601` arrives as a number.
@@ -20,10 +21,14 @@ const safeAvatar = computed(() => ogText(props.avatar))
 const initials = computed(() => ogInitials(safeDisplayName.value || safeHandle.value))
 const safeSkills = computed(() => ogTextList(props.skills))
 
-const stats = computed(() => {
+// Without a display name, the handle is the title.
+const heading = computed(() => safeDisplayName.value || `@${safeHandle.value}`)
+const titleSize = computed(() => ogTitleSize(heading.value, { max: 72, min: 48 }))
+
+const meta = computed(() => {
   const collectionCount = ogCount(props.collectionCount)
   const skillCount = ogCount(props.skillCount)
-  const items: string[] = []
+  const items: string[] = safeDisplayName.value ? [`@${safeHandle.value}`] : []
   if (collectionCount > 0)
     items.push(`${collectionCount} collection${collectionCount !== 1 ? 's' : ''}`)
   if (skillCount > 0)
@@ -34,76 +39,36 @@ const stats = computed(() => {
 
 <template>
   <OgLayout>
-    <div class="px-15 py-14 flex flex-col justify-center gap-8 h-full">
-      <OgBrand :size="36" />
-
-      <div class="flex items-center gap-6">
-        <!-- Avatar with a stone ring: the lockup dot is the card's one rose element -->
-        <span
-          class="flex items-center justify-center rounded-full overflow-hidden shrink-0"
-          :style="{
-            width: '100px',
-            height: '100px',
-            border: '3px solid oklch(0.36 0.012 60)',
-            background: 'oklch(0.22 0.012 60)',
-          }"
-        >
-          <img
-            v-if="safeAvatar"
-            :src="safeAvatar"
-            :alt="safeHandle"
-            width="96"
-            height="96"
-            class="w-full h-full object-cover"
-          >
-          <span
-            v-else
-            class="font-medium"
-            :style="{ fontSize: '32px', color: 'oklch(0.62 0.01 60)' }"
-          >
-            {{ initials }}
-          </span>
-        </span>
-
-        <div class="flex flex-col gap-1">
-          <div
-            v-if="safeDisplayName"
-            class="text-5xl font-mono tracking-tight leading-none"
-          >
-            {{ safeDisplayName }}
-          </div>
-          <div
-            class="text-4xl font-mono tracking-tight leading-none"
-            :style="{ color: 'oklch(0.62 0.01 60)' }"
-          >
-            @{{ safeHandle }}
-          </div>
-        </div>
-      </div>
-
-      <div
-        v-if="safeDescription"
-        class="text-3xl"
-        :style="{ color: 'oklch(0.62 0.01 60)', opacity: 0.7, lineClamp: 2, textOverflow: 'ellipsis' }"
+    <!-- A stone ring: the lockup dot is the card's one rose element. -->
+    <span
+      class="flex items-center justify-center rounded-full overflow-hidden shrink-0 mb-6"
+      :style="{ width: '96px', height: '96px', border: `3px solid ${OG_RULE}`, background: OG_SURFACE }"
+    >
+      <img
+        v-if="safeAvatar"
+        :src="safeAvatar"
+        :alt="safeHandle"
+        width="90"
+        height="90"
+        class="w-full h-full object-cover"
       >
-        {{ safeDescription }}
-      </div>
+      <span v-else class="font-medium" :style="{ fontSize: '32px', color: OG_MUTED }">
+        {{ initials }}
+      </span>
+    </span>
 
-      <div
-        v-if="stats"
-        class="text-3xl"
-        :style="{ color: 'oklch(0.62 0.01 60)' }"
-      >
-        {{ stats }}
-      </div>
+    <div :style="{ ...ogTitleStyle(titleSize, 1), wordBreak: 'break-all' }">
+      {{ heading }}
+    </div>
 
-      <div
-        v-if="safeSkills.length"
-        class="font-mono text-2xl"
-        :style="{ color: 'oklch(0.62 0.01 60)', lineClamp: 1, textOverflow: 'ellipsis' }"
-      >
-        {{ safeSkills.slice(0, 3).join(' · ') }}
-      </div>
+    <div v-if="meta" class="mt-4" :style="ogLineStyle(28, 1)">
+      {{ meta }}
+    </div>
+
+    <OgLines v-if="safeDescription" class="mt-5" :text="safeDescription" :size="26" :color="OG_DIMMED" />
+
+    <div v-if="safeSkills.length" class="font-mono mt-5" :style="ogLineStyle(22, 1, OG_DIMMED)">
+      {{ safeSkills.slice(0, 3).join(' · ') }}
     </div>
   </OgLayout>
 </template>
