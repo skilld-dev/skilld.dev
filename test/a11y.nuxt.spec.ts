@@ -2,6 +2,7 @@ import type { AxeResults, RunOptions } from 'axe-core'
 import type { Component } from 'vue'
 import type { WeeklyDemoResponse } from '../../server/api/weekly/demo.get'
 import type { HomeDemoItem } from '../app/utils/home-demos'
+import type { RecentPullRequest } from '../shared/open-source-pull-requests'
 import type { TrendingBoardRow } from '../shared/trending-range'
 import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -830,11 +831,16 @@ describe('accessibility: components', () => {
     WHY_DEMO,
   ]
 
+  const WHY_PULLS: RecentPullRequest[] = [
+    { repository: 'skilld-dev/skilld.dev', number: 516, title: 'lead the Why band with human, previews, and independence', url: 'https://github.com/skilld-dev/skilld.dev/pull/516', mergedAt: 1_791_300_000, author: 'harlan-zw', avatarUrl: null },
+    { repository: 'skilld-dev/skilld', number: 216, title: 'install into the agents the skills CLI supports', url: 'https://github.com/skilld-dev/skilld/pull/216', mergedAt: 1_791_290_000, author: 'harlan-zw', avatarUrl: null },
+  ]
+
   it('homeWhy has no violations, shows three reasons with a picture each, and ends on the comparison', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('HomeWhy'),
-      { attachTo: container, props: { trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS } },
+      { attachTo: container, props: { trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS, pulls: WHY_PULLS } },
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
@@ -843,24 +849,24 @@ describe('accessibility: components', () => {
     expect(columns.map(column => column.querySelector('h3')?.textContent?.trim())).toEqual([
       'Human first',
       'Preview the output',
-      'Independent',
+      'Independent and open source',
     ])
     expect(columns.every(column => column.querySelector('.why-panel'))).toBe(true)
     // The people picture quotes the first post in the poster's words.
     expect(container.textContent).toContain('@ada')
-    // The homepage column drops the small print under each weight.
-    expect(container.textContent).not.toContain('log scale')
+    // The open source picture links each merged pull request.
+    expect(container.querySelector('a[href="https://github.com/skilld-dev/skilld/pull/216"]')).not.toBeNull()
     const links = [...container.querySelectorAll('a')].map(link => link.getAttribute('href'))
     expect(links.at(-1)).toBe('/vs/skills-sh')
     wrapper.unmount()
   })
 
   it('whyVisual draws every reason without violations, and no demo picture without a demo', async () => {
-    for (const id of ['human', 'previews', 'independent', 'run', 'behaviors', 'cost', 'telemetry'] as const) {
+    for (const id of ['human', 'previews', 'open', 'weights', 'run', 'behaviors', 'cost', 'telemetry'] as const) {
       const container = createIsolatedContainer()
       const wrapper = await mountSuspended(
         await loadComponent('why/_WhyVisual'),
-        { attachTo: container, props: { id, trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS } },
+        { attachTo: container, props: { id, trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS, pulls: WHY_PULLS } },
       )
       const results = await runAxe(container)
       expect(results.violations, `${id}\n${formatViolations(results)}`).toHaveLength(0)
@@ -985,7 +991,8 @@ describe('accessibility: component coverage', () => {
     'why/_WhyCostVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyHumanVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyPreviewsVisual', // A Why picture, scanned inside the WhyVisual tests
-    'why/_WhyIndependentVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyOpenVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyWeightsVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyTelemetryVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyText', // The words of each reason, scanned inside the HomeWhy test
     'why/_WhyTrustLine', // The line under the Why band, scanned inside the HomeWhy test

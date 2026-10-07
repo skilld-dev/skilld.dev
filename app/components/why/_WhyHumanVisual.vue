@@ -157,9 +157,11 @@ const quotes = computed(() => posts.value.slice(0, QUOTED).map(post => ({
 
 .why-human__skill {
   color: var(--ui-text);
-  text-decoration-line: underline;
-  text-decoration-color: var(--ui-border-accented);
-  text-underline-offset: 0.2em;
+  transition: color 200ms ease-out;
+}
+
+.why-human__skill:hover {
+  color: var(--ui-text-highlighted);
 }
 
 .why-human__source {

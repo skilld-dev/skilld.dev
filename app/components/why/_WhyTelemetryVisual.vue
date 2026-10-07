@@ -141,12 +141,9 @@ const REPOSITORY_URL = 'https://github.com/skilld-dev/skilld'
   min-height: 2rem;
   margin-top: 0.25rem;
   color: var(--ui-text);
-  text-decoration-line: underline;
-  text-decoration-color: var(--ui-border-accented);
-  text-underline-offset: 0.2em;
 }
 
 .why-telemetry__link:hover {
-  text-decoration-color: currentColor;
+  color: var(--ui-text-highlighted);
 }
 </style>

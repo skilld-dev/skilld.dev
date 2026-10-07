@@ -2,6 +2,7 @@
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
+import type { RecentPullRequestsResponse } from '#shared/open-source-pull-requests'
 import type { HomeDemoItem } from '../utils/home-demos'
 import { agentSetupPrompt } from '#shared/agent-setup'
 import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
@@ -107,6 +108,9 @@ if (import.meta.server) {
 
 // Lazy: the section sits under the hero, and its images load lazily anyway.
 const { data: demosData } = useLazyFetch<{ items: HomeDemoItem[] }>('/api/skill-demos', { key: 'home-skill-demos' })
+
+// Lazy too: the Why band sits below the fold, and the feed is cached for a day.
+const { data: pullsData } = useLazyFetch<RecentPullRequestsResponse>('/api/feed/recent-pull-requests', { key: 'home-recent-pull-requests' })
 
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
@@ -319,7 +323,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       </div>
     </section>
 
-    <HomeWhy :trending-row="whyTrendingRow" :demos="demosData?.items ?? []" />
+    <HomeWhy :trending-row="whyTrendingRow" :demos="demosData?.items ?? []" :pulls="pullsData?.items ?? []" />
 
     <HomeAgents />
 

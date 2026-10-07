@@ -105,12 +105,9 @@ const WEIGHTS: Weight[] = [
   margin-top: auto;
   padding-top: 0.5rem;
   color: var(--ui-text);
-  text-decoration-line: underline;
-  text-decoration-color: var(--ui-border-accented);
-  text-underline-offset: 0.2em;
 }
 
 .why-indie__code:hover {
-  text-decoration-color: currentColor;
+  color: var(--ui-text-highlighted);
 }
 </style>

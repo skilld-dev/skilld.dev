@@ -80,12 +80,6 @@ import { githubAvatarProxyUrl } from '#shared/image-proxy'
   min-height: 2.75rem;
 }
 
-.why-trust__claims a:not(.why-trust__maker) {
-  text-decoration-line: underline;
-  text-decoration-color: var(--ui-border-accented);
-  text-underline-offset: 0.2em;
-}
-
 .why-trust__claims a:hover {
   color: var(--ui-text);
 }

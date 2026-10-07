@@ -8,7 +8,7 @@
  * `skills use` in May 2026, which retired the old "install only" line.
  */
 
-export type WhyReasonId = 'human' | 'previews' | 'independent' | 'run' | 'behaviors' | 'cost' | 'telemetry'
+export type WhyReasonId = 'human' | 'previews' | 'open' | 'weights' | 'run' | 'behaviors' | 'cost' | 'telemetry'
 
 export interface WhyReason {
   id: WhyReasonId
@@ -60,15 +60,25 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
     link: { label: 'All demos', to: '/skills/demos' },
     sources: ['https://skills.sh'],
   },
-  independent: {
-    id: 'independent',
+  open: {
+    id: 'open',
+    icon: 'i-lucide-git-pull-request',
+    title: 'Independent and open source',
+    summary: 'The CLI and this site are open source, and no listing is for sale.',
+    line: 'Harlan Wilton builds skilld in the open. The CLI and this site are both MIT on GitHub, and every change lands as a public pull request. No listing is for sale.',
+    skillsSh: 'Vercel operates it. Its CLI is open source under MIT.',
+    link: { label: 'skilld on GitHub', to: 'https://github.com/skilld-dev', external: true },
+    sources: ['https://skills.sh/about', 'https://github.com/vercel-labs/skills'],
+  },
+  weights: {
+    id: 'weights',
     icon: 'i-lucide-scale',
-    title: 'Independent',
-    summary: 'No paid placement, and the trending weights are open.',
-    line: 'Harlan Wilton builds skilld, and no listing is for sale. The trending weights are open, so you can read the code that ranks every board.',
-    skillsSh: 'Vercel operates it. Its leaderboard ranks by installs that its own CLI reports.',
+    title: 'Open trending weights',
+    summary: 'Read the code that ranks every trending board.',
+    line: 'Trending ranks Skills by the devs who post about them, with weights anyone can read. Install counts weigh nothing.',
+    skillsSh: 'Its leaderboard ranks by installs that its own CLI reports.',
     link: { label: 'Read the ranking code', to: TRENDING_SCORE_SOURCE_URL, external: true },
-    sources: ['https://skills.sh/about', 'https://skills.sh/docs/faq'],
+    sources: ['https://skills.sh/docs/faq'],
   },
   run: {
     id: 'run',
@@ -104,8 +114,8 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
     id: 'telemetry',
     icon: 'i-lucide-eye-off',
     title: 'No telemetry',
-    summary: 'The CLI is open source and sends no telemetry.',
-    line: 'The skilld CLI is open source under MIT. It sends no telemetry or analytics.',
+    summary: 'The CLI sends no telemetry or analytics.',
+    line: 'The skilld CLI sends no telemetry or analytics. Its README says so, and the source shows it.',
     skillsSh: 'The skills CLI is MIT too. Its telemetry is on by default and sends Skill names and search queries. `DISABLE_TELEMETRY=1` turns it off.',
     link: { label: 'Read the source', to: 'https://github.com/skilld-dev/skilld', external: true },
     sources: ['https://github.com/vercel-labs/skills/blob/main/src/telemetry.ts', 'https://skills.sh/docs/cli'],
@@ -114,12 +124,12 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
 
 /**
  * The homepage leads with the three reasons Harlan chose on 2026-10-07: the
- * people behind Skills, output you can compare, and a ranking nobody owns.
+ * people behind Skills, output you can compare, and code anyone can read.
  */
-export const HOME_WHY_REASONS: readonly WhyReasonId[] = ['human', 'previews', 'independent']
+export const HOME_WHY_REASONS: readonly WhyReasonId[] = ['human', 'previews', 'open']
 
 /** `/vs/skills-sh` shows every reason, the homepage three first. */
-export const VS_WHY_REASONS: readonly WhyReasonId[] = ['human', 'previews', 'independent', 'run', 'behaviors', 'cost', 'telemetry']
+export const VS_WHY_REASONS: readonly WhyReasonId[] = ['human', 'previews', 'open', 'weights', 'run', 'behaviors', 'cost', 'telemetry']
 
 /** Where skills.sh is ahead. A comparison that admits none reads as an ad. */
 export interface SkillsShLead {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
+import type { RecentPullRequestsResponse } from '#shared/open-source-pull-requests'
 import type { HomeDemoItem } from '~/utils/home-demos'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { feedBoardRows } from '#shared/trending-range'
@@ -26,9 +27,10 @@ useSeoMeta({
 useHead({ link: [{ rel: 'canonical', href: canonicalUrl }] })
 defineOgImage('Page.takumi', { title: 'skilld vs skills.sh', description }, { alt: 'skilld vs skills.sh' })
 
-// Two pictures draw live data: the head of the trending board and the demos.
+// Three pictures draw live data: the head of the trending board, the demos,
+// and the recently merged pull requests.
 // Both endpoints are cached at the edge, and each picture draws without them.
-const [{ data: trendingRow }, { data: demos }] = await Promise.all([
+const [{ data: trendingRow }, { data: demos }, { data: pulls }] = await Promise.all([
   useFetch('/api/feed/trending', {
     key: 'vs-skills-sh-trending',
     query: { limit: 6 },
@@ -37,6 +39,10 @@ const [{ data: trendingRow }, { data: demos }] = await Promise.all([
   useFetch('/api/skill-demos', {
     key: 'vs-skills-sh-demos',
     transform: (response: { items: HomeDemoItem[] }) => response.items,
+  }),
+  useFetch('/api/feed/recent-pull-requests', {
+    key: 'vs-skills-sh-pulls',
+    transform: (response: RecentPullRequestsResponse) => response.items,
   }),
 ])
 
@@ -143,7 +149,7 @@ function sourceLabel(url: string): string {
           </template>
         </div>
         <div class="vs-row__visual">
-          <WhyVisual :id="reason.id" :trending-row="trendingRow" :demos="demos ?? []" />
+          <WhyVisual :id="reason.id" :trending-row="trendingRow" :demos="demos ?? []" :pulls="pulls ?? []" />
         </div>
       </section>
 
@@ -365,13 +371,10 @@ function sourceLabel(url: string): string {
   margin-top: 0.5rem;
   font-size: 0.875rem;
   color: var(--ui-text);
-  text-decoration-line: underline;
-  text-decoration-color: var(--ui-border-accented);
-  text-underline-offset: 0.25em;
 }
 
 .vs-row__link:hover {
-  text-decoration-color: currentColor;
+  color: var(--ui-text-highlighted);
 }
 
 .vs-block {

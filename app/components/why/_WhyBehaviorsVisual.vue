@@ -85,9 +85,6 @@ const MORE_HELD = 2
   flex: none;
   margin-left: auto;
   color: var(--ui-text-dimmed);
-  text-decoration-line: underline;
-  text-decoration-color: var(--ui-border-accented);
-  text-underline-offset: 0.2em;
 }
 
 .why-behaviors__more {

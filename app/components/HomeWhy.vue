@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RecentPullRequest } from '#shared/open-source-pull-requests'
 import type { TrendingBoardRow } from '#shared/trending-range'
 import type { HomeDemoItem } from '~/utils/home-demos'
 import { HOME_WHY_REASONS, WHY_REASONS } from '~/utils/why-skilld'
@@ -13,11 +14,13 @@ import WhyVisual from './why/_WhyVisual.vue'
  * From 1024px the columns share one subgrid, so the titles, lines and pictures
  * each sit on one row, and every column ends at the same height.
  */
-const { trendingRow, demos } = defineProps<{
+const { trendingRow, demos, pulls } = defineProps<{
   /** The first trending row ranked by posts, for the people picture. */
   trendingRow: TrendingBoardRow | null
   /** The approved demos, for the previews picture. */
   demos: readonly HomeDemoItem[]
+  /** Recently merged pull requests, for the open source picture. */
+  pulls: readonly RecentPullRequest[]
 }>()
 
 const reasons = HOME_WHY_REASONS.map(id => WHY_REASONS[id])
@@ -47,7 +50,7 @@ const reasons = HOME_WHY_REASONS.map(id => WHY_REASONS[id])
           <p class="home-why__line">
             {{ reason.summary }}
           </p>
-          <WhyVisual :id="reason.id" :trending-row="trendingRow" :demos compact class="home-why__visual" />
+          <WhyVisual :id="reason.id" :trending-row="trendingRow" :demos :pulls compact class="home-why__visual" />
         </li>
       </ul>
 
