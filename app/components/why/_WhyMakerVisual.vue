@@ -33,7 +33,7 @@ const NEVER = ['Sponsored listings', 'Paid placement', 'Paywalls']
       </span>
     </a>
     <p class="why-maker__heading">
-      Never on skilld
+      Never on skilld:
     </p>
     <ul class="why-maker__never">
       <li v-for="item in NEVER" :key="item">
@@ -94,9 +94,7 @@ const NEVER = ['Sponsored listings', 'Paid placement', 'Paywalls']
   margin-bottom: 0.375rem;
   padding-top: 0.75rem;
   border-top: 1px dashed var(--ui-border);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  /* Normal case, so the name keeps its lowercase (COPY.md). */
   color: var(--ui-text-muted);
 }
 

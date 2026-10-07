@@ -8,14 +8,17 @@
  * `skills use` in May 2026, which retired the old "install only" line.
  */
 
-export type WhyReasonId = 'run' | 'files' | 'devs' | 'author' | 'demos' | 'telemetry' | 'independent'
+export type WhyReasonId = 'run' | 'behaviors' | 'cost' | 'devs' | 'author' | 'demos' | 'telemetry' | 'independent'
 
 export interface WhyReason {
   id: WhyReasonId
   title: string
   /** What skilld does. */
   line: string
-  /** What skills.sh does, as its own pages and source say. */
+  /**
+   * What skills.sh does, as its own pages and source say. Every surface
+   * prints it after a "skills.sh" label, so it never names skills.sh again.
+   */
   skillsSh: string
   link: { label: string, to: string, external?: boolean } | null
   /** Where the skills.sh line comes from. */
@@ -24,28 +27,41 @@ export interface WhyReason {
 
 export const SKILLS_SH_CHECKED_ON = '7 Oct 2026'
 
+/**
+ * Each title names what a dev gets, and each line says how. The behaviors line
+ * holds only what the released CLI does: a remote `skilld run` stops before a
+ * behavior that needs approval and changes nothing until the user allows it.
+ */
 export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   run: {
     id: 'run',
-    title: 'Run a Skill once off',
-    line: 'Your agent reads the Skill for one session. skilld writes no file, no lockfile entry, and no cache. Install only the Skills you keep.',
+    title: 'No more skill bloat',
+    line: 'Run a Skill once off. Your agent reads it for one session, and skilld writes no file, no lockfile entry, and no cache.',
     skillsSh: '`skills add` installs the files into your project. `skills use` writes them to a temporary directory.',
     link: { label: 'How run works', to: '/cli#run' },
     sources: ['https://github.com/vercel-labs/skills#readme'],
   },
-  files: {
-    id: 'files',
-    title: 'Read every file first',
-    line: 'A Skill page lists every file with its token cost. Skill behaviors show what the files ask your agent to do, with links to the lines.',
-    skillsSh: 'A skills.sh page shows the SKILL.md. The full file tree needs its API and a Vercel token.',
+  behaviors: {
+    id: 'behaviors',
+    title: 'Know what it runs',
+    line: 'Skill behaviors flag shell commands, scripts, and network calls, with a link to each line. `skilld run` waits for your approval before remote code or credential reads.',
+    skillsSh: 'Shows audit verdicts from Gen Agent Trust Hub, Socket, and Snyk.',
+    link: { label: 'Open the pdf Skill', to: '/gh/anthropics/skills/pdf' },
+    sources: ['https://skills.sh/audits'],
+  },
+  cost: {
+    id: 'cost',
+    title: 'Know what it costs',
+    line: 'Every file shows its token cost, so you see what reaches your agent\'s context before it loads.',
+    skillsSh: 'Shows the SKILL.md with no token cost. The full file tree needs its API and a Vercel token.',
     link: { label: 'Open the pdf Skill', to: '/gh/anthropics/skills/pdf' },
     sources: ['https://skills.sh/docs/api'],
   },
   devs: {
     id: 'devs',
-    title: 'Ranked by devs, never installs',
-    line: 'Trending counts the separate devs who posted about a Skill on X and Bluesky. Every post is one click away.',
-    skillsSh: 'skills.sh ranks by install counts from the telemetry in its CLI.',
+    title: 'Rankings you can check',
+    line: 'Trending ranks Skills by the separate devs who posted about them, and links every post. Install counts never rank.',
+    skillsSh: 'Ranks by install counts from the telemetry in its CLI.',
     link: { label: 'Trending skills', to: '/skills/trending' },
     sources: ['https://skills.sh/docs/faq'],
   },
@@ -53,7 +69,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
     id: 'author',
     title: 'See who wrote it',
     line: 'Every Skill names the person who wrote it and links the exact SKILL.md in their repository.',
-    skillsSh: 'skills.sh shows the owner and the repository, with a badge for verified organizations.',
+    skillsSh: 'Shows the owner and the repository, with a badge for verified organizations.',
     link: null,
     sources: ['https://skills.sh'],
   },
@@ -61,7 +77,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
     id: 'demos',
     title: 'Preview what a Skill makes',
     line: 'A demo is one recorded run: the prompt, and what the agent built with the Skill.',
-    skillsSh: 'skills.sh pages show the SKILL.md and install counts. They show no output from a run.',
+    skillsSh: 'Shows the SKILL.md and install counts, with no output from a run.',
     link: { label: 'All demos', to: '/skills/demos' },
     sources: ['https://skills.sh'],
   },
@@ -77,17 +93,22 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
     id: 'independent',
     title: 'Independent',
     line: 'Harlan Wilton builds skilld. It has no sponsored listings, no paid placement, and no paywalls.',
-    skillsSh: 'Vercel operates skills.sh.',
+    skillsSh: 'Vercel operates it.',
     link: { label: 'Harlan on GitHub', to: 'https://github.com/harlan-zw', external: true },
     sources: ['https://skills.sh/about'],
   },
 }
 
-/** The homepage shows four in full. The trust line under them carries the rest. */
-export const HOME_WHY_REASONS: readonly WhyReasonId[] = ['run', 'files', 'devs', 'author']
+/**
+ * The homepage picks what no other band on it shows. Demos and the trending
+ * board sit above it, and every card already names its author, so those
+ * reasons stay on `/vs/skills-sh`. Trending stays because its point here is
+ * the rule behind the board, which the board itself does not argue.
+ */
+export const HOME_WHY_REASONS: readonly WhyReasonId[] = ['run', 'behaviors', 'cost', 'devs']
 
 /** `/vs/skills-sh` shows every reason, in this order. */
-export const VS_WHY_REASONS: readonly WhyReasonId[] = ['run', 'files', 'devs', 'author', 'demos', 'telemetry', 'independent']
+export const VS_WHY_REASONS: readonly WhyReasonId[] = ['run', 'behaviors', 'cost', 'devs', 'author', 'demos', 'telemetry', 'independent']
 
 /** Where skills.sh is ahead. A comparison that admits none reads as an ad. */
 export interface SkillsShLead {
@@ -125,14 +146,14 @@ export interface ComparisonRow {
 export function comparisonRows(agentTargetCount: number): ComparisonRow[] {
   return [
     { label: 'Use without installing', skillsSh: '`skills use` writes the files to a temporary directory', skilld: '`skilld run` writes nothing' },
-    { label: 'Files on the Skill page', skillsSh: 'SKILL.md', skilld: 'Every file, with token cost and Skill behaviors' },
+    { label: 'Files on the Skill page', skillsSh: 'SKILL.md', skilld: 'Every file, with its token cost' },
+    { label: 'Before a run', skillsSh: 'Partner audit verdicts', skilld: 'Skill behaviors; run waits for approval on remote code or credential reads' },
     { label: 'What ranks a Skill', skillsSh: 'Install counts from CLI telemetry', skilld: 'Devs who posted about it, then GitHub stars' },
     { label: 'Who wrote it', skillsSh: 'Owner and repository', skilld: 'Name, avatar, and the exact SKILL.md' },
     { label: 'Output before you run', skillsSh: 'None', skilld: 'Recorded demos' },
     { label: 'CLI telemetry', skillsSh: 'On by default, opt out', skilld: 'None' },
     { label: 'CLI licence', skillsSh: 'MIT', skilld: 'MIT' },
     { label: 'Agents', skillsSh: '79', skilld: `${agentTargetCount}, plus MCP apps` },
-    { label: 'Security reports', skillsSh: 'Partner audits', skilld: 'Skill behaviors, linked to the lines' },
     { label: 'Staying current', skillsSh: '`skills update`', skilld: 'Watch for changes, monthly digest' },
     { label: 'Run by', skillsSh: 'Vercel', skilld: 'Harlan Wilton, independent' },
   ]

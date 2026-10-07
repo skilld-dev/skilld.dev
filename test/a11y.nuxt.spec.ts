@@ -824,7 +824,7 @@ describe('accessibility: components', () => {
     video: null,
   }
 
-  it('homeWhy has no violations, shows four reasons, and ends on the comparison', async () => {
+  it('homeWhy has no violations, picks a reason by tab, and ends on the comparison', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('HomeWhy'),
@@ -832,22 +832,38 @@ describe('accessibility: components', () => {
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
-    expect([...container.querySelectorAll('h3')].map(heading => heading.textContent?.trim())).toEqual([
-      'Run a Skill once off',
-      'Read every file first',
-      'Ranked by devs, never installs',
-      'See who wrote it',
+
+    const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    expect(tabs.map(tab => tab.querySelector('.home-why__title')?.textContent?.trim())).toEqual([
+      'No more skill bloat',
+      'Know what it runs',
+      'Know what it costs',
+      'Rankings you can check',
     ])
+    const shown = () => [...container.querySelectorAll('[role="tabpanel"]')]
+      .filter(panel => panel.hasAttribute('data-active'))
+      .map(panel => panel.id)
+    expect(shown()).toEqual(['why-panel-run'])
+
+    tabs[3]!.click()
+    await nextTick()
+    expect(shown()).toEqual(['why-panel-devs'])
+    expect(tabs[3]!.getAttribute('aria-selected')).toBe('true')
+
+    // Arrow keys wrap from the last tab to the first.
+    tabs[3]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    await nextTick()
+    expect(shown()).toEqual(['why-panel-run'])
+
     // The ranking picture quotes the first post in the poster's words.
     expect(container.textContent).toContain('@ada')
-    expect(container.querySelector('a[href="/gh/acme/brag"]')).not.toBeNull()
     const links = [...container.querySelectorAll('a')].map(link => link.getAttribute('href'))
     expect(links.at(-1)).toBe('/vs/skills-sh')
     wrapper.unmount()
   })
 
   it('whyVisual draws every reason without violations, and no demo picture without a demo', async () => {
-    for (const id of ['run', 'files', 'devs', 'author', 'demos', 'telemetry', 'independent'] as const) {
+    for (const id of ['run', 'behaviors', 'cost', 'devs', 'author', 'demos', 'telemetry', 'independent'] as const) {
       const container = createIsolatedContainer()
       const wrapper = await mountSuspended(
         await loadComponent('why/_WhyVisual'),
@@ -971,7 +987,8 @@ describe('accessibility: component coverage', () => {
     'home-demos/_DemoVideo', // A part of HomeDemos; its play rules need a real browser, checked by hand
     'why/_WhyPanel', // The frame of every Why picture, scanned inside the WhyVisual tests
     'why/_WhyRunVisual', // A Why picture, scanned inside the WhyVisual tests
-    'why/_WhyFilesVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyBehaviorsVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyCostVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyDevsVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyAuthorVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyDemoVisual', // A Why picture, scanned inside the WhyVisual tests
