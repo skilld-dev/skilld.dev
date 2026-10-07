@@ -14,6 +14,7 @@ import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { headlineTrendingAward, trendingAwardBadgeLabel, trendingAwardLabel, trendingAwardPath } from '#shared/trending-award'
 import { behaviorIcon } from '../utils/skill-behaviors'
+import { resolveSkillContextChecks } from '../utils/skill-context-checks'
 import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
 import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
@@ -538,6 +539,11 @@ const contextCost = computed(() => data.value
       files: treeAssets.value,
     })
   : null)
+
+const contextChecks = computed(() => resolveSkillContextChecks({
+  raw: data.value?.raw ?? null,
+  frontmatter: data.value?.frontmatter ?? null,
+}))
 
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 const auditOverview = computed(() => resolveSkillAuditOverview(audits.value))
@@ -2164,7 +2170,7 @@ useHead(computed(() => ({
                   aria-hidden="true"
                 />
                 <span v-if="viewerContext._tag === 'skill'">
-                  <strong>{{ formatTokenCount(viewerContext.cost.tokens.metadata) }}</strong> tokens always: the name and description.
+                  <strong>{{ formatTokenCount(viewerContext.cost.tokens.metadata) }}</strong> tokens for metadata: the name and description.
                   <strong>{{ formatTokenCount(viewerContext.cost.tokens.instructions) }}</strong> when used: this file.
                   <template v-if="viewerContext.cost.resourceFileCount">
                     <strong>{{ formatTokenCount(viewerContext.cost.tokens.resources) }}</strong> more on demand in {{ viewerContext.cost.resourceFileCount }} {{ viewerContext.cost.resourceFileCount === 1 ? 'file' : 'files' }}.
@@ -2180,6 +2186,10 @@ useHead(computed(() => ({
                   Your agent does not load this file into context unless it opens it.
                 </span>
               </p>
+              <SkillContextChecks
+                v-if="viewerContext?._tag === 'skill' && data?.raw"
+                :result="contextChecks"
+              />
               <section
                 v-show="contentView === 'preview'"
                 class="skill-mdxg p-4 sm:p-6 relative"
