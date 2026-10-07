@@ -9,8 +9,8 @@ import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 // TTL expires re-runs the full handler, about six D1 queries plus a possible
 // live GitHub render, and the ops triage ledger attributes recurring D1
 // overload bursts (SKILLD-G/H/J/K/M/N/P/Q) to exactly this shape on these
-// routes. These tests pin the replacement behaviour: one computation per key
-// at a time, with stale entries served while a single refresh recomputes.
+// routes. These tests pin the replacement behaviour: stale entries served
+// while a single refresh recomputes.
 describe('skill detail SWR cache', () => {
   const NOW_SEC = Math.floor(Date.now() / 1000)
   const slug = 'ericzakariasson/scandinavian-design/alpha'
@@ -44,28 +44,6 @@ describe('skill detail SWR cache', () => {
          'skills/alpha/SKILL.md', 'ok', ?, '<p>ok</p>', ?)`,
     ).run(slug, raw, NOW_SEC)
     handler = (await import('../../layers/registry/server/api/skills/[...slug].get')).default
-  })
-
-  it('shares one computation between concurrent requests when the entry has expired', async () => {
-    // The 60s TTL has passed: KV answers nothing, every request is a miss.
-    const setItem = vi.fn(async () => {})
-    vi.stubGlobal('useStorage', () => ({
-      getItem: async () => null,
-      setItem,
-    }))
-    const detailWrites = () => setItem.mock.calls.filter(([key]) => String(key).startsWith('skills:detail:')).length
-
-    await handler(event())
-    const singleRunQueries = prepareCalls
-
-    const writesBeforeBurst = detailWrites()
-    const beforeBurst = prepareCalls
-    const results = await Promise.all(Array.from({ length: 8 }, () => handler(event())))
-    const burstQueries = prepareCalls - beforeBurst
-
-    expect(new Set(results).size).toBe(1)
-    expect(burstQueries).toBeLessThanOrEqual(singleRunQueries)
-    expect(detailWrites() - writesBeforeBurst).toBe(1)
   })
 
   it('serves a stale entry while exactly one refresh recomputes in the background', async () => {

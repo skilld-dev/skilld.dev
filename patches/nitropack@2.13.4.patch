@@ -1,0 +1,37 @@
+diff --git a/dist/runtime/internal/cache.mjs b/dist/runtime/internal/cache.mjs
+index ecbf53cfa514c2fbd3f7dc88f0de97990f7deb12..786ca2dfeaea7cb62d78d00ac0d9c6f00935a6f5 100644
+--- a/dist/runtime/internal/cache.mjs
++++ b/dist/runtime/internal/cache.mjs
+@@ -20,12 +20,31 @@ function defaultCacheOptions() {
+ }
+ export function defineCachedFunction(fn, opts = {}) {
+   opts = { ...defaultCacheOptions(), ...opts };
+-  const pending = {};
++  // PATCH: keep each resolve in flight with the request that started it.
++  // workerd ties I/O to the request that started it. When that request ends
++  // first, its resolve never settles. A `pending` map shared by every request
++  // made each later request on that key await the dead resolve forever.
++  // Requests now share only finished entries, through storage. Reads inside
++  // one request still share one resolve. A call without an H3 event resolves
++  // alone. See cloudflare/workers-sdk#12731 and opennextjs/opennextjs-aws#1218.
++  const pendingByEvent = /* @__PURE__ */ new WeakMap();
++  function pendingFor(event) {
++    if (!event) {
++      return {};
++    }
++    let pending = pendingByEvent.get(event);
++    if (!pending) {
++      pending = {};
++      pendingByEvent.set(event, pending);
++    }
++    return pending;
++  }
+   const group = opts.group || "nitro/functions";
+   const name = opts.name || fn.name || "_";
+   const integrity = opts.integrity || hash([fn, opts]);
+   const validate = opts.validate || ((entry) => entry.value !== void 0);
+   async function get(key, resolver, shouldInvalidateCache, event) {
++    const pending = pendingFor(event);
+     const cacheKey = [opts.base, group, name, key + ".json"].filter(Boolean).join(":").replace(/:\/$/, ":index");
+     let entry = await useStorage().getItem(cacheKey).catch((error) => {
+       console.error(`[cache] Cache read error.`, error);

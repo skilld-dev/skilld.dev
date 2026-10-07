@@ -88,26 +88,6 @@ describe('readThroughCache', () => {
     expect(setItem).not.toHaveBeenCalled()
   })
 
-  it('shares one computation between concurrent callers on one expired key', async () => {
-    // Each TTL expiry boundary is a thundering-herd candidate: N concurrent
-    // requests on one expired key must await one compute and one KV write,
-    // the same guarantee cached() already gives.
-    const stale = { commits: ['old'] }
-    const fresh = { commits: ['fresh'] }
-    const { storage, setItem } = fakeStorage({ storedAt: Date.now() - (HOUR + 60) * 1000, value: stale })
-    const compute = vi.fn(async () => {
-      await new Promise(resolve => setTimeout(resolve, 20))
-      return fresh
-    })
-
-    const results = await Promise.all(Array.from({ length: 8 }, () =>
-      readThroughCache(storage, 'skills:related:v3:acme/skills/deploy', compute, { ttl: HOUR, staleTtl: HOUR })))
-
-    expect(compute).toHaveBeenCalledOnce()
-    expect(setItem).toHaveBeenCalledOnce()
-    expect(results.every(result => result === fresh)).toBe(true)
-  })
-
   it('stops serving a value once it passes the stale window', async () => {
     const { storage, setItem } = fakeStorage({ storedAt: Date.now() - (HOUR * 2 + 60) * 1000, value: { commits: ['ancient'] } })
     const compute = vi.fn(async () => {
