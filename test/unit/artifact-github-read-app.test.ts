@@ -124,6 +124,59 @@ describe('the GitHub credential public Artifact builds read with', () => {
     expect(text).not.toContain('PRIVATE KEY')
     expect(reports).toHaveLength(1)
   })
+
+  it('repeats a read the Repository denied the read App with the fallback token, and reports it', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, answersApp: appDenied })
+    const reports: ArtifactGithubCredentialReport[] = []
+    const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
+
+    const result = await source.resolve(request)
+
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1', 'Bearer runs'])
+    // The fallback read reached GitHub, which has no such Repository.
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_NOT_FOUND' })
+    expect(reports).toEqual([{ outcome: 'app-denied', reason: 'GitHub denied the read App for skilld-dev/skills', fallback: 'ARTIFACT_GITHUB_TOKEN' }])
+  })
+
+  // GITHUB_TOKEN is a personal token the registry sync also spends. A limit on
+  // the App is no denial, so it never reaches that token.
+  it.each([
+    ['a secondary limit named only in its message', () => Response.json(
+      { message: 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.' },
+      { status: 403, headers: { 'x-ratelimit-remaining': '4321' } },
+    )],
+    ['a secondary limit with Retry-After', () => Response.json(
+      { message: 'You have exceeded a secondary rate limit.' },
+      { status: 403, headers: { 'retry-after': '60', 'x-ratelimit-remaining': '4321' } },
+    )],
+    ['a spent quota', () => Response.json(
+      { message: `API rate limit exceeded for installation ID ${INSTALLATION_ID}.` },
+      { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(NOW + 600) } },
+    )],
+  ])('never reads with the fallback token after %s on the read App', async (_, answer) => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, answersApp: answer })
+    const reports: ArtifactGithubCredentialReport[] = []
+    const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
+
+    const result = await source.resolve(request)
+
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1'])
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED' })
+    expect(reports).toEqual([])
+  })
+
+  it('keeps the denial when no token follows the read App', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, answersApp: appDenied })
+    const env = { ...appEnv(keys.pem), ARTIFACT_GITHUB_TOKEN: '', GITHUB_TOKEN: '' }
+
+    const result = await createArtifactGithubSource(env, runtime(github)).resolve(request)
+
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1'])
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_ACCESS_DENIED' })
+  })
 })
 
 interface FakeGithub {
@@ -132,7 +185,14 @@ interface FakeGithub {
   readAuthorizations: Array<string | null>
 }
 
-function fakeGithub(options: { expiresAt: number, mintStatus?: number }): FakeGithub {
+// Some organizations answer the read App 403 on a public Repository that a
+// personal token reads: neondatabase/agent-skills on 2026-10-06.
+function appDenied(): Response {
+  return Response.json({ message: 'Resource not accessible by integration' }, { status: 403, headers: { 'x-ratelimit-remaining': '4321' } })
+}
+
+/** Answers every read 404, and every read with an installation token `answersApp` when set. */
+function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersApp?: () => Response }): FakeGithub {
   const mints: FakeGithub['mints'] = []
   const readAuthorizations: FakeGithub['readAuthorizations'] = []
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -144,7 +204,10 @@ function fakeGithub(options: { expiresAt: number, mintStatus?: number }): FakeGi
         return new Response('{}', { status: options.mintStatus })
       return Response.json({ token: `ghs_installation_${mints.length}`, expires_at: new Date(options.expiresAt * 1000).toISOString() }, { status: 201 })
     }
-    readAuthorizations.push(headers.get('authorization'))
+    const authorization = headers.get('authorization')
+    readAuthorizations.push(authorization)
+    if (options.answersApp && authorization?.startsWith('Bearer ghs_'))
+      return options.answersApp()
     return Response.json({ message: 'Not Found' }, { status: 404 })
   }
   return { fetch: fetcher as typeof fetch, mints, readAuthorizations }

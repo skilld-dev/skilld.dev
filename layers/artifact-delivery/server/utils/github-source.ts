@@ -332,7 +332,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       // It used to throw, which wrote nothing: the Resolution sat in its
       // current state through the delivery retry ladder and then failed as
       // SERVICE_UNAVAILABLE with no reason on it.
-      const limited = githubRateLimit(response, now())
+      const message = response.status === 403 ? await githubErrorMessage(response) : null
+      const limited = githubRateLimit(response, now(), message)
       if (limited)
         return { _tag: 'settled', value: limited }
       if (response.status === 401 || response.status === 403)
@@ -1392,15 +1393,26 @@ interface GithubRateLimit {
   resetAt: number | null
 }
 
+/** The words GitHub uses for a primary limit, a secondary limit, and the older abuse limit. */
+const RATE_LIMIT_MESSAGE = /\brate limit\b|\babuse detection\b/i
+const MAX_GITHUB_ERROR_BYTES = 64 * 1024
+const githubErrorSchema = z.object({ message: z.string() })
+
 /**
  * GitHub's rate limit answer, or null for any other response.
  *
  * GitHub answers a spent primary quota with 403 or 429 and no remaining
- * requests, and a secondary limit with 403 or 429 and Retry-After. A 429 is
- * always a limit. A 403 with neither header denies access.
+ * requests, and a secondary limit with 403 or 429 and a message that names
+ * it. Retry-After can be missing from a secondary limit's first answers, so
+ * the message alone decides those. A 429 is always a limit. A 403 that names
+ * no limit denies access.
  * https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
  */
-export function githubRateLimit(response: Pick<Response, 'status' | 'headers'>, now: number): GithubRateLimit | null {
+export function githubRateLimit(
+  response: Pick<Response, 'status' | 'headers'>,
+  now: number,
+  message: string | null,
+): GithubRateLimit | null {
   if (response.status !== 403 && response.status !== 429)
     return null
   const retryAfter = epochHeader(response.headers, 'retry-after')
@@ -1408,7 +1420,21 @@ export function githubRateLimit(response: Pick<Response, 'status' | 'headers'>, 
     return { _tag: 'rate-limited', resetAt: now + retryAfter }
   if (response.headers.get('x-ratelimit-remaining') === '0')
     return { _tag: 'rate-limited', resetAt: epochHeader(response.headers, 'x-ratelimit-reset') }
-  return response.status === 429 ? { _tag: 'rate-limited', resetAt: null } : null
+  return response.status === 429 || (message !== null && RATE_LIMIT_MESSAGE.test(message))
+    ? { _tag: 'rate-limited', resetAt: null }
+    : null
+}
+
+/** The `message` of a GitHub error body, or null when the body holds none. */
+async function githubErrorMessage(response: Response): Promise<string | null> {
+  const body = await readBoundedJson(response, MAX_GITHUB_ERROR_BYTES).catch(() => {
+    // A body that does not read or parse names no limit, so the status alone decides.
+    return null
+  })
+  if (body?._tag !== 'json')
+    return null
+  const parsed = githubErrorSchema.safeParse(body.value)
+  return parsed.success ? parsed.data.message : null
 }
 
 function rateLimitRejection(resetAt: number | null): SourceRejection {
