@@ -1,6 +1,7 @@
 import type { H3EventContext } from 'h3'
 import type { SourceRequest } from '../schemas/contracts'
 import type { FetchAdmittedSkillIdentity } from './admitted-identity'
+import type { ArtifactBuildOutcome } from './build'
 import type { CreateResolutionResult } from './state'
 import { admittedSourceRequest } from './admitted-identity'
 import { recordResolutionRequester } from './requester-github'
@@ -78,30 +79,63 @@ export async function requestResolution(
   return result
 }
 
-export interface AfterResponseEnqueueDependencies {
+/**
+ * When the queue takes over a build that ran in its request. A Worker keeps a
+ * request alive 30 s after its response, so a build the runtime stopped
+ * resumes on the queue a few seconds later.
+ */
+export const IN_REQUEST_BUILD_FALLBACK_SECONDS = 35
+
+export interface AfterResponseBuildDependencies {
   /** Keep work alive after the response, such as the Worker's `waitUntil`. */
   schedule: (work: Promise<unknown>) => void
-  enqueue: (resolutionId: string) => Promise<void>
-  /** Settle a Resolution whose build never reached the queue. */
+  /** Run the build here, as the queue consumer would. */
+  build: (resolutionId: string) => Promise<ArtifactBuildOutcome>
+  enqueue: (resolutionId: string, delaySeconds?: number) => Promise<void>
+  /** Settle a Resolution that neither this request nor the queue can build. */
   failUnqueued: (resolutionId: string, error: unknown) => Promise<void>
+  reportBuildError: (resolutionId: string, error: unknown) => void
 }
 
 /**
- * An `enqueue` that sends the build message after the response.
+ * An `enqueue` that builds the Resolution in its own request, after the
+ * response, with the queue as the fallback.
  *
- * The queue send took 446 to 500 ms of a 590 to 650 ms request in three
- * production traces from Sydney and Bangkok on 2026-10-07. The CLI polls
- * for the result anyway, so the send need not hold the first answer. A send
- * that fails settles the Resolution as a retryable failure, so the polling
- * CLI requests a new Resolution instead of waiting out its deadline.
+ * The queue delivered a build 1.2 s after the request at the median and 3.4 s
+ * at worst, in 20 production runs on 2026-10-07. Its consumer ran in US
+ * colos, where each D1 call to the Sydney primary took 158 to 244 ms. A
+ * request runs where the client reached Cloudflare, and from Sydney the same
+ * calls took 8 to 36 ms. Queue placement cannot move a consumer.
+ *
+ * A delayed message goes out first, so a build the runtime stops resumes on
+ * the queue. A build that throws goes to the queue at once, for its retry
+ * ladder. A build that follows an earlier build of the same Skill goes back
+ * on the queue after the wait it names, as the consumer does.
  */
-export function enqueueAfterResponse(
-  dependencies: AfterResponseEnqueueDependencies,
+export function buildAfterResponse(
+  dependencies: AfterResponseBuildDependencies,
 ): (resolutionId: string) => Promise<void> {
   return async (resolutionId) => {
-    dependencies.schedule(
-      dependencies.enqueue(resolutionId)
-        .catch(error => dependencies.failUnqueued(resolutionId, error)),
-    )
+    dependencies.schedule(buildHere(dependencies, resolutionId))
   }
+}
+
+async function buildHere(dependencies: AfterResponseBuildDependencies, resolutionId: string): Promise<void> {
+  const fallback = dependencies.enqueue(resolutionId, IN_REQUEST_BUILD_FALLBACK_SECONDS)
+    .then(() => ({ _tag: 'queued' as const }), (error: unknown) => ({ _tag: 'unqueued' as const, error }))
+  const outcome = await dependencies.build(resolutionId)
+    .then(value => ({ _tag: 'built' as const, value }), (error: unknown) => ({ _tag: 'threw' as const, error }))
+  const queued = await fallback
+  if (outcome._tag === 'built' && outcome.value._tag !== 'deferred')
+    return
+  if (outcome._tag === 'threw')
+    dependencies.reportBuildError(resolutionId, outcome.error)
+  const delaySeconds = outcome._tag === 'built' && outcome.value._tag === 'deferred'
+    ? outcome.value.delaySeconds
+    : undefined
+  const sent = await dependencies.enqueue(resolutionId, delaySeconds)
+    .then(() => null, (error: unknown) => error)
+  // With the delayed message queued, the consumer still takes the build over.
+  if (sent !== null && queued._tag === 'unqueued')
+    await dependencies.failUnqueued(resolutionId, sent)
 }
