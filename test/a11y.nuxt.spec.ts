@@ -114,7 +114,7 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
-  it('agentTargets has no violations, and shows a folder for a target without a checked step', async () => {
+  it('agentTargets has no violations, and lists the folder of a target without a checked step', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('AgentTargets'),
@@ -123,14 +123,13 @@ describe('accessibility: components', () => {
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
 
-    const entry = (label: string) => [...container.querySelectorAll('dt')]
+    const entry = (label: string) => [...container.querySelectorAll('dt, th')]
       .find(term => term.textContent?.trim() === label)
       ?.nextElementSibling
       ?.textContent
-      ?.replace(/\s+/g, ' ')
-      .trim()
+      ?.trim()
     expect(entry('Claude Code')).toBe('Start a new Claude Code session. Skills load automatically.')
-    expect(entry('Continue')).toBe('Skills land in .continue/skills in your project.')
+    expect(entry('Continue')).toBe('.continue/skills')
     wrapper.unmount()
   })
 
