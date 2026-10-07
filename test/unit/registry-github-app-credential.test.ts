@@ -1,4 +1,5 @@
 import type { GithubCredentialReport } from '../../shared/server/github-app-credential'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   getRepo,
@@ -307,8 +308,8 @@ describe('a failed mint', () => {
     expect(github.reads.at(-1)).toBe('Bearer ghs_app_2')
   })
 
-  it('costs one mint and one report for reads that meet it together and after', async () => {
-    const github = await stubGithub({ mintPlan: ['fail'] })
+  it('costs one report for requests that meet it together, and no mint after', async () => {
+    const github = await stubGithub({ mintPlan: ['fail', 'fail', 'fail'] })
     const reports: GithubCredentialReport[] = []
     const isolate = runtime(reports)
     const env = await appEnv({ GITHUB_TOKEN: 'site' })
@@ -318,7 +319,7 @@ describe('a failed mint', () => {
     await Promise.all([read('ui'), read('nuxt'), read('image')])
     await Promise.all([read('ui'), read('nuxt')])
 
-    expect(github.mints).toBe(1)
+    expect(github.mints).toBe(3)
     expect(github.reads).toEqual(Array.from({ length: 5 }).fill('Bearer site'))
     expect(reports).toHaveLength(1)
   })
@@ -372,6 +373,89 @@ describe('a failed mint', () => {
   })
 })
 
+// workerd ties a fetch to the request that made it. A request that awaited
+// another request's mint could throw "Cannot perform I/O on behalf of a
+// different request", or wait forever once that request ended. Requests share
+// only a finished token.
+describe('requests that find no token in the isolate', () => {
+  it('each read with a token minted in their own I/O context', async () => {
+    const github = await stubGithub({ mintPlan: ['held', 'held'] })
+    const isolate = runtime()
+    const env = await appEnv({ GITHUB_TOKEN: 'site' })
+    const first = workerRequest('first')
+    const second = workerRequest('second')
+
+    const reads = Promise.all([
+      first.run(() => getRepo('nuxt', 'ui', resolveGithubBindings(env, isolate))),
+      second.run(() => getRepo('nuxt', 'nuxt', resolveGithubBindings(env, isolate))),
+    ])
+    await vi.waitFor(() => expect(github.mints).toBe(2))
+    github.releaseMints()
+
+    expect((await reads).map(repo => repo.status)).toEqual([200, 200])
+    // Either request can sign its JWT first, so either can mint `ghs_app_1`.
+    const mintedBy = new Map(github.mintsBy.map(([request, token]) => [`Bearer ${token}`, request]))
+    const readWithMintOf = new Map(github.readsBy.map(([request, authorization]) => [request, mintedBy.get(authorization!)]))
+    expect(readWithMintOf).toEqual(new Map([['first', 'first'], ['second', 'second']]))
+  })
+
+  it('leaves a request on the App when the request whose mint it met ends', async () => {
+    const github = await stubGithub({ mintPlan: ['held'] })
+    const reports: GithubCredentialReport[] = []
+    const isolate = runtime(reports)
+    const env = await appEnv({ GITHUB_TOKEN: 'site' })
+    const first = workerRequest('first')
+    const second = workerRequest('second')
+
+    // The first request ends before GitHub answers its mint, so the answer
+    // never arrives.
+    void first.run(() => getRepo('nuxt', 'ui', resolveGithubBindings(env, isolate)))
+    await vi.waitFor(() => expect(github.mints).toBe(1))
+    const read = second.run(() => getRepo('nuxt', 'nuxt', resolveGithubBindings(env, isolate)))
+    first.end()
+    github.releaseMints()
+
+    const repo = await within(read, 1_000)
+    // The mint that never answered holds no later request either.
+    const later = await within(workerRequest('third').run(() => getRepo('nuxt', 'image', resolveGithubBindings(env, isolate))), 1_000)
+
+    expect([repo.status, later.status]).toEqual([200, 200])
+    expect(github.mints).toBe(2)
+    expect(github.readsBy).toEqual([['second', 'Bearer ghs_app_2'], ['third', 'Bearer ghs_app_2']])
+    expect(reports).toEqual([])
+  })
+})
+
+/**
+ * One Worker request's I/O context. A fetch belongs to the request that made
+ * it: once that request ends, its answer never arrives.
+ */
+interface IoContext {
+  name: string
+  ended: boolean
+}
+
+const ioContexts = new AsyncLocalStorage<IoContext>()
+
+function workerRequest(name: string) {
+  const context: IoContext = { name, ended: false }
+  return {
+    run: async <A>(work: () => Promise<A>): Promise<A> => await ioContexts.run(context, work),
+    end: () => {
+      context.ended = true
+    },
+  }
+}
+
+/** The promise's value, or a rejection if it takes longer than `ms`. */
+async function within<A>(promise: Promise<A>, ms: number): Promise<A> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`still waiting after ${ms} ms`)), ms)
+  })
+  return await Promise.race([promise, limit]).finally(() => clearTimeout(timer))
+}
+
 function runtime(reports: GithubCredentialReport[] = [], clock = { now: NOW }) {
   return { tokenCache: createInstallationTokenCache(), now: () => clock.now, report: (event: GithubCredentialReport) => reports.push(event) }
 }
@@ -411,35 +495,55 @@ interface StubOptions {
   hold?: { token: string, until: Promise<void> }
 }
 
-/** `hang` answers nothing until the request is aborted. `fail` answers 500. */
-type MintAnswer = 'hang' | 'fail'
+/**
+ * `hang` answers nothing until the request is aborted. `fail` answers 500.
+ * `held` answers a token once the test calls `releaseMints`.
+ */
+type MintAnswer = 'hang' | 'fail' | 'held'
 
 /**
  * GitHub as the App and a personal token see it. Each mint answers a new
  * installation token: `ghs_app_1`, then `ghs_app_2`.
  */
 async function stubGithub(options: StubOptions) {
-  const state = { mints: 0, reads: [] as Array<string | null>, mintSignals: [] as Array<AbortSignal | null | undefined> }
+  let releaseMints = () => {}
+  const released = new Promise<void>((resolve) => {
+    releaseMints = resolve
+  })
+  const state = {
+    mints: 0,
+    reads: [] as Array<string | null>,
+    mintSignals: [] as Array<AbortSignal | null | undefined>,
+    /** The I/O context that made each mint, with the token GitHub answered. */
+    mintsBy: [] as Array<[string | undefined, string]>,
+    /** The I/O context that made each read, with its authorization. */
+    readsBy: [] as Array<[string | undefined, string | null]>,
+    releaseMints: () => releaseMints(),
+  }
   const hold = { pending: options.hold }
   const appQuota = { 'x-ratelimit-remaining': '4990', 'x-ratelimit-limit': '5000' }
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const answer = async (input: RequestInfo | URL, init: RequestInit | undefined, context: IoContext | undefined): Promise<Response> => {
     const url = String(input)
     const headers = new Headers(init?.headers)
     if (url.endsWith(`/app/installations/${INSTALLATION_ID}/access_tokens`)) {
-      state.mints++
+      const token = `ghs_app_${++state.mints}`
       state.mintSignals.push(init?.signal)
-      const answer = options.mintPlan?.shift()
-      if (answer === 'fail')
+      state.mintsBy.push([context?.name, token])
+      const plan = options.mintPlan?.shift()
+      if (plan === 'fail')
         return new Response('{}', { status: 500 })
-      if (answer === 'hang') {
+      if (plan === 'hang') {
         return await new Promise<Response>((_, reject) => {
           init?.signal?.addEventListener('abort', () => reject(init.signal!.reason), { once: true })
         })
       }
-      return Response.json({ token: `ghs_app_${state.mints}`, expires_at: new Date((NOW + 3600) * 1000).toISOString() }, { status: 201 })
+      if (plan === 'held')
+        await released
+      return Response.json({ token, expires_at: new Date((NOW + 3600) * 1000).toISOString() }, { status: 201 })
     }
     const authorization = headers.get('authorization')
     state.reads.push(authorization)
+    state.readsBy.push([context?.name, authorization])
     if (hold.pending && authorization === `Bearer ${hold.pending.token}`) {
       const until = hold.pending.until
       hold.pending = undefined
@@ -505,6 +609,12 @@ async function stubGithub(options: StubOptions) {
     if (options.deniesApp && asApp && url.includes('/neondatabase/'))
       return Response.json({ message: 'Resource not accessible by integration' }, { status: 403, headers: quota })
     return Response.json({ name: 'repo', full_name: 'owner/repo', owner: { login: 'owner' }, default_branch: 'main' }, { status: 200, headers: quota })
+  }
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const context = ioContexts.getStore()
+    const response = await answer(input, init, context)
+    // workerd drops the answer to a fetch whose request has ended.
+    return context?.ended ? await new Promise<never>(() => {}) : response
   }))
   return state
 }

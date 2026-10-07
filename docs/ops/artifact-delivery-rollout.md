@@ -126,6 +126,9 @@ If GitHub answers 401 to the cached installation token, the read mints one new t
 If the App secrets are set but unusable, or a mint fails, reads use the fallback. The sync then paces itself on the fallback's quota. A failure stands for about 60 seconds in each isolate. In that time, reads make no mint, and the isolate emits one event with the reason. After a 401, the new mint runs even while a failure stands.
 
 A mint ends at the deadline of the read that waits for it. A `/gh` page read waits at most its 4 second limit. Builds and the sync wait up to the mint's own 15 second limit. A read deadline that ends a mint does not count as a failure.
+
+Requests in one isolate share a minted token and a failure window, never a mint in flight. workerd ties a fetch to the request that made it, so a request that waited for another request's mint could fail or hang. If several requests find no token at the same time, each mints its own.
+
 Keep the read App apart from the `GITHUB_APP_*` secrets below. Those belong to private delivery.
 
 Changing `NUXT_TOKEN_KEY` breaks stored GitHub credentials.
