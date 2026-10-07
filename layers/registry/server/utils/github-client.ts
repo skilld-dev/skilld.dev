@@ -1,5 +1,21 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type {
+  GithubAppRefusal,
+  GithubCredential,
+  GithubCredentialReport,
+  InstallationTokenCache,
+} from '#shared/server/github-app-credential'
+import {
+  createGithubCredential,
+  GITHUB_RATE_LIMIT_MESSAGE,
+  githubAppRefusal,
+  isolateInstallationTokenCache,
+  parseGithubCredentialConfig,
+  readWithGithubCredential,
+  staticGithubCredential,
+} from '#shared/server/github-app-credential'
+
 const API_BASE = 'https://api.github.com'
 const GRAPHQL_URL = 'https://api.github.com/graphql'
 
@@ -39,10 +55,29 @@ function readInit(options: GithubReadOptions | undefined): RequestInit | undefin
 
 export interface GithubBindings {
   KV_CACHE?: KVNamespace
+  /**
+   * The credential every Worker read asks for: the read App's installation
+   * token, with `GITHUB_TOKEN` only for a read GitHub denied the App.
+   */
+  credential?: GithubCredential
+  /** A static token, for scripts and tests that pass no `credential`. */
   GITHUB_TOKEN?: string
+  /** Receives each read GitHub denied the App. Defaults to a wide event. */
+  reportCredential?: (event: GithubCredentialReport) => void
 }
 
-type GithubBindingSource = Partial<Pick<Cloudflare.Env, 'KV_CACHE' | 'GITHUB_TOKEN'>>
+type GithubBindingSource = Partial<Pick<
+  Cloudflare.Env,
+  'KV_CACHE' | 'GITHUB_TOKEN' | 'SKILLD_READ_APP_ID' | 'SKILLD_READ_APP_INSTALLATION_ID' | 'SKILLD_READ_APP_PRIVATE_KEY_PKCS8'
+>>
+
+/** What a test or a caller with its own clock passes in place of the isolate defaults. */
+export interface GithubBindingRuntime {
+  tokenCache: InstallationTokenCache
+  /** Unix seconds. */
+  now: () => number
+  report: (event: GithubCredentialReport) => void
+}
 
 /**
  * Resolve GitHub bindings from a Cloudflare env (Worker runtime) or process.env (local dev).
@@ -50,12 +85,67 @@ type GithubBindingSource = Partial<Pick<Cloudflare.Env, 'KV_CACHE' | 'GITHUB_TOK
  * Nitro task. Falls back to process.env in local dev,
  * since `.env` populates process.env but not the Worker env binding.
  */
-export function resolveGithubBindings(cloudflareEnv?: GithubBindingSource): GithubBindings {
+export function resolveGithubBindings(
+  cloudflareEnv?: GithubBindingSource,
+  runtime: Partial<GithubBindingRuntime> = {},
+): GithubBindings {
   const env = cloudflareEnv ?? {}
+  const report = runtime.report ?? reportGithubCredential
+  const config = parseGithubCredentialConfig({ ...env, GITHUB_TOKEN: env.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN }, ['GITHUB_TOKEN'])
   return {
     KV_CACHE: env.KV_CACHE,
-    GITHUB_TOKEN: env.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN,
+    credential: createGithubCredential(config, {
+      // Late-bound, so a test that stubs the global fetch reaches the mint too.
+      fetch: (input, init) => fetch(input, init),
+      now: runtime.now ?? (() => Math.floor(Date.now() / 1000)),
+      tokenCache: runtime.tokenCache ?? isolateInstallationTokenCache(),
+      report,
+    }),
+    reportCredential: report,
   }
+}
+
+function reportGithubCredential(event: GithubCredentialReport): void {
+  emitOperationalEvent(createWideEvent({
+    'operation': 'github-credential',
+    'outcome': event.outcome,
+    'reason': event.reason,
+    'github.credential': event.fallback,
+  }))
+}
+
+function credentialOf(bindings: GithubBindings): GithubCredential {
+  return bindings.credential ?? staticGithubCredential(bindings.GITHUB_TOKEN)
+}
+
+function readAsApp<A>(
+  bindings: GithubBindings,
+  read: {
+    label: string
+    send: (token: string | undefined) => Promise<A>
+    refusal: (answer: A) => Promise<GithubAppRefusal | null>
+    fallbackOnDenial: boolean
+  },
+) {
+  return readWithGithubCredential(credentialOf(bindings), { ...read, report: bindings.reportCredential ?? reportGithubCredential })
+}
+
+/**
+ * Whether GITHUB_TOKEN failed a read it repeated for a Repository that
+ * denies the App. Its quota and expiry belong to its owner, so the failure
+ * names that Repository and never pauses the sync.
+ */
+function fallbackRefusedStatus(status: number): boolean {
+  return status === 401 || status === 403 || status === 429
+}
+
+function withAuthorization(headers: Headers, token: string | undefined): Headers {
+  const authorized = new Headers(headers)
+  if (token)
+    authorized.set('Authorization', `Bearer ${token}`)
+  else
+    authorized.delete('Authorization')
+  return authorized
 }
 
 export interface RepoMeta {
@@ -114,6 +204,11 @@ export interface FetchOutcome<T> {
   data: T | null
   rateLimit: RateLimitInfo | null
   notModified: boolean
+  /**
+   * GitHub denied the read App this read, and no fallback token could repeat
+   * it. The status is 403, but no quota is spent.
+   */
+  denied?: true
 }
 
 /**
@@ -168,8 +263,6 @@ async function ghRequest<T>(
   headers.set('Accept', 'application/vnd.github+json')
   headers.set('User-Agent', 'skilld.dev')
   headers.set('X-GitHub-Api-Version', '2022-11-28')
-  if (bindings.GITHUB_TOKEN)
-    headers.set('Authorization', `Bearer ${bindings.GITHUB_TOKEN}`)
 
   const cacheKey = etagKey(url)
   let cached: CachedEntry<T> | null = null
@@ -182,8 +275,24 @@ async function ghRequest<T>(
       headers.set('If-None-Match', cached.etag)
   }
 
-  const res = await fetch(url, { ...init, headers })
-  const rateLimit = parseRateLimit(res.headers)
+  const read = await readAsApp(bindings, {
+    label: new URL(url).pathname,
+    send: token => fetch(url, { ...init, headers: withAuthorization(headers, token) }),
+    refusal: githubAppRefusal,
+    fallbackOnDenial: true,
+  })
+  if (read._tag === 'refused') {
+    const rateLimit = parseRateLimit(read.answer.headers)
+    return read.refusal === 'denied'
+      ? { status: 403, data: null, rateLimit, notModified: false, denied: true }
+      : { status: 401, data: null, rateLimit, notModified: false }
+  }
+  const res = read.answer
+  // The sync paces itself on the App's quota, not on GITHUB_TOKEN's.
+  const deniedRead = read._tag === 'fallback' && read.refusal === 'denied'
+  const rateLimit = parseRateLimit(deniedRead ? read.refused.headers : res.headers)
+  if (deniedRead && fallbackRefusedStatus(res.status))
+    return { status: 403, data: null, rateLimit, notModified: false, denied: true }
 
   if (res.status === 304 && cached) {
     return { status: 304, data: cached.body, rateLimit, notModified: true }
@@ -312,9 +421,12 @@ export async function getRepoSummary(
       ${REPO_SUMMARY_FIELDS}
     }
   }`
-  const out = await gqlRequest<{ repository: RepoSummaryGql | null }>(query, { owner, repo }, bindings)
-  if (out._tag === 'failed')
-    return { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false }
+  const out = await gqlRequest<{ repository: RepoSummaryGql | null }>(query, { owner, repo }, bindings, { label: `${owner}/${repo}`, oneRepository: true })
+  if (out._tag === 'failed') {
+    return out.denied
+      ? { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false, denied: true }
+      : { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false }
+  }
   // GraphQL surfaces NOT_FOUND in errors with HTTP 200. Map it to 404 so
   // callers preserve their existing rate-limit / broken-repo branching.
   if (out.errors.length) {
@@ -383,14 +495,16 @@ export async function getRepoSummariesBatch(
       variables[`n${i}`] = request.repo
     })
     sent++
-    const out = await gqlRequest<Record<string, RepoSummaryGql | null>>(`query(${varDecls.join(',')}){${aliases}}`, variables, bindings)
+    const out = await gqlRequest<Record<string, RepoSummaryGql | null>>(`query(${varDecls.join(',')}){${aliases}}`, variables, bindings, { label: 'a summary batch', oneRepository: false })
     rateLimit = out.rateLimit ?? rateLimit
     if (out._tag === 'failed')
       return { _tag: 'failed', status: out.status, rateLimit, requests: sent }
     // A NOT_FOUND names one alias and leaves the others whole. Any other
     // error type, such as RATE_LIMITED, says nothing trustworthy about the
     // batch, so it fails as a whole and the per-repository sync takes over.
-    if (out.errors.some(error => error.type !== 'NOT_FOUND'))
+    // A FORBIDDEN alias is a Repository GitHub denies the read App. It reads
+    // as null here, and the per-repository sync repeats it with the fallback.
+    if (out.errors.some(error => error.type !== 'NOT_FOUND' && error.type !== 'FORBIDDEN'))
       return { _tag: 'failed', status: 502, rateLimit, requests: sent }
     for (let i = 0; i < batch.length; i++) {
       const r = out.data?.[`r${i}`]
@@ -444,20 +558,64 @@ interface GqlError { type?: string, message?: string }
 
 type GqlRequestOutcome<T>
   = | { _tag: 'answered', data: T | null, errors: GqlError[], rateLimit: RateLimitInfo | null }
-    | { _tag: 'failed', status: number, rateLimit: RateLimitInfo | null }
+    | { _tag: 'failed', status: number, rateLimit: RateLimitInfo | null, denied?: true }
 
-/** One GraphQL POST. Partial data and per-alias errors come back together. */
+/**
+ * One GraphQL POST. Partial data and per-alias errors come back together.
+ *
+ * A query about one Repository that GitHub denied the read App, with a 403
+ * or a FORBIDDEN error, repeats once with the fallback token. A batch over
+ * many Repositories passes `oneRepository: false`: one denied alias says
+ * nothing about the others, and the per-repository sync repeats it.
+ */
 async function gqlRequest<T>(
   query: string,
   variables: Record<string, unknown>,
   bindings: GithubBindings,
+  options: { label: string, oneRepository: boolean },
 ): Promise<GqlRequestOutcome<T>> {
+  const read = await readAsApp(bindings, {
+    label: options.label,
+    send: token => gqlSend<T>(query, variables, token),
+    refusal: async sent => sent.refusal
+      ?? (options.oneRepository && sent.outcome._tag === 'answered' && gqlDeniedApp(sent.outcome.errors) ? 'denied' : null),
+    fallbackOnDenial: options.oneRepository,
+  })
+  const out = read.answer.outcome
+  if (read._tag === 'refused') {
+    return read.refusal === 'denied'
+      ? { _tag: 'failed', status: 403, rateLimit: out.rateLimit, denied: true }
+      : { _tag: 'failed', status: 401, rateLimit: out.rateLimit }
+  }
+  if (read._tag === 'read' || read.refusal === 'unauthorized')
+    return out
+  // The sync paces itself on the App's quota, not on GITHUB_TOKEN's.
+  const rateLimit = read.refused.outcome.rateLimit
+  const fallbackFailed = out._tag === 'failed'
+    ? fallbackRefusedStatus(out.status)
+    : out.errors.some(error => error.type === 'RATE_LIMITED' || error.type === 'FORBIDDEN')
+  return fallbackFailed ? { _tag: 'failed', status: 403, rateLimit, denied: true } : { ...out, rateLimit }
+}
+
+/**
+ * Whether GraphQL errors say GitHub denies the App the Repository. The type
+ * FORBIDDEN alone does not: a message that names a rate limit is a limit.
+ */
+function gqlDeniedApp(errors: GqlError[]): boolean {
+  return errors.some(error => error.type === 'FORBIDDEN' && !GITHUB_RATE_LIMIT_MESSAGE.test(error.message ?? ''))
+}
+
+async function gqlSend<T>(
+  query: string,
+  variables: Record<string, unknown>,
+  token: string | undefined,
+): Promise<{ outcome: GqlRequestOutcome<T>, refusal: GithubAppRefusal | null }> {
   const headers = new Headers()
   headers.set('Accept', 'application/vnd.github+json')
   headers.set('Content-Type', 'application/json')
   headers.set('User-Agent', 'skilld.dev')
-  if (bindings.GITHUB_TOKEN)
-    headers.set('Authorization', `Bearer ${bindings.GITHUB_TOKEN}`)
+  if (token)
+    headers.set('Authorization', `Bearer ${token}`)
   const res = await fetch(GRAPHQL_URL, {
     method: 'POST',
     headers,
@@ -465,7 +623,7 @@ async function gqlRequest<T>(
   })
   const rateLimit = parseRateLimit(res.headers)
   if (!res.ok)
-    return { _tag: 'failed', status: res.status, rateLimit }
+    return { outcome: { _tag: 'failed', status: res.status, rateLimit }, refusal: await githubAppRefusal(res) }
   // A gateway can answer 200 with a truncated or non-JSON body. Parsing that
   // eagerly threw `Unexpected end of JSON input` out of the client and reached
   // the sync summary as an opaque reason with no status attached.
@@ -474,18 +632,19 @@ async function gqlRequest<T>(
     return null
   }) as { data?: T, errors?: GqlError[] } | null
   if (!body)
-    return { _tag: 'failed', status: 502, rateLimit }
-  return { _tag: 'answered', data: body.data ?? null, errors: body.errors ?? [], rateLimit }
+    return { outcome: { _tag: 'failed', status: 502, rateLimit }, refusal: null }
+  return { outcome: { _tag: 'answered', data: body.data ?? null, errors: body.errors ?? [], rateLimit }, refusal: null }
 }
 
 async function gqlPost<T>(
   query: string,
   variables: Record<string, unknown>,
   bindings: GithubBindings,
-): Promise<{ status: number, data: T | null, rateLimit: RateLimitInfo | null }> {
-  const out = await gqlRequest<T>(query, variables, bindings)
+  label: string,
+): Promise<{ status: number, data: T | null, rateLimit: RateLimitInfo | null, denied?: true }> {
+  const out = await gqlRequest<T>(query, variables, bindings, { label, oneRepository: true })
   if (out._tag === 'failed')
-    return { status: out.status, data: null, rateLimit: out.rateLimit }
+    return out.denied ? { status: out.status, data: null, rateLimit: out.rateLimit, denied: true } : { status: out.status, data: null, rateLimit: out.rateLimit }
   if (out.errors.length) {
     const notFound = out.errors.some(e => e.type === 'NOT_FOUND')
     return { status: notFound ? 404 : 502, data: null, rateLimit: out.rateLimit }
@@ -537,12 +696,12 @@ export async function getBlobsBatch(
       variables[`expr${i}`] = `${branch}:${p}`
     })
 
-    const out = await gqlPost<{ repository: Record<string, { text?: string | null, isBinary?: boolean } | null> | null }>(query, variables, bindings)
+    const out = await gqlPost<{ repository: Record<string, { text?: string | null, isBinary?: boolean } | null> | null }>(query, variables, bindings, `${owner}/${repo}`)
     rateLimit = out.rateLimit ?? rateLimit
     // A partial map would look like a repo that lost files, and the caller
     // would delete skills it simply failed to read. Fail the whole batch.
     if (!out.data?.repository)
-      return { status: out.status, data: null, unreadable, rateLimit, notModified: false }
+      return { status: out.status, data: null, unreadable, rateLimit, notModified: false, ...(out.denied ? { denied: true as const } : {}) }
     batch.forEach((p, i) => {
       const blob = out.data!.repository![`b${i}`]
       if (typeof blob?.text === 'string')
@@ -590,11 +749,11 @@ export async function getCommitsBatch(
       variables[`path${i}`] = p
     })
 
-    const out = await gqlPost<GqlResponse>(query, variables, bindings)
+    const out = await gqlPost<GqlResponse>(query, variables, bindings, `${owner}/${repo}`)
     rateLimit = out.rateLimit ?? rateLimit
     const target = out.data?.repository?.defaultBranchRef?.target
     if (!target)
-      return { status: out.status, data: null, rateLimit, notModified: false }
+      return { status: out.status, data: null, rateLimit, notModified: false, ...(out.denied ? { denied: true as const } : {}) }
     batch.forEach((p, i) => {
       const nodes = target[`h${i}`]?.nodes ?? []
       map.set(p, nodes.map(c => ({
@@ -624,8 +783,9 @@ export async function getRawFile(
 ): Promise<string | null> {
   const headers = new Headers()
   headers.set('User-Agent', 'skilld.dev')
-  if (bindings.GITHUB_TOKEN)
-    headers.set('Authorization', `Bearer ${bindings.GITHUB_TOKEN}`)
+  const credential = await credentialOf(bindings).current()
+  if (credential.token)
+    headers.set('Authorization', `Bearer ${credential.token}`)
   const res = await fetch(`${RAW_BASE}/${owner}/${repo}/${ref}/${path}`, { headers })
   if (!res.ok)
     return null

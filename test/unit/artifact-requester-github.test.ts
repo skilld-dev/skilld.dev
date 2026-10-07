@@ -89,6 +89,17 @@ describe('a signed-in run when the shared GitHub credential is rate limited', ()
     expect(shared.resolve).toHaveBeenCalledOnce()
   })
 
+  it('reads with the requester\'s token when GitHub denies the read App and no fallback token is set', async () => {
+    const github = userGithub()
+    const shared = sharedGithub({ code: 'SOURCE_ACCESS_DENIED' })
+    const id = await requested('alice-run-0000008', ALICE)
+
+    await processArtifactBuild(dependencies(github, shared), id)
+
+    expect(github.authorizations).toContain('Bearer gho_alice')
+    expect(await getResolution(fixture.db, id)).toMatchObject({ state: 'failed', error_code: 'SOURCE_NOT_FOUND' })
+  })
+
   it('reports RATE_LIMITED when the requester has no stored GitHub token', async () => {
     fixture.raw.prepare(`UPDATE users SET github_token_encrypted = NULL WHERE id = ?`).run(ALICE)
     const github = userGithub()

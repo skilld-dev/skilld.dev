@@ -1,8 +1,8 @@
 import type { SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
-import type { ArtifactGithubCredentialReport } from '../../layers/artifact-delivery/server/utils/github-read-credential'
+import type { GithubCredentialReport } from '../../shared/server/github-app-credential'
 import { describe, expect, it } from 'vitest'
-import { createInstallationTokenCache } from '../../layers/artifact-delivery/server/utils/github-read-credential'
 import { createArtifactGithubSource } from '../../layers/artifact-delivery/server/utils/queue'
+import { createInstallationTokenCache } from '../../shared/server/github-app-credential'
 
 // Builds shared the site token with the hourly registry sync and every `/gh`
 // page view, so a run failed RATE_LIMITED whenever the sync spent it. The read
@@ -90,7 +90,7 @@ describe('the GitHub credential public Artifact builds read with', () => {
   it('reads with the fallback token, and reports why, when GitHub refuses the installation token', async () => {
     const keys = await appKeys()
     const github = fakeGithub({ expiresAt: NOW + 3600, mintStatus: 401 })
-    const reports: ArtifactGithubCredentialReport[] = []
+    const reports: GithubCredentialReport[] = []
     const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
 
     await source.resolve(request)
@@ -101,7 +101,7 @@ describe('the GitHub credential public Artifact builds read with', () => {
 
   it('reports an unreadable App key and reads with the fallback token', async () => {
     const github = fakeGithub({ expiresAt: NOW + 3600 })
-    const reports: ArtifactGithubCredentialReport[] = []
+    const reports: GithubCredentialReport[] = []
     const env = { ...appEnv('-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----'), ARTIFACT_GITHUB_TOKEN: '' }
     const source = createArtifactGithubSource(env, runtime(github, { report: event => reports.push(event) }))
 
@@ -115,7 +115,7 @@ describe('the GitHub credential public Artifact builds read with', () => {
   it('never puts a token or the key in a report', async () => {
     const keys = await appKeys()
     const github = fakeGithub({ expiresAt: NOW + 3600, mintStatus: 500 })
-    const reports: ArtifactGithubCredentialReport[] = []
+    const reports: GithubCredentialReport[] = []
     await createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) })).resolve(request)
 
     const text = JSON.stringify(reports)
@@ -128,7 +128,7 @@ describe('the GitHub credential public Artifact builds read with', () => {
   it('repeats a read the Repository denied the read App with the fallback token, and reports it', async () => {
     const keys = await appKeys()
     const github = fakeGithub({ expiresAt: NOW + 3600, answersApp: appDenied })
-    const reports: ArtifactGithubCredentialReport[] = []
+    const reports: GithubCredentialReport[] = []
     const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
 
     const result = await source.resolve(request)
@@ -157,7 +157,7 @@ describe('the GitHub credential public Artifact builds read with', () => {
   ])('never reads with the fallback token after %s on the read App', async (_, answer) => {
     const keys = await appKeys()
     const github = fakeGithub({ expiresAt: NOW + 3600, answersApp: answer })
-    const reports: ArtifactGithubCredentialReport[] = []
+    const reports: GithubCredentialReport[] = []
     const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
 
     const result = await source.resolve(request)
@@ -175,7 +175,45 @@ describe('the GitHub credential public Artifact builds read with', () => {
     const result = await createArtifactGithubSource(env, runtime(github)).resolve(request)
 
     expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1'])
-    expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_ACCESS_DENIED' })
+    expect(result).toMatchObject({
+      _tag: 'rejected',
+      code: 'SOURCE_ACCESS_DENIED',
+      summary: 'GitHub denies the skilld.dev read App access to this Repository, and no fallback token is set.',
+    })
+  })
+})
+
+// An installation token can stop working before the expiry GitHub gave it.
+// A 401 names the token, not the Repository, so one new token fixes it.
+describe('a build read GitHub answered 401 for the cached installation token', () => {
+  it('mints one new token and repeats the read with it, not with a fallback token', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, rejects: ['ghs_installation_1'] })
+    const reports: GithubCredentialReport[] = []
+    const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
+
+    const result = await source.resolve(request)
+
+    expect(github.mints).toHaveLength(2)
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1', 'Bearer ghs_installation_2'])
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_NOT_FOUND' })
+    expect(reports).toEqual([])
+  })
+
+  it('reads with the fallback token, and reports it, when GitHub rejects the new token too', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, rejects: ['ghs_installation_1', 'ghs_installation_2'] })
+    const reports: GithubCredentialReport[] = []
+    const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
+
+    await source.resolve(request)
+
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1', 'Bearer ghs_installation_2', 'Bearer runs'])
+    expect(reports).toEqual([{
+      outcome: 'app-token-rejected',
+      reason: 'GitHub rejected a new read App installation token for skilld-dev/skills',
+      fallback: 'ARTIFACT_GITHUB_TOKEN',
+    }])
   })
 })
 
@@ -191,8 +229,8 @@ function appDenied(): Response {
   return Response.json({ message: 'Resource not accessible by integration' }, { status: 403, headers: { 'x-ratelimit-remaining': '4321' } })
 }
 
-/** Answers every read 404, and every read with an installation token `answersApp` when set. */
-function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersApp?: () => Response }): FakeGithub {
+/** Answers every read 404, every read with an installation token `answersApp` when set, and 401 to a token in `rejects`. */
+function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersApp?: () => Response, rejects?: string[] }): FakeGithub {
   const mints: FakeGithub['mints'] = []
   const readAuthorizations: FakeGithub['readAuthorizations'] = []
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -206,6 +244,8 @@ function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersAp
     }
     const authorization = headers.get('authorization')
     readAuthorizations.push(authorization)
+    if (authorization && options.rejects?.includes(authorization.slice('Bearer '.length)))
+      return Response.json({ message: 'Bad credentials' }, { status: 401 })
     if (options.answersApp && authorization?.startsWith('Bearer ghs_'))
       return options.answersApp()
     return Response.json({ message: 'Not Found' }, { status: 404 })
@@ -215,7 +255,7 @@ function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersAp
 
 function runtime(
   github: FakeGithub,
-  overrides: Partial<{ cache: ReturnType<typeof createInstallationTokenCache>, now: () => number, report: (event: ArtifactGithubCredentialReport) => void }> = {},
+  overrides: Partial<{ cache: ReturnType<typeof createInstallationTokenCache>, now: () => number, report: (event: GithubCredentialReport) => void }> = {},
 ) {
   return {
     fetch: github.fetch,
