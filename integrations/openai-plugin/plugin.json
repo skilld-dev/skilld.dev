@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "skilld",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Search skilld.dev, a curated registry of agent skills, read who wrote each skill, and get the command that runs it.",
   "author": {
     "name": "Harlan Wilton",
@@ -54,31 +54,31 @@
               "description": "Search skills by topic",
               "prompt": "Find a skill for Tailwind CSS.",
               "tools_triggered": "search_skills",
-              "expected_behavior": "Lists Tailwind CSS skills from skilld.dev. Each result names the skill, its GitHub owner and repository, and its GitHub star count, with a skilld.dev page link and an npx skilld run command."
+              "expected_behavior": "Returns at least one Tailwind CSS skill from skilld.dev, with its author or source repository, a link to its skilld.dev page, and an npx skilld run command."
             },
             {
               "description": "Show who wrote a skill and when it changed",
               "prompt": "Who wrote the web-design-guidelines skill in vercel-labs/agent-skills, and when did it last change?",
               "tools_triggered": "get_skill",
-              "expected_behavior": "Names Vercel Labs as the publisher. Links the SKILL.md file on GitHub and gives its commit, the last repository push date, and the last skill change date."
+              "expected_behavior": "Names Vercel Labs as the publisher, gives the last skill change date and the last repository push date, and links the SKILL.md source on GitHub at its recorded commit."
             },
             {
               "description": "Browse a track",
               "prompt": "Which skills help with testing and debugging?",
               "tools_triggered": "list_tracks, get_track",
-              "expected_behavior": "Finds the Testing and debugging track and lists its skills, each with its author, skilld.dev page, and npx skilld run command."
+              "expected_behavior": "Finds the Testing and debugging track and lists skills from it with their publisher and skilld.dev page. It gives npx skilld run commands for the skills it suggests."
             },
             {
               "description": "See what developers talk about",
               "prompt": "What skills are developers talking about this week?",
               "tools_triggered": "list_trending",
-              "expected_behavior": "Lists this week's trending skills in rank order. Each row says why it is there: developers mentioned it on X or Bluesky, with one post, or its GitHub stars rose. Each row gives an npx skilld run command. It does not call any skill popular or safe."
+              "expected_behavior": "Lists skills from this week's trending board in board order, with the reason each one is there: mentions on X or Bluesky, or a GitHub star surge. It does not call any skill popular or safe."
             },
             {
               "description": "Get the run command for one skill",
               "prompt": "Give me the command to try anthropics/skills/skill-creator without installing it.",
               "tools_triggered": "install_command",
-              "expected_behavior": "Returns npx skilld run anthropics/skills/skill-creator and says that it writes no files. Offers npx skilld install anthropics/skills/skill-creator to keep the skill. States that the user runs the command, and does not claim that anything ran."
+              "expected_behavior": "Returns npx skilld run anthropics/skills/skill-creator and says that it installs nothing and writes no files. It does not claim that anything ran."
             }
           ],
           "negative": [
@@ -97,11 +97,12 @@
           ]
         },
         "commerce": false,
-        "commerce_description": "skilld sells nothing and processes no payments."
+        "commerce_description": "skilld sells nothing and processes no payments.",
+        "demo_recording_url": "https://media.skilld.dev/review/openai/skilld-chatgpt-demo-2026-10-07.mp4"
       },
       "publication": {
         "countries": [],
-        "release_notes": "First release. Search skilld.dev for agent skills, show who wrote each skill and where its source lives, browse tracks and the trending board, and return run and install commands."
+        "release_notes": "First release. Search skilld.dev for agent skills, show who wrote each skill and where its source lives, browse tracks and the trending board, list a repository's skills, and return run and install commands."
       }
     }
   }
