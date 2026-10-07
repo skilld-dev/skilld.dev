@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SkillDemoView } from '../../server/utils/skill-demos'
+import { demoPagePath } from '#shared/demo-pages'
 import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
 import SkillDemoShot from './_SkillDemoShot.vue'
 
@@ -7,9 +8,15 @@ import SkillDemoShot from './_SkillDemoShot.vue'
  * One demo (GLOSSARY "demo"): the prompt, the output an Agent made with this
  * Skill, and how it was recorded. Screenshots paint first. The live output
  * loads only on request, in a frame with no same-origin access, because the
- * route serves it under a CSP sandbox too.
+ * route serves it under a CSP sandbox too. "All demos" opens the demo's own
+ * page, the board of every demo with this one on the stage. A Skill with a run
+ * check flag is off the board, so its panel has no such link.
  */
-const { demo } = defineProps<{ demo: SkillDemoView }>()
+const { demo, onBoard = true } = defineProps<{
+  demo: SkillDemoView
+  /** False while the Skill holds a run check flag: the board leaves it out, and its demo page answers 404. */
+  onBoard?: boolean
+}>()
 
 const desktopShot = computed(() => demo.shots.find(shot => shot.viewport === 'desktop') ?? demo.shots[0])
 const mobileShot = computed(() => demo.shots.find(shot => shot.viewport === 'mobile' && shot !== desktopShot.value))
@@ -119,6 +126,10 @@ const DESKTOP_WINDOW_MEDIA = '(min-width: 48rem)'
         Run it yourself
         <UIcon name="i-lucide-arrow-down" class="size-3.5 shrink-0" aria-hidden="true" />
       </a>
+      <NuxtLink v-if="onBoard" :to="demoPagePath(demo)" class="inline-flex min-h-11 items-center gap-1 text-sm text-default underline underline-offset-4 hover:text-primary">
+        All demos
+        <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
+      </NuxtLink>
     </div>
     <p v-if="demo.outdated" class="mt-1 text-xs text-muted">
       Recorded on an older version of this Skill.
