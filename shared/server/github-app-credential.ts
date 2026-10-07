@@ -574,7 +574,7 @@ async function readBoundedJson(response: Response, maximumBytes: number): Promis
     bytes.set(chunk, offset)
     offset += chunk.byteLength
   }
-  const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes)
   // A JSON.parse error quotes the start of the body, which holds the token.
   try {
     return JSON.parse(text) as unknown
