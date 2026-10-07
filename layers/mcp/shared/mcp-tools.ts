@@ -135,7 +135,7 @@ const SearchArgs = z.object({
 const searchSkills: McpTool = {
   name: 'search_skills',
   title: 'Search Skills',
-  description: 'Search the skilld.dev registry for agent skills that match a topic. A skill is a SKILL.md file that a maintainer publishes in their own GitHub repository, and it works with any coding agent. Returns each match with its source repository, GitHub star count, skilld.dev page, and run command. get_skill returns the full provenance of one match.',
+  description: 'Search the skilld.dev registry for agent skills that match a topic. A skill is a SKILL.md file that a maintainer publishes in their own GitHub repository, and it works with any coding agent. Returns each match with its source repository, GitHub star count, skilld.dev page, and run command.',
   inputSchema: SearchArgs.shape,
   annotations: {
     readOnlyHint: true,
