@@ -23,10 +23,13 @@ function openCodeGo() {
   return { ...fixture(), provider: 'opencode-go' as const, model: 'glm-5.3' }
 }
 
-function openCodeGoRequest(body: unknown, url = 'https://opencode.ai/zen/go/v1/chat/completions?key=untrusted') {
+/** OpenCode sends these routing headers. OpenCode Go rejects a request without `x-opencode-session`. */
+const openCodeRouting = { 'x-opencode-client': 'cli', 'x-opencode-project': 'global', 'x-opencode-request': 'msg_01K7Q3', 'x-opencode-session': 'ses_6f1c2b9a' }
+
+function openCodeGoRequest(body: unknown, url = 'https://opencode.ai/zen/go/v1/chat/completions?key=untrusted', routing: Record<string, string> = openCodeRouting) {
   return new Request(url, {
     method: 'POST',
-    headers: { 'authorization': 'Bearer sandbox-placeholder', 'content-type': 'application/json', 'x-opencode-session': 'untrusted', 'cookie': 'private=cookie' },
+    headers: { 'authorization': 'Bearer sandbox-placeholder', 'content-type': 'application/json', 'cookie': 'private=cookie', ...routing },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   })
 }
@@ -48,12 +51,26 @@ describe('sandbox credential gateway', () => {
     const [url, forwarded] = options.fetch.mock.calls[0]!
     expect(String(url)).toBe('https://opencode.ai/zen/go/v1/chat/completions')
     expect(forwarded?.redirect).toBe('manual')
-    expect([...new Headers(forwarded?.headers).entries()]).toEqual([['authorization', 'Bearer worker-only-secret'], ['content-type', 'application/json']])
+    expect([...new Headers(forwarded?.headers).entries()]).toEqual([
+      ['authorization', 'Bearer worker-only-secret'],
+      ['content-type', 'application/json'],
+      ...Object.entries(openCodeRouting),
+    ])
     const body = JSON.parse(String(forwarded?.body))
     expect(body).toMatchObject({ model: 'glm-5.3', max_tokens: 8192, max_completion_tokens: 8192, stream: true, tools: [{ type: 'function' }] })
     expect(body).not.toHaveProperty('n')
     expect(body).not.toHaveProperty('service_tier')
     expect(options.consumeModelCall).toHaveBeenCalledOnce()
+  })
+
+  it('drops an OpenCode routing header whose value is not a plain identifier', async () => {
+    const options = openCodeGo()
+    await forwardSandboxRequest(openCodeGoRequest({ messages: [] }, undefined, { 'x-opencode-session': 'ses_ok', 'x-opencode-request': 'a b<c>', 'x-opencode-project': 'p'.repeat(300) }), options)
+    const [, forwarded] = options.fetch.mock.calls[0]!
+    const headers = new Headers(forwarded?.headers)
+    expect(headers.get('x-opencode-session')).toBe('ses_ok')
+    expect(headers.has('x-opencode-request')).toBe(false)
+    expect(headers.has('x-opencode-project')).toBe(false)
   })
 
   it.each([

@@ -3,6 +3,23 @@ import { MAX_REQUEST_BYTES, parseJson, readBoundedBody } from './contracts'
 export type ModelProvider = 'google' | 'anthropic' | 'opencode-go'
 
 const OPENCODE_GO_CHAT_URL = 'https://opencode.ai/zen/go/v1/chat/completions'
+
+/**
+ * OpenCode Go routes and caches by these headers, and answers 400 MissingSessionID
+ * without `x-opencode-session`. They name the session; none carries a credential.
+ */
+const OPENCODE_ROUTING_HEADERS = ['x-opencode-client', 'x-opencode-project', 'x-opencode-request', 'x-opencode-session'] as const
+const ROUTING_VALUE = /^[\w.:-]{1,200}$/
+
+function openCodeRoutingHeaders(request: Request): Record<string, string> {
+  const headers: Record<string, string> = {}
+  for (const name of OPENCODE_ROUTING_HEADERS) {
+    const value = request.headers.get(name)
+    if (value !== null && ROUTING_VALUE.test(value))
+      headers[name] = value
+  }
+  return headers
+}
 const OPENCODE_GO_MAX_OUTPUT_TOKENS = 8192
 // Web search, hosted plugins, live search, and remote MCP run on the provider at a separate cost.
 const OPENAI_COMPATIBLE_HOSTED_FIELDS = ['web_search_options', 'plugins', 'search_parameters', 'mcp_servers']
@@ -102,7 +119,7 @@ export async function forwardSandboxRequest(
     delete standardInput.service_tier
     return fetchClient(OPENCODE_GO_CHAT_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'authorization': `Bearer ${options.apiKey}` },
+      headers: { 'content-type': 'application/json', 'authorization': `Bearer ${options.apiKey}`, ...openCodeRoutingHeaders(request) },
       body: JSON.stringify({
         ...standardInput,
         model: options.model,
