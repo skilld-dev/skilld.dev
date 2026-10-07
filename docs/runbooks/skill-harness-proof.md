@@ -51,7 +51,8 @@ They do not prove every example works. Inspect source attempts and review findin
 
 The container image includes the pinned Agent bootstrap. Each session receives its own copy.
 Every job gets a fresh container. The Worker destroys it after saving the result.
-Durable Object alarms check progress and enforce the fifteen minute deadline.
+Durable Object alarms check progress and enforce the forty-five minute deadline.
+A GLM 5.3 step takes about 26 seconds. The runner tells the Agent to write `SKILL.md` by turn 20, so a deadline still leaves a candidate.
 
 ## Limits and failures
 

@@ -3,7 +3,8 @@ import { z } from 'zod'
 export const MAX_REQUEST_BYTES = 512 * 1024
 export const MAX_RESULT_BYTES = 1024 * 1024
 export const MAX_MODEL_CALLS = 96
-export const JOB_TIMEOUT_MS = 15 * 60 * 1000
+/** GLM 5.3 takes about 26 seconds per step, so generation, review, and one repair need most of this. */
+export const JOB_TIMEOUT_MS = 45 * 60 * 1000
 
 const skillPath = z.string().max(200).refine(path =>
   path === 'SKILL.md'
