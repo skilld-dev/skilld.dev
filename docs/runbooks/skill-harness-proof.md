@@ -11,7 +11,7 @@ The proof produces a file bundle. [GitHub](https://github.com) tag handling and 
 A merge to main deploys the `skilld-harness-proof` Worker and its container image after the site deploy.
 Each deploy tags the version with its commit. A main deploy compares that commit with HEAD.
 It deploys when `workers/skill-harness/`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, or the deploy workflow changed since then.
-So a merge that cancels an earlier run still ships that run's Harness change. Container instances roll out at once.
+So a merge that cancels an earlier run still ships that run's Worker change. Container instances roll out at once.
 A new version restarts containers, so an unchanged merge keeps the running version.
 
 To deploy a branch by hand, dispatch the workflow with `target=harness-proof`.
