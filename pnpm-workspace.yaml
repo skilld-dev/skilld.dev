@@ -227,6 +227,7 @@ patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.patch
   hookable@6.1.2: patches/hookable@6.patch
+  nitropack@2.13.4: patches/nitropack@2.13.4.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/sandbox': 1.0.0
