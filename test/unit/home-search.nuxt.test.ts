@@ -43,6 +43,9 @@ mockNuxtImport('useSkillSearch', () => () => ({
   rememberQuery: vi.fn(),
   loadTypeaheadIndex: vi.fn(),
   submitRepository,
+  recentSearches: ref([]),
+  retry: vi.fn(),
+  taskSearch: ref({ _tag: 'idle' }),
 }))
 
 // The real panel draws the same ids; this stub keeps the test on the box.
@@ -174,6 +177,26 @@ describe('homepage search interactions', () => {
     await press(wrapper, 'Escape')
     expect(wrapper.find('[role="grid"]').exists()).toBe(false)
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('opens a Skill row on a pointer click', async () => {
+    const wrapper = await mountSuspended(HomeSearch, {
+      attachTo: document.body,
+      global: { stubs: { SkillSearchRepositoryModal: true } },
+    })
+    wrappers.push(wrapper)
+    const input = wrapper.get('input').element
+    input.focus()
+    await flushPromises()
+    const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    wrapper.get('#skill-search-row-0').element.dispatchEvent(press)
+    // A browser moves focus off the input on a press it does not cancel.
+    if (!press.defaultPrevented)
+      input.blur()
+    await flushPromises()
+    await wrapper.get('#skill-search-row-0').trigger('click')
+    await flushPromises()
+    expect(navigate).toHaveBeenCalledWith('/gh/antfu/skills/vue-testing')
   })
 
   it('closes when focus moves outside the search', async () => {
