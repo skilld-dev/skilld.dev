@@ -9,6 +9,12 @@ type RunnerResult = ProofResult extends infer Result ? Result extends { elapsedM
 
 const unavailableReport: Report = { _tag: 'Unavailable', reason: 'The runner did not receive a Harness usage report.', warnings: [] }
 
+/** Same paths and contents, in any order. */
+function sameFiles(a: Success['files'], b: Success['files']): boolean {
+  const byPath = new Map(b.map(file => [file.path, file.content]))
+  return a.length === b.length && a.every(file => byPath.get(file.path) === file.content)
+}
+
 export function aggregateReports(reports: readonly (NativeReport | undefined)[]): Report {
   if (reports.length === 0 || reports.some(report => !report))
     return unavailableReport
@@ -21,6 +27,8 @@ export async function runGeneration(options: {
   generate: (findings: Success['review']['findings']) => Promise<Outcome<Candidate>>
   review: (candidate: Candidate) => Promise<Outcome<Success['review']>>
   readFiles: (candidate: Candidate) => Promise<Success['files']>
+  /** The current Skill of an update run. */
+  baseline?: Success['files']
 }): Promise<RunnerResult> {
   let findings: Success['review']['findings'] = []
   let previousCandidate: Candidate | undefined
@@ -32,6 +40,12 @@ export async function runGeneration(options: {
     if (generation._tag === 'Err')
       return { _tag: 'Err', code: 'GENERATION_FAILED', detail: JSON.stringify(generation.error).slice(0, 8000), generation: aggregateReports(generations), reviewReport: reviews.length ? aggregateReports(reviews) : undefined, candidateFiles: previousCandidate ? await options.readFiles(previousCandidate) : undefined }
     previousCandidate = generation.value
+    // update-package-skill leaves the copy byte-identical when the release touched nothing it claims.
+    if (options.baseline && repairAttempts === 0) {
+      const candidateFiles = await options.readFiles(generation.value)
+      if (sameFiles(candidateFiles, options.baseline))
+        return { _tag: 'Ok', files: candidateFiles, generation: aggregateReports(generations), reviewReport: { _tag: 'Unavailable', reason: 'No review: the update left the Skill unchanged.', warnings: [] }, review: { summary: 'No change needed.', findings: [] }, sourceAttempts: generation.value.sourceAttempts, repairAttempts }
+    }
     const checked = await options.review(generation.value)
     reviews.push(checked.report)
     if (checked._tag === 'Err')
