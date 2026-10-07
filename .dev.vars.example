@@ -10,13 +10,17 @@ NUXT_OG_IMAGE_SECRET=
 # Signs same-origin image proxy addresses. Keep it separate from NUXT_TOKEN_KEY.
 NUXT_IMAGE_PROXY_KEY=
 NUXT_AI_READY_RUNTIME_SYNC_SECRET=
+# Every Worker GitHub read uses the read App (SKILLD_READ_APP_*): metadata read
+# only, installed on skilld-dev, with a quota nothing else spends. The key is a
+# PKCS #8 PEM. Without the App secrets, as in local development, reads use
+# GITHUB_TOKEN.
+#
+# With the App set, GITHUB_TOKEN is a fallback only: it repeats a read GitHub
+# denied the App, such as an organization that restricts Apps. Builds try
+# ARTIFACT_GITHUB_TOKEN first. Each fallback read is logged as an app-denied event.
+# Both may stay empty.
 GITHUB_TOKEN=
-# Public Artifact builds read GitHub with this token when it is set. Use a token
-# from another GitHub account, so runs keep a quota the registry sync cannot spend.
 ARTIFACT_GITHUB_TOKEN=
-# Public Artifact builds read GitHub as the read App: metadata read only,
-# installed on skilld-dev. Its installation has a quota nothing else spends.
-# The key is a PKCS #8 PEM. Without these, builds use the tokens above.
 SKILLD_READ_APP_ID=
 SKILLD_READ_APP_INSTALLATION_ID=
 SKILLD_READ_APP_PRIVATE_KEY_PKCS8=

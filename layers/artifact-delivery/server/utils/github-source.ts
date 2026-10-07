@@ -4,6 +4,7 @@ import type { PackedFile, SkillFileReader } from './artifact-pack'
 import type { GithubReadTry } from './github-read'
 import type { GitTreeEntry, LinkSourceReader, LinkText, SkillEntry, SymbolicLinkNote } from './symbolic-links'
 import { z } from 'zod'
+import { GITHUB_RATE_LIMIT_MESSAGE } from '#shared/server/github-app-credential'
 import { canonicalSkillFolder, isRegistrySkillPath, slugifySkillName } from '#shared/skill-path'
 import { createGithubArchiveReader } from './archive-reader'
 import { splitUstarPath } from './checks'
@@ -1393,8 +1394,6 @@ interface GithubRateLimit {
   resetAt: number | null
 }
 
-/** The words GitHub uses for a primary limit, a secondary limit, and the older abuse limit. */
-const RATE_LIMIT_MESSAGE = /\brate limit\b|\babuse detection\b/i
 const MAX_GITHUB_ERROR_BYTES = 64 * 1024
 const githubErrorSchema = z.object({ message: z.string() })
 
@@ -1420,7 +1419,7 @@ export function githubRateLimit(
     return { _tag: 'rate-limited', resetAt: now + retryAfter }
   if (response.headers.get('x-ratelimit-remaining') === '0')
     return { _tag: 'rate-limited', resetAt: epochHeader(response.headers, 'x-ratelimit-reset') }
-  return response.status === 429 || (message !== null && RATE_LIMIT_MESSAGE.test(message))
+  return response.status === 429 || (message !== null && GITHUB_RATE_LIMIT_MESSAGE.test(message))
     ? { _tag: 'rate-limited', resetAt: null }
     : null
 }

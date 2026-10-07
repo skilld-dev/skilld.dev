@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "skilld-dev-site",
+  "agents": ["claude-code", "codex", "opencode"],
+  "mode": "symlink",
+  "skills": {
+    "skilld": {
+      "source": "github:skilld-dev/skilld/skills/skilld#commit:fe3c82cf3dd5bea05036a747b1d9efa461f13c3b"
+    }
+  }
+}

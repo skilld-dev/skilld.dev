@@ -18,6 +18,8 @@ Running is the default. `skilld run` hands you the skill for this session and wr
 
 `search_skills` and `get_skill` return `runCommand` beside `installCommand`. Lead with `runCommand`. Offer `installCommand` only when the user asks to keep the skill.
 
+Without a shell, such as in a chat app, follow the `markdown` field from `get_skill` for this session. It is the skill's SKILL.md at `sourceCommit`. Tell the user the skill name and source repository first. The `files` beside it are listed, not included.
+
 `install_command` returns `runCommand` for a single-skill ref and `command` for the install. A collection, curator, repository, or npm ref has no run command yet, so `runCommand` is `null` there.
 
 Every tool is read only. Running and installing both stay separate actions in the user's own environment.

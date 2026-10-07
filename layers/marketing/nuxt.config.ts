@@ -11,5 +11,7 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/nuxt': { redirect: { to: '/frameworks/nuxt', statusCode: 301 } } as any,
+    // Agents guess /trending when they look for the trending board.
+    '/trending': { redirect: { to: '/skills/trending', statusCode: 301 } } as any,
   },
 })

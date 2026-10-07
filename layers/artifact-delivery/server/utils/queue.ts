@@ -1,15 +1,12 @@
 import type { QueueBatch } from '#cf-jobs/server'
+import type { GithubCredentialEnv, GithubCredentialReport, GithubCredentialRuntime } from '#shared/server/github-app-credential'
 import type { BehaviorReviewReport } from './behavior-reviewer'
 import type { ArtifactBuildDependencies } from './build'
-import type {
-  ArtifactGithubCredentialEnv,
-  ArtifactGithubCredentialReport,
-  ArtifactGithubCredentialRuntime,
-} from './github-read-credential'
 import type { GithubObjectCache, GithubReadFailure, PublicGithubSourceClient } from './github-source'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { z } from 'zod'
 import { emitOperationalEvent } from '#server/utils/operational-event'
+import { createGithubCredential, isolateInstallationTokenCache } from '#shared/server/github-app-credential'
 import { createArtifactSigner } from './attestation'
 import { BEHAVIOR_REVIEW_MODEL } from './behavior-review'
 import { BEHAVIOR_REVIEW_TIMEOUT_MS, createBehaviorReviewer } from './behavior-reviewer'
@@ -19,12 +16,7 @@ import {
   githubAppUserTokenDependenciesFromEnv,
   loadAccountGithubAppUserToken,
 } from './github-app'
-import {
-  createArtifactGithubCredential,
-  createInstallationTokenCache,
-  parseArtifactGithubCredentialConfig,
-  withGithubCredential,
-} from './github-read-credential'
+import { parseArtifactGithubCredentialConfig, withGithubCredential } from './github-read-credential'
 import { createGithubSourceClient, createPublicGithubSourceClient } from './github-source'
 import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from './private-crypto'
 import { privateArtifactAccessEnabled } from './private-feature'
@@ -169,43 +161,40 @@ export function createKvGithubObjectCache(kv: KVNamespace): GithubObjectCache {
 }
 
 /**
- * One installation token cache per isolate. A token lives an hour, so it
- * outlives the queue batch that minted it.
- */
-const installationTokens = createInstallationTokenCache()
-
-/**
  * The GitHub source public Artifact builds read with.
  *
  * GitHub counts a personal token's quota per account, and the registry sync
  * and `/gh` page views spend `GITHUB_TOKEN` to zero before each hourly
  * reset. Every run that needed GitHub in those minutes failed RATE_LIMITED.
- * Builds read with the read App's installation token, whose bucket nothing
- * else spends, then `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`.
+ * Builds read with the read App's installation token, whose bucket no
+ * personal tool spends, then `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`.
  */
 export function createArtifactGithubSource(
-  env: ArtifactGithubCredentialEnv,
-  runtime: ArtifactGithubCredentialRuntime = defaultGithubSourceRuntime(),
+  env: GithubCredentialEnv,
+  runtime: GithubCredentialRuntime = defaultGithubSourceRuntime(),
   cache?: GithubObjectCache,
 ): PublicGithubSourceClient {
-  const credential = createArtifactGithubCredential(parseArtifactGithubCredentialConfig(env), runtime)
+  const credential = createGithubCredential(parseArtifactGithubCredentialConfig(env), runtime)
   return withGithubCredential(
     credential,
-    token => createPublicGithubSourceClient({ fetch: runtime.fetch, token, onReadFailure: reportGithubReadFailure, cache }),
+    runtime.fetch,
+    (token, fetch) => createPublicGithubSourceClient({ fetch, token, onReadFailure: reportGithubReadFailure, cache }),
     runtime.report,
   )
 }
 
-function defaultGithubSourceRuntime(): ArtifactGithubCredentialRuntime {
+function defaultGithubSourceRuntime(): GithubCredentialRuntime {
   return {
     fetch: globalThis.fetch.bind(globalThis),
     now: () => Math.floor(Date.now() / 1000),
-    tokenCache: installationTokens,
+    // A token lives an hour, so it outlives the queue batch that minted it,
+    // and the registry reads in this isolate share it.
+    tokenCache: isolateInstallationTokenCache(),
     report: reportGithubCredential,
   }
 }
 
-function reportGithubCredential(event: ArtifactGithubCredentialReport): void {
+function reportGithubCredential(event: GithubCredentialReport): void {
   emitOperationalEvent(createWideEvent({
     'operation': 'artifact-github-credential',
     'outcome': event.outcome,
