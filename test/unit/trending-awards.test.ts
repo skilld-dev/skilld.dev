@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseSkillTrendingAwards, planAwardWrites, recordTrendingAwards, SKILL_TRENDING_AWARDS_SQL } from '../../layers/registry/server/utils/trending-awards'

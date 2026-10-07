@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { learnContentPath } from '../../layers/marketing/app/utils/learn-content-path'
 
 describe('learn content path', () => {

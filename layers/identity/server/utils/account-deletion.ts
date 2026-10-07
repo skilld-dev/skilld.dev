@@ -6,7 +6,7 @@ import { decryptToken } from './crypto'
  *
  * Each table is listed even when a foreign key would cascade from `users`:
  * several tables carry no foreign key at all, and the deletion must not depend
- * on foreign key enforcement. `test/unit/account-deletion.test.ts` checks the
+ * on foreign key enforcement. `test/unit/account-deletion.nuxt.test.ts` checks the
  * migrated schema, so a new table that names an account fails there until it
  * joins this list.
  *

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import { assertWeeklyClaim, buildWeeklySocial, loadWeeklySocial, oauthHeader, publishWeeklySocial, verifySocialDestination } from '../../scripts/lib/weekly-social'
 

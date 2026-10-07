@@ -34,14 +34,43 @@ export function allMigrations(): string[] {
     .map(name => `migrations/${name}`)
 }
 
+/**
+ * Replaying all migrations costs about 100 ms per database, and most suites
+ * build a fresh database for every test. Each distinct migration list is
+ * replayed once per test file, then every later database loads that image.
+ *
+ * `serialize` arrived in Node 24.16. On older versions every database replays
+ * the list.
+ */
+const migratedImages = new Map<string, Uint8Array>()
+const canLoadImage = typeof DatabaseSync.prototype.serialize === 'function'
+
+function migrate(raw: DatabaseSync, migrationPaths: string[]): void {
+  if (!canLoadImage || migrationPaths.length === 0) {
+    for (const path of migrationPaths)
+      raw.exec(readFileSync(path, 'utf8'))
+    return
+  }
+  const key = migrationPaths.join('\n')
+  let image = migratedImages.get(key)
+  if (!image) {
+    const template = new DatabaseSync(':memory:')
+    for (const path of migrationPaths)
+      template.exec(readFileSync(path, 'utf8'))
+    image = template.serialize()
+    template.close()
+    migratedImages.set(key, image)
+  }
+  raw.deserialize(image)
+}
+
 export function createSqliteD1(
   migrationPaths: string[],
   options: { maximumQueries?: number } = {},
 ): SqliteD1 {
   const raw = new DatabaseSync(':memory:')
   let queryCount = 0
-  for (const path of migrationPaths)
-    raw.exec(readFileSync(path, 'utf8'))
+  migrate(raw, migrationPaths)
 
   /**
    * D1 rejects a statement with more than 100 bound parameters. SQLite itself

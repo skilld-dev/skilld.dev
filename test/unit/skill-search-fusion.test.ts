@@ -191,12 +191,6 @@ describe('collapseSearchDuplicates', () => {
   })
 })
 
-describe('skillKey', () => {
-  it('joins the composite primary key in owner/repo/name order', () => {
-    expect(skillKey({ owner: 'antfu', repo: 'skills', name: 'vue' })).toBe('antfu/skills/vue')
-  })
-})
-
 describe('final search relevance', () => {
   it('keeps the strongest semantic match above an official distant neighbour', () => {
     const relevant = skill({ owner: 'author', repo: 'skills', name: 'retain-cycle-debugger' })

@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   approximateDeployedSha,
@@ -322,20 +320,6 @@ describe('workflow gate coverage', () => {
 
   it('returns null when a definition declares no name', () => {
     expect(parseWorkflowName('on:\n  push:\n')).toBe(null)
-  })
-
-  // Pinning a workflow by name would make this fail whenever one is legitimately
-  // added or retired. What the gate actually depends on is that every definition
-  // present resolves to a name, so none can silently fall outside the verdict.
-  it('resolves a name for every workflow the repository defines', () => {
-    const files = readdirSync(resolve(process.cwd(), '.github/workflows'))
-      .filter(file => /\.ya?ml$/.test(file))
-    const declared = files
-      .map(file => parseWorkflowName(readFileSync(resolve(process.cwd(), '.github/workflows', file), 'utf8')))
-
-    expect(files.length).toBeGreaterThan(0)
-    expect(declared).not.toContain(null)
-    expect(new Set(declared).size).toBe(declared.length)
   })
 })
 

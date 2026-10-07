@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { DailyHealthCheckSummary } from '../../layers/identity/server/utils/daily-health-check'
 import { describe, expect, it } from 'vitest'
 import { evaluateDailyHealthStatus } from '../../layers/identity/server/utils/daily-health-check'

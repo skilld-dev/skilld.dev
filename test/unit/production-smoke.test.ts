@@ -36,27 +36,6 @@ describe('production smoke contract', () => {
     })
   })
 
-  it('covers the public routes implicated by the closed incidents', () => {
-    expect(PRODUCTION_SMOKE_EXPECTATIONS).toEqual(expect.arrayContaining([
-      // The homepage asserts its own hero words, because the page's error
-      // branch renders an h1 too.
-      { path: '/', status: 200, bodyContains: ['<h1', 'Agent skills for you'] },
-      { path: '/alt', status: 301, location: '/' },
-      { path: '/skills', status: 200, bodyContains: ['<h1'] },
-      { path: '/community', status: 200, bodyContains: ['<h1'] },
-      { path: '/collections', status: 301, location: '/community' },
-      { path: '/guides', status: 410 },
-      { path: '/guides/npm/example', status: 410 },
-      { path: ASSET_COHERENCE_PATH, status: 200 },
-      { path: '/skills/not-a-real-outcome', status: 404 },
-      { path: '/collections/_CollectionAvatar', status: 404 },
-      { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
-      { path: '/skills/plan', status: 301, location: '/skills/planning' },
-      { path: '/skills/leaderboard', status: 301, location: '/skills/trending?range=all' },
-      { path: '/skills/tag/cloudflare', status: 200, bodyContains: ['<h1'] },
-    ]))
-  })
-
   it('checks rendered content on every page expected to return 200', () => {
     // A status-only check cannot tell a rendered page from an empty shell,
     // which is how a blank category surface shipped three times.

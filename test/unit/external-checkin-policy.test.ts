@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { expect, it } from 'vitest'
 import { summarizeWorkflowRuns } from '../../checks/_helpers/observability.mjs'
 import { evaluateCI, evaluateD1 } from '../../checks/_helpers/policy.mjs'

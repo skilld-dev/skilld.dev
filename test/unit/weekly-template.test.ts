@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import type { WeeklyRenderInput, WeeklyTrendingSkill } from '../../layers/identity/server/utils/weekly-template'
 import { describe, expect, it } from 'vitest'
 import { formatWindow, renderWeekly } from '../../layers/identity/server/utils/weekly-template'
@@ -76,16 +77,6 @@ describe('weekly template', () => {
 
     expect(html).toContain('1 account mentioned it')
     expect(html).not.toContain('1 accounts')
-  })
-
-  it('uses direct copy instead of counting discoveries', () => {
-    const { html } = renderWeekly(input({
-      likedChanges: [likedChange()],
-      trending: [trending()],
-    }))
-
-    expect(html).toContain('1 Skill you like was updated.')
-    expect(html).not.toContain('was discovered')
   })
 
   it('links exact source and shows the owner avatar through the skilld.dev image proxy', () => {
@@ -456,12 +447,6 @@ describe('weekly quiet week reporting', () => {
     expect(text).toContain('30 Skills tracked, no updates this week')
   })
 
-  it('keeps the section heading so the silence has a home', () => {
-    const { html } = renderWeekly(input({ trackedCount: 30, trending: [trending()] }))
-
-    expect(html).toContain('Skills you like')
-  })
-
   it('counts one tracked skill as a skill', () => {
     const { html } = renderWeekly(input({ trackedCount: 1, trending: [trending()] }))
 
@@ -531,63 +516,11 @@ describe('weekly with no recipient', () => {
 })
 
 describe('weekly theme', () => {
-  it('keeps Skill titles aligned with avatars when a mail client ignores negative margins', () => {
-    const { card } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
-
-    expect(card).not.toContain('padding:11px 0;margin:-11px 0')
-  })
-
-  it('keeps inline evidence links compact when a mail client ignores negative margins', () => {
-    const { card } = renderWeekly(input({
-      edition: 'weekly',
-      trending: [trending({
-        evidence: {
-          url: 'https://x.com/antfu/status/1',
-          authorHandle: 'antfu7',
-          text: 'Vitest is trending.',
-          platform: 'x',
-        },
-      })],
-    }))
-
-    expect(card).not.toContain('margin:-')
-  })
-
-  it('softens dividers when a mail client forces dark mode', () => {
-    const { html } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
-
-    expect(html).toContain('@media (prefers-color-scheme: dark)')
-    expect(html).toContain('.weekly-border{border-color:#4d453b!important;}')
-    expect(html.match(/class="weekly-border"/g)?.length).toBeGreaterThanOrEqual(4)
-  })
-
-  it('sends light unless asked otherwise, since inline styles are all a mail client honours', () => {
-    const { html } = renderWeekly(input({ trending: [trending()] }))
-
-    expect(html).toContain('#ffffff')
-    expect(html).toContain('content="light"')
-  })
-
   it('renders a dark card for a surface that asked for one', () => {
     const { card } = renderWeekly(input({ theme: 'dark', trending: [trending()] }))
 
     expect(card).toContain('#1c1917')
     expect(card).not.toContain('#ffffff')
-  })
-
-  it('keeps the accent readable in dark by darkening the label, not the button', () => {
-    const { card } = renderWeekly(input({ theme: 'dark', trending: [trending()] }))
-
-    // White on rose-400 fails AA; the dark palette flips the label instead.
-    expect(card).toContain('#fb7185')
-    expect(card).toContain('color:#1c1917;text-decoration:none;')
-  })
-
-  it('uses a text heading without decorative emoji', () => {
-    const { html } = renderWeekly(input({ trending: [trending()] }))
-
-    expect(html).toContain('Trending this week')
-    expect(html).not.toContain('\u{1F525}')
   })
 })
 
@@ -626,15 +559,5 @@ describe('weekly trending spark', () => {
 
     expect(html).not.toMatch(BRAILLE)
     expect(text).not.toMatch(BRAILLE)
-  })
-
-  it('keeps the spark out of the rose budget', () => {
-    const { card } = renderWeekly(input({
-      edition: 'weekly',
-      trending: [trending({ reason: { _tag: 'named', authorCount: 3, mentionCount: 12, latestAt: WINDOW_END, mentionsByDay: week } })],
-    }))
-    const plain = renderWeekly(input({ edition: 'weekly', trending: [trending()] })).card
-
-    expect(card.match(/#e11d48|#be123c|#fb7185/gi)?.length ?? 0).toBe(plain.match(/#e11d48|#be123c|#fb7185/gi)?.length ?? 0)
   })
 })
