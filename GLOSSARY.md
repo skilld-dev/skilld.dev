@@ -35,6 +35,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | behavior | `skilld-protocol/behaviors`, Skill page | Skill 1—N behavior | "Skill behaviors" |
 | behavior reading | `behavior-review` check result, Skill page, skilld CLI | behavior match 1—1 behavior reading | "model reading" |
 | Skillgen | `workers/skill-harness`, `/skillgen` | Repository 1—N pull request | "Skillgen" |
+| bootstrap run | `workers/skill-harness`, `/skillgen` | package 1—1 bootstrap run | "bootstrap run" |
 | task search | search box, `layers/registry` | sentence 1—N Skill | "Find skills for this task" |
 
 Collisions
@@ -322,6 +323,16 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Never:** bot (in UI copy), skill generator, auto-update.
 
 **Casing:** `Skillgen` in prose and UI. `skilld-skillgen` only where GitHub shows the App's name.
+
+### bootstrap run
+
+**Is:** the first Skillgen run for an npm package that has no Skill. A separate review must accept the Skill. Then Skillgen opens a pull request that adds it, lists it in the package's `files`, and adds the skilld.dev badge to the README. If the review confirms package bugs, Skillgen also opens one issue that lists them.
+
+**Use for:** that first run only. Each later release tag updates the Skill.
+
+**Never:** onboarding, scaffold, first-time setup.
+
+**Status:** planned. `docs/work/EXECUTE-skillgen-bootstrap.md` owns the work.
 
 ### guide skill
 

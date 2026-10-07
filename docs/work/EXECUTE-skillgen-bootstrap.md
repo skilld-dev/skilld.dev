@@ -17,6 +17,9 @@ Today Skillgen only updates an existing Skill. `prepareTag` skips with `EXISTING
 - **One Skill per npm package.** A Skill ships inside its package, so npm distributes it with the version it describes. A monorepo does not get one shared Skill.
 - **The bootstrap pull request adds `skills` to the package's `files`.** Without it the Skill never reaches npm. Update runs still change only the Skill directory.
 - **The Harness runs OpenCode on GLM 5.3** through OpenCode Go (`opencode-go/glm-5.3`).
+- **The bootstrap pull request adds the skilld.dev badge** after the README's other badges. It adds no tip.
+- **Issues file automatically** and list only the package bugs a review confirmed.
+- **The term is "bootstrap run".** `GLOSSARY.md` defines it.
 
 ## What the manual run showed
 
@@ -49,16 +52,10 @@ Observations that shape the design:
 - [ ] **Bootstrap budget.** Measure one Harness bootstrap run on `which-nuxt` with GLM 5.3 before choosing limits. The update limits will not fit.
 - [ ] **Opt-in without a Skill.** `inspectSkillgenRepository` returns `NoSkill` today. Make a public package that npm publishes eligible, and list maintained repositories with one even when the registry holds no Skill.
 - [ ] **Package choice.** Store the packages a maintainer turns on per repository. Default to the root package, or to packages that no sibling package depends on.
-- [ ] **Bootstrap job.** Turning a repository on queues a job for the latest tag that matches each chosen package. It reuses the provenance checks. `currentSkill` may be empty for this job kind. The destination is `skills/NAME` beside the package's `package.json`, and the pull request adds `skills` to `files`.
+- [ ] **Bootstrap run.** Turning a repository on queues a job for the latest tag that matches each chosen package. It reuses the provenance checks. `currentSkill` may be empty for this job kind. The destination is `skills/NAME` beside the package's `package.json`. The pull request adds `skills` to `files` and the README badge.
 - [ ] **Structured mismatches.** `skilld-harness` returns the generation's mismatches as data: expected, observed, repro, source. Review confirms or drops each one.
 - [ ] **Issue publication.** Request `issues: write` for the App. File one issue per bootstrap with confirmed mismatches only. Skip quietly while an installation has not accepted the permission.
 - [ ] **Copy.** `/skillgen`, `/make-skill`, and `/me?view=skillgen` say Skillgen needs an existing Skill. Update them with the opt-in change.
-
-## Open questions
-
-- Is "bootstrap run" the term? It would name the first Skillgen run that adds a Skill. `GLOSSARY.md` has no entry yet.
-- Should a bootstrap pull request also add the README badge and tip, or only the Skill and `files`?
-- Should issues wait for a maintainer to approve them on `/me?view=skillgen`, given they post to someone else's tracker?
 
 ## Log
 
