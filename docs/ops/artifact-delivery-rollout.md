@@ -112,14 +112,16 @@ Preserve these existing values:
 - `NUXT_OAUTH_GITHUB_CLIENT_SECRET`
 - `NUXT_TOKEN_KEY`
 
-Every Worker GitHub read uses the read App `skilld-dev-registry-reads`: the registry sync, repository maintenance, mention checks, `/gh` pages and public Artifact builds. Set `SKILLD_READ_APP_ID`, `SKILLD_READ_APP_INSTALLATION_ID` and `SKILLD_READ_APP_PRIVATE_KEY_PKCS8` (a PKCS #8 PEM). The App has metadata read permission only, and its installation has its own quota.
+Every Worker [GitHub](https://github.com) read uses the read App `skilld-dev-registry-reads`: the registry sync, repository maintenance, mention checks, `/gh` pages and public Artifact builds. Set `SKILLD_READ_APP_ID`, `SKILLD_READ_APP_INSTALLATION_ID` and `SKILLD_READ_APP_PRIVATE_KEY_PKCS8` (a PKCS #8 PEM). The App has metadata read permission only, and its installation has its own quota.
 
 Personal tokens are fallbacks only. They repeat a read GitHub denied the App, such as an organization that restricts Apps:
 
 1. Builds try `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the token of the signed-in account that asked for the run.
 2. Every other caller tries `GITHUB_TOKEN`.
 
-Each denial emits an `app-denied` event: `github-credential` for registry reads and `artifact-github-credential` for builds. The `github.credential` field names the fallback, or `none`. Without a fallback, the read fails for that Repository only: a build answers `SOURCE_ACCESS_DENIED`, and the sync records a failure without pausing.
+Each denial emits an `app-denied` event: `github-credential` for registry reads and `artifact-github-credential` for builds. The `github.credential` field names the fallback, or `none`. Without a fallback, the read fails for that Repository only: a build answers `SOURCE_ACCESS_DENIED`, and the sync records a failure without pausing. If the fallback is spent or expired, the sync also records a failure for that Repository without pausing. The sync paces itself on the App's quota, never on the fallback's.
+
+If GitHub answers 401 to the cached installation token, the read mints one new token and repeats. If GitHub rejects the new token too, the read uses the fallback and emits an `app-token-rejected` event.
 
 If the App secrets are set but unusable, reads use the fallback and emit an event with the reason.
 Keep the read App apart from the `GITHUB_APP_*` secrets below. Those belong to private delivery.

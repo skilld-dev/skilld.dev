@@ -23,7 +23,7 @@ export type UnghRepoResult
  * Public repository metadata from ungh.cc, the unjs GitHub proxy that caches
  * anonymous reads.
  *
- * A page-view fallback for when `GITHUB_TOKEN` is spent or GitHub is down. It
+ * A page-view fallback for when the GitHub quota is spent or GitHub is down. It
  * answers metadata only. It never serves a tree or file content, and nothing
  * built or signed reads it. ungh.cc knows no archived or fork flag, so both
  * read false. Its 404 is no verdict about GitHub, so it reads as unavailable.
