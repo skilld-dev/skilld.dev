@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
+import type { BehaviorReading, BehaviorReadingsResponse } from '#shared/behavior-readings'
 import type { RunCheckFlagsResponse } from '#shared/run-check-flags'
 import type { TrendingAward } from '#shared/trending-award'
 import type { SkillDemoView } from '../../server/utils/skill-demos'
@@ -7,6 +8,7 @@ import type { ZipState } from '../utils/skill-zip'
 import type { SkillBehavior } from './_SkillBehaviors.vue'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+import { readingsForSkillMd } from '#shared/behavior-readings'
 import { comparisonLinkForSkill } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
@@ -716,6 +718,26 @@ const verifiedSummary = computed<{ verified: number, total: number } | null>(() 
 })
 
 const behaviors = computed(() => data.value?.sourceFacts.behaviors ?? [])
+
+// Behavior readings, from artifact delivery (ADR-0001, ADR-0016): a language
+// model's reading of each SKILL.md match that needs approval. Browser only:
+// they annotate the panel, so crawlers never pay a D1 read for them. They key
+// on the SKILL.md Git blob, and a line that moved since then shows none.
+const readingsBlob = computed(() => behaviors.value.some(behavior => behavior.tier === 'ask')
+  ? data.value?.sourceFacts.source.currentSha ?? null
+  : null)
+const { data: behaviorReadings } = useAsyncData<BehaviorReading[]>(
+  () => `behavior-readings:${readingsBlob.value ?? 'none'}`,
+  async () => {
+    const blob = readingsBlob.value
+    const raw = data.value?.raw
+    if (!blob || !raw)
+      return []
+    const answer = await $fetch<BehaviorReadingsResponse>('/api/behavior-readings', { query: { blob } })
+    return readingsForSkillMd(answer.items, raw)
+  },
+  { server: false, lazy: true, watch: [readingsBlob], default: () => [] },
+)
 
 const capabilitySummary = computed<{ scopes: ('read' | 'write' | 'exec' | 'net')[], mcp: string[] } | null>(() => {
   const facts = data.value?.sourceFacts.frontmatter
@@ -2284,6 +2306,7 @@ useHead(computed(() => ({
             <SkillBehaviors
               v-if="data.raw || behaviors.length"
               :behaviors="behaviors"
+              :readings="behaviorReadings"
             />
             <SkillThirdPartyChecks
               v-model:open="checksOpen"
