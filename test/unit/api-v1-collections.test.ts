@@ -100,7 +100,7 @@ describe('presentCollection', () => {
 
   it('answers the collection address and a null avatar for an empty one', () => {
     expect(answer.pageUrl).toBe('https://skilld.dev/@harlan-zw/design-engineering-essentials')
-    expect(answer.installCommand).toBe('npx skilld add @harlan-zw/design-engineering-essentials')
+    expect(answer.installCommand).toBe('npx skilld add @harlan-zw/design-engineering-essentials --all')
     expect(answer.curator).toEqual({ login: 'harlan-zw', name: 'Harlan Wilton', avatarUrl: null })
   })
 })
@@ -113,13 +113,13 @@ describe('presentCurator', () => {
   it('answers the curator with an install command for each collection', () => {
     const answer = presentCurator({ login: 'harlan-zw', name: null, avatar: 'https://avatars.githubusercontent.com/u/1' }, collections)
     expect(curatorsV1.operations.get.response.body.producer.safeParse(answer).success).toBe(true)
-    expect(answer.installCommand).toBe('npx skilld add @harlan-zw')
+    expect(answer.installCommand).toBe('npx skilld add @harlan-zw --all')
     expect(answer.collections).toEqual([{
       slug: 'stack',
       title: 'Stack',
       description: 'Intro',
       pageUrl: 'https://skilld.dev/@harlan-zw/stack',
-      installCommand: 'npx skilld add @harlan-zw/stack',
+      installCommand: 'npx skilld add @harlan-zw/stack --all',
       skillCount: 3,
     }])
   })
