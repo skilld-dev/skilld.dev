@@ -1,6 +1,8 @@
 import type { DemoMakes } from '#shared/demo-groups'
 import { z } from 'zod'
 import { DEMO_MAKES } from '#shared/demo-groups'
+import { demoPagePath, DEMOS_PATH, MIN_INDEXABLE_DEMOS } from '#shared/demo-pages'
+import { runCheckFlagKey } from '#shared/run-check-flags'
 import { repoSkillPath } from '#shared/skill-routes'
 import manifest from '../data/skill-demos.json'
 
@@ -96,6 +98,35 @@ export function listSkillDemos(demos: readonly SkillDemoRecord[] = SKILL_DEMOS):
   return [...demos].sort((a, b) =>
     (a.pin ?? Number.POSITIVE_INFINITY) - (b.pin ?? Number.POSITIVE_INFINITY)
     || b.recordedAt.localeCompare(a.recordedAt))
+}
+
+/**
+ * The demos a visitor may see. A demo whose Skill holds a run check flag stays
+ * out until a check passes: a visitor who watches it would copy a run command
+ * that fails.
+ */
+export function listShownSkillDemos(flagged: ReadonlySet<string>, demos: readonly SkillDemoRecord[] = SKILL_DEMOS): readonly SkillDemoRecord[] {
+  return listSkillDemos(demos).filter(demo => !flagged.has(runCheckFlagKey(demo.owner, demo.repo, demo.name)))
+}
+
+export interface DemoSitemapEntry {
+  loc: string
+  lastmod: string
+}
+
+/**
+ * `/skills/demos` and each shown demo's page. Empty below
+ * `MIN_INDEXABLE_DEMOS`, where those pages answer noindex.
+ */
+export function listDemoSitemapEntries(flagged: ReadonlySet<string>, demos: readonly SkillDemoRecord[] = SKILL_DEMOS): DemoSitemapEntry[] {
+  const shown = listShownSkillDemos(flagged, demos)
+  if (shown.length < MIN_INDEXABLE_DEMOS)
+    return []
+  const newest = shown.map(demo => demo.recordedAt).sort().at(-1) as string
+  return [
+    { loc: DEMOS_PATH, lastmod: newest },
+    ...shown.map(demo => ({ loc: demoPagePath(demo), lastmod: demo.recordedAt })),
+  ]
 }
 
 /** The `skilld-demo-media` bucket's custom domain. */

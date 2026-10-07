@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { edgeCache } from '@harlan-zw/nuxt-cloudflare/cache'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
-import { frozenNoindexPaths } from './layers/marketing/app/utils/page-admissions'
+import { frozenNoindexPaths, isPageAdmitted } from './layers/marketing/app/utils/page-admissions'
 import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
@@ -584,6 +584,7 @@ export default defineNuxtConfig({
     // takes two failed checks, so a day of stale serving on a quiet colo is
     // within the time the checks themselves take.
     '/skills/demos': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
+    '/skills/demos/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
     // The CLI and developer pages read no data and no session, so they change
     // only on deploy, and a deploy starts a new cache key. Uncached, each view
     // rendered in the Worker: 110 to 250 ms to first byte from Sydney on
@@ -885,6 +886,12 @@ export default defineNuxtConfig({
         includeAppSources: false,
         chunks: 10000,
       },
+      // `/skills/demos` and one page per demo, which the pages sitemap's
+      // `/skills/**` exclude drops. Listed while page-admissions admits
+      // `/skills/demos`, the entry every demo page reads.
+      ...(isPageAdmitted('/skills/demos')
+        ? { demos: { sources: ['/api/__sitemap__/demos'], includeAppSources: false } }
+        : {}),
       // `authors` and `sources` removed 2026-10-01 (owner decision): author
       // profiles, collections, owner hubs and multi-Skill repository hubs render
       // `noindex,follow`. A single-Skill repository hub is the Skill's own page,

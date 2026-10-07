@@ -92,7 +92,7 @@ Collisions
 
 **Is:** one recorded run of a Skill: a fixed prompt, the output an Agent made with the Skill, and how it was recorded (Agent, model, Skill commit, date). A human approves each one before it ships.
 
-**Use for:** the Demo panel on the Skill page, the homepage demo section, and "live demo" for the sandboxed output page.
+**Use for:** the Demo panel on the Skill page, the homepage demo section, a demo page at `/skills/demos/<owner>/<repo>/<name>`, and "live demo" for the sandboxed output page.
 
 **Never:** example output, showcase, sample. Preview names the step of watching a demo, never the demo itself.
 

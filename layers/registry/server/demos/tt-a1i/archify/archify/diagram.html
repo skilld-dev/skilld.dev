@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferncastle — Book Reservation Architecture</title>
+<style>
+  :root {
+    --bg: #0b1120; --panel: #111a2e; --grid: #1a2540; --text: #e2e8f0; --muted: #94a3b8;
+    --client: #22d3ee; --edge: #a78bfa; --service: #34d399; --data: #fbbf24; --async: #f472b6; --security: #f87171;
+    --line: #64748b;
+  }
+  [data-theme="light"] {
+    --bg: #f8fafc; --panel: #ffffff; --grid: #e2e8f0; --text: #0f172a; --muted: #475569;
+    --client: #0891b2; --edge: #7c3aed; --service: #059669; --data: #b45309; --async: #db2777; --security: #dc2626;
+    --line: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 20px 28px 8px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: .01em; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .controls { display: flex; gap: 8px; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--grid);
+    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  button:hover { border-color: var(--edge); }
+  button[aria-pressed="true"] { border-color: var(--client); color: var(--client); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; padding: 8px 28px 28px; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .canvas { background: var(--panel); border: 1px solid var(--grid); border-radius: 14px; overflow: auto; }
+  svg { display: block; width: 100%; height: auto; min-width: 760px; }
+  .bg-grid { stroke: var(--grid); stroke-width: 1; }
+
+  .node rect { fill: var(--panel); stroke-width: 1.6; rx: 10; }
+  .node .title { fill: var(--text); font-size: 14px; font-weight: 600; }
+  .node .sub { fill: var(--muted); font-size: 11.5px; }
+  .node .tag { font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+  .node { cursor: pointer; transition: opacity .2s; }
+  .client rect { stroke: var(--client); } .client .tag { fill: var(--client); }
+  .edgeK rect { stroke: var(--edge); } .edgeK .tag { fill: var(--edge); }
+  .security rect { stroke: var(--security); } .security .tag { fill: var(--security); }
+  .service rect { stroke: var(--service); } .service .tag { fill: var(--service); }
+  .data rect { stroke: var(--data); } .data .tag { fill: var(--data); }
+  .async rect { stroke: var(--async); } .async .tag { fill: var(--async); }
+
+  .boundary rect { fill: none; stroke: var(--line); stroke-dasharray: 6 5; rx: 16; }
+  .boundary text { fill: var(--muted); font-size: 11px; letter-spacing: .1em; font-weight: 600; }
+
+  .link path { fill: none; stroke: var(--line); stroke-width: 1.6; transition: stroke .2s, opacity .2s; }
+  .link.async path { stroke-dasharray: 5 4; }
+  .link .num { fill: var(--bg); stroke: var(--line); stroke-width: 1.4; }
+  .link .num-t { fill: var(--text); font-size: 10.5px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  .link .lbl { fill: var(--muted); font-size: 11px; }
+  .link .lbl-bg { fill: var(--panel); opacity: .9; }
+
+  .dim .node:not(.on), .dim .link:not(.on) { opacity: .18; }
+  .link.on path { stroke: var(--client); stroke-width: 2.4; }
+  .link.on .num { stroke: var(--client); }
+  .link.on .lbl { fill: var(--text); }
+  .node.on rect { stroke-width: 2.6; }
+
+  aside { background: var(--panel); border: 1px solid var(--grid); border-radius: 14px; padding: 18px 18px 8px; }
+  aside h2 { margin: 0 0 10px; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+  ol li { counter-increment: s; position: relative; padding: 8px 8px 8px 36px; border-radius: 8px;
+    cursor: pointer; margin-bottom: 2px; font-size: 13px; }
+  ol li::before { content: counter(s); position: absolute; left: 8px; top: 8px; width: 20px; height: 20px;
+    border-radius: 50%; border: 1.4px solid var(--line); display: grid; place-items: center;
+    font-size: 10.5px; font-weight: 700; }
+  ol li:hover, ol li.on { background: var(--grid); }
+  ol li.on::before { border-color: var(--client); color: var(--client); }
+  ol li small { display: block; color: var(--muted); font-size: 11.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 16px 0 10px; padding-top: 12px;
+    border-top: 1px solid var(--grid); font-size: 12px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+    border: 2px solid currentColor; margin-right: 6px; vertical-align: -1px; }
+  .legend .l-client { color: var(--client); } .legend .l-edge { color: var(--edge); }
+  .legend .l-sec { color: var(--security); } .legend .l-svc { color: var(--service); }
+  .legend .l-data { color: var(--data); } .legend .l-async { color: var(--async); }
+  .note { color: var(--muted); font-size: 11.5px; margin: 0 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Ferncastle — Book Reservation Flow</h1>
+    <p>Fictional library app · architecture view · numbered path shows a patron placing a hold</p>
+  </div>
+  <div class="controls">
+    <button id="play" aria-pressed="false">▶ Trace reservation</button>
+    <button id="reset">Clear</button>
+    <button id="theme">☀ Light</button>
+  </div>
+</header>
+
+<main>
+  <div class="canvas">
+    <svg id="diagram" viewBox="0 0 1040 640" role="img" aria-labelledby="svgTitle svgDesc">
+      <title id="svgTitle">Ferncastle architecture</title>
+      <desc id="svgDesc">Phone app calls the API gateway, which verifies tokens with the auth service and routes to the catalog service. The catalog service reads the search index and Postgres, enqueues a hold on the holds queue, and the push notifier consumes it to notify the phone app.</desc>
+      <defs>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M40 0H0V40" class="bg-grid" fill="none"/>
+        </pattern>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" fill="context-stroke"/>
+        </marker>
+      </defs>
+      <rect width="1040" height="640" fill="url(#grid)" opacity=".5"/>
+
+      <!-- Boundaries -->
+      <g class="boundary">
+        <rect x="250" y="40" width="770" height="580"/>
+        <text x="268" y="62">FERNCASTLE CLOUD</text>
+      </g>
+      <g class="boundary">
+        <rect x="560" y="90" width="440" height="510"/>
+        <text x="578" y="112">PRIVATE SERVICE NETWORK</text>
+      </g>
+
+      <!-- Links (drawn under nodes) -->
+      <g id="links">
+        <g class="link" data-step="1">
+          <path d="M200 330 H300" marker-end="url(#arrow)"/>
+          <rect class="lbl-bg" x="198" y="296" width="104" height="18" rx="4"/>
+          <text class="lbl" x="204" y="309">POST /holds</text>
+          <circle class="num" cx="250" cy="330" r="10"/><text class="num-t" x="250" y="330">1</text>
+        </g>
+        <g class="link" data-step="2">
+          <path d="M380 290 V200" marker-end="url(#arrow)"/>
+          <rect class="lbl-bg" x="388" y="232" width="96" height="18" rx="4"/>
+          <text class="lbl" x="394" y="245">verify JWT</text>
+          <circle class="num" cx="380" cy="245" r="10"/><text class="num-t" x="380" y="245">2</text>
+        </g>
+        <g class="link" data-step="3">
+          <path d="M460 330 H600" marker-end="url(#arrow)"/>
+          <rect class="lbl-bg" x="478" y="296" width="108" height="18" rx="4"/>
+          <text class="lbl" x="484" y="309">route request</text>
+          <circle class="num" cx="530" cy="330" r="10"/><text class="num-t" x="530" y="330">3</text>
+        </g>
+        <g class="link" data-step="4">
+          <path d="M760 290 V210 H820" marker-end="url(#arrow)"/>
+          <rect class="lbl-bg" x="676" y="232" width="78" height="18" rx="4"/>
+          <text class="lbl" x="682" y="245">find title</text>
+          <circle class="num" cx="760" cy="250" r="10"/><text class="num-t" x="760" y="250">4</text>
+        </g>
+        <g class="link" data-step="5">
+          <path d="M760 330 H820" marker-end="url(#arrow)"/>
+          <circle class="num" cx="790" cy="330" r="10"/><text class="num-t" x="790" y="330">5</text>
+          <rect class="lbl-bg" x="770" y="346" width="44" height="34" rx="4"/>
+          <text class="lbl" x="772" y="359">lock +</text>
+          <text class="lbl" x="772" y="374">insert</text>
+        </g>
+        <g class="link async" data-step="6">
+          <path d="M680 370 V460" marker-end="url(#arrow)"/>
+          <rect class="lbl-bg" x="690" y="402" width="104" height="18" rx="4"/>
+          <text class="lbl" x="696" y="415">HoldPlaced event</text>
+          <circle class="num" cx="680" cy="410" r="10"/><text class="num-t" x="680" y="410">6</text>
+        </g>
+        <g class="link" data-step="7">
+          <path d="M600 350 H460" marker-end="url(#arrow)"/>
+          <rect class="lbl-bg" x="466" y="378" width="96" height="18" rx="4"/>
+          <text class="lbl" x="472" y="391">202 · queue #</text>
+          <circle class="num" cx="570" cy="350" r="10"/><text class="num-t" x="570" y="350">7</text>
+        </g>
+        <g class="link" data-step="7">
+          <path d="M300 360 H200" marker-end="url(#arrow)"/>
+        </g>
+        <g class="link async" data-step="8">
+          <path d="M760 500 H820" marker-end="url(#arrow)"/>
+          <circle class="num" cx="790" cy="500" r="10"/><text class="num-t" x="790" y="500">8</text>
+          <rect class="lbl-bg" x="768" y="516" width="48" height="18" rx="4"/>
+          <text class="lbl" x="772" y="529">consume</text>
+        </g>
+        <g class="link async" data-step="9">
+          <path d="M900 540 V580 H120 V375" marker-end="url(#arrow)"/>
+          <rect class="lbl-bg" x="410" y="562" width="190" height="18" rx="4"/>
+          <text class="lbl" x="416" y="575">push: "Your hold is placed"</text>
+          <circle class="num" cx="380" cy="580" r="10"/><text class="num-t" x="380" y="580">9</text>
+        </g>
+      </g>
+
+      <!-- Nodes -->
+      <g class="node client" data-node="app" transform="translate(40 290)">
+        <rect width="160" height="85"/>
+        <text class="tag" x="14" y="22">CLIENT</text>
+        <text class="title" x="14" y="44">Phone App</text>
+        <text class="sub" x="14" y="62">iOS / Android patron app</text>
+      </g>
+      <g class="node edgeK" data-node="gw" transform="translate(300 290)">
+        <rect width="160" height="80"/>
+        <text class="tag" x="14" y="22">EDGE</text>
+        <text class="title" x="14" y="44">API Gateway</text>
+        <text class="sub" x="14" y="62">TLS · rate limit · routing</text>
+      </g>
+      <g class="node security" data-node="auth" transform="translate(300 120)">
+        <rect width="160" height="80"/>
+        <text class="tag" x="14" y="22">SECURITY</text>
+        <text class="title" x="14" y="44">Auth Service</text>
+        <text class="sub" x="14" y="62">patron login · JWT verify</text>
+      </g>
+      <g class="node service" data-node="catalog" transform="translate(600 290)">
+        <rect width="160" height="80"/>
+        <text class="tag" x="14" y="22">SERVICE</text>
+        <text class="title" x="14" y="44">Catalog Service</text>
+        <text class="sub" x="14" y="62">titles · copies · holds API</text>
+      </g>
+      <g class="node data" data-node="search" transform="translate(820 170)">
+        <rect width="160" height="80"/>
+        <text class="tag" x="14" y="22">INDEX</text>
+        <text class="title" x="14" y="44">Search Index</text>
+        <text class="sub" x="14" y="62">title / author / ISBN</text>
+      </g>
+      <g class="node data" data-node="pg" transform="translate(820 290)">
+        <rect width="160" height="80"/>
+        <text class="tag" x="14" y="22">DATABASE</text>
+        <text class="title" x="14" y="44">Postgres</text>
+        <text class="sub" x="14" y="62">source of truth · holds</text>
+      </g>
+      <g class="node async" data-node="queue" transform="translate(600 460)">
+        <rect width="160" height="80"/>
+        <text class="tag" x="14" y="22">QUEUE</text>
+        <text class="title" x="14" y="44">Holds Queue</text>
+        <text class="sub" x="14" y="62">HoldPlaced / HoldReady</text>
+      </g>
+      <g class="node async" data-node="push" transform="translate(820 460)">
+        <rect width="160" height="80"/>
+        <text class="tag" x="14" y="22">WORKER</text>
+        <text class="title" x="14" y="44">Push Notifier</text>
+        <text class="sub" x="14" y="62">APNs / FCM fan-out</text>
+      </g>
+    </svg>
+  </div>
+
+  <aside>
+    <h2>Reservation steps</h2>
+    <ol id="steps">
+      <li data-step="1">Patron taps <b>Reserve</b><small>Phone App → API Gateway · POST /holds {bookId}</small></li>
+      <li data-step="2">Token checked<small>Gateway → Auth Service · reject with 401 if invalid</small></li>
+      <li data-step="3">Request routed<small>Gateway → Catalog Service with patron id</small></li>
+      <li data-step="4">Title resolved<small>Catalog → Search Index · confirm edition &amp; branch copies</small></li>
+      <li data-step="5">Hold written<small>Catalog → Postgres · lock copy row, insert hold, assign queue position</small></li>
+      <li data-step="6">Event published<small>Catalog → Holds Queue · HoldPlaced (async)</small></li>
+      <li data-step="7">Patron gets answer<small>Catalog → Gateway → App · 202 Accepted + queue position</small></li>
+      <li data-step="8">Notifier consumes<small>Holds Queue → Push Notifier</small></li>
+      <li data-step="9">Confirmation pushed<small>Push Notifier → Phone App · later also “ready for pickup”</small></li>
+    </ol>
+    <div class="legend">
+      <span class="l-client">Client</span><span class="l-edge">Edge</span><span class="l-sec">Security</span>
+      <span class="l-svc">Service</span><span class="l-data">Data</span><span class="l-async">Async</span>
+    </div>
+    <p class="note">Solid = synchronous request · dashed = asynchronous event. Click a step or a component to highlight it.</p>
+  </aside>
+</main>
+
+<script>
+(() => {
+  const svg = document.getElementById('diagram');
+  const links = [...svg.querySelectorAll('.link')];
+  const items = [...document.querySelectorAll('#steps li')];
+  // Which components each step touches
+  const touches = {
+    1: ['app', 'gw'], 2: ['gw', 'auth'], 3: ['gw', 'catalog'], 4: ['catalog', 'search'],
+    5: ['catalog', 'pg'], 6: ['catalog', 'queue'], 7: ['catalog', 'gw', 'app'],
+    8: ['queue', 'push'], 9: ['push', 'app']
+  };
+  let timer = null;
+
+  function clear() {
+    svg.classList.remove('dim');
+    svg.querySelectorAll('.on').forEach(el => el.classList.remove('on'));
+    items.forEach(li => li.classList.remove('on'));
+  }
+
+  function showSteps(steps) {
+    clear();
+    if (!steps.length) return;
+    svg.classList.add('dim');
+    steps.forEach(s => {
+      links.filter(l => l.dataset.step == s).forEach(l => l.classList.add('on'));
+      touches[s].forEach(n => svg.querySelector(`[data-node="${n}"]`).classList.add('on'));
+      items.find(li => li.dataset.step == s)?.classList.add('on');
+    });
+  }
+
+  function stop() {
+    clearInterval(timer); timer = null;
+    document.getElementById('play').setAttribute('aria-pressed', 'false');
+  }
+
+  items.forEach(li => li.addEventListener('click', () => { stop(); showSteps([+li.dataset.step]); }));
+
+  svg.querySelectorAll('.node').forEach(node => node.addEventListener('click', () => {
+    stop();
+    const id = node.dataset.node;
+    showSteps(Object.keys(touches).filter(s => touches[s].includes(id)).map(Number));
+  }));
+
+  document.getElementById('play').addEventListener('click', e => {
+    if (timer) { stop(); return; }
+    e.currentTarget.setAttribute('aria-pressed', 'true');
+    let s = 1;
+    showSteps([s]);
+    timer = setInterval(() => {
+      s += 1;
+      if (s > 9) { stop(); showSteps([1,2,3,4,5,6,7,8,9]); return; }
+      showSteps([s]);
+    }, 1100);
+  });
+
+  document.getElementById('reset').addEventListener('click', () => { stop(); clear(); });
+
+  document.getElementById('theme').addEventListener('click', e => {
+    const root = document.documentElement;
+    const light = root.dataset.theme !== 'light';
+    root.dataset.theme = light ? 'light' : 'dark';
+    e.currentTarget.textContent = light ? '☾ Dark' : '☀ Light';
+  });
+})();
+</script>
+</body>
+</html>

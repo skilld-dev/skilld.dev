@@ -140,6 +140,37 @@
     {
       "owner": "emilkowalski",
       "repo": "skills",
+      "name": "apple-design",
+      "makes": "ui-component",
+      "authorName": "Emil Kowalski",
+      "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md",
+      "prompt": "Build sheet.html: a draggable bottom sheet for Hollowmere, a fictional trail-map app. It snaps to three heights, carries the speed of a flick, rubber-bands past its edges, and can be grabbed mid-motion. Inline all CSS and JavaScript.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "85e8e2363b713506e1d5b6e07a0eb2da66be1bc3",
+      "recordedAt": "2026-10-07",
+      "outputFile": "sheet.html",
+      "shots": [
+        {
+          "file": "desktop-9e7faf5dab.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build sheet.html: a draggable bottom sheet for Hollowmere, a fictional trail-map app. It snaps to three heights, carries"
+        },
+        {
+          "file": "mobile-602c340f70.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build sheet.html: a draggable bottom sheet for Hollowmere, a fictional trail-map app. It snaps to three heights, carries"
+        }
+      ]
+    },
+    {
+      "owner": "emilkowalski",
+      "repo": "skills",
       "name": "emil-design-eng",
       "makes": "ui-component",
       "prompt": "Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show three stacked toasts on load that stay until dismissed, expand on hover, and dismiss on swipe. Inline all CSS and JavaScript.",
@@ -361,6 +392,45 @@
       "pin": 2
     },
     {
+      "owner": "leonxlnx",
+      "repo": "taste-skill",
+      "name": "taste-skill",
+      "makes": "landing-page",
+      "authorName": "Leon Lin",
+      "sourceUrl": "https://github.com/Leonxlnx/taste-skill/blob/main/skills/taste-skill/SKILL.md",
+      "prompt": "Build a landing page for Marrowgate, a fictional sleeper-train company that runs overnight routes between six mountain towns. Don't stop to ask me questions; make the design calls yourself. Save it as one self-contained index.html with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "3c7017d636c3a4aad378433ea6d0cfa6c921da4a",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-55e6bf594a.jpg",
+          "width": 1440,
+          "height": 6000,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a landing page for Marrowgate, a fictional sleeper-train company that runs overnight routes between six mountain t",
+          "poster": {
+            "file": "desktop-poster-bff8fbec94.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-239dae4144.jpg",
+          "width": 390,
+          "height": 6000,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a landing page for Marrowgate, a fictional sleeper-train company that runs overnight routes between six mountain t",
+          "poster": {
+            "file": "mobile-poster-b509149d32.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
       "owner": "ntcoding",
       "repo": "claude-skillz",
       "name": "data-visualization",
@@ -395,6 +465,34 @@
           "poster": {
             "file": "mobile-poster-4e7f952eb1.jpg",
             "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "owner": "nutlope",
+      "repo": "hallmark",
+      "name": "hallmark",
+      "makes": "landing-page",
+      "authorName": "Hassan El Mghari",
+      "sourceUrl": "https://github.com/Nutlope/hallmark/blob/main/skills/hallmark/SKILL.md",
+      "prompt": "Build a landing page for Quillmoor, a fictional reading-log app for book clubs that tracks who finished which chapter. Don't stop to ask me questions; make the design calls yourself. Save it as one self-contained index.html with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "f5f4a2ceb0ff302f2e69fb33679501611eadee32",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-5b1f7fd33f.jpg",
+          "width": 1440,
+          "height": 2577,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a landing page for Quillmoor, a fictional reading-log app for book clubs that tracks who finished which chapter. D",
+          "poster": {
+            "file": "desktop-poster-1e21101a33.jpg",
+            "height": 900
           }
         }
       ]
@@ -479,6 +577,65 @@
           "height": 844,
           "viewport": "mobile",
           "alt": "Phone screenshot of the page the Agent built for: Make chart.html, one self-contained page with all CSS and JavaScript inline. Puddlebrae, a fictional town pool, added ev"
+        }
+      ]
+    },
+    {
+      "owner": "tt-a1i",
+      "repo": "archify",
+      "name": "archify",
+      "makes": "diagram",
+      "authorName": null,
+      "sourceUrl": "https://github.com/tt-a1i/archify/blob/main/archify/SKILL.md",
+      "prompt": "Draw an architecture diagram for Ferncastle, a fictional library app: phone app, API gateway, auth service, catalog service, holds queue, search index, Postgres, and push notifier. Show how a book reservation flows through it. Save it as one self-contained diagram.html with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "67c47c119ece23e3640692bbf10b333f49d14c71",
+      "recordedAt": "2026-10-07",
+      "outputFile": "diagram.html",
+      "shots": [
+        {
+          "file": "desktop-35a0f40375.jpg",
+          "width": 1440,
+          "height": 933,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Draw an architecture diagram for Ferncastle, a fictional library app: phone app, API gateway, auth service, catalog serv",
+          "poster": {
+            "file": "desktop-poster-9575d21ad9.jpg",
+            "height": 900
+          }
+        }
+      ]
+    },
+    {
+      "owner": "unclecatvn",
+      "repo": "agent-skills",
+      "name": "flow-diagram",
+      "makes": "diagram",
+      "authorName": "Hoai Nam",
+      "sourceUrl": "https://github.com/unclecatvn/agent-skills/blob/main/skills/flow-diagram/SKILL.md",
+      "prompt": "Write it in English, and don't stop to ask me questions. Draw an interactive flow diagram for Sleetgarden, a fictional photo-sharing app: how one uploaded photo becomes three thumbnails, through the upload API, virus scan, resize queue, image workers, object storage, and CDN, including what happens when a resize fails. Save it as one self-contained flow.html with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "148f0b19b29df6dfede6bae1f17681569154538b",
+      "recordedAt": "2026-10-07",
+      "outputFile": "flow.html",
+      "shots": [
+        {
+          "file": "desktop-4d9c4e413c.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Write it in English, and don't stop to ask me questions. Draw an interactive flow diagram for Sleetgarden, a fictional p"
+        },
+        {
+          "file": "mobile-6d86281bde.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Write it in English, and don't stop to ask me questions. Draw an interactive flow diagram for Sleetgarden, a fictional p"
         }
       ]
     },

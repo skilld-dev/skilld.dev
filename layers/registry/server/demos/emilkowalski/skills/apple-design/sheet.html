@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Hollowmere — Trails</title>
+<style>
+  :root {
+    --land: #e8e4d4;
+    --land-2: #dcd8c3;
+    --contour: rgba(120, 104, 70, 0.22);
+    --water: #b9d3d6;
+    --water-edge: #9cbfc3;
+    --forest: #c9d6b4;
+    --ink: #1d1f1a;
+    --ink-2: rgba(29, 31, 26, 0.64);
+    --ink-3: rgba(29, 31, 26, 0.42);
+    --material: rgba(250, 249, 244, 0.72);
+    --material-edge: rgba(255, 255, 255, 0.55);
+    --fill: rgba(29, 31, 26, 0.06);
+    --fill-press: rgba(29, 31, 26, 0.11);
+    --separator: rgba(29, 31, 26, 0.09);
+    --accent: #2f6f5e;
+    --shadow: 0 -1px 0 rgba(0, 0, 0, 0.04), 0 -12px 40px rgba(30, 28, 20, 0.16);
+    --scrim: #12140f;
+    --sheet-h: 100vh;
+    font: 100%/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --land: #22251f;
+      --land-2: #1c1f1a;
+      --contour: rgba(200, 190, 150, 0.12);
+      --water: #1d3236;
+      --water-edge: #2a4549;
+      --forest: #263022;
+      --ink: #f1efe6;
+      --ink-2: rgba(241, 239, 230, 0.68);
+      --ink-3: rgba(241, 239, 230, 0.45);
+      --material: rgba(34, 36, 31, 0.72);
+      --material-edge: rgba(255, 255, 255, 0.10);
+      --fill: rgba(241, 239, 230, 0.08);
+      --fill-press: rgba(241, 239, 230, 0.14);
+      --separator: rgba(241, 239, 230, 0.10);
+      --accent: #7cc7ae;
+      --shadow: 0 -1px 0 rgba(0, 0, 0, 0.3), 0 -12px 40px rgba(0, 0, 0, 0.45);
+      --scrim: #000;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: var(--land);
+    color: var(--ink);
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font: inherit; color: inherit; }
+
+  /* ---------- Map ---------- */
+  .map {
+    position: fixed;
+    inset: 0;
+    transform-origin: 50% 0;
+    will-change: transform;
+  }
+  .map svg { width: 100%; height: 100%; display: block; }
+  .map .land { fill: var(--land); }
+  .map .forest { fill: var(--forest); }
+  .map .contour { fill: none; stroke: var(--contour); stroke-width: 1; }
+  .map .water { fill: var(--water); stroke: var(--water-edge); stroke-width: 1.5; }
+  .map .water-label { fill: var(--water-edge); font: italic 600 11px system-ui, sans-serif; letter-spacing: 0.24em; }
+  .map .trail {
+    fill: none;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1 7;
+    transition: opacity 200ms ease, stroke-width 200ms ease;
+  }
+  .map .trail-base { fill: none; stroke: var(--land); stroke-width: 7; stroke-linecap: round; opacity: 0.8; }
+  .map.has-selection .trail:not(.is-selected) { opacity: 0.25; }
+  .map .trail.is-selected { stroke-width: 5; stroke-dasharray: none; }
+  .map .pin circle { stroke: var(--land); stroke-width: 2.5; }
+  .map .pin text { fill: var(--ink); font: 600 10px system-ui, sans-serif; paint-order: stroke; stroke: var(--land); stroke-width: 3px; }
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Floating map controls ride on top of the sheet until it covers the map */
+  .controls {
+    position: fixed;
+    right: 12px;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--material);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 0 0 0.5px var(--separator), 0 4px 16px rgba(0, 0, 0, 0.12);
+    will-change: transform, opacity;
+  }
+  .controls button {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 100ms ease-out;
+  }
+  .controls button + button { border-top: 0.5px solid var(--separator); }
+  .controls button:active { background: var(--fill-press); }
+  .controls svg { width: 20px; height: 20px; stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- Sheet ---------- */
+  .sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    margin: 0 auto;
+    max-width: 600px;
+    /* Extra 200px below the fold so rubber-banding upward never reveals a gap */
+    height: calc(var(--sheet-h) + 200px);
+    padding-bottom: 200px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px 14px 0 0;
+    background: var(--material);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    backdrop-filter: blur(30px) saturate(180%);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--material-edge);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    will-change: transform;
+    transform: translate3d(0, 100vh, 0);
+  }
+
+  .sheet-header {
+    flex: none;
+    padding: 0 16px 12px;
+    cursor: grab;
+  }
+  .sheet.is-dragging, .sheet.is-dragging .sheet-header { cursor: grabbing; }
+
+  .grabber {
+    display: block;
+    width: 100%;
+    height: 22px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: inherit;
+  }
+  .grabber::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 5px;
+    margin: 6px auto 0;
+    border-radius: 3px;
+    background: var(--ink-3);
+    transition: transform 100ms ease-out, background-color 100ms ease-out;
+  }
+  .grabber:active::before { transform: scaleX(1.15); background: var(--ink-2); }
+  .grabber:focus-visible { outline: none; }
+  .grabber:focus-visible::before { box-shadow: 0 0 0 3px var(--accent); }
+
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 11px;
+    background: var(--fill);
+    color: var(--ink-2);
+  }
+  .search svg { flex: none; width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+  .search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 1.0625rem;
+    color: var(--ink);
+    outline: none;
+  }
+  .search input::placeholder { color: var(--ink-2); }
+
+  .summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 14px;
+  }
+  .summary h1 {
+    margin: 0;
+    font-size: 1.375rem;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .summary span { font-size: 0.8125rem; color: var(--ink-2); letter-spacing: 0.01em; font-weight: 500; }
+
+  .scroller {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0 16px 24px;
+    overscroll-behavior: contain;
+  }
+  .sheet.is-full .scroller { overflow-y: auto; touch-action: pan-y; }
+
+  .section-title {
+    margin: 18px 4px 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-radius: 12px;
+    background: var(--fill);
+    overflow: hidden;
+  }
+  .trail-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 100ms ease-out, transform 100ms ease-out;
+  }
+  .list li + li .trail-row { box-shadow: inset 0 0.5px 0 var(--separator); }
+  .trail-row:active { background: var(--fill-press); }
+  .sheet.is-dragging .trail-row:active { background: transparent; }
+  .trail-row[aria-pressed="true"] { background: var(--fill-press); }
+  .trail-row:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+  .swatch {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .trail-row .meta { flex: 1; min-width: 0; }
+  .trail-row strong { display: block; font-size: 1rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; }
+  .trail-row small { display: block; font-size: 0.8125rem; color: var(--ink-2); line-height: 1.35; }
+  .trail-row .dist { font-size: 0.9375rem; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  .conditions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .stat {
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--fill);
+  }
+  .stat b { display: block; font-size: 1.25rem; line-height: 1.2; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+  .stat small { font-size: 0.75rem; color: var(--ink-2); letter-spacing: 0.01em; }
+  .note { margin: 12px 4px 0; font-size: 0.875rem; color: var(--ink-2); line-height: 1.5; }
+
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .safe-probe { position: fixed; top: 0; height: env(safe-area-inset-top, 0px); width: 0; visibility: hidden; }
+
+  @media (prefers-reduced-transparency: reduce) {
+    :root { --material: var(--land-2); }
+    .sheet, .controls { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+  @media (prefers-contrast: more) {
+    :root { --material: var(--land); --ink-2: var(--ink); }
+    .sheet, .controls { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 1.5px var(--ink); }
+  }
+</style>
+</head>
+<body>
+<span class="safe-probe" aria-hidden="true"></span>
+
+<div class="map" id="map" aria-hidden="true">
+  <svg viewBox="0 0 400 820" preserveAspectRatio="xMidYMid slice">
+    <rect class="land" width="400" height="820"/>
+    <path class="forest" d="M-20 80 C60 40 140 90 170 160 C200 230 120 290 40 270 C-10 258 -30 180 -20 80Z"/>
+    <path class="forest" d="M260 520 C330 480 420 520 430 600 C440 690 360 720 300 690 C240 660 220 560 260 520Z"/>
+    <g>
+      <path class="contour" d="M230 60 C300 40 360 90 350 150 C340 210 270 230 230 190 C190 150 170 80 230 60Z"/>
+      <path class="contour" d="M235 80 C285 66 330 100 324 146 C318 190 268 204 240 176 C212 148 196 92 235 80Z"/>
+      <path class="contour" d="M245 102 C275 94 302 116 298 142 C294 170 266 176 250 160 C234 144 224 108 245 102Z"/>
+      <path class="contour" d="M258 122 C272 118 284 128 282 140 C280 152 266 156 259 148 C252 140 248 125 258 122Z"/>
+      <path class="contour" d="M20 560 C90 520 170 560 160 640 C150 720 60 740 20 700 C-20 660 -40 600 20 560Z"/>
+      <path class="contour" d="M36 584 C90 556 146 588 138 642 C130 696 70 708 42 680 C14 652 0 610 36 584Z"/>
+      <path class="contour" d="M56 610 C88 594 120 614 114 644 C108 674 76 680 60 664 C44 648 36 622 56 610Z"/>
+      <path class="contour" d="M-10 330 C80 300 120 360 210 340 C300 320 340 280 420 300"/>
+      <path class="contour" d="M-10 352 C80 324 124 384 212 364 C300 344 344 304 420 324"/>
+      <path class="contour" d="M-10 760 C100 730 200 780 300 750 C350 735 390 740 420 750"/>
+    </g>
+    <path class="water" d="M120 380 C170 350 260 360 290 410 C320 460 300 520 240 540 C180 560 110 540 90 490 C72 444 84 404 120 380Z"/>
+    <text class="water-label" x="140" y="458">HOLLOWMERE</text>
+
+    <g id="trails">
+      <path class="trail-base" d="M90 490 C60 430 70 330 140 280 C200 240 260 260 262 140"/>
+      <path class="trail" data-trail="lantern" stroke="#d98a2b" d="M90 490 C60 430 70 330 140 280 C200 240 260 260 262 140"/>
+      <path class="trail-base" d="M290 410 C340 390 370 330 340 260 C320 210 340 150 300 100"/>
+      <path class="trail" data-trail="greywater" stroke="#4f8fa8" d="M290 410 C340 390 370 330 340 260 C320 210 340 150 300 100"/>
+      <path class="trail-base" d="M240 540 C250 590 290 610 320 640 C350 670 330 720 360 760"/>
+      <path class="trail" data-trail="moss" stroke="#5c9a52" d="M240 540 C250 590 290 610 320 640 C350 670 330 720 360 760"/>
+      <path class="trail-base" d="M110 540 C90 590 60 610 76 640 C92 670 120 700 90 760"/>
+      <path class="trail" data-trail="cinder" stroke="#c4574f" d="M110 540 C90 590 60 610 76 640 C92 670 120 700 90 760"/>
+      <path class="trail-base" d="M120 380 C80 360 40 330 30 270 C20 200 60 140 40 60"/>
+      <path class="trail" data-trail="fen" stroke="#8a6cc0" d="M120 380 C80 360 40 330 30 270 C20 200 60 140 40 60"/>
+    </g>
+
+    <g class="pin"><circle cx="262" cy="140" r="6" fill="#d98a2b"/><text x="274" y="136">Lanternfall</text></g>
+    <g class="pin"><circle cx="300" cy="100" r="6" fill="#4f8fa8"/><text x="250" y="88">Greywater Ridge</text></g>
+    <g class="pin"><circle cx="76" cy="640" r="6" fill="#c4574f"/><text x="88" y="644">Cinder Hollow</text></g>
+    <g class="pin"><circle cx="40" cy="60" r="6" fill="#8a6cc0"/><text x="52" y="64">Fen Gate</text></g>
+  </svg>
+</div>
+<div class="scrim" id="scrim"></div>
+
+<div class="controls" id="controls">
+  <button type="button" aria-label="Map layers">
+    <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></svg>
+  </button>
+  <button type="button" aria-label="Show my location">
+    <svg viewBox="0 0 24 24"><path d="M20 4 4 11l7 2 2 7 7-16Z"/></svg>
+  </button>
+</div>
+
+<section class="sheet" id="sheet" aria-label="Trails near Hollowmere">
+  <div class="sheet-header" id="header">
+    <button class="grabber" id="grabber" type="button" aria-controls="sheet"></button>
+    <label class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <span class="visually-hidden">Search trails</span>
+      <input type="search" placeholder="Search Hollowmere" autocomplete="off">
+    </label>
+    <div class="summary">
+      <h1>Trails nearby</h1>
+      <span>5 open · 1 closed</span>
+    </div>
+  </div>
+
+  <div class="scroller" id="scroller">
+    <ul class="list" id="list">
+      <li><button class="trail-row" type="button" data-trail="lantern" aria-pressed="false">
+        <span class="swatch" style="background:#d98a2b">LF</span>
+        <span class="meta"><strong>Lanternfall Loop</strong><small>Moderate · 410 m gain · lakeshore to the old beacon</small></span>
+        <span class="dist">6.2 km</span>
+      </button></li>
+      <li><button class="trail-row" type="button" data-trail="greywater" aria-pressed="false">
+        <span class="swatch" style="background:#4f8fa8">GR</span>
+        <span class="meta"><strong>Greywater Ridge</strong><small>Hard · 720 m gain · exposed above the treeline</small></span>
+        <span class="dist">9.8 km</span>
+      </button></li>
+      <li><button class="trail-row" type="button" data-trail="moss" aria-pressed="false">
+        <span class="swatch" style="background:#5c9a52">MS</span>
+        <span class="meta"><strong>Mossbank Steps</strong><small>Easy · 120 m gain · boardwalk through the alders</small></span>
+        <span class="dist">3.1 km</span>
+      </button></li>
+      <li><button class="trail-row" type="button" data-trail="fen" aria-pressed="false">
+        <span class="swatch" style="background:#8a6cc0">LF</span>
+        <span class="meta"><strong>The Long Fen</strong><small>Easy · 60 m gain · flat, wet after rain</small></span>
+        <span class="dist">11.4 km</span>
+      </button></li>
+      <li><button class="trail-row" type="button" data-trail="cinder" aria-pressed="false">
+        <span class="swatch" style="background:#c4574f">CH</span>
+        <span class="meta"><strong>Cinder Hollow</strong><small>Closed · rockfall below the second switchback</small></span>
+        <span class="dist">4.7 km</span>
+      </button></li>
+    </ul>
+
+    <h2 class="section-title">Conditions at the mere</h2>
+    <div class="conditions">
+      <div class="stat"><b>9°</b><small>Feels like 6°</small></div>
+      <div class="stat"><b>18:42</b><small>Sunset</small></div>
+      <div class="stat"><b>Low</b><small>Mist on water</small></div>
+    </div>
+    <p class="note">Ranger note: the ferry crossing to Lanternfall runs every 40 minutes until dusk. Greywater Ridge is exposed — turn back if cloud drops below the cairns.</p>
+
+    <h2 class="section-title">Saved</h2>
+    <ul class="list">
+      <li><button class="trail-row" type="button" data-trail="lantern" aria-pressed="false">
+        <span class="swatch" style="background:#d98a2b">LF</span>
+        <span class="meta"><strong>Beacon at first light</strong><small>Lanternfall Loop, clockwise · saved 3 days ago</small></span>
+        <span class="dist">6.2 km</span>
+      </button></li>
+      <li><button class="trail-row" type="button" data-trail="moss" aria-pressed="false">
+        <span class="swatch" style="background:#5c9a52">MS</span>
+        <span class="meta"><strong>Short one with the kids</strong><small>Mossbank Steps, out and back</small></span>
+        <span class="dist">3.1 km</span>
+      </button></li>
+    </ul>
+  </div>
+</section>
+
+<script>
+(() => {
+  const sheet = document.getElementById('sheet');
+  const header = document.getElementById('header');
+  const scroller = document.getElementById('scroller');
+  const grabber = document.getElementById('grabber');
+  const map = document.getElementById('map');
+  const scrim = document.getElementById('scrim');
+  const controls = document.getElementById('controls');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+  const FULL = 0, HALF = 1, PEEK = 2;
+  const NAMES = ['full height', 'half height', 'collapsed'];
+
+  // Spring presets in Apple's terms: damping ratio + response (seconds)
+  const SETTLE = { damping: 1.0, response: 0.35 }; // no momentum behind it → no overshoot
+  const FLICK = { damping: 0.8, response: 0.3 };   // drawer/sheet value, used only after a flick
+
+  const FLICK_VELOCITY = 300; // px/s; above this the release direction decides
+  const DECELERATION = 0.995; // between UIScrollView .normal (0.998) and .fast (0.99)
+
+  let viewportH = 0;
+  let detents = [0, 0, 0]; // translateY for FULL, HALF, PEEK
+  let index = PEEK;        // detent we're resting at or heading to
+  let y = 0;               // presentation value — what's on screen right now
+  let velocity = 0;        // px/s of the presentation value
+  let spring = null;       // { target, damping, response } while animating
+  let frame = 0;
+  let lastTime = 0;
+
+  /* ---------- Geometry ---------- */
+
+  function layout() {
+    viewportH = window.innerHeight;
+    const safeTop = document.querySelector('.safe-probe').offsetHeight;
+    const top = Math.max(safeTop, 0) + 12;
+    const peekVisible = header.offsetHeight + 8;
+    const peek = viewportH - peekVisible;
+    // Keep HALF meaningfully between the other two, even in short landscape viewports
+    const half = Math.min(Math.round(viewportH * 0.48), peek - 120);
+    detents = [top, Math.max(half, top + 60), peek];
+    document.documentElement.style.setProperty('--sheet-h', `${viewportH - top}px`);
+  }
+
+  // Apple's rubber-band: the further past the edge, the less the sheet follows
+  function rubberband(overshoot, dimension, c = 0.55) {
+    return (overshoot * dimension * c) / (dimension + c * Math.abs(overshoot));
+  }
+  // Inverse, so a sheet caught mid-bounce keeps its exact on-screen position
+  function unrubberband(displayed, dimension, c = 0.55) {
+    const d = Math.min(Math.abs(displayed), dimension * 0.999);
+    return Math.sign(displayed) * (d * dimension) / (c * (dimension - d));
+  }
+  function toDisplayed(raw) {
+    const [min, , max] = detents;
+    if (raw < min) return min - rubberband(min - raw, viewportH);
+    if (raw > max) return max + rubberband(raw - max, viewportH);
+    return raw;
+  }
+  function toRaw(displayed) {
+    const [min, , max] = detents;
+    if (displayed < min) return min - unrubberband(min - displayed, viewportH);
+    if (displayed > max) return max + unrubberband(displayed - max, viewportH);
+    return displayed;
+  }
+
+  // Exponential-decay projection from Apple's Designing Fluid Interfaces sample
+  function project(v, rate = DECELERATION) {
+    return (v / 1000) * rate / (1 - rate);
+  }
+
+  /* ---------- Render ---------- */
+
+  function render() {
+    sheet.style.transform = `translate3d(0, ${y}px, 0)`;
+
+    // 0 at HALF → 1 at FULL: dim and push the map back as the sheet takes focus
+    const [full, half] = detents;
+    const focus = Math.min(Math.max((half - y) / (half - full), 0), 1);
+    scrim.style.opacity = (focus * 0.32).toFixed(3);
+    map.style.transform = `scale(${1 - focus * 0.04})`;
+
+    // Controls ride just above the sheet, then fade as it heads for full height
+    const controlsY = Math.max(y, half) - controls.offsetHeight - 12;
+    controls.style.transform = `translate3d(0, ${controlsY}px, 0)`;
+    const fade = Math.min(Math.max((half + 40 - y) / 80, 0), 1);
+    controls.style.opacity = (1 - fade).toFixed(3);
+    controls.style.visibility = fade >= 1 ? 'hidden' : '';
+  }
+
+  function setIndex(i) {
+    index = i;
+    // Native list scrolling only switches on once the sheet has settled at FULL,
+    // so a sheet still travelling there can be caught anywhere
+    if (i !== FULL) sheet.classList.remove('is-full');
+    sheet.dataset.detent = NAMES[i];
+    const next = i === PEEK ? 'expand' : i === HALF ? 'expand to full height' : 'collapse';
+    grabber.setAttribute('aria-label', `Sheet at ${NAMES[i]}. Activate to ${next}.`);
+  }
+
+  /* ---------- Spring ---------- */
+
+  function animateTo(i, initialVelocity = velocity, params = SETTLE) {
+    const changed = i !== index;
+    setIndex(i);
+    if (changed) haptic();
+
+    if (reducedMotion.matches) {
+      stop();
+      y = detents[i];
+      velocity = 0;
+      render();
+      settle();
+      sheet.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+      return;
+    }
+
+    // Re-targeting keeps the current velocity, so a mid-flight change never hits a wall
+    velocity = initialVelocity;
+    spring = { target: detents[i], ...params };
+    if (!frame) {
+      lastTime = performance.now();
+      frame = requestAnimationFrame(tick);
+    }
+  }
+
+  function tick(now) {
+    const dt = Math.min((now - lastTime) / 1000, 1 / 20);
+    lastTime = now;
+    const { target, damping, response } = spring;
+    const stiffness = (2 * Math.PI / response) ** 2;
+    const friction = (4 * Math.PI * damping) / response;
+
+    // Fixed sub-steps keep the integration stable regardless of frame rate
+    const STEP = 1 / 240;
+    for (let t = 0; t < dt; t += STEP) {
+      const h = Math.min(STEP, dt - t);
+      const accel = -stiffness * (y - target) - friction * velocity;
+      velocity += accel * h;
+      y += velocity * h;
+    }
+
+    if (Math.abs(y - target) < 0.25 && Math.abs(velocity) < 2) {
+      y = target;
+      velocity = 0;
+      render();
+      stop();
+      settle();
+      return;
+    }
+    render();
+    frame = requestAnimationFrame(tick);
+  }
+
+  function settle() {
+    sheet.classList.toggle('is-full', index === FULL && y === detents[FULL]);
+  }
+
+  function stop() {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    spring = null;
+  }
+
+  function haptic() {
+    if (navigator.vibrate) navigator.vibrate(6);
+  }
+
+  /* ---------- Gesture ---------- */
+
+  let gesture = null;
+  let suppressClick = false;
+
+  sheet.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || gesture) return;
+    // At full height the list scrolls natively; the header still drags the sheet
+    if (sheet.classList.contains('is-full') && scroller.contains(e.target)) return;
+
+    const wasMoving = spring !== null;
+    stop(); // catch it exactly where it is — presentation value, not target
+
+    gesture = {
+      id: e.pointerId,
+      startClientY: e.clientY,
+      rawStart: toRaw(y),
+      samples: [{ t: e.timeStamp, y }],
+      dragging: false,
+      caught: wasMoving,
+    };
+    // Grabbing a moving sheet is unambiguous: track immediately, no threshold
+    if (wasMoving) beginDrag(e);
+  });
+
+  function beginDrag(e) {
+    stop(); // e.g. focusing search may have started a spring since pointerdown
+    gesture.dragging = true;
+    gesture.startClientY = e.clientY;
+    gesture.rawStart = toRaw(y);
+    gesture.samples = [{ t: e.timeStamp, y }];
+    sheet.classList.add('is-dragging');
+    try { sheet.setPointerCapture(e.pointerId); } catch {}
+    if (document.activeElement && sheet.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') {
+      document.activeElement.blur();
+    }
+  }
+
+  window.addEventListener('pointermove', (e) => {
+    if (!gesture || e.pointerId !== gesture.id) return;
+    if (!gesture.dragging) {
+      if (Math.abs(e.clientY - gesture.startClientY) < 10) return; // hysteresis before committing
+      beginDrag(e);
+    }
+    y = toDisplayed(gesture.rawStart + (e.clientY - gesture.startClientY));
+    render();
+
+    const samples = gesture.samples;
+    samples.push({ t: e.timeStamp, y });
+    while (samples.length > 2 && e.timeStamp - samples[0].t > 100) samples.shift();
+  });
+
+  function releaseVelocity(now) {
+    const s = gesture.samples;
+    const last = s[s.length - 1];
+    if (now - last.t > 60) return 0; // finger came to rest before lifting
+    const first = s[0];
+    const dt = (last.t - first.t) / 1000;
+    return dt > 0 ? (last.y - first.y) / dt : 0;
+  }
+
+  function endGesture(e) {
+    if (!gesture || e.pointerId !== gesture.id) return;
+    const { dragging, caught } = gesture;
+    const v = dragging ? releaseVelocity(e.timeStamp) : 0;
+    gesture = null;
+    sheet.classList.remove('is-dragging');
+
+    if (dragging) {
+      suppressClick = true;
+      setTimeout(() => (suppressClick = false), 0);
+    }
+    if (!dragging && !caught) return; // a plain tap — let the click through
+
+    // Pick the detent nearest to where the flick would carry the sheet...
+    const projected = y + project(v);
+    let candidates = [FULL, HALF, PEEK];
+    // ...but a deliberate flick always moves in its own direction
+    if (Math.abs(v) > FLICK_VELOCITY) {
+      const ahead = candidates.filter((i) => (v < 0 ? detents[i] < y - 1 : detents[i] > y + 1));
+      if (ahead.length) candidates = ahead;
+    }
+    const target = candidates.reduce((best, i) =>
+      Math.abs(detents[i] - projected) < Math.abs(detents[best] - projected) ? i : best);
+
+    animateTo(target, v, Math.abs(v) > FLICK_VELOCITY ? FLICK : SETTLE);
+  }
+  window.addEventListener('pointerup', endGesture);
+  window.addEventListener('pointercancel', endGesture);
+
+  // A drag that started on a row shouldn't also select it
+  sheet.addEventListener('click', (e) => {
+    if (suppressClick) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  /* ---------- Controls ---------- */
+
+  grabber.addEventListener('click', () => {
+    animateTo(index === PEEK ? HALF : index === HALF ? FULL : PEEK);
+  });
+  grabber.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); animateTo(Math.max(index - 1, FULL)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); animateTo(Math.min(index + 1, PEEK)); }
+  });
+
+  // Focusing search should bring up the list it filters
+  sheet.querySelector('input').addEventListener('focus', () => {
+    if (index === PEEK) animateTo(HALF);
+  });
+
+  // Selecting a trail highlights it on the map and makes sure the map is visible
+  const rows = sheet.querySelectorAll('.trail-row');
+  const paths = map.querySelectorAll('.trail');
+  rows.forEach((row) => row.addEventListener('click', () => {
+    const id = row.dataset.trail;
+    const wasSelected = row.getAttribute('aria-pressed') === 'true';
+    rows.forEach((r) => r.setAttribute('aria-pressed', String(!wasSelected && r.dataset.trail === id)));
+    paths.forEach((p) => p.classList.toggle('is-selected', !wasSelected && p.dataset.trail === id));
+    map.classList.toggle('has-selection', !wasSelected);
+    if (!wasSelected && index === FULL) animateTo(HALF);
+  }));
+
+  /* ---------- Init ---------- */
+
+  window.addEventListener('resize', () => {
+    layout();
+    if (spring) spring.target = detents[index];
+    else if (!gesture) { y = detents[index]; render(); settle(); }
+  });
+
+  layout();
+  setIndex(PEEK);
+  // Enter from below, the same edge it collapses toward
+  y = viewportH;
+  render();
+  requestAnimationFrame(() => animateTo(HALF, 0, SETTLE));
+})();
+</script>
+</body>
+</html>
