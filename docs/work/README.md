@@ -13,6 +13,7 @@ Each brief owns its remaining work, acceptance checks, and dated evidence.
 | [SEO recovery](EXECUTE-seo-recovery.md) | What does the weekly panel show before the November gate? |
 | [Public API v1](EXECUTE-public-api.md) | What remains outside the published contract? |
 | [Skillgen bootstrap](EXECUTE-skillgen-bootstrap.md) | How many model calls does a GLM 5.3 bootstrap run need? |
+| [Reddit launch](EXECUTE-reddit-launch.md) | Which subreddit posts stay up and bring visitors? |
 
 ## Sources of direction
 
@@ -26,7 +27,7 @@ The [editorial evidence](../editorial/) retains sources, replay observations, an
 ## Brief lifecycle
 
 Give each brief a title, next action, `Done means:` acceptance check, ledger, and dated evidence log.
-Record observations with their date and source. Query GitHub or production for current delivery state.
+Record observations with their date and source. Query [GitHub](https://github.com) or production for current delivery state.
 Do not copy product strategy, schemas, or runbooks into a brief.
 
 After acceptance, remove a completed brief unless it owns evidence that another document or published article needs.
