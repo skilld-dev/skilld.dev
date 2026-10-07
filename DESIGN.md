@@ -347,6 +347,9 @@ Rules for every texture:
 | Skill | Name, then owner, then the curator note or the curator count |
 | Collection | Name, description, curator, then the curator note or the first Skills |
 | Curator | Avatar, name, handle with counts, description, then the first Skills |
+| Demo | The demo's picture under a band: the lockup, then "What /{name} made" and the recording line. Its own frame, below |
+
+**Demo card.** A demo page shares what the Agent made, so its card is a picture first, and `OgLayout` does not frame it. `OgImage/Demo.takumi.vue` puts the film's poster frame, or the page's first screen, in a window that fills the card below a band. The band has the lockup on the left. On the right, it has "What /{name} made" and the recording line. It has no Braille names field: the picture is the content. Rose inside the picture is depicted content, so the lockup's dot stays the card's one rose element.
 
 ### Motifs
 
