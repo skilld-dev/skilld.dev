@@ -5,6 +5,7 @@
  *   pnpm demo:record owner/repo/skill --makes film --prompt "Make ... Render it as film.mp4." --output film.mp4
  *   pnpm demo:record owner/repo/skill --makes film --prompt "..." --output launch.mp4 --seed ./site --setup "The folder held ..."
  *   pnpm demo:record owner/repo/skill --makes diagram --prompt "..." --output diagram.html --shell
+ *   pnpm demo:record owner/repo/skill --makes game --prompt "..." --output game.html --agent codex --model gpt-6.1-sol --effort medium
  *
  * `--makes` is the demo's group on /skills/demos: one of DEMO_MAKES in
  * shared/demo-groups.ts. `--skill-page-only` keeps the demo on its Skill page
@@ -14,7 +15,7 @@
  *   pnpm demo:record owner/repo/skill --makes slides --prompt "..." --output deck.html --resume /tmp/skilld-demo-XXXX --model claude-opus-5-5
  *
  * 1. Reads the Skill's current source commit from the public API.
- * 2. Runs Claude Code headless in a fresh temp folder: it loads the Skill with
+ * 2. Runs Claude Code or Codex headless in a fresh temp folder: it loads the Skill with
  *    `npx skilld run`, then gets the prompt word for word. `--seed` copies a
  *    folder in first, and `--setup` says so on the demo.
  * 3. An HTML output gets full-page screenshots at desktop width, and at phone
@@ -26,25 +27,32 @@
  *    `server/demos/`, and upserts the entry in `server/data/skill-demos.json`.
  *    The account comes from `CLOUDFLARE_ACCOUNT_ID`, else `wrangler.jsonc`.
  *
- * A page Skill gets only Read, Write and Edit. A video Skill has to run its
+ * In Claude Code, a page Skill gets only Read, Write and Edit. A video Skill has to run its
  * renderer, so it gets a shell. `--shell` gives a page Skill the same shell, for
  * a Skill that checks its own output with a command; without it, that check is
- * skipped and a broken page can ship. Every shell runs in the Claude Code
+ * skipped and a broken page can ship. These shells run in the Claude Code
  * sandbox: writes stay in the temp folder, secrets and agent sockets stay
  * unreadable, the environment carries no keys, and the network reaches only
  * package and code hosts. Third-party Skill text never gets an open shell on
  * this machine.
+ * Codex uses a named permission profile with the same private-path denials
+ * and package hosts. It can run a shell and local renderer servers. Its model
+ * and effort are explicit. Run events stay beside the output for inspection.
+ * `--allow` passes only behaviors the user approved for this Skill.
+ * `--source` loads an exact hosted selector from the same Repository when
+ * the registry name differs from the name in the source frontmatter.
  *
  * `--reshoot` retakes the screenshots of a page demo from its kept output,
  * without running the Agent again. `--resume` finishes a run whose Agent
  * already wrote its output into a folder, when a later step failed; give the
- * model that run used with `--model`, since its result was not kept.
+ * model that run used with `--model`, and its `--agent` and `--effort`.
  *
  * It writes nothing to production. Opening a pull request with the result is
  * the review step: a human approves each demo by merging it.
  */
 
 import type { DemoMakes } from '../shared/demo-groups'
+import type { DemoEffort } from '../shared/demo-recording'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
@@ -56,6 +64,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs, promisify } from 'node:util'
 import { chromium } from '@playwright/test'
 import { DEMO_MAKES } from '../shared/demo-groups'
+import { DEMO_EFFORTS } from '../shared/demo-recording'
+import { runDemoAgent } from './lib/demo-agent'
 
 const run = promisify(execFile)
 
@@ -66,8 +76,8 @@ const MEDIA_BUCKET = 'skilld-demo-media'
 const MEDIA_TYPES: Readonly<Record<string, string>> = { '.jpg': 'image/jpeg', '.png': 'image/png', '.mp4': 'video/mp4' }
 const API = 'https://skilld.dev/api/v1/skills'
 const RECORD_TIMEOUT_MS = 20 * 60 * 1000
-/** Rendering a film takes far longer than writing a page. */
-const VIDEO_RECORD_TIMEOUT_MS = 60 * 60 * 1000
+/** Films and Codex workflows with separate review agents need a longer run window. */
+const LONG_RECORD_TIMEOUT_MS = 60 * 60 * 1000
 
 /** Taller pages are cut here, so one shot stays a few hundred kilobytes. */
 const MAX_SHOT_HEIGHT = 6000
@@ -167,6 +177,7 @@ interface DemoEntry {
   agent: string
   agentVersion: string
   model: string
+  effort?: DemoEffort
   skillCommit: string
   recordedAt: string
   pin?: number
@@ -186,7 +197,7 @@ type OutputKind = 'page' | 'video'
 type Shell = { _tag: 'skilld-run' } | { _tag: 'sandboxed' }
 
 type Parsed
-  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, shell: Shell, seed: string | null, setup: string | null, skillPageOnly: boolean, resume: { dir: string, model: string } | null }
+  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, shell: Shell, seed: string | null, setup: string | null, skillPageOnly: boolean, agent: 'claude' | 'codex', model: string | null, effort: DemoEffort | null, allow: string[], source: string | null, resume: { dir: string, model: string } | null }
     | { _tag: 'reshoot', owner: string, repo: string, name: string }
     | { _tag: 'usage', message: string }
 
@@ -201,6 +212,10 @@ function parseInput(argv: string[]): Parsed {
       'seed': { type: 'string' },
       'resume': { type: 'string' },
       'model': { type: 'string' },
+      'agent': { type: 'string', default: 'claude' },
+      'effort': { type: 'string' },
+      'allow': { type: 'string', multiple: true },
+      'source': { type: 'string' },
       'setup': { type: 'string' },
       'reshoot': { type: 'boolean', default: false },
       'shell': { type: 'boolean', default: false },
@@ -226,22 +241,34 @@ function parseInput(argv: string[]): Parsed {
     return { _tag: 'usage', message: 'A --seed folder needs a --setup line that tells visitors what the folder held.' }
   if (values.resume && !values.model)
     return { _tag: 'usage', message: 'A --resume folder needs --model: the model the interrupted run used.' }
+  if (values.agent !== 'claude' && values.agent !== 'codex')
+    return { _tag: 'usage', message: 'Give --agent claude or codex.' }
+  const effort = DEMO_EFFORTS.find(value => value === values.effort) ?? null
+  if (values.effort && !effort)
+    return { _tag: 'usage', message: `Give --effort ${DEMO_EFFORTS.join(', ')}.` }
+  if (values.agent === 'codex' && (!values.model || !effort))
+    return { _tag: 'usage', message: 'A Codex recording needs --model and --effort.' }
+  if (values.allow?.some(id => !/^[a-z][a-z0-9-]*$/.test(id)))
+    return { _tag: 'usage', message: 'Give each --allow behavior as one identifier.' }
+  if (values.source && !values.source.toLowerCase().startsWith(`github:${owner}/${repo}/`.toLowerCase()))
+    return { _tag: 'usage', message: 'The --source selector must name this Skill’s Repository.' }
   const resumed = values.resume && values.model ? { dir: resolve(values.resume), model: values.model } : null
   const shell: Shell = kind === 'video' || values.shell ? { _tag: 'sandboxed' } : { _tag: 'skilld-run' }
-  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, shell, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null, skillPageOnly: values['skill-page-only'], resume: resumed }
+  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, shell, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null, skillPageOnly: values['skill-page-only'], agent: values.agent, model: values.model ?? null, effort, allow: values.allow ?? [], source: values.source ?? null, resume: resumed }
 }
 
 interface SkillSource {
   commit: string
   authorName: string | null
   sourceUrl: string
+  skillPath: string | null
 }
 
 async function skillSource(owner: string, repo: string, name: string): Promise<SkillSource> {
   const response = await fetch(`${API}/${owner}/${repo}/${name}`)
   if (!response.ok)
     throw new Error(`The API answered ${response.status} for ${owner}/${repo}/${name}. Is the Skill admitted?`)
-  const body = await response.json() as { sourceCommit?: unknown, authorName?: unknown, sourceUrl?: unknown }
+  const body = await response.json() as { sourceCommit?: unknown, authorName?: unknown, sourceUrl?: unknown, skillPath?: unknown }
   if (typeof body.sourceCommit !== 'string' || !/^[0-9a-f]{40}$/.test(body.sourceCommit))
     throw new Error(`The API gave no source commit for ${owner}/${repo}/${name}.`)
   if (typeof body.sourceUrl !== 'string')
@@ -250,6 +277,7 @@ async function skillSource(owner: string, repo: string, name: string): Promise<S
     commit: body.sourceCommit,
     authorName: typeof body.authorName === 'string' && body.authorName ? body.authorName : null,
     sourceUrl: body.sourceUrl,
+    skillPath: typeof body.skillPath === 'string' ? body.skillPath : null,
   }
 }
 
@@ -285,17 +313,17 @@ function sandboxSettings(shell: Shell): string {
  * registry's own commit can lag the Repository. A Skill that does not run
  * fails here, before any Agent time is spent.
  */
-async function pinnedRun(skillRef: string): Promise<{ ref: string, commit: string }> {
+async function pinnedRun(skillRef: string, allow: string[]): Promise<{ ref: string, commit: string }> {
   const dir = await mkdtemp(join(tmpdir(), 'skilld-pin-'))
-  const { stdout, stderr } = await run('npx', ['-y', 'skilld', 'run', skillRef], { cwd: dir, timeout: 120_000, maxBuffer: 32 * 1024 * 1024 })
+  const { stdout, stderr } = await run('npx', ['-y', 'skilld', 'run', skillRef, ...allow.flatMap(id => ['--allow', id])], { cwd: dir, timeout: 120_000, maxBuffer: 32 * 1024 * 1024 })
   const match = /skilld install '([^']+#commit:([0-9a-f]{40}))'/.exec(`${stdout}\n${stderr}`)
   if (!match?.[1] || !match[2])
     throw new Error(`\`skilld run ${skillRef}\` printed no pinned commit, so the demo could not record what ran.`)
   return { ref: match[1], commit: match[2] }
 }
 
-async function record(cwd: string, pinnedRef: string, prompt: string, kind: OutputKind, shell: Shell): Promise<{ model: string, version: string }> {
-  const instruction = `First run \`npx skilld run '${pinnedRef}'\` and follow the Skill it prints. Then do this task in the current folder:\n\n${prompt}`
+async function record(cwd: string, pinnedRef: string, prompt: string, kind: OutputKind, shell: Shell, model: string | null, effort: DemoEffort | null, allow: string[]): Promise<{ model: string, version: string }> {
+  const instruction = `First run \`npx skilld run '${pinnedRef}'${allow.map(id => ` --allow ${id}`).join('')}\` and follow the Skill it prints. Then do this task in the current folder:\n\n${prompt}`
   // Without the sandboxed shell, Bash runs nothing beyond loading Skills. Either way it runs in the sandbox.
   // No user or project settings: they would load this machine's CLAUDE.md, Skills and allow rules, and a
   // global allow rule then reaches past --allowedTools, which only pre-approves. Only these four tools exist.
@@ -319,7 +347,9 @@ async function record(cwd: string, pinnedRef: string, prompt: string, kind: Outp
     '--permission-mode',
     'acceptEdits',
     ...access,
-  ], { cwd, env: agentEnv(process.env), timeout: kind === 'video' ? VIDEO_RECORD_TIMEOUT_MS : RECORD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
+    ...(model ? ['--model', model] : []),
+    ...(effort ? ['--effort', effort] : []),
+  ], { cwd, env: agentEnv(process.env), timeout: kind === 'video' ? LONG_RECORD_TIMEOUT_MS : RECORD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
   const result = JSON.parse(stdout) as { is_error?: boolean, result?: string, modelUsage?: Record<string, unknown> }
   if (result.is_error)
     throw new Error(`Claude Code reported an error: ${result.result ?? 'no message'}`)
@@ -328,8 +358,46 @@ async function record(cwd: string, pinnedRef: string, prompt: string, kind: Outp
   return { model: models[0] ?? 'unknown', version: versionOut.trim().split(' ')[0] ?? 'unknown' }
 }
 
+/** Codex pins its model and effort explicitly and keeps its run events beside the output. */
+async function recordCodex(cwd: string, pinnedRef: string, prompt: string, model: string, effort: DemoEffort, allow: string[]): Promise<{ model: string, version: string }> {
+  const instruction = `First run \`npx skilld run '${pinnedRef}'${allow.map(id => ` --allow ${id}`).join('')}\` and follow the Skill it prints. Then do this task in the current folder:\n\n${prompt}`
+  const privateCodexPaths = ['auth.json', 'config.toml', 'sessions', 'log', 'memories', '*.sqlite*'].map(path => join(homedir(), '.codex', path))
+  const denied = [...deniedPaths(), ...privateCodexPaths, '~/.claude', '~/.zshrc', '~/.zprofile', '~/.bashrc', '~/.profile']
+    .map(path => path.startsWith('~/') ? join(homedir(), path.slice(2)) : path)
+  const filesystem = [
+    '":root"="read"',
+    '":project_roots"="write"',
+    ...['.npm', '.cache/puppeteer', '.cache/ms-playwright'].map(path => `${JSON.stringify(join(homedir(), path))}="write"`),
+    ...denied.map(path => `${JSON.stringify(path)}="deny"`),
+  ].join(',')
+  const domains = [...SANDBOX_DOMAINS, 'localhost', '127.0.0.1'].map(host => `${JSON.stringify(host)}="allow"`).join(',')
+  const { stdout } = await runDemoAgent({ command: 'codex', args: [
+    'exec',
+    '--ignore-user-config',
+    '--skip-git-repo-check',
+    '--model',
+    model,
+    '-c',
+    `model_reasoning_effort="${effort}"`,
+    '-c',
+    'default_permissions="demo"',
+    '-c',
+    `permissions.demo.filesystem={${filesystem}}`,
+    '-c',
+    `permissions.demo.network={enabled=true,mode="limited",allow_local_binding=true,domains={${domains}}}`,
+    '--json',
+    instruction,
+  ], cwd, env: agentEnv(process.env), timeout: LONG_RECORD_TIMEOUT_MS })
+  const events = stdout.trim().split('\n').map(line => JSON.parse(line) as { type: string })
+  if (!events.some(event => event.type === 'turn.completed'))
+    throw new Error(`Codex did not complete the recording. Check ${cwd}.`)
+  const { stdout: versionOut } = await run('codex', ['--version'])
+  return { model, version: versionOut.trim().split(' ')[1] ?? 'unknown' }
+}
+
 async function screenshot(page: string, dir: string, prompt: string): Promise<Shot[]> {
-  const browser = await chromium.launch()
+  // Software WebGPU lets a recorded scene render on a headless machine without a physical GPU.
+  const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--use-angle=vulkan', '--use-vulkan=swiftshader', '--enable-features=Vulkan', '--disable-vulkan-surface'] })
   const shots: Shot[] = []
   for (const { viewport, width, height } of VIEWPORTS) {
     // A screenshot is a still, so the page draws its reduced motion state where it has one.
@@ -551,7 +619,13 @@ async function main(): Promise<void> {
   const { owner, repo, name, makes, prompt, output, kind, shell, seed, setup, skillPageOnly } = input
   const skillRef = `${owner}/${repo}/${name}`
   const source = await skillSource(owner, repo, name)
-  const pinned = await pinnedRun(skillRef)
+  if (input.source) {
+    const [, sourceOwner, sourceRepo] = new URL(source.sourceUrl).pathname.split('/')
+    const expected = source.skillPath ? `github:${sourceOwner}/${sourceRepo}/${dirname(source.skillPath)}#commit:${source.commit}` : null
+    if (!expected || input.source.toLowerCase() !== expected.toLowerCase())
+      throw new Error('The --source selector must match the exact source path and commit in the registry.')
+  }
+  const pinned = await pinnedRun(input.source ?? skillRef, input.allow)
 
   const resumed = input.resume
   const cwd = resumed ? resumed.dir : await mkdtemp(join(tmpdir(), 'skilld-demo-'))
@@ -559,8 +633,10 @@ async function main(): Promise<void> {
     await cp(seed, cwd, { recursive: true })
   console.log(`Recording ${skillRef} at ${pinned.commit.slice(0, 7)} in ${cwd}${shell._tag === 'sandboxed' ? ' with the sandboxed shell' : ''}`)
   const agent = resumed
-    ? { model: resumed.model, version: (await run('claude', ['--version'])).stdout.trim().split(' ')[0] ?? 'unknown' }
-    : await record(cwd, pinned.ref, prompt, kind, shell)
+    ? { model: resumed.model, version: (await run(input.agent, ['--version'])).stdout.trim().split(' ')[input.agent === 'codex' ? 1 : 0] ?? 'unknown' }
+    : input.agent === 'codex' && input.model && input.effort
+      ? await recordCodex(cwd, pinned.ref, prompt, input.model, input.effort, input.allow)
+      : await record(cwd, pinned.ref, prompt, kind, shell, input.model, input.effort, input.allow)
 
   const produced = await findOutput(cwd, output)
   if (!produced)
@@ -587,9 +663,10 @@ async function main(): Promise<void> {
     prompt,
     ...(setup ? { setup } : {}),
     ...(skillPageOnly ? { skillPageOnly: true as const } : {}),
-    agent: 'Claude Code',
+    agent: input.agent === 'codex' ? 'Codex' : 'Claude Code',
     agentVersion: agent.version,
     model: agent.model,
+    ...(input.effort ? { effort: input.effort } : {}),
     skillCommit: pinned.commit,
     recordedAt: new Date().toISOString().slice(0, 10),
     ...media,

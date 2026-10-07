@@ -1,7 +1,9 @@
 import type { DemoMakes } from '#shared/demo-groups'
+import type { DemoEffort } from '#shared/demo-recording'
 import { z } from 'zod'
 import { DEMO_MAKES } from '#shared/demo-groups'
 import { demoPagePath, DEMOS_PATH, MIN_INDEXABLE_DEMOS } from '#shared/demo-pages'
+import { DEMO_EFFORTS } from '#shared/demo-recording'
 import { runCheckFlagKey } from '#shared/run-check-flags'
 import { repoSkillPath } from '#shared/skill-routes'
 import manifest from '../data/skill-demos.json'
@@ -71,6 +73,7 @@ const demoSchema = z.object({
   agent: z.string().min(1),
   agentVersion: z.string().min(1),
   model: z.string().min(1),
+  effort: z.enum(DEMO_EFFORTS).optional(),
   /** The Skill's source commit when the demo was recorded. */
   skillCommit: z.string().regex(/^[0-9a-f]{40}$/),
   recordedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -176,6 +179,7 @@ export interface SkillDemoView {
   setup: string | null
   agent: string
   model: string
+  effort: DemoEffort | null
   skillCommit: string
   recordedAt: string
   /** True when the Skill moved past the commit the demo recorded. */
@@ -204,6 +208,7 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
     setup: demo.setup ?? null,
     agent: demo.agent,
     model: demo.model,
+    effort: demo.effort ?? null,
     skillCommit: demo.skillCommit,
     recordedAt: demo.recordedAt,
     outdated: currentCommit !== null && currentCommit !== demo.skillCommit,

@@ -22,6 +22,10 @@ function demo(overrides: Partial<SkillDemoRecord> = {}): SkillDemoRecord {
 }
 
 describe('presentSkillDemo', () => {
+  it('keeps the recorded effort for the display', () => {
+    expect(presentSkillDemo(demo({ effort: 'medium' }), null).effort).toBe('medium')
+    expect(presentSkillDemo(demo(), null).effort).toBeNull()
+  })
   it('marks a demo outdated once the Skill moves past the recorded commit', () => {
     expect(presentSkillDemo(demo(), 'a'.repeat(40)).outdated).toBe(true)
     expect(presentSkillDemo(demo(), COMMIT).outdated).toBe(false)

@@ -99,6 +99,67 @@
       ]
     },
     {
+      "owner": "echris6",
+      "repo": "motion-video-kit",
+      "name": "business-motion-film",
+      "makes": "film",
+      "authorName": null,
+      "sourceUrl": "https://github.com/echris6/motion-video-kit/blob/main/business-motion-film/SKILL.md",
+      "prompt": "Make a 12-second commercial for Mossbridge, a fictional mobile bicycle repair service. The offer is a tune-up at your doorstep, booked in three steps. Use procedural visuals, authored motion, and synthesized audio without paid external generation. Don't ask questions. Make the design calls yourself. Render the final output as film.mp4.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "255562b04b1e5ecaa4ba98e5c9aa191d5ba7f6fa",
+      "recordedAt": "2026-10-07",
+      "video": {
+        "file": "video-2f3ad8de17.mp4",
+        "poster": "poster-164c3b325a.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 12
+      },
+      "shots": [
+        {
+          "file": "poster-164c3b325a.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: Make a 12-second commercial for Mossbridge, a fictional mobile bicycle repair service. The offer is a tune-up at your do"
+        }
+      ]
+    },
+    {
+      "owner": "egonex-ai",
+      "repo": "understand-anything",
+      "name": "understand",
+      "makes": "diagram",
+      "authorName": "EgonexAI",
+      "sourceUrl": "https://github.com/Egonex-AI/Understand-Anything/blob/main/understand-anything-plugin/skills/understand/SKILL.md",
+      "prompt": "Analyze the supplied Reedharbour Bookings source files with the understand Skill. Make the knowledge graph explorable, with clickable modules, relationship links, and a detail panel. Don't ask questions. Make the design calls yourself. Keep the generated knowledge graph and save its interactive viewer as one self-contained diagram.html with all CSS, JavaScript, and graph data inline.",
+      "setup": "The folder held a six-file fictional ferry-booking TypeScript project, with booking, payment, storage, and SMS modules.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "e3590a2e92fc60e291afb35c52cc7f9c4f2a1e41",
+      "recordedAt": "2026-10-07",
+      "outputFile": "diagram.html",
+      "shots": [
+        {
+          "file": "desktop-17d4733927.jpg",
+          "width": 1440,
+          "height": 1324,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Analyze the supplied Reedharbour Bookings source files with the understand Skill. Make the knowledge graph explorable, w",
+          "poster": {
+            "file": "desktop-poster-72dfd2e2a2.jpg",
+            "height": 900
+          }
+        }
+      ]
+    },
+    {
       "owner": "elayadesign",
       "repo": "ai-design-skills",
       "name": "landing-page-design",
@@ -360,6 +421,46 @@
       "sourceUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/main/skills/make-interfaces-feel-better/SKILL.md"
     },
     {
+      "owner": "justinwetch",
+      "repo": "higagentskills",
+      "name": "higagentskills",
+      "makes": "ui-component",
+      "authorName": "Justin Wetch",
+      "sourceUrl": "https://github.com/justinwetch/HIGAgentSkills/blob/main/SKILL.md",
+      "prompt": "Design a mobile-first Apple-style reading timer for Foxglove, a fictional reading app. Include a session timer, a book picker, daily progress, and accessible working controls. Don't ask questions. Make the design calls yourself. Save it as one self-contained index.html with all CSS and JavaScript inline.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "1b4c9ecb406b6c30bbeea0c840f5c01310e1eb18",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-df5c927e93.jpg",
+          "width": 1440,
+          "height": 1218,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Design a mobile-first Apple-style reading timer for Foxglove, a fictional reading app. Include a session timer, a book p",
+          "poster": {
+            "file": "desktop-poster-f38a0128d4.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-3e5d72ec7e.jpg",
+          "width": 390,
+          "height": 1855,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Design a mobile-first Apple-style reading timer for Foxglove, a fictional reading app. Include a session timer, a book p",
+          "poster": {
+            "file": "mobile-poster-e84851f5fc.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
       "owner": "larashero3-dotcom",
       "repo": "lieflat-charts",
       "name": "lieflat-charts",
@@ -455,6 +556,37 @@
     },
     {
       "owner": "leonxlnx",
+      "repo": "cinetic",
+      "name": "cinetic",
+      "makes": "film",
+      "authorName": "Leon Lin",
+      "sourceUrl": "https://github.com/Leonxlnx/cinetic/blob/main/skills/cinetic/SKILL.md",
+      "prompt": "Make a 12-second launch film for Brambleline, a fictional night-train booking app. Show choosing a route, a sleeper cabin, and a ticket becoming a moving train. Use code-built visuals and a synthesized soundtrack. Don't ask questions. Make the design calls yourself. Render the final output as film.mp4.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "04a79d2baedf4957a4134e373f377ee196bf4751",
+      "recordedAt": "2026-10-07",
+      "video": {
+        "file": "video-aa398df5a2.mp4",
+        "poster": "poster-7a20858818.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 12
+      },
+      "shots": [
+        {
+          "file": "poster-7a20858818.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: Make a 12-second launch film for Brambleline, a fictional night-train booking app. Show choosing a route, a sleeper cabi"
+        }
+      ]
+    },
+    {
+      "owner": "leonxlnx",
       "repo": "taste-skill",
       "name": "taste-skill",
       "makes": "landing-page",
@@ -520,6 +652,46 @@
           "height": 844,
           "viewport": "mobile",
           "alt": "Phone screenshot of the page the Agent built for: Make an 8-slide seed pitch deck for Cindergrove, a fictional company that rents wood-fired pizza ovens by the weekend, w"
+        }
+      ]
+    },
+    {
+      "owner": "nicobailon",
+      "repo": "visual-explainer",
+      "name": "visual-explainer",
+      "makes": "diagram",
+      "authorName": "Nico Bailon",
+      "sourceUrl": "https://github.com/nicobailon/visual-explainer/blob/main/plugins/visual-explainer/SKILL.md",
+      "prompt": "Explain how a community seed library lends seeds and records harvest returns. Draw the flow from catalog to checkout, planting, harvest, and restocking, with clickable steps and a seasonal timeline. Don't ask questions. Make the design calls yourself. Save it as one self-contained diagram.html with all CSS and JavaScript inline.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "0cc6f15452c455a05fb7fceb036d0da31387c69c",
+      "recordedAt": "2026-10-07",
+      "outputFile": "diagram.html",
+      "shots": [
+        {
+          "file": "desktop-9768fb23ea.jpg",
+          "width": 1440,
+          "height": 1750,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Explain how a community seed library lends seeds and records harvest returns. Draw the flow from catalog to checkout, pl",
+          "poster": {
+            "file": "desktop-poster-0ef77d3ddc.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-5a9f2efda5.jpg",
+          "width": 390,
+          "height": 2961,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Explain how a community seed library lends seeds and records harvest returns. Draw the flow from catalog to checkout, pl",
+          "poster": {
+            "file": "mobile-poster-c5857d8455.jpg",
+            "height": 844
+          }
         }
       ]
     },
@@ -674,6 +846,77 @@
       ]
     },
     {
+      "owner": "shadcn",
+      "repo": "ui",
+      "name": "shadcn",
+      "makes": "ui-component",
+      "authorName": "shadcn",
+      "sourceUrl": "https://github.com/shadcn-ui/ui/blob/main/skills/shadcn/SKILL.md",
+      "prompt": "Build a polished booking panel for Fernhaven, a fictional shared ceramics studio. Show a date selector, kiln shelf sizes, a firing summary, and a confirmation state. Use shadcn components and make the controls work. Don't ask questions. Make the design calls yourself. Bundle the final output as one self-contained index.html with all CSS and JavaScript inline.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "6cd3f4c65c361ab6554e06a77e6a0af9cf8b6e37",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-4f96db857d.jpg",
+          "width": 1440,
+          "height": 1488,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a polished booking panel for Fernhaven, a fictional shared ceramics studio. Show a date selector, kiln shelf sizes",
+          "poster": {
+            "file": "desktop-poster-216a708653.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-7a5026f661.jpg",
+          "width": 390,
+          "height": 2259,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a polished booking panel for Fernhaven, a fictional shared ceramics studio. Show a date selector, kiln shelf sizes",
+          "poster": {
+            "file": "mobile-poster-8ca697b4b1.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "owner": "tejashmakwana",
+      "repo": "motionmaxxing",
+      "name": "motionmaxxing",
+      "makes": "film",
+      "authorName": null,
+      "sourceUrl": "https://github.com/Tejashmakwana/motionmaxxing/blob/main/SKILL.md",
+      "prompt": "Make a 12-second motion-graphics launch film for Coilpost, a fictional bicycle courier service. Let a curved route line become a wheel, then a delivery confirmation. Use code-built visuals and a synthesized soundtrack. Don't ask questions. Make the design calls yourself. Render the final output as film.mp4.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "1723d65295c261baad295f9b5d9b6c4d6aeb5631",
+      "recordedAt": "2026-10-07",
+      "video": {
+        "file": "video-4e8843e59b.mp4",
+        "poster": "poster-700f30d76a.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 12
+      },
+      "shots": [
+        {
+          "file": "poster-700f30d76a.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: Make a 12-second motion-graphics launch film for Coilpost, a fictional bicycle courier service. Let a curved route line "
+        }
+      ]
+    },
+    {
       "owner": "thebstar",
       "repo": "shipreel",
       "name": "shipreel",
@@ -761,6 +1004,38 @@
           "height": 844,
           "viewport": "mobile",
           "alt": "Phone screenshot of the page the Agent built for: Write it in English, and don't stop to ask me questions. Draw an interactive flow diagram for Sleetgarden, a fictional p"
+        }
+      ]
+    },
+    {
+      "owner": "vercel-labs",
+      "repo": "vgpu",
+      "name": "vgpu",
+      "makes": "game",
+      "authorName": "Vercel Labs",
+      "sourceUrl": "https://github.com/vercel-labs/vgpu/blob/canary/skills/vgpu/SKILL.md",
+      "prompt": "Build a small interactive WebGPU toy called Prism Pond with vgpu: a glowing field of floating geometric islands, a camera you can orbit, and clickable islands that send coloured ripples across the pond. Use the installed vgpu package docs to implement it. Don't ask questions. Make the design calls yourself. Bundle the final output into one scene.html with all CSS and JavaScript inline. Include a clear WebGPU-unavailable message.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "e21eceeeb9162e452a10329b599099b1466e4087",
+      "recordedAt": "2026-10-07",
+      "outputFile": "scene.html",
+      "shots": [
+        {
+          "file": "desktop-34bea1dfef.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a small interactive WebGPU toy called Prism Pond with vgpu: a glowing field of floating geometric islands, a camer"
+        },
+        {
+          "file": "mobile-f17deaacc1.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a small interactive WebGPU toy called Prism Pond with vgpu: a glowing field of floating geometric islands, a camer"
         }
       ]
     },
