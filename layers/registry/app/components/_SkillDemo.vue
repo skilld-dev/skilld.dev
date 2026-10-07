@@ -9,12 +9,13 @@ import SkillDemoShot from './_SkillDemoShot.vue'
  * Skill, and how it was recorded. Screenshots paint first. The live output
  * loads only on request, in a frame with no same-origin access, because the
  * route serves it under a CSP sandbox too. "All demos" opens the demo's own
- * page, the board of every demo with this one on the stage. A Skill with a run
- * check flag is off the board, so its panel has no such link.
+ * page, the board of every demo with this one on the stage. A Skill page only
+ * demo, or one whose Skill holds a run check flag, is off the board, so its
+ * panel has no such link.
  */
 const { demo, onBoard = true } = defineProps<{
   demo: SkillDemoView
-  /** False while the Skill holds a run check flag: the board leaves it out, and its demo page answers 404. */
+  /** False for a Skill page only demo, or while the Skill holds a run check flag: the board leaves it out, and its demo page answers 404. */
   onBoard?: boolean
 }>()
 

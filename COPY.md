@@ -45,10 +45,14 @@ These exact strings. Do not paraphrase them per page.
 | Demo page | What /{name} made · One recorded run: the prompt, and what the Agent built with the Skill. | guidance only: the H1 and line of a demo page, `/skills/demos/<owner>/<repo>/<name>`. The meta title is "{name} skill example: {noun}" for the query "<skill> skill example", with `noun` from `DEMO_GROUPS`. The meta description is "{agent} made this {noun} with the /{name} skill from one prompt: “{prompt}”", cut at a word to 160 characters |
 | Demo groups | Films and launch videos · Landing pages · UI components · Diagrams and explainers | guidance only: `DEMO_GROUPS` in `shared/demo-groups.ts`: the `/skills/demos` group headings and their lines |
 | Demo stage | Open the demo | guidance only: the demo stage link. On the homepage it opens the demo page; on a demo page it opens the Skill page Demo panel |
-| Demo panel | Demo · Prompt · Open live demo · Open in a new tab · Run it yourself · All demos | guidance only: the Skill page Demo panel. "Show screenshots" replaces "Open live demo" while the live output shows. "All demos" opens the demo page and hides while the Skill holds a run check flag |
+| Demo panel | Demo · Prompt · Open live demo · Open in a new tab · Run it yourself · All demos | guidance only: the Skill page Demo panel. "Show screenshots" replaces "Open live demo" while the live output shows. "All demos" opens the demo page. It hides for a Skill page only demo, and while the Skill holds a run check flag |
 | Demo provenance | {Agent logo} {model}, such as Opus 5.5 | guidance only: the recording line on the Skill page panel and the homepage stage. Screen readers and the title get "Recorded with {agent}, {model}". No date and no GitHub link: the Skill page is where visitors inspect a Skill |
 | Demo outdated | Recorded on an older version of this Skill. | guidance only: under the Demo panel when the Skill moved past the recorded commit |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
+| Home section: why | What skilld does differently. | guidance only: the homepage Why band heading, after trending. No line under it: the three columns from `HOME_WHY_REASONS` follow directly, each a title, `summary`, and picture. Their skills.sh lines stay on `/vs/skills-sh` |
+| Why trust line | Built by Harlan Wilton · Compare with skills.sh | guidance only: the line that closes the homepage Why band. The avatar and name link Harlan's GitHub, and the button opens `/vs/skills-sh`. The columns carry every claim, so the line carries none |
+| Why reasons | Human first · Preview the output · Independent and open source · Open trending weights · No more skill bloat · Know what it runs · Know what it costs · No telemetry | guidance only: the reason titles. Each has a one-line `summary` for the homepage and a full `line` for the comparison. The homepage shows the first three, which Harlan chose on 2026-10-07. `WHY_REASONS` in `app/utils/why-skilld.ts` holds each title, its line, and the sourced skills.sh line, and both surfaces read it. The Preview line opens with the Demos line above. Open trending weights links the ranking code, so its weights must match `shared/trending-skill-score.ts`. Know what it runs never claims a Skill is safe |
+| Comparison H1 | skilld vs skills.sh | guidance only: the `/vs/skills-sh` H1. Its lead says what skills.sh is before what skilld is. Every skills.sh fact carries its source link and the date it was checked |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
 | Nav: developers | Developers | guidance only: the header menu trigger, and the group label in the mobile menu. The menu holds the four items below |
 | Nav: CLI | CLI · Search, run, install, and keep Skills current. | guidance only: the first compact row in the Developers menu: name, line. Links `/cli`. The mobile menu shows the name only. The line is the CLI line, so change that first |
@@ -66,7 +70,7 @@ These exact strings. Do not paraphrase them per page.
 | CLI claims line | Open-source CLI · No telemetry · 19 Agent targets | guidance only: the `/cli` claims line. The page counts the `--agent` values of `skilld install --help` |
 | CLI install label | Install the CLI | guidance only: the label beside the CLI install chip on `/cli`. A switch above the chip picks `macOS / Linux`, `Windows`, or `npm`, and `macOS / Linux` is preselected |
 | CLI install consequence | One native binary. It upgrades itself from signed releases. · Needs Node.js. npm handles upgrades. | guidance only: the line under the CLI install chip on `/cli`. The first is for `macOS / Linux` and `Windows`, the second for `npm`. `crates/skilld-command/src/upgrade.rs` in the CLI decides both. If it changes, change these strings |
-| Claim: open source | open-source CLI | guidance only: the CLI. Never call skilld.dev or its site open source |
+| Claim: open source | open source | guidance only: the CLI and the site. `skilld-dev/skilld` and `skilld-dev/skilld.dev` are both public under MIT, checked 2026-10-07. If either repository goes private, narrow the claim to the one a reader can clone. "No telemetry" still names the CLI only |
 | Claim: telemetry | no telemetry | guidance only: the CLI. Its README states that it sends no telemetry or analytics. Never say it of the site, which keeps anonymous analytics |
 | Claim: privacy | analytics without cookies or IPs | guidance only: analytics and privacy copy. Never the bare "privacy-friendly" |
 | Claim: comparison | skills.sh alternative | guidance only: always a link to `/vs/skills-sh` |
@@ -147,6 +151,16 @@ Each status shows a title, then a detail line:
 
 Found Skills replace the search results under the heading `Skills for this task`, with the line `A language model picked these from a few searches of the registry.`
 
+### Behavior readings
+
+The Skill behaviors panel shows a behavior reading under each SKILL.md match that needs approval. GLOSSARY.md defines the term and ADR-0016 the mechanism.
+Name the model plainly, as a language model. Never call a reading a review, a scan, a safety call, or a false positive.
+The strings live in `layers/registry/app/components/_SkillBehaviors.vue`.
+
+- Each match: `SKILL.md:42 · Quoted example. {reason}`. `behaviorVerdictLabel` in `shared/behavior-readings.ts` owns the five labels: `Instruction`, `Quoted example`, `Prohibition`, `Documentation`, `Unclear`.
+- Panel note, shown when a match has a reading: `A language model read each match that needs approval in its context. Its reading is no guarantee and changes no approval.`
+- The skilld CLI approval message adds `(model reading: quoted example. {reason})` to each match, and ends its list with `A language model on skilld.dev wrote each model reading. A reading is no guarantee and changes no approval.` The CLI owns that string, so change it there first.
+
 ## Discord digest
 
 The weekly card uses `Trending skills this week` as its title and links to the trending page.
@@ -225,7 +239,6 @@ near-miss is also banned.
 | people (for our audience) | dev, devs | They are developers, and "people" is a vaguer word doing a smaller job. "Developers" in full is fine where the short form reads clipped |
 | first person in a CTA | the content, then the destination | "We send this every Monday" spends the words on us. "Trending skills to your inbox every Monday" gives the reader both things that matter |
 | privacy-friendly (bare) | analytics without cookies or IPs | A bare privacy claim cannot be checked. The mechanism can |
-| open source (for the site or skilld.dev) | open-source CLI | A reader must be able to clone what the claim names, and the claim names the CLI |
 
 **Exception, the humans-versus-generated claim.** When the contrast is authorship by a human
 against machine generation, "human" and "person" are the right words and "dev" weakens the

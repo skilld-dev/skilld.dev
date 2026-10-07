@@ -12,6 +12,7 @@ Each brief owns its remaining work, acceptance checks, and dated evidence.
 | [Cost follow-up](EXECUTE-cost-followup.md) | Do new measurements meet the recorded cost and D1 targets? |
 | [SEO recovery](EXECUTE-seo-recovery.md) | What does the weekly panel show before the November gate? |
 | [Public API v1](EXECUTE-public-api.md) | What remains outside the published contract? |
+| [Skillgen bootstrap](EXECUTE-skillgen-bootstrap.md) | How many model calls does a GLM 5.3 bootstrap run need? |
 
 ## Sources of direction
 

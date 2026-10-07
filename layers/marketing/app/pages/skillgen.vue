@@ -66,7 +66,7 @@ const codeClass = 'font-mono text-xs text-default'
                 Up to 9 files and 64 KiB in total: <code :class="codeClass">SKILL.md</code> and Markdown files under <code :class="codeClass">references/</code>.
               </li>
               <li>
-                Release tags that match the package version, such as <code :class="codeClass">1.4.0</code>, <code :class="codeClass">v1.4.0</code> or <code :class="codeClass">name@1.4.0</code>. If one tag releases several packages with Skills, each gets its own pull request.
+                Release tags that match the package version, such as <code :class="codeClass">1.4.0</code>, <code :class="codeClass">v1.4.0</code> or <code :class="codeClass">name@1.4.0</code>. If one tag releases several packages with Skills, each gets its own pull request. A tag older than the version on your default branch, such as a maintenance release, starts no run.
               </li>
               <li>
                 npm links each version to its tag commit, through provenance or <code :class="codeClass">gitHead</code>.

@@ -22,7 +22,7 @@ export interface HomeDemoItem {
   model: string
   /** `YYYY-MM-DD`. */
   recordedAt: string
-  shots: { src: string, width: number, height: number, alt: string, viewport: 'desktop' | 'mobile' }[]
+  shots: HomeDemoShot[]
   /** A Skill whose output is a film. The poster is a JPG frame; `src` is a muted H.264 MP4. */
   /** The sandboxed output page of a page demo; null for a film. */
   liveUrl: string | null
@@ -37,7 +37,15 @@ export interface HomeDemoVideo {
   durationSeconds: number
 }
 
-export type HomeDemoShot = HomeDemoItem['shots'][number]
+export interface HomeDemoShot {
+  src: string
+  width: number
+  height: number
+  alt: string
+  viewport: 'desktop' | 'mobile'
+  /** The first screen, when the shot runs longer than one. */
+  poster: { src: string, width: number, height: number } | null
+}
 
 /** Fewer than this reads as a broken feature, as with trending. */
 export const HOME_DEMOS_MIN = 3
@@ -102,6 +110,26 @@ export function formatDemoDuration(seconds: number): string {
 export function demoScreens(shot: HomeDemoShot): number {
   const screenHeight = shot.viewport === 'mobile' ? shot.width * 844 / 390 : shot.width * 10 / 16
   return Math.max(1, Math.round(shot.height / screenHeight))
+}
+
+export interface DemoPicture {
+  src: string
+  width: number
+  height: number
+}
+
+/**
+ * The picture a demo page's social card shows: a film's poster frame, or the
+ * first screen of the desktop page. A long page never serves whole, since a
+ * 6000px shot would shrink to a strip. Undefined when the demo has neither;
+ * the page keeps its text card then.
+ */
+export function demoSocialPicture(demo: HomeDemoItem): DemoPicture | undefined {
+  if (demo.video)
+    return { src: demo.video.poster, width: demo.video.width, height: demo.video.height }
+  const shot = demo.shots.find(shot => shot.viewport === 'desktop')
+  const screen = shot?.poster ?? (shot && demoScreens(shot) === 1 ? shot : undefined)
+  return screen && { src: screen.src, width: screen.width, height: screen.height }
 }
 
 /** The Skill as `SkillCard` reads it, so a demo names its author the way every Skill embed does. */
