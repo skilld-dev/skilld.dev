@@ -28,13 +28,13 @@ These exact strings. Do not paraphrase them per page.
 | Promo label | Teach your agent skilld | guidance only: the last item of the homepage claims line. It opens a popover with `npx skilld install skilld --global` |
 | Promo panel note | No terminal? Paste this into your agent. | guidance only: the promo popover, under the install command and over the setup prompt |
 | Setup prompt | Read https://skilld.dev/agent.md and follow it to set up skilld for me. | guidance only: `agentSetupPrompt()` in `shared/agent-setup.ts` builds it for the promo popover and the homepage Agents section. `/agent.md` serves the steps it points at |
-| Hero Agent logos | The seven `AGENT_LOGOS` icons, then `+12` | guidance only: the quiet row under the homepage claims line. Links `#agents`. Its label names each Agent. 12 is `AGENT_TARGETS` minus `AGENT_LOGOS` |
+| Hero Agent logos | The seven `AGENT_LOGOS` icons, then `+66` | guidance only: the quiet row under the homepage claims line. Links `#agents`. Its label names each Agent. 66 is `AGENT_TARGETS` minus `AGENT_LOGOS` |
 | Step 1: find | Find Skills · Curated, plus what devs talk about. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then one line. Links `/skills` |
 | Step 2: run | Run, Fork or Install · Run leaves nothing on disk. Fork or install to keep it. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default |
 | Step 3: update | Keep up to date · Watch repos and get a digest when Skills change. | guidance only: a homepage lifecycle step. Links `/cli#update` |
 | Pitch lines | Stay hyped. · No more skill bloat. · Keep updated. · Built to be built on. | guidance only: approved pitch lines for find, run, update and build on. The DESIGN.md motifs pair with them |
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
-| Home section: agents | Works with your agent. · The CLI installs into 19 Agents. ChatGPT, Claude, and other MCP apps search the registry from the chat. | guidance only: the homepage Agents section heading and line. 19 is `AGENT_TARGETS.length` |
+| Home section: agents | Works with your agent. · The CLI installs into 73 Agents. ChatGPT, Claude, and other MCP apps search the registry from the chat. | guidance only: the homepage Agents section heading and line. 73 is `AGENT_TARGETS.length` |
 | Agents way: prompt | Paste into any agent · Your agent reads the setup steps and picks the path that fits it. | guidance only: the first way in the homepage Agents section, over the setup prompt |
 | Agents way: terminal | From a terminal · Teaches your agent to search and run Skills in every project. | guidance only: the second way, over `npx skilld install skilld --global` |
 | Agents way: MCP | In ChatGPT, Claude, and other MCP apps · Add the server once. Then ask the chat to find a Skill. | guidance only: the third way, over the MCP server URL. Its link, "Setup steps for each app", opens `/developers?setup=mcp` |
@@ -67,7 +67,7 @@ These exact strings. Do not paraphrase them per page.
 | CLI H1 | The skilld CLI | guidance only: the `/cli` H1 and its OG title |
 | CLI line | Search, run, install, and keep Skills current. | guidance only: the `/cli` line under the H1. It is the CLI's own `--help` line, so change it in the CLI first |
 | CLI intro | Give your Agent Skills that real maintainers write. A run reads the current source every time, and one command updates the Skills you install. Install the skilld Skill once, and your Agent searches and loads Skills on its own. | guidance only: the `/cli` intro under the line |
-| CLI claims line | Open-source CLI · No telemetry · 19 Agent targets | guidance only: the `/cli` claims line. The page counts the `--agent` values of `skilld install --help` |
+| CLI claims line | Open-source CLI · No telemetry · 73 Agent targets | guidance only: the `/cli` claims line. The page counts the `--agent` values of `skilld install --help` |
 | CLI install label | Install the CLI | guidance only: the label beside the CLI install chip on `/cli`. A switch above the chip picks `macOS / Linux`, `Windows`, or `npm`, and `macOS / Linux` is preselected |
 | CLI install consequence | One native binary. It upgrades itself from signed releases. · Needs Node.js. npm handles upgrades. | guidance only: the line under the CLI install chip on `/cli`. The first is for `macOS / Linux` and `Windows`, the second for `npm`. `crates/skilld-command/src/upgrade.rs` in the CLI decides both. If it changes, change these strings |
 | Claim: open source | open source | guidance only: the CLI and the site. `skilld-dev/skilld` and `skilld-dev/skilld.dev` are both public under MIT, checked 2026-10-07. If either repository goes private, narrow the claim to the one a reader can clone. "No telemetry" still names the CLI only |

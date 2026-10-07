@@ -30,6 +30,16 @@ import { pageRobots } from '../../utils/page-admissions'
 /** Every `--agent` value of `skilld install --help`, mirrored in `AGENT_TARGETS`. */
 const targetCount = AGENT_TARGETS.length
 
+/**
+ * Values shown before the rest fold away. Seventy-three chips made a wall
+ * twelve rows tall, so the list leads with the CLI's first targets, which are
+ * the Agents most devs run, and the rest wait behind one button.
+ */
+const LEADING_AGENT_VALUES = 12
+const showAllAgentValues = ref(false)
+const agentValues = computed(() => showAllAgentValues.value ? AGENT_TARGETS : AGENT_TARGETS.slice(0, LEADING_AGENT_VALUES))
+const hiddenAgentValues = AGENT_TARGETS.length - LEADING_AGENT_VALUES
+
 /** The README's example Skill. Its installed name is the last segment. */
 const EXAMPLE = { owner: 'antfu', repo: 'skills', skill: 'vue' } as const
 
@@ -284,13 +294,24 @@ const codeClass = 'font-mono text-xs text-default'
               <p>
                 <code :class="codeClass">skilld install</code> detects the Agents you use and writes the same Skill to each. Name one with <code :class="codeClass">--agent</code>:
               </p>
-              <ul class="mt-3 flex list-none flex-wrap gap-1.5 p-0" aria-label="Agent target values">
+              <ul id="agent-values" class="mt-3 flex list-none flex-wrap gap-1.5 p-0" aria-label="Agent target values">
                 <li
-                  v-for="agent in AGENT_TARGETS"
+                  v-for="agent in agentValues"
                   :key="agent.id"
                   class="rounded-sm border border-default px-1.5 py-0.5 font-mono text-xs text-toned"
                 >
                   {{ agent.id }}
+                </li>
+                <li v-if="hiddenAgentValues > 0">
+                  <button
+                    type="button"
+                    class="rounded-sm border border-dashed border-accented px-1.5 py-0.5 font-mono text-xs text-default transition-colors hover:border-default"
+                    aria-controls="agent-values"
+                    :aria-expanded="showAllAgentValues"
+                    @click="showAllAgentValues = !showAllAgentValues"
+                  >
+                    {{ showAllAgentValues ? 'Show fewer' : `+${hiddenAgentValues} more` }}
+                  </button>
                 </li>
               </ul>
               <AgentTargets class="mt-4" />
