@@ -45,7 +45,7 @@ Observations that shape the design:
 - [x] **Skip tags older than the default branch.** A maintenance tag would rewrite the newer Skill. skilld-dev/skilld.dev#527.
 - [x] **Resolve scoped Skill directory names.** `@nuxtjs/seo` resolves to `skills/nuxtjs-seo` as well as `skills/seo`. Same pull request.
 - [x] **Return failed output checks to the Agent.** skilld-dev/skilld#217 also limits Harness output to `SKILL.md` and `references/`, 9 files and 64 KiB.
-- [ ] **Run the Harness on GLM 5.3.** Add the OpenCode Go provider to the Worker gateway and set the `OPENCODE_API_KEY` secret.
+- [ ] **Run the Harness on GLM 5.3.** #529 adds the OpenCode Go provider. Set the `OPENCODE_API_KEY` secret before it merges.
 - [ ] **Bootstrap budget.** Measure one Harness bootstrap run on `which-nuxt` with GLM 5.3 before choosing limits. The update limits will not fit.
 - [ ] **Opt-in without a Skill.** `inspectSkillgenRepository` returns `NoSkill` today. Make a public package that npm publishes eligible, and list maintained repositories with one even when the registry holds no Skill.
 - [ ] **Package choice.** Store the packages a maintainer turns on per repository. Default to the root package, or to packages that no sibling package depends on.
