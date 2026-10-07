@@ -3,7 +3,7 @@ import WhyPanel from './_WhyPanel.vue'
 
 /**
  * What a Skill costs an Agent's context, by when each part loads, as the
- * Skill page counts it: four bytes per token. The name and description load
+ * Skill page counts and names it: four bytes per token. The name and description load
  * in every session, SKILL.md when the Agent uses the Skill, and the other
  * Markdown only when SKILL.md sends the Agent there. Scripts run, so only
  * their output lands. `anthropics/skills/pdf` as production listed it on
@@ -17,9 +17,9 @@ interface Stage {
 }
 
 const STAGES: Stage[] = [
-  { when: 'Every session', what: 'name and description', tokens: 111, label: '≈111' },
-  { when: 'When your agent uses it', what: 'SKILL.md', tokens: 1887, label: '≈1.9k' },
-  { when: 'Only if SKILL.md asks', what: 'forms.md, reference.md', tokens: 7137, label: '≈7.1k' },
+  { when: 'Always', what: 'name and description', tokens: 111, label: '≈111' },
+  { when: 'When used', what: 'SKILL.md', tokens: 1887, label: '≈1.9k' },
+  { when: 'On demand', what: 'forms.md, reference.md', tokens: 7137, label: '≈7.1k' },
 ]
 
 const MAX_TOKENS = Math.max(...STAGES.map(stage => stage.tokens))

@@ -824,50 +824,43 @@ describe('accessibility: components', () => {
     video: null,
   }
 
-  it('homeWhy has no violations, picks a reason by tab, and ends on the comparison', async () => {
+  const WHY_DEMOS: HomeDemoItem[] = [
+    { ...WHY_DEMO, name: 'frontend-design', makes: 'landing-page' },
+    { ...WHY_DEMO, name: 'impeccable', makes: 'landing-page' },
+    WHY_DEMO,
+  ]
+
+  it('homeWhy has no violations, shows three reasons with a picture each, and ends on the comparison', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('HomeWhy'),
-      { attachTo: container, props: { trendingRow: WHY_TRENDING_ROW } },
+      { attachTo: container, props: { trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS } },
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
 
-    const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-    expect(tabs.map(tab => tab.querySelector('.home-why__title')?.textContent?.trim())).toEqual([
-      'No more skill bloat',
-      'Know what it runs',
-      'Know what it costs',
-      'Rankings you can check',
+    const columns = [...container.querySelectorAll('.home-why__col')]
+    expect(columns.map(column => column.querySelector('h3')?.textContent?.trim())).toEqual([
+      'Human first',
+      'Preview the output',
+      'Independent',
     ])
-    const shown = () => [...container.querySelectorAll('[role="tabpanel"]')]
-      .filter(panel => panel.hasAttribute('data-active'))
-      .map(panel => panel.id)
-    expect(shown()).toEqual(['why-panel-run'])
-
-    tabs[3]!.click()
-    await nextTick()
-    expect(shown()).toEqual(['why-panel-devs'])
-    expect(tabs[3]!.getAttribute('aria-selected')).toBe('true')
-
-    // Arrow keys wrap from the last tab to the first.
-    tabs[3]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-    await nextTick()
-    expect(shown()).toEqual(['why-panel-run'])
-
-    // The ranking picture quotes the first post in the poster's words.
+    expect(columns.every(column => column.querySelector('.why-panel'))).toBe(true)
+    // The people picture quotes the first post in the poster's words.
     expect(container.textContent).toContain('@ada')
+    // The homepage column drops the small print under each weight.
+    expect(container.textContent).not.toContain('log scale')
     const links = [...container.querySelectorAll('a')].map(link => link.getAttribute('href'))
     expect(links.at(-1)).toBe('/vs/skills-sh')
     wrapper.unmount()
   })
 
   it('whyVisual draws every reason without violations, and no demo picture without a demo', async () => {
-    for (const id of ['run', 'behaviors', 'cost', 'devs', 'author', 'demos', 'telemetry', 'independent'] as const) {
+    for (const id of ['human', 'previews', 'independent', 'run', 'behaviors', 'cost', 'telemetry'] as const) {
       const container = createIsolatedContainer()
       const wrapper = await mountSuspended(
         await loadComponent('why/_WhyVisual'),
-        { attachTo: container, props: { id, trendingRow: WHY_TRENDING_ROW, demo: WHY_DEMO } },
+        { attachTo: container, props: { id, trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS } },
       )
       const results = await runAxe(container)
       expect(results.violations, `${id}\n${formatViolations(results)}`).toHaveLength(0)
@@ -878,20 +871,21 @@ describe('accessibility: components', () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('why/_WhyVisual'),
-      { attachTo: container, props: { id: 'demos', demo: null } },
+      { attachTo: container, props: { id: 'previews', demos: [WHY_DEMO] } },
     )
+    // One demo in a group gives nothing to compare, so the picture stays out.
     expect(container.querySelector('.why-panel')).toBeNull()
     wrapper.unmount()
   })
 
-  it('whyVisual keeps the ranking signals when no trending row arrived', async () => {
+  it('whyVisual keeps the maintainer and drops the posters when no trending row arrived', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('why/_WhyVisual'),
-      { attachTo: container, props: { id: 'devs', trendingRow: null } },
+      { attachTo: container, props: { id: 'human', trendingRow: null } },
     )
-    expect(container.textContent).toContain('never ranks')
-    expect(container.querySelector('a[href^="/gh/"]')).toBeNull()
+    expect(container.textContent).toContain('Matt Pocock')
+    expect(container.textContent).not.toContain('Talked about by')
     wrapper.unmount()
   })
 
@@ -989,11 +983,10 @@ describe('accessibility: component coverage', () => {
     'why/_WhyRunVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyBehaviorsVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyCostVisual', // A Why picture, scanned inside the WhyVisual tests
-    'why/_WhyDevsVisual', // A Why picture, scanned inside the WhyVisual tests
-    'why/_WhyAuthorVisual', // A Why picture, scanned inside the WhyVisual tests
-    'why/_WhyDemoVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyHumanVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyPreviewsVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyIndependentVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyTelemetryVisual', // A Why picture, scanned inside the WhyVisual tests
-    'why/_WhyMakerVisual', // A Why picture, scanned inside the WhyVisual tests
     'why/_WhyText', // The words of each reason, scanned inside the HomeWhy test
     'why/_WhyTrustLine', // The line under the Why band, scanned inside the HomeWhy test
   ]

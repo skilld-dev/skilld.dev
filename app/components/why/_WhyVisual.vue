@@ -2,33 +2,33 @@
 import type { TrendingBoardRow } from '#shared/trending-range'
 import type { HomeDemoItem } from '~/utils/home-demos'
 import type { WhyReasonId } from '~/utils/why-skilld'
-import WhyAuthorVisual from './_WhyAuthorVisual.vue'
 import WhyBehaviorsVisual from './_WhyBehaviorsVisual.vue'
 import WhyCostVisual from './_WhyCostVisual.vue'
-import WhyDemoVisual from './_WhyDemoVisual.vue'
-import WhyDevsVisual from './_WhyDevsVisual.vue'
-import WhyMakerVisual from './_WhyMakerVisual.vue'
+import WhyHumanVisual from './_WhyHumanVisual.vue'
+import WhyIndependentVisual from './_WhyIndependentVisual.vue'
+import WhyPreviewsVisual from './_WhyPreviewsVisual.vue'
 import WhyRunVisual from './_WhyRunVisual.vue'
 import WhyTelemetryVisual from './_WhyTelemetryVisual.vue'
 
 /**
  * The picture for one reason. Two of them draw live data the page already
- * has: the head of the trending board and one demo.
+ * has: the head of the trending board and the demos.
  */
-const { id, trendingRow = null, demo = null } = defineProps<{
+const { id, trendingRow = null, demos = [], compact = false } = defineProps<{
   id: WhyReasonId
   trendingRow?: TrendingBoardRow | null
-  demo?: HomeDemoItem | null
+  demos?: readonly HomeDemoItem[]
+  /** The fewest parts each picture can show, for a narrow column. */
+  compact?: boolean
 }>()
 </script>
 
 <template>
-  <WhyRunVisual v-if="id === 'run'" />
+  <WhyHumanVisual v-if="id === 'human'" :row="trendingRow" />
+  <WhyPreviewsVisual v-else-if="id === 'previews'" :demos />
+  <WhyIndependentVisual v-else-if="id === 'independent'" :compact />
+  <WhyRunVisual v-else-if="id === 'run'" />
   <WhyBehaviorsVisual v-else-if="id === 'behaviors'" />
   <WhyCostVisual v-else-if="id === 'cost'" />
-  <WhyDevsVisual v-else-if="id === 'devs'" :row="trendingRow" />
-  <WhyAuthorVisual v-else-if="id === 'author'" />
-  <WhyDemoVisual v-else-if="id === 'demos'" :demo />
-  <WhyTelemetryVisual v-else-if="id === 'telemetry'" />
-  <WhyMakerVisual v-else />
+  <WhyTelemetryVisual v-else />
 </template>

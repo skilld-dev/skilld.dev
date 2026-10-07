@@ -68,11 +68,15 @@ const { label } = defineProps<{
   white-space: nowrap;
 }
 
-/* A column, so a picture can pin its last part to the bottom when a grid stretches the panel. */
+/*
+ * A column, so a picture can pin its last part to the bottom when a grid
+ * stretches the panel. A size container, so a picture can fit its width.
+ */
 .why-panel__body {
   display: flex;
   flex: 1;
   flex-direction: column;
+  container-type: inline-size;
   padding: 0.875rem 0.875rem 1rem;
 }
 </style>

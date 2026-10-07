@@ -2,11 +2,10 @@
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
 /**
- * The reasons the homepage band does not draw, as one quiet line: who builds
- * skilld, the CLI claim from the hero, that the Agents section reaches chat
- * apps and fetch-only agents with no shell, and what the registry never sells.
- * It ends on the route to the full comparison. No rule above it: the tab list
- * already closes on one.
+ * What the homepage band does not draw, as one quiet line: who builds skilld,
+ * the CLI claim from the hero, and that the Agents section reaches chat apps
+ * and fetch-only agents with no shell. It ends on the route to the full
+ * comparison. No rule above it: the tab list already closes on one.
  */
 </script>
 
@@ -24,7 +23,7 @@ import { githubAvatarProxyUrl } from '#shared/image-proxy'
             decoding="async"
             class="why-trust__avatar"
           >
-          <span>Independent, built by <span class="text-highlighted">Harlan Wilton</span></span>
+          <span>Built by <span class="text-highlighted">Harlan Wilton</span></span>
         </a>
       </li>
       <li>
@@ -33,7 +32,6 @@ import { githubAvatarProxyUrl } from '#shared/image-proxy'
       <li>
         <a href="#agents">Works without a terminal</a>
       </li>
-      <li>No paid placement</li>
     </ul>
     <UButton
       to="/vs/skills-sh"

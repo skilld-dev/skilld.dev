@@ -12,7 +12,7 @@ import { pageRobots } from '../../utils/page-admissions'
 const PATH = '/vs/skills-sh'
 const canonicalUrl = `https://skilld.dev${PATH}`
 const title = 'skilld vs skills.sh: a skills.sh alternative'
-const description = 'Looking for a skills.sh alternative? skilld runs a Skill without writing files, shows every file first, and ranks Skills by devs, not installs.'
+const description = 'A skills.sh alternative. skilld names who wrote each Skill, shows what it makes, and ranks Skills by the devs who post about them.'
 
 useSeoMeta({
   title,
@@ -26,17 +26,17 @@ useSeoMeta({
 useHead({ link: [{ rel: 'canonical', href: canonicalUrl }] })
 defineOgImage('Page.takumi', { title: 'skilld vs skills.sh', description }, { alt: 'skilld vs skills.sh' })
 
-// Two pictures draw live data: the head of the trending board and one demo.
+// Two pictures draw live data: the head of the trending board and the demos.
 // Both endpoints are cached at the edge, and each picture draws without them.
-const [{ data: trendingRow }, { data: demo }] = await Promise.all([
+const [{ data: trendingRow }, { data: demos }] = await Promise.all([
   useFetch('/api/feed/trending', {
     key: 'vs-skills-sh-trending',
     query: { limit: 6 },
     transform: (feed: TrendingFeedResponse) => feedBoardRows(feed).find(row => row.reason._tag === 'posts') ?? null,
   }),
   useFetch('/api/skill-demos', {
-    key: 'vs-skills-sh-demo',
-    transform: (response: { items: HomeDemoItem[] }) => response.items[0] ?? null,
+    key: 'vs-skills-sh-demos',
+    transform: (response: { items: HomeDemoItem[] }) => response.items,
   }),
 ])
 
@@ -44,8 +44,10 @@ const reasons = VS_WHY_REASONS.map(id => WHY_REASONS[id])
 const leads = skillsShLeads(AGENT_TARGETS.length)
 const rows = comparisonRows(AGENT_TARGETS.length)
 
+/** Host and path, so two sources on one site read apart. */
 function sourceLabel(url: string): string {
-  return new URL(url).hostname.replace(/^www\./, '')
+  const { hostname, pathname } = new URL(url)
+  return `${hostname.replace(/^www\./, '')}${pathname.replace(/\/$/, '')}`
 }
 </script>
 
@@ -56,7 +58,7 @@ function sourceLabel(url: string): string {
         skilld vs skills.sh
       </h1>
       <p class="mt-5 max-w-2xl text-base leading-relaxed text-muted text-pretty md:text-lg">
-        skills.sh is Vercel's directory of Agent Skills. It lists every public Skill its CLI has seen and ranks them by installs. skilld is smaller: curated Skills, ranked by devs, with every file readable before your agent runs one.
+        skills.sh is Vercel's directory of Agent Skills. It lists every public Skill its CLI has seen and ranks them by installs. skilld lists fewer Skills, curated, and ranks them by the devs who post about them.
       </p>
       <div class="mt-5 flex items-center gap-3">
         <img
@@ -141,7 +143,7 @@ function sourceLabel(url: string): string {
           </template>
         </div>
         <div class="vs-row__visual">
-          <WhyVisual :id="reason.id" :trending-row="trendingRow" :demo />
+          <WhyVisual :id="reason.id" :trending-row="trendingRow" :demos="demos ?? []" />
         </div>
       </section>
 
@@ -209,7 +211,7 @@ function sourceLabel(url: string): string {
           Both read the same SKILL.md files.
         </h2>
         <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-          The difference is what you see before your agent runs one, and who decides what ranks.
+          Pick one and run it once off. Nothing lands on disk.
         </p>
         <div class="mt-6 flex flex-wrap items-center gap-3">
           <UButton
@@ -341,9 +343,11 @@ function sourceLabel(url: string): string {
 
 .vs-row__sources a {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 0.125rem;
   min-height: 1.75rem;
+  overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   color: var(--ui-text-dimmed);
