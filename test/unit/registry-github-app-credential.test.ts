@@ -195,15 +195,19 @@ describe('a read GitHub answered 401 for the cached installation token', () => {
   })
 
   it('mints once for reads GitHub rejected together', async () => {
-    const github = await stubGithub({ rejects: ['ghs_app_1'] })
+    const rejects: string[] = []
+    const github = await stubGithub({ rejects })
     const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
     await getRepo('nuxt', 'ui', bindings)
+    rejects.push('ghs_app_1')
     github.reads.length = 0
 
-    await Promise.all([getRepo('nuxt', 'ui', bindings), getRepo('nuxt', 'nuxt', bindings), getRepo('nuxt', 'image', bindings)])
+    const repos = await Promise.all([getRepo('nuxt', 'ui', bindings), getRepo('nuxt', 'nuxt', bindings), getRepo('nuxt', 'image', bindings)])
 
+    expect(repos.map(repo => repo.status)).toEqual([200, 200, 200])
     expect(github.mints).toBe(2)
-    expect(github.reads.filter(read => read === 'Bearer site')).toEqual([])
+    expect(github.reads.filter(read => read === 'Bearer ghs_app_1')).toHaveLength(3)
+    expect(github.reads).not.toContain('Bearer site')
   })
 
   it('reads with GITHUB_TOKEN, and reports it, when GitHub rejects the new token too', async () => {

@@ -163,8 +163,8 @@ export function createKvGithubObjectCache(kv: KVNamespace): GithubObjectCache {
  * GitHub counts a personal token's quota per account, and the registry sync
  * and `/gh` page views spend `GITHUB_TOKEN` to zero before each hourly
  * reset. Every run that needed GitHub in those minutes failed RATE_LIMITED.
- * Builds read with the read App's installation token, whose bucket nothing
- * else spends, then `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`.
+ * Builds read with the read App's installation token, whose bucket no
+ * personal tool spends, then `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`.
  */
 export function createArtifactGithubSource(
   env: GithubCredentialEnv,

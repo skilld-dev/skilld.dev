@@ -125,6 +125,17 @@ describe('the GitHub credential public Artifact builds read with', () => {
     expect(reports).toHaveLength(1)
   })
 
+  // A JSON parse error quotes the start of the body, which holds the token.
+  it('never puts part of a malformed installation token answer in a report', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, mintBody: '{"token":ghs_SECRETVALUE"}' })
+    const reports: GithubCredentialReport[] = []
+    await createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) })).resolve(request)
+
+    expect(reports).toHaveLength(1)
+    expect(JSON.stringify(reports)).not.toContain('ghs_')
+  })
+
   it('repeats a read the Repository denied the read App with the fallback token, and reports it', async () => {
     const keys = await appKeys()
     const github = fakeGithub({ expiresAt: NOW + 3600, answersApp: appDenied })
@@ -230,7 +241,7 @@ function appDenied(): Response {
 }
 
 /** Answers every read 404, every read with an installation token `answersApp` when set, and 401 to a token in `rejects`. */
-function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersApp?: () => Response, rejects?: string[] }): FakeGithub {
+function fakeGithub(options: { expiresAt: number, mintStatus?: number, mintBody?: string, answersApp?: () => Response, rejects?: string[] }): FakeGithub {
   const mints: FakeGithub['mints'] = []
   const readAuthorizations: FakeGithub['readAuthorizations'] = []
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -240,6 +251,8 @@ function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersAp
       mints.push({ url, authorization: headers.get('authorization') ?? '', body: JSON.parse(String(init?.body)) })
       if (options.mintStatus)
         return new Response('{}', { status: options.mintStatus })
+      if (options.mintBody)
+        return new Response(options.mintBody, { status: 201 })
       return Response.json({ token: `ghs_installation_${mints.length}`, expires_at: new Date(options.expiresAt * 1000).toISOString() }, { status: 201 })
     }
     const authorization = headers.get('authorization')

@@ -119,11 +119,11 @@ Personal tokens are fallbacks only. They repeat a read GitHub denied the App, su
 1. Builds try `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the token of the signed-in account that asked for the run.
 2. Every other caller tries `GITHUB_TOKEN`.
 
-Each denial emits an `app-denied` event: `github-credential` for registry reads and `artifact-github-credential` for builds. The `github.credential` field names the fallback, or `none`. Without a fallback, the read fails for that Repository only: a build answers `SOURCE_ACCESS_DENIED`, and the sync records a failure without pausing. If the fallback is spent or expired, the sync also records a failure for that Repository without pausing. The sync paces itself on the App's quota, never on the fallback's.
+Each denial emits an `app-denied` event: `github-credential` for registry reads and `artifact-github-credential` for builds. The `github.credential` field names the fallback, or `none`. Without a fallback, the read fails for that Repository only: a build answers `SOURCE_ACCESS_DENIED`, and the sync records a failure without pausing. If the fallback is spent or expired, the sync also records a failure for that Repository without pausing. After a denial, the sync paces itself on the App's quota, not on the fallback's.
 
 If GitHub answers 401 to the cached installation token, the read mints one new token and repeats. If GitHub rejects the new token too, the read uses the fallback and emits an `app-token-rejected` event.
 
-If the App secrets are set but unusable, reads use the fallback and emit an event with the reason.
+If the App secrets are set but unusable, or GitHub refuses to mint a token, every read uses the fallback and emits an event with the reason. The sync then paces itself on the fallback's quota.
 Keep the read App apart from the `GITHUB_APP_*` secrets below. Those belong to private delivery.
 
 Changing `NUXT_TOKEN_KEY` breaks stored GitHub credentials.
