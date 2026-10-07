@@ -33,6 +33,10 @@ describe('webmcp discovery tools', () => {
       'search_skills',
       'get_skill',
       'install_command',
+      'list_tracks',
+      'get_track',
+      'list_trending',
+      'get_repository',
     ])
     expect(tools[0]!.inputSchema).toMatchObject({
       type: 'object',

@@ -209,13 +209,15 @@ const uiClass = 'font-medium text-default'
             <div class="mt-5 text-sm leading-relaxed text-muted">
               <template v-if="app === 'chatgpt'">
                 <ol class="list-decimal space-y-2 pl-5">
-                  <li>Open <strong :class="uiClass">Settings &gt; Security and login</strong>, then turn on <strong :class="uiClass">Developer mode</strong>.</li>
-                  <li>Open <strong :class="uiClass">ChatGPT Plugins</strong> and select <strong :class="uiClass">+</strong>. Name the app skilld, paste the server URL, and choose <strong :class="uiClass">No Authentication</strong>.</li>
-                  <li>In a chat, open the <strong :class="uiClass">+</strong> menu, choose <strong :class="uiClass">Developer mode</strong>, and select skilld.</li>
+                  <li>Open <a href="https://chatgpt.com/plugins" target="_blank" rel="noopener" :class="uiClass" class="underline underline-offset-2">Plugins</a> in ChatGPT on the web. Select <strong :class="uiClass">Add</strong>, then <strong :class="uiClass">Add custom MCP server</strong>.</li>
+                  <li>Name it skilld and paste the server URL.</li>
+                  <li>Change <strong :class="uiClass">Authentication</strong> from <strong :class="uiClass">OAuth</strong> to <strong :class="uiClass">No authentication</strong>, and tick <strong :class="uiClass">I understand and want to continue</strong>.</li>
+                  <li>Select <strong :class="uiClass">Create as a plugin</strong>, then <strong :class="uiClass">Connect skilld</strong>.</li>
+                  <li>In a chat, ask for skilld by name, such as "Use skilld to find a Skill for Tailwind CSS."</li>
                 </ol>
                 <p class="mt-4">
-                  Developer mode needs a Plus, Pro, Business, Enterprise, or Education plan, on the web.
-                  <a href="https://developers.openai.com/api/docs/guides/developer-mode" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-default">Read OpenAI's guide</a>.
+                  Your ChatGPT plan and workspace settings decide whether you can add a custom MCP server.
+                  <a href="https://developers.openai.com/api/docs/guides/custom-mcp-server" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-default">Read OpenAI's guide</a>.
                 </p>
               </template>
 

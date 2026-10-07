@@ -193,6 +193,116 @@ const getSkill: McpTool = {
   },
 }
 
+const SEGMENT = z.string().trim().min(1).max(100).regex(/^[\w.-]+$/)
+const TRACK_SLUG = z.string().trim().min(1).max(64).regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
+
+const ListTracksArgs = z.object({})
+
+const listTracks: McpTool = {
+  name: 'list_tracks',
+  title: 'List tracks',
+  description: 'List skilld\'s tracks. A track is a page of Skills for one kind of work a developer wants done, such as testing and debugging, planning and specs, or design and interface work. A person picks its first Skills, and a classifier adds the rest. Returns each track\'s slug, label, the goal it serves, its skilld.dev page, and its Skill count.',
+  inputSchema: ListTracksArgs.shape,
+  examplePrompt: 'What kinds of work does skilld have Skills for?',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  run: async (deps, _args, signal) => {
+    const result = await clientFor(deps).tracks.list(undefined, { signal })
+    return presentResult(deps, 'Track list', result)
+  },
+}
+
+const GetTrackArgs = z.object({
+  slug: TRACK_SLUG.describe('Track slug, such as "testing" or "design"'),
+  limit: z.number().int().min(1).max(25).default(10).describe('Maximum Skills to return'),
+  offset: z.number().int().min(0).max(10_000).default(0).describe('Skills to skip for pagination'),
+})
+
+const getTrack: McpTool = {
+  name: 'get_track',
+  title: 'Get track',
+  description: 'Get the Skills in one track, the page of Skills for one kind of work, such as testing or design. Takes the track slug. Returns the track\'s label, its goal line, its skilld.dev page, and its Skills in page order: the hand-picked Skills first, then the rest by GitHub stars. Each Skill has its author, its source on GitHub, its skilld.dev page, and its run command. total counts every Skill in the track, and limit and offset page through them.',
+  inputSchema: GetTrackArgs.shape,
+  examplePrompt: 'Which skills help with testing and debugging?',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  run: async (deps, args, signal) => {
+    const parsed = GetTrackArgs.safeParse(args)
+    if (!parsed.success)
+      return fail('Invalid arguments: slug is a lowercase track slug, such as "testing"')
+    const { slug, limit, offset } = parsed.data
+    const result = await clientFor(deps).tracks.get({ params: { slug }, query: { limit, offset } }, { signal })
+    return presentResult(deps, 'Track lookup', result, `Track not found: ${slug}`)
+  },
+}
+
+const ListTrendingArgs = z.object({
+  window: z.enum(['week', 'month']).default('week').describe('Board period: the past week or the past month'),
+  limit: z.number().int().min(1).max(20).default(10).describe('Maximum rows to return'),
+})
+
+const listTrending: McpTool = {
+  name: 'list_trending',
+  title: 'List trending Skills',
+  description: 'See which Skills developers talked about recently. Returns the skilld.dev trending board for the past week or month, in rank order. Each row says why it is on the board: a social row counts public X and Bluesky posts that mentioned the Skill and includes one post, a star-surge row counts new GitHub stars, and a star-count row fills the rest of the board. Each row has its author, its source on GitHub, its skilld.dev page, and its run command.',
+  inputSchema: ListTrendingArgs.shape,
+  examplePrompt: 'What skills are developers talking about this week?',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  run: async (deps, args, signal) => {
+    const parsed = ListTrendingArgs.safeParse(args)
+    if (!parsed.success)
+      return fail('Invalid arguments: window is "week" or "month", and limit is 1 to 20')
+    const { window, limit } = parsed.data
+    const result = await clientFor(deps).trending.list({ query: { window, limit } }, { signal })
+    return presentResult(deps, 'Trending', result)
+  },
+}
+
+const GetRepositoryArgs = z.object({
+  owner: SEGMENT.describe('GitHub owner'),
+  repo: SEGMENT.describe('GitHub repository name'),
+  limit: z.number().int().min(1).max(30).default(20).describe('Maximum Skills to return'),
+})
+
+const getRepository: McpTool = {
+  name: 'get_repository',
+  title: 'Get repository',
+  description: 'See every Skill that one GitHub repository publishes. Takes the owner and the repository name. Returns the repository\'s description, GitHub star count, last push, skilld.dev page, and the command that installs all of its Skills. Its Skills come most recently changed first, each with its skilld.dev page and run command. total counts every Skill in the repository.',
+  inputSchema: GetRepositoryArgs.shape,
+  examplePrompt: 'Which skills does vercel-labs/agent-skills publish?',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  run: async (deps, args, signal) => {
+    const parsed = GetRepositoryArgs.safeParse(args)
+    if (!parsed.success)
+      return fail('Invalid arguments: owner and repo are required strings, and limit is 1 to 30')
+    const { owner, repo, limit } = parsed.data
+    const result = await clientFor(deps).repositories.get({ params: { owner, repository: repo } }, { signal })
+    // The answer has no pages. Bound it here so a large Repository stays under the output limit.
+    const bounded = result._tag === 'Ok'
+      ? { _tag: 'Ok' as const, value: { ...result.value, skills: result.value.skills.slice(0, limit), total: result.value.skills.length } }
+      : result
+    return presentResult(deps, 'Repository lookup', bounded, `Repository not found: ${owner}/${repo}`)
+  },
+}
+
 const InstallCommandArgs = z.object({
   ref: z.string().trim().min(1).max(300).describe(`Skill or repository reference: ${ACCEPTED_REFS}`),
 })
@@ -239,4 +349,4 @@ const installCommand: McpTool = {
   },
 }
 
-export const mcpTools: McpTool[] = [searchSkills, getSkill, installCommand]
+export const mcpTools: McpTool[] = [searchSkills, getSkill, installCommand, listTracks, getTrack, listTrending, getRepository]

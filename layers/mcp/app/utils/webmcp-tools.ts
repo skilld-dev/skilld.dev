@@ -6,6 +6,9 @@ import { mcpTools } from '../../shared/mcp-tools'
 const UNTRUSTED_OUTPUT_TOOLS = new Set([
   'search_skills',
   'get_skill',
+  'get_track',
+  'list_trending',
+  'get_repository',
 ])
 
 export type WebMcpRegistrationResult

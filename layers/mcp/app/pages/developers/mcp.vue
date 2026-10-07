@@ -39,7 +39,7 @@ const linkClass = 'underline underline-offset-2 hover:text-default'
         MCP server
       </h1>
       <p class="mt-4 max-w-xl text-base leading-relaxed text-muted">
-        The skilld MCP server lets ChatGPT, Claude, and other MCP apps search the registry. It needs no account, and every tool is read only.
+        The skilld MCP server lets ChatGPT, Claude, and other MCP apps search and browse the registry. It needs no account, and every tool is read only.
       </p>
       <CopyText class="mt-5" :text="REGISTRY_MCP_URL" label="server URL" />
       <ul class="mt-5 space-y-2 text-sm leading-relaxed text-muted">

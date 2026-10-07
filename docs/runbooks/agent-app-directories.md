@@ -64,7 +64,7 @@ Any paid Claude plan can submit. Use these fields in the portal.
 | Support contact | `harlan@harlanzw.com` |
 | Icon | `public/logo-icon.png` |
 | Slug | `skilld`. The slug is permanent after publication |
-| Use cases | Find agent skills by topic, check provenance and freshness before a run, get the command that installs every Skill in a Repository |
+| Use cases | Find agent skills by topic, check provenance and freshness before a run, browse a track or the trending board |
 | Requirements | None. Every tool works without an account |
 | Data access | Reads data only |
 | Company | Harlan Wilton, `https://skilld.dev`, `harlan@harlanzw.com` |

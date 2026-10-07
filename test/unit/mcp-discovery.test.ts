@@ -1,5 +1,5 @@
 import type { McpToolDeps, McpToolResult } from '../../layers/mcp/shared/mcp-tools'
-import { problemType, skillsV1 } from 'skilld-sdk/contract'
+import { problemType, repositoriesV1, skillsV1, tracksV1, trendingV1 } from 'skilld-sdk/contract'
 import { describe, expect, it, vi } from 'vitest'
 import { installCommandFor, parseInstallRef } from '../../layers/mcp/shared/mcp-install-command'
 import { mcpTools } from '../../layers/mcp/shared/mcp-tools'
@@ -135,6 +135,70 @@ describe('mCP public SDK discovery', () => {
     const result = await runTool('search_skills', { query: 'seo' }, toolDeps, controller.signal)
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toBe('Request cancelled.')
+    expect(toolDeps.reportError).not.toHaveBeenCalled()
+  })
+})
+
+describe('browse tools', () => {
+  it('lists tracks with the track contract', async () => {
+    const response = tracksV1.operations.list.docs.examples[0]!.response
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
+    const result = await runTool('list_tracks', {}, deps(fetchApi))
+    expect(result.structuredContent).toEqual(response)
+    expect(new URL(fetchApi.mock.calls[0]![0]).pathname).toBe('/api/v1/tracks')
+  })
+
+  it('reads one track with bounded pagination', async () => {
+    const response = tracksV1.operations.get.docs.examples[0]!.response
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
+    const result = await runTool('get_track', { slug: 'design' }, deps(fetchApi))
+    expect(result.structuredContent).toEqual(response)
+    expect(fetchApi).toHaveBeenCalledWith(
+      'https://skilld.dev/api/v1/tracks/design?limit=10&offset=0',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('reads the trending board for a window', async () => {
+    const response = trendingV1.operations.list.docs.examples[0]!.response
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
+    const result = await runTool('list_trending', { window: 'month', limit: 5 }, deps(fetchApi))
+    expect(result.structuredContent).toEqual(response)
+    const url = new URL(fetchApi.mock.calls[0]![0])
+    expect(url.pathname).toBe('/api/v1/trending')
+    expect(Object.fromEntries(url.searchParams)).toEqual({ window: 'month', limit: '5' })
+  })
+
+  it('reads a repository and bounds its Skills', async () => {
+    const example = repositoriesV1.operations.get.docs.examples[0]!.response
+    const skills = Array.from({ length: 3 }, (_, index) => ({ ...example.skills[0]!, name: `skill-${index}` }))
+    const fetchApi = vi.fn().mockResolvedValue(Response.json({ ...example, skills }))
+    const result = await runTool('get_repository', { owner: 'vercel-labs', repo: 'agent-skills', limit: 2 }, deps(fetchApi))
+    expect(result.structuredContent).toEqual({ ...example, skills: skills.slice(0, 2), total: 3 })
+    expect(fetchApi).toHaveBeenCalledWith(
+      'https://skilld.dev/api/v1/repositories/vercel-labs/agent-skills',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('bounds browse inputs before fetching', async () => {
+    const toolDeps = deps()
+    expect((await runTool('list_trending', { window: 'year' }, toolDeps)).isError).toBe(true)
+    expect((await runTool('list_trending', { limit: 21 }, toolDeps)).isError).toBe(true)
+    expect((await runTool('get_track', { slug: 'Not A Slug' }, toolDeps)).isError).toBe(true)
+    expect((await runTool('get_track', { slug: 'design', limit: 26 }, toolDeps)).isError).toBe(true)
+    expect((await runTool('get_repository', { owner: 'a', repo: 'b', limit: 31 }, toolDeps)).isError).toBe(true)
+    expect(toolDeps.fetchApi).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['get_track', { slug: 'nothing' }, 'Track not found: nothing'],
+    ['get_repository', { owner: 'ghost', repo: 'nothing' }, 'Repository not found: ghost/nothing'],
+  ])('maps %s NOT_FOUND without logging infrastructure errors', async (name, args, message) => {
+    const toolDeps = deps(vi.fn().mockResolvedValue(problem('NOT_FOUND', 404)))
+    const result = await runTool(name, args, toolDeps)
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toBe(message)
     expect(toolDeps.reportError).not.toHaveBeenCalled()
   })
 })
