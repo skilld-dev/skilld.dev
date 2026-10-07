@@ -605,9 +605,9 @@ export function evaluateDailyHealthStatus(
   // while rotating is still routine rather than an incident.
   const token = summary.credentials.githubToken
   if (token._tag === 'expired')
-    red.push(`GITHUB_TOKEN expired ${plural(Math.abs(token.daysRemaining), 'day')} ago. Rotate it: sync is down until you do.`)
+    red.push(`GITHUB_TOKEN expired ${plural(Math.abs(token.daysRemaining), 'day')} ago. Repositories that deny the read App cannot sync or build until you rotate or delete it.`)
   else if (token._tag === 'expiring')
-    amber.push(`GITHUB_TOKEN expires in ${plural(token.daysRemaining, 'day')}. Rotate it before sync starts failing.`)
+    amber.push(`GITHUB_TOKEN expires in ${plural(token.daysRemaining, 'day')}. Rotate or delete it: it reads only Repositories that deny the read App.`)
 
   // Report every finding, ordered by severity, rather than only the winning
   // tier. Returning `red` alone meant one loud red hid every amber underneath

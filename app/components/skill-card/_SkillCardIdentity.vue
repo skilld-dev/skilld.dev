@@ -23,6 +23,17 @@ const emit = defineEmits<{
   avatarError: []
 }>()
 
+const avatar = useTemplateRef<HTMLImageElement>('avatar')
+
+// An avatar can fail before this card hydrates, such as in a row that
+// hydrates only once it scrolls into view. Its error event then fired with no
+// listener, so the mount reads the image instead.
+onMounted(() => {
+  const image = avatar.value
+  if (image?.complete && image.naturalWidth === 0)
+    emit('avatarError')
+})
+
 /** The author names the owner, so the byline needs only the Repository after it. */
 const where = computed(() => view.author ? view.repo : view.source)
 </script>
@@ -31,6 +42,7 @@ const where = computed(() => view.author ? view.repo : view.source)
   <div class="skill-id" :class="[`skill-id--${size}`, wrap && 'skill-id--wrap']">
     <img
       v-if="view.byline === 'full'"
+      ref="avatar"
       :src="view.avatar(size)"
       alt=""
       :width="size"

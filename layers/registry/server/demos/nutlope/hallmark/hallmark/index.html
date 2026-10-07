@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quillmoor — a reading log for book clubs</title>
+<meta name="description" content="Quillmoor tracks who in your book club has finished which chapter, and draws the line your discussion shouldn’t cross.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap">
+<style>
+/* Hallmark · genre: editorial · macrostructure: Map / Diagram · theme: Almanac · enrichment: none (the ledger is the image) · nav: N6 · footer: Ft6
+ * tone: editorial, literary, calm · anchor hue: 85 (oat paper) · accent: oxblood 28
+ * inferred brief: audience = book-club organisers + members · use = request an invite · tone = editorial
+ * Hallmark · pre-emit critique: P5 H4 E4 S5 R5 V5 */
+
+:root {
+  /* colour — oat paper, warm ink, one oxblood accent */
+  --color-paper:      oklch(96.5% 0.012 85);
+  --color-paper-2:    oklch(93.5% 0.016 85);
+  --color-rule:       oklch(83% 0.014 80);
+  --color-neutral:    oklch(62% 0.012 75);
+  --color-muted:      oklch(43% 0.012 70);
+  --color-ink:        oklch(21% 0.014 60);
+  --color-ink-fill:   oklch(34% 0.022 60);
+  --color-accent:     oklch(47% 0.15 28);
+  --color-safe-wash:  oklch(92.5% 0.028 45);
+  --color-focus:      oklch(47% 0.15 28);
+  --color-error:      oklch(49% 0.17 32);
+  --color-success:    oklch(44% 0.08 150);
+
+  /* type */
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", ui-serif, serif;
+  --font-body:    "Newsreader", "Iowan Old Style", "Palatino Linotype", ui-serif, serif;
+
+  --text-xs:   0.8rem;
+  --text-sm:   0.9rem;
+  --text-base: 1.125rem;
+  --text-md:   1.375rem;
+  --text-lg:   1.75rem;
+  --text-display-s: clamp(2.25rem, 3.6vw + 1rem, 3.9rem);
+
+  /* space — 4pt scale */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs:  0.75rem;
+  --space-sm:  1rem;
+  --space-md:  1.5rem;
+  --space-lg:  2rem;
+  --space-xl:  3rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --page-gutter: clamp(1rem, 4vw, 3rem);
+  --page-max: 72rem;
+
+  --rule-hair: 1px;
+  --rule-firm: 2px;
+  --radius-sm: 2px;
+
+  /* motion */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long:  420ms;
+
+  /* ledger geometry */
+  --ledger-label: 6.5rem;
+  --ledger-gap: var(--space-3xs);
+  --ledger-chapters: 24;
+
+  /* layering */
+  --z-wash: 0;
+  --z-cells: 1;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { overflow-x: clip; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  font-variant-numeric: oldstyle-nums;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 300;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+p { margin: 0; }
+a { color: inherit; text-decoration-thickness: var(--rule-hair); text-underline-offset: 0.2em; }
+a:hover { color: var(--color-accent); text-decoration-thickness: var(--rule-firm); }
+:focus-visible { outline: var(--rule-firm) solid var(--color-focus); outline-offset: 3px; }
+.wrap { max-width: var(--page-max); margin: 0 auto; padding: 0 var(--page-gutter); }
+.muted { color: var(--color-muted); }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ── N6 masthead ─────────────────────────────── */
+.nav-mast { display: grid; gap: var(--space-2xs); padding-top: var(--space-md); text-align: center; }
+.mast-line {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.1em;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+.mast-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  letter-spacing: -0.015em;
+  line-height: 0.95;
+}
+.mast-nav ul {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--space-2xs) var(--space-md);
+  list-style: none; padding: 0; margin: var(--space-2xs) 0 0;
+}
+.mast-nav a { white-space: nowrap; text-decoration: none; font-size: var(--text-sm); }
+.mast-nav a:hover { text-decoration: underline; }
+.mast-rule {
+  border: 0; height: 4px; margin: var(--space-sm) 0 0;
+  border-top: var(--rule-hair) solid var(--color-ink);
+  border-bottom: var(--rule-hair) solid var(--color-ink);
+}
+
+/* ── Orientation ─────────────────────────────── */
+.orient {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  padding-top: var(--space-xl);
+  padding-bottom: var(--space-2xl);
+}
+.orient h1 { font-size: var(--text-display-s); max-width: 16ch; }
+.orient__lede { max-width: 54ch; font-size: var(--text-md); line-height: 1.5; color: var(--color-muted); }
+.orient__lede em { color: var(--color-ink); }
+@media (min-width: 60rem) {
+  .orient { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; }
+}
+
+/* ── The ledger (the map) ────────────────────── */
+.map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xl);
+  padding-bottom: var(--space-3xl);
+}
+@media (min-width: 60rem) {
+  .map { grid-template-columns: minmax(0, 1fr) 17rem; gap: var(--space-2xl); }
+}
+.ledger-fig { margin: 0; min-width: 0; }
+.ledger-fig__title {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+  gap: var(--space-2xs) var(--space-md);
+  padding-bottom: var(--space-xs);
+  border-bottom: var(--rule-hair) solid var(--color-ink);
+}
+.ledger-fig__book { font-family: var(--font-display); font-weight: 700; font-size: var(--text-lg); line-height: 1.1; }
+.ledger-fig__meta { font-size: var(--text-sm); color: var(--color-muted); }
+
+.ledger-scroll { overflow-x: auto; padding: var(--space-sm) 0 var(--space-2xs); }
+.ledger { min-width: 36rem; font-variant-numeric: tabular-nums lining-nums; }
+.ledger__row {
+  display: grid;
+  grid-template-columns: var(--ledger-label) minmax(0, 1fr);
+  align-items: center;
+}
+.ledger__cells {
+  display: grid;
+  grid-template-columns: repeat(var(--ledger-chapters), minmax(0, 1fr));
+  gap: var(--ledger-gap);
+  position: relative;
+  z-index: var(--z-cells);
+}
+.ledger__head .ledger__cells span {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  padding-bottom: var(--space-2xs);
+}
+.ledger__head .ledger__cells span.is-safe {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.ledger__name {
+  font-size: var(--text-sm);
+  padding-right: var(--space-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger__row--you .ledger__name { color: var(--color-accent); font-weight: 600; }
+
+.ledger__body { position: relative; display: grid; gap: var(--space-2xs); }
+.ledger__body > .ledger__row { position: relative; z-index: var(--z-cells); }
+.ledger__wash {
+  position: absolute;
+  top: calc(var(--space-2xs) * -1);
+  bottom: calc(var(--space-2xs) * -1);
+  left: var(--ledger-label);
+  right: 0;
+  overflow: hidden;
+  z-index: var(--z-wash);
+  pointer-events: none;
+}
+.ledger__wash-fill {
+  position: absolute; inset: 0;
+  background: var(--color-safe-wash);
+  border-right: var(--rule-firm) solid var(--color-accent);
+  transform: translateX(calc(var(--safe-frac, 0) * 100% - 100%));
+  transition: transform var(--dur-long) var(--ease-out);
+}
+
+.cell {
+  position: relative;
+  display: block;
+  height: 1.9rem;
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  font: inherit;
+  color: inherit;
+}
+.cell::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--color-ink-fill);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform var(--dur-short) var(--ease-out);
+}
+.cell.is-done { border-color: var(--color-ink-fill); }
+.cell.is-done::before { transform: scaleY(1); }
+.ledger__row--you .cell.is-done { border-color: var(--color-accent); }
+.ledger__row--you .cell::before { background: var(--color-accent); }
+
+button.cell { cursor: pointer; }
+button.cell:hover:not(.is-done) { border-color: var(--color-accent); }
+button.cell:hover.is-done::before { transform: scaleY(0.82); }
+button.cell:active::before { transform: scaleY(0.7); transition-duration: var(--dur-micro); }
+button.cell:focus-visible { outline-offset: 2px; }
+.ledger__row:not(.ledger__row--you) .cell:hover { border-color: var(--color-ink); }
+
+.ledger-fig__caption {
+  min-height: 3.4em;
+  margin-top: var(--space-sm);
+  padding-top: var(--space-xs);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+.ledger-fig__caption strong { color: var(--color-ink); font-weight: 600; }
+.ledger-scroll-hint { display: none; font-size: var(--text-sm); color: var(--color-muted); }
+@media (max-width: 40rem) { .ledger-scroll-hint { display: block; } }
+
+/* the legend + annotations, beside the map */
+.notes { display: grid; gap: var(--space-lg); align-content: start; }
+.note { display: grid; gap: var(--space-3xs); }
+.note__term { font-variant-caps: all-small-caps; letter-spacing: 0.08em; font-size: var(--text-sm); color: var(--color-muted); }
+.note__big {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: var(--text-lg);
+  line-height: 1.15;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.note__big--accent { color: var(--color-accent); }
+.note__body { font-size: var(--text-sm); color: var(--color-muted); }
+.legend { display: grid; gap: var(--space-2xs); padding-top: var(--space-md); border-top: var(--rule-hair) solid var(--color-rule); font-size: var(--text-sm); }
+.legend__item { display: flex; align-items: center; gap: var(--space-xs); }
+.swatch { inline-size: 1.25rem; block-size: 0.95rem; border-radius: var(--radius-sm); border: var(--rule-hair) solid var(--color-rule); flex: none; }
+.swatch--done { background: var(--color-ink-fill); border-color: var(--color-ink-fill); }
+.swatch--you { background: var(--color-accent); border-color: var(--color-accent); }
+.swatch--safe { background: var(--color-safe-wash); border-color: var(--color-safe-wash); border-right: var(--rule-firm) solid var(--color-accent); }
+.reset {
+  justify-self: start;
+  background: none; border: 0; padding: 0;
+  font: inherit; font-size: var(--text-sm);
+  color: var(--color-muted);
+  text-decoration: underline; text-underline-offset: 0.2em; text-decoration-thickness: var(--rule-hair);
+  cursor: pointer; white-space: nowrap;
+}
+.reset:hover { color: var(--color-accent); text-decoration-thickness: var(--rule-firm); }
+.reset:active { color: var(--color-ink); }
+.reset:disabled { color: var(--color-neutral); text-decoration: none; cursor: default; }
+
+/* ── How it reads ────────────────────────────── */
+.reads { padding-bottom: var(--space-3xl); }
+.reads h2 { font-size: var(--text-lg); max-width: 24ch; margin-bottom: var(--space-lg); }
+.reads__list { margin: 0; border-top: var(--rule-hair) solid var(--color-ink); }
+.reads__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2xs);
+  padding: var(--space-md) 0;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.reads__item dt { font-family: var(--font-display); font-weight: 700; font-size: var(--text-md); line-height: 1.25; }
+.reads__item dd { margin: 0; max-width: 60ch; color: var(--color-muted); }
+@media (min-width: 48rem) {
+  .reads__item { grid-template-columns: minmax(0, 2fr) minmax(0, 5fr); gap: var(--space-xl); }
+}
+
+/* ── Invite (C2 inline form) ─────────────────── */
+.invite {
+  padding: var(--space-2xl) 0 var(--space-3xl);
+  border-top: var(--rule-hair) solid var(--color-ink);
+}
+.invite h2 { font-size: var(--text-display-s); max-width: 14ch; margin-bottom: var(--space-sm); }
+.invite p.invite__lede { max-width: 50ch; color: var(--color-muted); margin-bottom: var(--space-lg); }
+.form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); max-width: 36rem; }
+.form__field { flex: 1 1 15rem; min-width: 0; }
+.form input {
+  width: 100%;
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  border: 0;
+  border-bottom: var(--rule-firm) solid var(--color-ink);
+  border-radius: 0;
+  padding: var(--space-xs) var(--space-3xs);
+  transition: border-color var(--dur-micro) var(--ease-out);
+}
+.form input::placeholder { color: var(--color-muted); }
+.form input:hover { border-bottom-color: var(--color-accent); }
+.form input:focus-visible { outline: var(--rule-firm) solid var(--color-focus); outline-offset: 2px; }
+.form input[aria-invalid="true"] { border-bottom-color: var(--color-error); }
+.form input:disabled { color: var(--color-muted); border-bottom-style: dotted; }
+.btn {
+  flex: none;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-accent);
+  background: transparent;
+  border: var(--rule-firm) solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md);
+  cursor: pointer;
+  transition: transform var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.btn:hover { background: var(--color-accent); color: var(--color-paper); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { color: var(--color-neutral); border-color: var(--color-rule); background: transparent; cursor: default; transform: none; }
+.btn[aria-busy="true"] { cursor: progress; }
+.form__msg { flex-basis: 100%; min-height: 1.6em; font-size: var(--text-sm); color: var(--color-muted); }
+.form__msg.is-error { color: var(--color-error); }
+.form__msg.is-success { color: var(--color-success); }
+
+/* ── Ft6 letter close ────────────────────────── */
+.foot-letter { padding-top: var(--space-2xl); padding-bottom: var(--space-2xl); border-top: var(--rule-hair) solid var(--color-rule); }
+.foot-letter__close { font-family: var(--font-display); font-weight: 300; font-size: var(--text-lg); line-height: 1.35; max-width: 30ch; }
+.foot-letter__sign { font-weight: 700; }
+.foot-letter__ps { font-size: var(--text-sm); color: var(--color-muted); margin-top: var(--space-md); max-width: 60ch; }
+
+/* ── Entrance — one orchestrated reveal ──────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: reveal var(--dur-long) var(--ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+@keyframes reveal { to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 150ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+  }
+  .reveal { animation: reveal-reduced 150ms linear forwards; transform: none; }
+  @keyframes reveal-reduced { to { opacity: 1; } }
+  .btn:active { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="wrap nav-mast">
+  <p class="mast-line">A reading log for book clubs · Autumn 2026</p>
+  <p class="mast-name">Quillmoor</p>
+  <nav class="mast-nav" aria-label="Primary">
+    <ul>
+      <li><a href="#ledger">The ledger</a></li>
+      <li><a href="#how">How it reads</a></li>
+      <li><a href="#invite">Request an invite</a></li>
+    </ul>
+  </nav>
+  <hr class="mast-rule" aria-hidden="true">
+</header>
+
+<main>
+  <section class="wrap orient" aria-labelledby="orient-title">
+    <h1 id="orient-title" class="reveal" style="--i:0">Six readers. Twenty-four chapters. One safe line.</h1>
+    <p class="orient__lede reveal" style="--i:1">Quillmoor keeps a ledger of who in your club has finished which chapter. It finds the last chapter <em>everyone</em> has read and draws a line there, so Thursday’s talk stops where your slowest reader does.</p>
+  </section>
+
+  <section class="wrap map" id="ledger" aria-labelledby="ledger-title">
+    <figure class="ledger-fig">
+      <div class="ledger-fig__title">
+        <h2 id="ledger-title" class="ledger-fig__book">Persuasion</h2>
+        <p class="ledger-fig__meta">Jane Austen · 24 chapters · the Harbour Street club</p>
+      </div>
+
+      <div class="ledger-scroll">
+        <div class="ledger" id="ledger-grid">
+          <div class="ledger__row ledger__head" aria-hidden="true">
+            <span></span>
+            <div class="ledger__cells" id="ledger-head"></div>
+          </div>
+          <div class="ledger__body" id="ledger-body">
+            <div class="ledger__wash" aria-hidden="true"><div class="ledger__wash-fill" id="ledger-wash"></div></div>
+          </div>
+        </div>
+      </div>
+      <p class="ledger-scroll-hint">Swipe the ledger sideways to see later chapters.</p>
+
+      <figcaption class="ledger-fig__caption" id="ledger-caption" aria-live="polite"></figcaption>
+    </figure>
+
+    <aside class="notes" aria-label="Reading the ledger">
+      <div class="note">
+        <p class="note__term">Safe to discuss</p>
+        <p class="note__big note__big--accent" id="note-safe">—</p>
+        <p class="note__body" id="note-safe-body"></p>
+      </div>
+      <div class="note">
+        <p class="note__term">Furthest ahead</p>
+        <p class="note__big" id="note-ahead">—</p>
+        <p class="note__body" id="note-ahead-body"></p>
+      </div>
+      <div class="note">
+        <p class="note__term">Your row</p>
+        <p class="note__body">Tap a chapter in the bottom row to mark it read. Marking chapter 12 marks one to eleven too; tap your last chapter again to undo it. Arrow keys move along the row.</p>
+        <button type="button" class="reset" id="ledger-reset" disabled>Put my row back</button>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <p class="legend__item"><span class="swatch swatch--done" aria-hidden="true"></span>Chapter finished</p>
+        <p class="legend__item"><span class="swatch swatch--you" aria-hidden="true"></span>Finished, by you</p>
+        <p class="legend__item"><span class="swatch" aria-hidden="true"></span>Not yet</p>
+        <p class="legend__item"><span class="swatch swatch--safe" aria-hidden="true"></span>Read by everyone</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="wrap reads" id="how" aria-labelledby="how-title">
+    <h2 id="how-title">What the ledger does, and what it won’t</h2>
+    <dl class="reads__list">
+      <div class="reads__item">
+        <dt>Mark a chapter</dt>
+        <dd>One tap when you finish it. No page counts, no streaks, no reading-speed leaderboard. A chapter is either read or it isn’t.</dd>
+      </div>
+      <div class="reads__item">
+        <dt>The line moves on its own</dt>
+        <dd>Quillmoor works out the last chapter every member has finished and moves the line there. Nobody has to tell the group they’re behind.</dd>
+      </div>
+      <div class="reads__item">
+        <dt>Margin notes wait for you</dt>
+        <dd>Notes are pinned to a chapter and stay folded until you’ve marked it. Readers who are ahead can write as much as they like, and nobody else sees it early.</dd>
+      </div>
+      <div class="reads__item">
+        <dt>One ledger per book</dt>
+        <dd>When the club picks its next title, the old ledger closes and goes into an archive you can look back through, with every note still in place.</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="wrap invite" id="invite" aria-labelledby="invite-title">
+    <h2 id="invite-title">Open a ledger for your club.</h2>
+    <p class="invite__lede">We’re letting clubs in a few at a time. Leave an address and we’ll write when there’s room for yours. Nothing else lands in your inbox.</p>
+    <form class="form" id="invite-form" novalidate>
+      <div class="form__field">
+        <label class="visually-hidden" for="invite-email">Email address</label>
+        <input id="invite-email" name="email" type="email" autocomplete="email" placeholder="you@yourclub.org" aria-describedby="invite-msg" required>
+      </div>
+      <button class="btn" type="submit" id="invite-submit">Request an invite</button>
+      <p class="form__msg" id="invite-msg" role="status"></p>
+    </form>
+  </section>
+</main>
+
+<footer class="wrap foot-letter">
+  <p class="foot-letter__close">Yours, between chapters —<br><span class="foot-letter__sign">Quillmoor</span></p>
+  <p class="foot-letter__ps">P.S. Quillmoor is a made-up product. This page is a design study, and the form above doesn’t send anything anywhere.</p>
+</footer>
+
+<script>
+(() => {
+  const CHAPTERS = 24;
+  const members = [
+    { name: "Ines Varga",   short: "Ines",  read: 17 },
+    { name: "Theo Lindqvist", short: "Theo", read: 21 },
+    { name: "Ruth Adeyemi", short: "Ruth",  read: 9 },
+    { name: "Dev Malhotra", short: "Dev",   read: 14 },
+    { name: "Cleo Hart",    short: "Cleo",  read: 12 },
+    { name: "You",          short: "You",   read: 11, you: true }
+  ];
+  const YOU_START = 11;
+  const you = members.find(m => m.you);
+
+  const head = document.getElementById("ledger-head");
+  const body = document.getElementById("ledger-body");
+  const wash = document.getElementById("ledger-wash");
+  const caption = document.getElementById("ledger-caption");
+  const resetBtn = document.getElementById("ledger-reset");
+  const headCells = [];
+  const youButtons = [];
+
+  for (let c = 1; c <= CHAPTERS; c++) {
+    const s = document.createElement("span");
+    s.textContent = c;
+    head.appendChild(s);
+    headCells.push(s);
+  }
+
+  members.forEach((m, rowIndex) => {
+    const row = document.createElement("div");
+    row.className = "ledger__row reveal" + (m.you ? " ledger__row--you" : "");
+    row.style.setProperty("--i", Math.min(rowIndex + 2, 7));
+
+    const label = document.createElement("span");
+    label.className = "ledger__name";
+    label.textContent = m.short;
+    if (m.you) label.id = "you-label";
+    row.appendChild(label);
+
+    const cells = document.createElement("div");
+    cells.className = "ledger__cells";
+    if (m.you) {
+      cells.setAttribute("role", "group");
+      cells.setAttribute("aria-labelledby", "you-label");
+    } else {
+      cells.setAttribute("role", "img");
+      cells.setAttribute("aria-label", `${m.name} has finished chapters 1 to ${m.read}`);
+    }
+
+    m.cells = [];
+    for (let c = 1; c <= CHAPTERS; c++) {
+      const el = document.createElement(m.you ? "button" : "span");
+      el.className = "cell";
+      el.dataset.chapter = c;
+      if (m.you) {
+        el.type = "button";
+        el.tabIndex = -1;
+        el.setAttribute("aria-label", `Chapter ${c}`);
+        el.addEventListener("click", () => mark(c));
+        el.addEventListener("keydown", onYouKey);
+        youButtons.push(el);
+      }
+      el.addEventListener("mouseenter", () => describe(m, c));
+      el.addEventListener("focus", () => describe(m, c));
+      el.addEventListener("mouseleave", summarise);
+      el.addEventListener("blur", summarise);
+      cells.appendChild(el);
+      m.cells.push(el);
+    }
+    row.appendChild(cells);
+    body.appendChild(row);
+  });
+
+  function mark(c) {
+    you.read = (you.read === c) ? c - 1 : c;
+    render();
+    describe(you, c);
+  }
+
+  function onYouKey(e) {
+    const i = youButtons.indexOf(e.currentTarget);
+    let next = null;
+    if (e.key === "ArrowRight") next = Math.min(i + 1, CHAPTERS - 1);
+    else if (e.key === "ArrowLeft") next = Math.max(i - 1, 0);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = CHAPTERS - 1;
+    if (next === null) return;
+    e.preventDefault();
+    setRoving(next);
+    youButtons[next].focus();
+  }
+
+  function setRoving(index) {
+    youButtons.forEach((b, i) => { b.tabIndex = i === index ? 0 : -1; });
+  }
+
+  function safeLine() { return Math.min(...members.map(m => m.read)); }
+  function holders() { const s = safeLine(); return members.filter(m => m.read === s); }
+  function leader() { return members.reduce((a, b) => (b.read > a.read ? b : a)); }
+
+  function listNames(list) {
+    const names = list.map(m => (m.you ? "you" : m.short));
+    if (names.length <= 1) return names[0] || "";
+    return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+  }
+
+  function render() {
+    members.forEach(m => {
+      m.cells.forEach((el, i) => {
+        const done = i < m.read;
+        el.classList.toggle("is-done", done);
+        if (m.you) el.setAttribute("aria-pressed", String(done));
+      });
+    });
+
+    const s = safeLine();
+    wash.style.setProperty("--safe-frac", s / CHAPTERS);
+    headCells.forEach((h, i) => h.classList.toggle("is-safe", i + 1 === s));
+
+    const safeEl = document.getElementById("note-safe");
+    const safeBody = document.getElementById("note-safe-body");
+    if (s === 0) {
+      safeEl.textContent = "Nothing yet";
+      safeBody.textContent = `${capitalise(listNames(holders()))} hasn’t finished chapter one, so the line sits before the first page.`;
+    } else {
+      safeEl.textContent = s === 1 ? "Chapter 1" : `Chapters 1–${s}`;
+      const h = holders();
+      safeBody.textContent = `${capitalise(listNames(h))} ${h.length === 1 && !h[0].you ? "is" : "are"} holding the line at chapter ${s}. Anything past it stays out of the discussion.`;
+    }
+
+    const lead = leader();
+    document.getElementById("note-ahead").textContent = `${lead.you ? "You" : lead.short}, chapter ${lead.read}`;
+    document.getElementById("note-ahead-body").textContent = lead.read > s
+      ? `Notes on chapters ${s + 1}–${lead.read} stay folded until each reader gets there.`
+      : "Everyone is on the same page. Literally.";
+
+    resetBtn.disabled = you.read === YOU_START;
+    const rovingIndex = Math.min(you.read, CHAPTERS - 1);
+    if (!youButtons.some(b => b === document.activeElement)) setRoving(rovingIndex);
+    summarise();
+  }
+
+  function describe(m, c) {
+    const who = m.you ? "You" : m.name;
+    const done = c <= m.read;
+    const verb = m.you ? (done ? "have finished" : "haven’t reached") : (done ? "has finished" : "hasn’t reached");
+    const s = safeLine();
+    const zone = c <= s ? "Everyone has read it, so it’s fair game on Thursday." : "Someone is still short of it. Keep it out of the discussion.";
+    caption.innerHTML = `<strong>${who}</strong> ${verb} chapter ${c}. ${zone}`;
+  }
+
+  function summarise() {
+    if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains("cell")) return;
+    const s = safeLine();
+    caption.innerHTML = s === 0
+      ? "The shaded band shows what everyone has read. It’s empty for now."
+      : `The shaded band runs to <strong>chapter ${s}</strong>, the last chapter all six readers have finished. Hover or focus a square to see whose it is.`;
+  }
+
+  function capitalise(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
+
+  resetBtn.addEventListener("click", () => { you.read = YOU_START; render(); });
+
+  render();
+
+  /* invite form: fictional product, so submission is simulated locally */
+  const form = document.getElementById("invite-form");
+  const input = document.getElementById("invite-email");
+  const submit = document.getElementById("invite-submit");
+  const msg = document.getElementById("invite-msg");
+
+  function setMsg(text, kind) {
+    msg.textContent = text;
+    msg.classList.toggle("is-error", kind === "error");
+    msg.classList.toggle("is-success", kind === "success");
+  }
+
+  input.addEventListener("input", () => {
+    if (input.getAttribute("aria-invalid") === "true") {
+      input.removeAttribute("aria-invalid");
+      setMsg("", null);
+    }
+  });
+
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const value = input.value.trim();
+    if (!value) {
+      input.setAttribute("aria-invalid", "true");
+      setMsg("Add an email address so we know where to write.", "error");
+      input.focus();
+      return;
+    }
+    if (!input.checkValidity()) {
+      input.setAttribute("aria-invalid", "true");
+      setMsg("That address is missing something. Check for the @ and the domain.", "error");
+      input.focus();
+      return;
+    }
+    submit.disabled = true;
+    input.disabled = true;
+    submit.setAttribute("aria-busy", "true");
+    submit.textContent = "Sending…";
+    setMsg("", null);
+    setTimeout(() => {
+      submit.removeAttribute("aria-busy");
+      submit.textContent = "On the list";
+      setMsg(`Noted. We’ll write to ${value} when there’s room for your club.`, "success");
+    }, 700);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import type { SkillDemoRecord } from '../../layers/registry/server/utils/skill-demos'
 import { describe, expect, it } from 'vitest'
-import { findSkillDemo, listSkillDemos, presentSkillDemo } from '../../layers/registry/server/utils/skill-demos'
+import { findSkillDemo, listDemoSitemapEntries, listShownSkillDemos, listSkillDemos, presentSkillDemo } from '../../layers/registry/server/utils/skill-demos'
 
 const COMMIT = '41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f'
 
@@ -83,5 +83,27 @@ describe('listSkillDemos', () => {
     const older = demo({ name: 'older', recordedAt: '2026-09-01' })
     const newer = demo({ name: 'newer', recordedAt: '2026-10-06' })
     expect(listSkillDemos([older, newer]).map(entry => entry.name)).toEqual(['newer', 'older'])
+  })
+})
+
+describe('listShownSkillDemos', () => {
+  it('leaves out a demo whose Skill holds a run check flag, whatever its casing', () => {
+    const shown = listShownSkillDemos(new Set(['anthropics/skills/flagged']), [demo({ name: 'Flagged' }), demo({ name: 'kept' })])
+    expect(shown.map(entry => entry.name)).toEqual(['kept'])
+  })
+})
+
+describe('listDemoSitemapEntries', () => {
+  const six = Array.from({ length: 6 }, (_, i) => demo({ name: `skill-${i}`, recordedAt: `2026-10-0${i + 1}` }))
+
+  it('lists the board, dated by its newest demo, and every demo page', () => {
+    const entries = listDemoSitemapEntries(new Set(), six)
+    expect(entries[0]).toEqual({ loc: '/skills/demos', lastmod: '2026-10-06' })
+    expect(entries).toContainEqual({ loc: '/skills/demos/anthropics/skills/skill-0', lastmod: '2026-10-01' })
+    expect(entries).toHaveLength(7)
+  })
+
+  it('lists nothing once flags drop the shown demos below six, where the pages answer noindex', () => {
+    expect(listDemoSitemapEntries(new Set(['anthropics/skills/skill-0']), six)).toEqual([])
   })
 })

@@ -282,8 +282,13 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
 
     <HomeLifecycle />
 
+    <!--
+      The sections under the hero render on the server and hydrate once they
+      scroll into view, so their code stays out of the scripts the first paint
+      waits on.
+    -->
     <!-- The first content section: what Skills make, before any list of them. -->
-    <HomeDemos :demos="demosData?.items ?? []" />
+    <LazyHomeDemos hydrate-on-visible :demos="demosData?.items ?? []" />
 
     <section
       v-if="showTrending || trendingStatus === 'pending'"
@@ -308,7 +313,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
 
         <template v-else>
           <div class="mt-8">
-            <BoardRankedList :rows="trendingBoard" surface="home-trending-row" @avatar-error="onAvatarError" />
+            <LazyBoardRankedList hydrate-on-visible :rows="trendingBoard" surface="home-trending-row" @avatar-error="onAvatarError" />
           </div>
           <UButton
             :to="weekBoardPath"
@@ -323,9 +328,9 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       </div>
     </section>
 
-    <HomeWhy :trending-row="whyTrendingRow" :demos="demosData?.items ?? []" :pulls="pullsData?.items ?? []" />
+    <LazyHomeWhy hydrate-on-visible :trending-row="whyTrendingRow" :demos="demosData?.items ?? []" :pulls="pullsData?.items ?? []" />
 
-    <HomeAgents />
+    <LazyHomeAgents hydrate-on-visible />
 
     <section
       id="outcomes"

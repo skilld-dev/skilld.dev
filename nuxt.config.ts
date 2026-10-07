@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { edgeCache } from '@harlan-zw/nuxt-cloudflare/cache'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
-import { frozenNoindexPaths } from './layers/marketing/app/utils/page-admissions'
+import { frozenNoindexPaths, isPageAdmitted } from './layers/marketing/app/utils/page-admissions'
 import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
@@ -366,6 +366,11 @@ export default defineNuxtConfig({
     instructions: 'Search first, inspect provenance before recommending a skill, then return the run command for the user to approve and run. Offer the install command only when the user wants the skill in every session. This server never runs or installs anything.',
     sessions: false,
     browserRedirect: '/',
+    // The toolkit rejects a request whose Origin header is another site. Server-side
+    // clients send none. The Claude and ChatGPT web apps may, so they are listed.
+    security: {
+      allowedOrigins: ['https://skilld.dev', 'https://claude.ai', 'https://claude.com', 'https://chatgpt.com', 'https://chat.openai.com'],
+    },
   },
 
   app: {
@@ -419,6 +424,10 @@ export default defineNuxtConfig({
     // Shared with the skill-harness Worker as SKILLGEN_SITE_TOKEN. It reads Skillgen opt-ins.
     skillgenToken: '',
     publicSiteUrl: 'https://skilld.dev',
+    // The OpenAI plugin portal's domain-verification token. Set the Worker
+    // secret NUXT_OPENAI_APPS_CHALLENGE. /.well-known/openai-apps-challenge
+    // serves it, and answers 404 while it is empty.
+    openaiAppsChallenge: '',
     // Task search, the search box's opt-in model answer. Set the Worker
     // variable NUXT_TASK_SEARCH_ENABLED=false to switch it off without a
     // deploy. The budget is micro-dollars per UTC day across every visitor:
@@ -584,6 +593,7 @@ export default defineNuxtConfig({
     // takes two failed checks, so a day of stale serving on a quiet colo is
     // within the time the checks themselves take.
     '/skills/demos': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
+    '/skills/demos/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
     // The CLI and developer pages read no data and no session, so they change
     // only on deploy, and a deploy starts a new cache key. Uncached, each view
     // rendered in the Worker: 110 to 250 ms to first byte from Sydney on
@@ -795,12 +805,29 @@ export default defineNuxtConfig({
               // imports with it, and its ContentRenderer imports every content
               // component, so the Skill card, the package setup form and zod
               // (through that form) rode in this chunk on every page.
+              //
+              // Two groups, so a page loads only the vendor code it uses.
+              // `vendor-shared` holds what the app entry imports, which every
+              // page runs. `vendor-lazy` holds the rest, such as the reka-ui
+              // menus, selects and hover cards only some pages open. It splits
+              // by the set of pages that import each module, and folds sets
+              // under 20 kB into a neighbour, so a launch page gains 4 to 8
+              // files. One chunk held 692 kB raw on every page.
               groups: [
                 {
                   name: 'vendor-shared',
                   test: (id: string) => id.includes('node_modules') && !LAZY_ONLY_VENDOR.test(id),
+                  tags: ['$initial'],
                   minShareCount: 2,
                   maxModuleSize: 8 * 1024,
+                },
+                {
+                  name: 'vendor-lazy',
+                  test: (id: string) => id.includes('node_modules') && !LAZY_ONLY_VENDOR.test(id),
+                  minShareCount: 2,
+                  maxModuleSize: 8 * 1024,
+                  entriesAware: true,
+                  entriesAwareMergeThreshold: 20 * 1024,
                 },
               ],
             },
@@ -885,6 +912,12 @@ export default defineNuxtConfig({
         includeAppSources: false,
         chunks: 10000,
       },
+      // `/skills/demos` and one page per demo, which the pages sitemap's
+      // `/skills/**` exclude drops. Listed while page-admissions admits
+      // `/skills/demos`, the entry every demo page reads.
+      ...(isPageAdmitted('/skills/demos')
+        ? { demos: { sources: ['/api/__sitemap__/demos'], includeAppSources: false } }
+        : {}),
       // `authors` and `sources` removed 2026-10-01 (owner decision): author
       // profiles, collections, owner hubs and multi-Skill repository hubs render
       // `noindex,follow`. A single-Skill repository hub is the Skill's own page,

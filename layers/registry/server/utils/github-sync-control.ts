@@ -60,8 +60,7 @@ export function githubRatePauseUntil(
 /**
  * Requests the sync leaves unspent in a GitHub bucket before it pauses.
  *
- * `GITHUB_TOKEN` is a personal token, and GitHub counts its quota per
- * account, so every tool on that account draws on the same bucket. The sync
+ * Sync and page views share the read App installation's bucket. The sync
  * spends about 10 REST requests and 130 GraphQL points an hour, and page
  * views about 50 REST requests at most. 200 covers page views for the rest
  * of any hour once the sync stops.

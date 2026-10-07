@@ -17,6 +17,8 @@ logs
 .DS_Store
 .claude/worktrees/
 .claude/context/
+# skilld holds this lock only while a sync runs.
+.skills/.skilld-store-lock
 .backups/
 .tmp-*
 scripts/scratchpad/

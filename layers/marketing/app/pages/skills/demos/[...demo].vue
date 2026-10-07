@@ -1,22 +1,33 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~~/app/utils/home-demos'
+import { setResponseHeaders } from 'h3'
 import { demoKey } from '~~/app/utils/home-demos'
 import { resolveAuthorName } from '~~/app/utils/skill-byline'
-import { groupDemos } from '#shared/demo-groups'
+import { demoNoun, groupDemos } from '#shared/demo-groups'
+import { demoPagePath, DEMOS_PATH, MIN_INDEXABLE_DEMOS, parseDemoRoute } from '#shared/demo-pages'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
-import { pageRobots } from '../../utils/page-admissions'
+import { pageRobots } from '../../../utils/page-admissions'
 
 /**
  * Every demo, in the board shell `/skills/trending` uses. The rail lists the
- * demos under what each Skill makes; the stage shows the picked one in full:
- * its prompt, its output, and the Skill's run command. A pick lands in the URL
- * as `?demo=owner/repo/name`, so a shared link opens on it.
+ * demos under what each Skill makes; the stage shows one in full: its prompt,
+ * its output, and the Skill's run command. `/skills/demos` stages the rail's
+ * first demo. Each demo also has its own page at
+ * `/skills/demos/<owner>/<repo>/<name>`, which the rail links to.
  *
  * Indexable surface (VISION principle 2): the target query and admission bar
- * live in `page-admissions.ts`. Below MIN_INDEXABLE_DEMOS the page answers
- * noindex, the same guard `/skills/best` uses. Cull path: remove the
- * admission entry, and the page goes noindex on the next deploy.
+ * live in `page-admissions.ts`, and every demo page reads the `/skills/demos`
+ * entry. Below MIN_INDEXABLE_DEMOS every page answers noindex, the same guard
+ * `/skills/best` uses. Cull path: remove the admission entry, and the pages go
+ * noindex and leave the sitemap on the next deploy.
  */
+
+definePageMeta({
+  // One board for every demo, so the rail keeps its place and only the stage swaps.
+  key: 'skill-demos',
+  // Moving between demos keeps the scroll position. Arriving from another page starts at the top.
+  scrollToTop: (to, from) => to.name !== from.name,
+})
 
 // `await`, as on the other /skills pages: the server must render the demos.
 const { data } = await useFetch<{ items: HomeDemoItem[] }>('/api/skill-demos', { key: 'skill-demos-page' })
@@ -25,64 +36,90 @@ const demos = computed(() => data.value?.items ?? [])
 const groups = computed(() => groupDemos(demos.value))
 
 const route = useRoute()
-const sharedKey = typeof route.query.demo === 'string' ? route.query.demo : undefined
+const demoRoute = computed(() => parseDemoRoute(route.params.demo))
 
-// The rail's first demo leads unless a shared link names another.
-const firstDemo = computed(() => groups.value[0]?.demos[0])
-const picked = ref(sharedKey ?? (firstDemo.value ? demoKey(firstDemo.value) : ''))
-const current = computed(() => demos.value.find(demo => demoKey(demo) === picked.value) ?? firstDemo.value)
+function findDemo(key: string): HomeDemoItem | undefined {
+  return demos.value.find(demo => demoKey(demo).toLowerCase() === key.toLowerCase())
+}
+
+// Before demo pages, a pick lived in the query as `?demo=owner/repo/name`. A shared link moves to the demo page.
+const legacyKey = typeof route.query.demo === 'string' ? route.query.demo : undefined
+const legacyDemo = demoRoute.value._tag === 'index' && legacyKey ? findDemo(legacyKey) : undefined
+if (legacyDemo)
+  await navigateTo(demoPagePath(legacyDemo), { redirectCode: 301, replace: true })
+
+/** The demo this URL names; undefined on the board, and on a path that names no shown demo. */
+const pageDemo = computed(() => demoRoute.value._tag === 'demo' ? findDemo(demoRoute.value.key) : undefined)
+
+const missing = computed(() => demoRoute.value._tag === 'invalid' || (demoRoute.value._tag === 'demo' && !pageDemo.value))
+watch(missing, (isMissing) => {
+  if (!isMissing)
+    return
+  // A 404 must not enter the edge cache the demo pages share.
+  const event = import.meta.server ? useRequestEvent() : undefined
+  if (event)
+    setResponseHeaders(event, { 'cloudflare-cdn-cache-control': 'no-store', 'cache-control': 'private, no-store' })
+  showError(createError({ statusCode: 404, statusMessage: 'Unknown demo' }))
+}, { immediate: true })
+
+// The board stages the rail's first demo.
+const current = computed(() => pageDemo.value ?? groups.value[0]?.demos[0])
 const currentKey = computed(() => current.value ? demoKey(current.value) : '')
 
 const stage = useTemplateRef<HTMLElement>('stage')
 const wide = useMediaQuery('(min-width: 64rem)')
 const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 
-/** Shows the demo, keeps it in the URL, and on narrow screens brings the stage into view. */
-function pick(demo: HomeDemoItem) {
-  picked.value = demoKey(demo)
+/** On narrow screens the stage sits under the rail, so a pick brings it into view. */
+function revealStage() {
   if (!wide.value)
     stage.value?.scrollIntoView({ block: 'start', behavior: reducedMotion.value ? 'auto' : 'smooth' })
-  return navigateTo({ query: { ...route.query, demo: demoKey(demo) }, hash: route.hash }, { replace: true })
 }
 
 function author(demo: HomeDemoItem): string {
   return resolveAuthorName(demo.owner, demo.authorName) ?? demo.owner
 }
 
-/** Below this many demos the page is too thin to index. */
-const MIN_INDEXABLE_DEMOS = 6
+/** Cuts text at a word to fit a meta description. */
+function clip(text: string, max: number): string {
+  if (text.length <= max)
+    return text
+  return `${text.slice(0, text.lastIndexOf(' ', max - 1))}…`
+}
 
-const title = 'Claude skill examples: see what each one makes'
-const description = computed(() =>
-  `${demos.value.length} recorded runs of agent skills: the prompt, and the film, page, component or diagram the Agent made with the Skill. Open any of them live.`,
-)
+const pageTitle = computed(() => pageDemo.value
+  ? `${pageDemo.value.name} skill example: ${demoNoun(pageDemo.value.makes)}`
+  : 'Claude skill examples: see what each one makes')
+const pageDescription = computed(() => pageDemo.value
+  ? clip(`${pageDemo.value.agent} made this ${demoNoun(pageDemo.value.makes)} with the /${pageDemo.value.name} skill from one prompt: “${pageDemo.value.prompt}”`, 160)
+  : `${demos.value.length} recorded runs of agent skills: the prompt, and the film, page, component or diagram the Agent made with the Skill. Open any of them live.`)
+const canonicalPath = computed(() => pageDemo.value ? demoPagePath(pageDemo.value) : DEMOS_PATH)
 
 useSeoMeta({
-  title,
-  description,
-  ogTitle: title,
-  ogDescription: description,
-  robots: () => demos.value.length >= MIN_INDEXABLE_DEMOS ? pageRobots('/skills/demos') : 'noindex,follow',
+  title: pageTitle,
+  description: pageDescription,
+  ogTitle: pageTitle,
+  ogDescription: pageDescription,
+  robots: () => demos.value.length >= MIN_INDEXABLE_DEMOS ? pageRobots(DEMOS_PATH) : 'noindex,follow',
 })
 
 useHead({
-  link: [{ rel: 'canonical', href: 'https://skilld.dev/skills/demos' }],
+  link: [{ rel: 'canonical', href: () => `https://skilld.dev${canonicalPath.value}` }],
 })
 
-defineOgImage('Page.takumi', {
-  title: 'See what skills make',
-  description: 'Recorded runs of agent skills: the prompt, and what the Agent made.',
-}, { alt: 'Skill demos on skilld' })
+defineOgImage('Page.takumi', pageDemo.value
+  ? { title: `What /${pageDemo.value.name} made`, description: clip(pageDemo.value.prompt, 120) }
+  : { title: 'See what skills make', description: 'Recorded runs of agent skills: the prompt, and what the Agent made.' }, { alt: pageDemo.value ? `What /${pageDemo.value.name} made, on skilld` : 'Skill demos on skilld' })
 </script>
 
 <template>
   <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false">
     <template #header>
       <h1 id="demos-heading" class="text-3xl font-semibold tracking-tight text-balance">
-        See what skills make
+        {{ pageDemo ? `What /${pageDemo.name} made` : 'See what skills make' }}
       </h1>
       <p class="mt-2 text-sm text-muted">
-        Each demo is one recorded run: the prompt, and what the Agent built with the Skill.
+        {{ pageDemo ? 'One recorded run: the prompt, and what the Agent built with the Skill.' : 'Each demo is one recorded run: the prompt, and what the Agent built with the Skill.' }}
       </p>
     </template>
 
@@ -94,12 +131,11 @@ defineOgImage('Page.takumi', {
           </h2>
           <ul class="list-none p-0">
             <li v-for="demo in group.demos" :key="demoKey(demo)">
-              <button
-                type="button"
+              <NuxtLink
+                :to="demoPagePath(demo)"
                 class="demos-rail__pick"
-                :aria-pressed="demoKey(demo) === currentKey"
-                aria-controls="demos-stage"
-                @click="() => pick(demo)"
+                :aria-current="demoKey(demo) !== currentKey ? undefined : pageDemo ? 'page' : 'true'"
+                @click="revealStage"
               >
                 <span class="demos-rail__dot" aria-hidden="true" />
                 <img
@@ -115,7 +151,7 @@ defineOgImage('Page.takumi', {
                   <span class="demos-rail__name">/{{ demo.name }}</span>
                   <span class="demos-rail__by">{{ author(demo) }}</span>
                 </span>
-              </button>
+              </NuxtLink>
             </li>
           </ul>
         </section>
@@ -124,7 +160,7 @@ defineOgImage('Page.takumi', {
 
     <div id="demos-stage" ref="stage" class="demos-stage scroll-mt-24">
       <Transition name="demos-swap" mode="out-in">
-        <DemoStage v-if="current" :key="currentKey" :demo="current" show-prompt live eager surface="demos-page" />
+        <DemoStage v-if="current" :key="currentKey" :demo="current" show-prompt live eager opens="skill-page" surface="demos-page" />
       </Transition>
       <p v-if="!current" class="text-sm text-muted">
         No demos are published yet.
@@ -172,7 +208,7 @@ defineOgImage('Page.takumi', {
   outline-offset: 2px;
 }
 
-.demos-rail__pick[aria-pressed='true'] {
+.demos-rail__pick[aria-current] {
   background: var(--ui-bg-muted);
 }
 
@@ -184,7 +220,7 @@ defineOgImage('Page.takumi', {
   background: var(--ui-border-accented);
 }
 
-.demos-rail__pick[aria-pressed='true'] .demos-rail__dot {
+.demos-rail__pick[aria-current] .demos-rail__dot {
   background: var(--ui-primary);
 }
 

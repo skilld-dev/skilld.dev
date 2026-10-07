@@ -35,6 +35,11 @@ describe('skills route policy', () => {
       expect(resolveSkillsRoute(`/skills/${name}`, ''), `/skills/${name}`).toEqual({ _tag: 'pass' })
   })
 
+  it('passes demo pages through to the page, which answers an unknown one 404', () => {
+    expect(resolveSkillsRoute('/skills/demos/anthropics/skills/frontend-design', '')).toEqual({ _tag: 'pass' })
+    expect(resolveSkillsRoute('/skills/demos/anthropics/skills', '')).toEqual({ _tag: 'pass' })
+  })
+
   it('returns a 404 decision for unknown one-segment outcomes', () => {
     expect(resolveSkillsRoute('/skills/not-a-real-outcome', '')).toEqual({
       _tag: 'not_found',

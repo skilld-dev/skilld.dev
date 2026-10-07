@@ -6,6 +6,7 @@ import {
   API_OPENAPI_PATH,
   apiSamples,
   apiSnippets,
+  claudeConnectorUrl,
   cursorInstallUrl,
   mcpApps,
   setupModes,
@@ -220,11 +221,19 @@ const uiClass = 'font-medium text-default'
               </template>
 
               <template v-else-if="app === 'claude'">
-                <ol class="list-decimal space-y-2 pl-5">
-                  <li>Open <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener" :class="uiClass" class="underline underline-offset-2">Customize &gt; Connectors</a> in claude.ai or the Claude desktop app.</li>
-                  <li>Select <strong :class="uiClass">Add custom connector</strong>. Name it skilld and paste the server URL. If Claude asks about authentication, choose <strong :class="uiClass">No sign-in</strong>.</li>
-                  <li>In a chat, open the <strong :class="uiClass">+</strong> menu, select <strong :class="uiClass">Connectors</strong>, and check that skilld is on.</li>
-                </ol>
+                <UButton
+                  :to="claudeConnectorUrl()"
+                  external
+                  label="Add to Claude"
+                  icon="i-lucide-external-link"
+                  class="min-h-11 hover:bg-primary-600 active:bg-primary-700"
+                />
+                <p class="mt-5">
+                  Claude opens the <strong :class="uiClass">Add custom connector</strong> dialog with skilld filled in. Select <strong :class="uiClass">Continue</strong>, keep <strong :class="uiClass">No sign-in</strong>, and select <strong :class="uiClass">Add</strong>. Then select <strong :class="uiClass">Connect</strong>. In a chat, open the <strong :class="uiClass">+</strong> menu, select <strong :class="uiClass">Connectors</strong>, and check that skilld is on.
+                </p>
+                <p class="mt-4">
+                  Or open <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener" :class="uiClass" class="underline underline-offset-2">Customize &gt; Connectors</a> in claude.ai or the Claude desktop app. Select <strong :class="uiClass">Add custom connector</strong>, name it skilld, and paste the server URL.
+                </p>
                 <p class="mt-4">
                   Every plan can add a custom connector. The Free plan allows one. On a Team or Enterprise plan, an Owner adds it for the organization first.
                   <a href="https://claude.com/docs/connectors/custom/add-unlisted" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-default">Read Anthropic's guide</a>.

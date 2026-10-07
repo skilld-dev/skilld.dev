@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
+import { demoPagePath } from '#shared/demo-pages'
 import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio } from '~/utils/home-demos'
 import DemoMedia from './home-demos/_DemoMedia.vue'
 import DemoRecording from './home-demos/_DemoRecording.vue'
@@ -11,15 +12,18 @@ import SkillCard from './SkillCard.vue'
  * and the Skill's row with its run command. `showPrompt` adds the prompt in
  * full, for a list that names the demos without their prompts. `live` puts a
  * page demo's real output in the window, in a frame with no same-origin
- * access; the route serves it under a CSP sandbox too.
+ * access; the route serves it under a CSP sandbox too. `opens` picks where
+ * "Open the demo" goes: the demo's own page, or, on that page, the Skill
+ * page's Demo panel.
  */
-const { demo, surface = 'demos', eager = false, showPrompt = false, live = false } = defineProps<{
+const { demo, surface = 'demos', eager = false, showPrompt = false, live = false, opens = 'demo-page' } = defineProps<{
   demo: HomeDemoItem
   /** The analytics surface for the run chip, such as `home-demos`. */
   surface?: string
   eager?: boolean
   showPrompt?: boolean
   live?: boolean
+  opens?: 'demo-page' | 'skill-page'
 }>()
 
 /** The output page itself, when this stage shows it live. A film always plays as video. */
@@ -30,7 +34,7 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
   <div class="demo-stage">
     <div class="demo-stage__head">
       <DemoRecording :demo />
-      <NuxtLink :to="demoHref(demo)" class="demo-stage__open">
+      <NuxtLink :to="opens === 'skill-page' ? demoHref(demo) : demoPagePath(demo)" class="demo-stage__open">
         Open the demo<span class="sr-only"> of /{{ demo.name }}</span>
         <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
       </NuxtLink>
