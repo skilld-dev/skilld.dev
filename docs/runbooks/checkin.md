@@ -60,6 +60,15 @@ The report must match the deployed Worker and be less than five minutes old.
 The daily health email cron and X API failure emails are removed. Customer digests remain unchanged.
 Historical email records stay in D1, but checks no longer depend on them.
 
+## Artifact signing key
+
+The `skilld.signing-key` check reads the signer key windows from `workers/artifact-signer/wrangler.jsonc` and the live trusted root.
+It finds the time when no signer key is both open and trusted.
+It warns 30 days before that time and fails 7 days before it.
+It also fails when the signer signs with a key the trusted root does not trust now.
+It warns when a staged signer key starts before the trusted root trusts it.
+Follow `docs/runbooks/signing-key-rotation.md` when it warns.
+
 ## SEO recovery measurement
 
 The `skilld.seo-recovery` prompt item adds a weekly SEO recovery section.
