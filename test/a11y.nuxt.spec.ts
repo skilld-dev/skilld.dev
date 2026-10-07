@@ -1,6 +1,9 @@
 import type { AxeResults, RunOptions } from 'axe-core'
 import type { Component } from 'vue'
 import type { WeeklyDemoResponse } from '../../server/api/weekly/demo.get'
+import type { HomeDemoItem } from '../app/utils/home-demos'
+import type { RecentPullRequest } from '../shared/open-source-pull-requests'
+import type { TrendingBoardRow } from '../shared/trending-range'
 import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
@@ -786,6 +789,117 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  /** The head of a trending board, ranked by two posts. */
+  const WHY_TRENDING_ROW: TrendingBoardRow = {
+    key: 'acme/brag/brag',
+    owner: 'acme',
+    repo: 'brag',
+    name: 'brag',
+    title: 'brag',
+    to: '/gh/acme/brag',
+    subtitle: null,
+    description: 'Makes a launch film.',
+    stars: 120,
+    starSeries: [],
+    names: ['brag'],
+    skill: { owner: 'acme', repo: 'brag', name: 'brag' },
+    reason: {
+      _tag: 'posts',
+      posts: [
+        { url: 'https://x.com/ada/status/1', text: 'Tried /brag on our launch, it made the whole film.', platform: 'x', handle: 'ada', authorName: 'Ada', authorAvatar: null, likes: 4, when: '1d' },
+        { url: 'https://x.com/lin/status/2', text: 'brag is great', platform: 'x', handle: 'lin', authorName: 'Lin', authorAvatar: null, likes: 1, when: '2d' },
+      ],
+      mentionsByDay: [0, 0, 0, 0, 0, 1, 1],
+    },
+  }
+
+  const WHY_DEMO: HomeDemoItem = {
+    owner: 'acme',
+    repo: 'brag',
+    name: 'brag',
+    skillPath: 'SKILL.md',
+    makes: 'film',
+    authorName: 'Ada',
+    sourceUrl: 'https://github.com/acme/brag/blob/main/SKILL.md',
+    prompt: 'Make a short launch film for this project.',
+    agent: 'Claude Code',
+    model: 'claude-opus-5-5',
+    recordedAt: '2026-10-01',
+    shots: [{ src: 'https://media.skilld.dev/brag.png', width: 1440, height: 900, alt: 'The launch film', viewport: 'desktop' }],
+    liveUrl: null,
+    video: null,
+  }
+
+  const WHY_DEMOS: HomeDemoItem[] = [
+    { ...WHY_DEMO, name: 'frontend-design', makes: 'landing-page' },
+    { ...WHY_DEMO, name: 'impeccable', makes: 'landing-page' },
+    WHY_DEMO,
+  ]
+
+  const WHY_PULLS: RecentPullRequest[] = [
+    { repository: 'skilld-dev/skilld.dev', number: 516, title: 'lead the Why band with human, previews, and independence', url: 'https://github.com/skilld-dev/skilld.dev/pull/516', mergedAt: 1_791_300_000, author: 'harlan-zw', avatarUrl: null },
+    { repository: 'skilld-dev/skilld', number: 216, title: 'install into the agents the skills CLI supports', url: 'https://github.com/skilld-dev/skilld/pull/216', mergedAt: 1_791_290_000, author: 'harlan-zw', avatarUrl: null },
+  ]
+
+  it('homeWhy has no violations, shows three reasons with a picture each, and ends on the comparison', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeWhy'),
+      { attachTo: container, props: { trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS, pulls: WHY_PULLS } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+
+    const columns = [...container.querySelectorAll('.home-why__col')]
+    expect(columns.map(column => column.querySelector('h3')?.textContent?.trim())).toEqual([
+      'Human first',
+      'Preview the output',
+      'Independent and open source',
+    ])
+    expect(columns.every(column => column.querySelector('.why-panel'))).toBe(true)
+    // The people picture quotes the first post in the poster's words.
+    expect(container.textContent).toContain('@ada')
+    // The open source picture links each merged pull request.
+    expect(container.querySelector('a[href="https://github.com/skilld-dev/skilld/pull/216"]')).not.toBeNull()
+    const links = [...container.querySelectorAll('a')].map(link => link.getAttribute('href'))
+    expect(links.at(-1)).toBe('/vs/skills-sh')
+    wrapper.unmount()
+  })
+
+  it('whyVisual draws every reason without violations, and no demo picture without a demo', async () => {
+    for (const id of ['human', 'previews', 'open', 'weights', 'run', 'behaviors', 'cost', 'telemetry'] as const) {
+      const container = createIsolatedContainer()
+      const wrapper = await mountSuspended(
+        await loadComponent('why/_WhyVisual'),
+        { attachTo: container, props: { id, trendingRow: WHY_TRENDING_ROW, demos: WHY_DEMOS, pulls: WHY_PULLS } },
+      )
+      const results = await runAxe(container)
+      expect(results.violations, `${id}\n${formatViolations(results)}`).toHaveLength(0)
+      expect(container.querySelector('.why-panel'), id).not.toBeNull()
+      wrapper.unmount()
+    }
+
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('why/_WhyVisual'),
+      { attachTo: container, props: { id: 'previews', demos: [WHY_DEMO] } },
+    )
+    // One demo in a group gives nothing to compare, so the picture stays out.
+    expect(container.querySelector('.why-panel')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('whyVisual keeps the maintainer and drops the posters when no trending row arrived', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('why/_WhyVisual'),
+      { attachTo: container, props: { id: 'human', trendingRow: null } },
+    )
+    expect(container.textContent).toContain('Matt Pocock')
+    expect(container.textContent).not.toContain('Talked about by')
+    wrapper.unmount()
+  })
+
   it('cliInstallChip has no violations, leads with the native install, and switches platform', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -876,6 +990,17 @@ describe('accessibility: component coverage', () => {
     'home-demos/_DemoPicture', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoRecording', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoVideo', // A part of HomeDemos; its play rules need a real browser, checked by hand
+    'why/_WhyPanel', // The frame of every Why picture, scanned inside the WhyVisual tests
+    'why/_WhyRunVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyBehaviorsVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyCostVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyHumanVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyPreviewsVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyOpenVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyWeightsVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyTelemetryVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyText', // The words of each reason, scanned inside the HomeWhy test
+    'why/_WhyTrustLine', // The line under the Why band, scanned inside the HomeWhy test
   ]
 
   /**
