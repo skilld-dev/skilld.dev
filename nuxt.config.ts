@@ -805,12 +805,29 @@ export default defineNuxtConfig({
               // imports with it, and its ContentRenderer imports every content
               // component, so the Skill card, the package setup form and zod
               // (through that form) rode in this chunk on every page.
+              //
+              // Two groups, so a page loads only the vendor code it uses.
+              // `vendor-shared` holds what the app entry imports, which every
+              // page runs. `vendor-lazy` holds the rest, such as the reka-ui
+              // menus, selects and hover cards only some pages open. It splits
+              // by the set of pages that import each module, and folds sets
+              // under 20 kB into a neighbour, so a launch page gains 4 to 8
+              // files. One chunk held 692 kB raw on every page.
               groups: [
                 {
                   name: 'vendor-shared',
                   test: (id: string) => id.includes('node_modules') && !LAZY_ONLY_VENDOR.test(id),
+                  tags: ['$initial'],
                   minShareCount: 2,
                   maxModuleSize: 8 * 1024,
+                },
+                {
+                  name: 'vendor-lazy',
+                  test: (id: string) => id.includes('node_modules') && !LAZY_ONLY_VENDOR.test(id),
+                  minShareCount: 2,
+                  maxModuleSize: 8 * 1024,
+                  entriesAware: true,
+                  entriesAwareMergeThreshold: 20 * 1024,
                 },
               ],
             },
