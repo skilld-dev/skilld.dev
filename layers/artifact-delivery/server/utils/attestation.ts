@@ -4,6 +4,7 @@ import type {
   ArtifactFile,
   attestationSignatureSchema,
   CheckResult,
+  LinkedArtifactFile,
   ResolvedSource,
 } from '../schemas/contracts'
 import type { TrustedRoot } from './trusted-root'
@@ -32,6 +33,7 @@ export function createAttestationStatement(input: {
   contentBytes: number
   files: ArtifactFile[]
   checkResults: CheckResult[]
+  linkedFiles?: LinkedArtifactFile[]
 }): ArtifactAttestationStatement {
   return {
     version: 1,
@@ -45,6 +47,8 @@ export function createAttestationStatement(input: {
     policyVersion: ARTIFACT_POLICY_VERSION,
     files: input.files,
     checkResults: input.checkResults,
+    // An empty list is left out, so the statement stays one every skilld CLI reads.
+    ...(input.linkedFiles && input.linkedFiles.length > 0 ? { linkedFiles: input.linkedFiles } : {}),
   }
 }
 

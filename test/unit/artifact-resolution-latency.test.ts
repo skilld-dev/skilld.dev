@@ -32,6 +32,7 @@ const MIGRATIONS = [
   'migrations/0110_artifact_delivery.sql',
   'migrations/0111_github_app_delivery.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
+  'migrations/0145_artifact_resolution_linked_files.sql',
 ]
 
 async function requestedRow(): Promise<ResolutionRow> {

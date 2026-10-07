@@ -481,6 +481,7 @@ async function createReadyFixture(options: { mutateCiphertext?: boolean } = {}) 
           resolutionId: RESOLUTION_ID,
         },
         arrayBuffer: async () => body.buffer,
+        body: new Blob([Uint8Array.from(body)]).stream(),
       } as R2ObjectBody
     },
   } as R2Bucket

@@ -151,7 +151,7 @@ export function withGithubCredential(
 ): PublicGithubSourceClient {
   return {
     resolve: async request => await create(await credential()).resolve(request),
-    load: async source => await create(await credential()).load(source),
+    load: async (source, options) => await create(await credential()).load(source, options),
   }
 }
 

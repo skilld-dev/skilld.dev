@@ -60,6 +60,18 @@ export const artifactFileSchema = z.object({
   sha256: z.string().regex(SHA256_PATTERN),
 }).strict()
 
+/**
+ * A Skill file the Artifact does not pack. The skilld CLI reads it from
+ * GitHub at the attested commit and checks it against its Git blob digest.
+ * Only a CLI that sends `Skilld-Capabilities: linked-files` gets one.
+ */
+export const linkedArtifactFileSchema = z.object({
+  path: z.string().min(1).max(1024),
+  mode: z.union([z.literal(420), z.literal(493)]),
+  size: z.number().int().nonnegative(),
+  gitBlobSha: z.string().regex(COMMIT_SHA_PATTERN),
+}).strict()
+
 export const attestationSignatureSchema = z.object({
   algorithm: z.literal('Ed25519'),
   keyId: z.string().min(1).max(100),
@@ -78,6 +90,8 @@ export const artifactAttestationStatementSchema = z.object({
   policyVersion: z.string().min(1).max(100),
   files: z.array(artifactFileSchema).min(1).max(2000),
   checkResults: z.array(checkResultSchema).min(1).max(100),
+  /** Absent unless a file is linked: a CLI without linked files refuses the field. */
+  linkedFiles: z.array(linkedArtifactFileSchema).min(1).max(2000).optional(),
 }).strict()
 
 export const artifactAttestationSchema = artifactAttestationStatementSchema.extend({
@@ -216,6 +230,7 @@ export type SourceRequest = z.infer<typeof sourceRequestSchema>
 export type ResolvedSource = z.infer<typeof resolvedSourceSchema>
 export type CheckResult = z.infer<typeof checkResultSchema>
 export type ArtifactFile = z.infer<typeof artifactFileSchema>
+export type LinkedArtifactFile = z.infer<typeof linkedArtifactFileSchema>
 export type ArtifactAttestationStatement = z.infer<typeof artifactAttestationStatementSchema>
 export type ArtifactAttestation = z.infer<typeof artifactAttestationSchema>
 export type ResolutionResponse = z.infer<typeof resolutionSchema>

@@ -12,7 +12,13 @@ import { failResolution, processArtifactBuild } from '../../../utils/build'
 import { findPrivateRepositoryAccess } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
 import { createArtifactBuildDependencies, enqueueArtifactBuild } from '../../../utils/queue'
-import { buildAfterResponse, fetchAdmittedSkillIdentity, requestResolution } from '../../../utils/request-resolution'
+import {
+  buildAfterResponse,
+  CLIENT_CAPABILITIES_HEADER,
+  fetchAdmittedSkillIdentity,
+  readsLinkedFiles,
+  requestResolution,
+} from '../../../utils/request-resolution'
 import { setSkillPageUrlHeader } from '../../../utils/skill-page'
 import { getResolution } from '../../../utils/state'
 
@@ -65,6 +71,7 @@ export default withArtifactProblems(defineApiHandler({
     }, {
       source: body.source,
       idempotencyKey,
+      linkedFiles: readsLinkedFiles(getHeader(event, CLIENT_CAPABILITIES_HEADER)),
       access: privateAccess._tag === 'allowed'
         ? {
             visibility: 'private',

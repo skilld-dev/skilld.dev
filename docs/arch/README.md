@@ -58,6 +58,9 @@ One content hash can have several attestations with different sources or signing
 The grant must return the requested Resolution's attestation, or deny delivery.
 Public grants without the header select the newest attestation. Private grants retain Account access checks.
 
+A public build streams the Repository archive from codeload and never holds the whole Skill.
+The limits, the constraint behind each, and linked files: [ADR-0013](../adr/0013-artifact-size-limits-and-linked-files.md).
+
 After a contract change in the `skilld-dev/skilld` repository, run `pnpm --filter skilld-sdk generate` and commit the document.
 Publish the new SDK version from that repository's `release.yml`. Then update this site's exact catalog pin.
 The route parity test checks the site against the published contract.

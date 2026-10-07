@@ -1,4 +1,5 @@
 import type { ArtifactAttestationStatement, CheckResult } from '../../../layers/artifact-delivery/server/schemas/contracts'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import {
   artifactAttestationStatementSchema,
@@ -27,7 +28,12 @@ export type ArtifactSignerBindings = Pick<ArtifactSignerEnv, ArtifactSignerBindi
 
 export const ARTIFACT_SIGNER_MAX_REQUEST_BYTES = 512
 const MAX_ATTESTATION_STATEMENT_BYTES = 6_291_456
-const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
+/**
+ * The largest Artifact the skilld CLI downloads, and the site's public
+ * archive limit. The signer hashes the object as it streams from R2, so the
+ * size costs time, not memory. See ADR-0013.
+ */
+const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 
 const signerRequestSchema = z.object({
   resolutionId: resolutionIdSchema,
@@ -265,7 +271,7 @@ function statementMatchesRow(
 
 async function verifyArtifactObject(bucket: R2Bucket, row: SigningRow): Promise<boolean> {
   const object = await bucket.get(row.r2_key)
-  if (!object || !('arrayBuffer' in object))
+  if (!object || !('body' in object))
     return false
   if (
     object.size !== row.content_bytes
@@ -275,16 +281,15 @@ async function verifyArtifactObject(bucket: R2Bucket, row: SigningRow): Promise<
   ) {
     return false
   }
-  const bytes = new Uint8Array(await object.arrayBuffer())
-  return bytes.byteLength === row.content_bytes
-    && await digestHex('SHA-256', bytes) === row.content_sha256
+  const streamed = await streamedSha256(object.body)
+  return streamed.bytes === row.content_bytes && streamed.sha256 === row.content_sha256
 }
 
 async function verifyPrivateArtifactObject(bucket: R2Bucket, row: SigningRow): Promise<boolean> {
   if (!row.account_id || !row.ciphertext_sha256 || !row.ciphertext_bytes || !row.encryption_key_id)
     return false
   const object = await bucket.get(row.r2_key)
-  if (!object || !('arrayBuffer' in object))
+  if (!object || !('body' in object))
     return false
   const accountIdHash = await digestHex('SHA-256', String(row.account_id))
   if (
@@ -300,9 +305,23 @@ async function verifyPrivateArtifactObject(bucket: R2Bucket, row: SigningRow): P
   ) {
     return false
   }
-  const bytes = new Uint8Array(await object.arrayBuffer())
-  return bytes.byteLength === row.ciphertext_bytes
-    && await digestHex('SHA-256', bytes) === row.ciphertext_sha256
+  const streamed = await streamedSha256(object.body)
+  return streamed.bytes === row.ciphertext_bytes && streamed.sha256 === row.ciphertext_sha256
+}
+
+/** The SHA-256 and length of an object body, read once, chunk by chunk. */
+async function streamedSha256(body: ReadableStream<Uint8Array>): Promise<{ sha256: string, bytes: number }> {
+  const hash = createHash('sha256')
+  const reader = body.getReader()
+  let bytes = 0
+  while (true) {
+    const next = await reader.read()
+    if (next.done)
+      break
+    bytes += next.value.byteLength
+    hash.update(next.value)
+  }
+  return { sha256: hash.digest('hex'), bytes }
 }
 
 async function loadSigningRow(db: D1Database, resolutionId: string): Promise<SigningRow | null> {

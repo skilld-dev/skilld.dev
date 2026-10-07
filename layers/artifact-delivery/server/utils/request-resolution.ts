@@ -59,14 +59,18 @@ export async function requestResolution(
      * read GitHub with that account's own token once the shared quota is spent.
      */
     requesterAccountId?: number | null
+    /** The skilld CLI that sent the request reads linked files. See ADR-0013. */
+    linkedFiles?: boolean
   },
 ): Promise<CreateResolutionResult> {
   const accountId = input.access.visibility === 'private' ? input.access.accountId : undefined
-  const identity = await resolutionRequestIdentity(input.source, input.idempotencyKey, accountId)
+  // A private build reads blobs and never links a file.
+  const linkedFiles = input.access.visibility === 'public' && input.linkedFiles === true
+  const identity = await resolutionRequestIdentity(input.source, input.idempotencyKey, accountId, linkedFiles)
   const source = input.access.visibility === 'private'
     ? input.source
     : await admittedSourceRequest(input.source, dependencies.lookupAdmitted)
-  const result = await createResolution(dependencies.db, source, identity, dependencies.now(), input.access)
+  const result = await createResolution(dependencies.db, source, identity, dependencies.now(), input.access, linkedFiles)
   if (result._tag === 'created' && input.access.visibility === 'public' && input.requesterAccountId) {
     await recordResolutionRequester(dependencies.db, {
       resolutionId: result.row.id,
@@ -77,6 +81,19 @@ export async function requestResolution(
   if (result._tag !== 'idempotency-conflict' && result.row.state === 'requested')
     await dependencies.enqueue(result.row.id)
   return result
+}
+
+/**
+ * The request header a skilld CLI sends to name the Artifact features it
+ * reads, as a comma-separated list. A CLI that sends none reads none.
+ */
+export const CLIENT_CAPABILITIES_HEADER = 'skilld-capabilities'
+
+/** Whether the header names `linked-files`. Unknown names are ignored. */
+export function readsLinkedFiles(header: string | undefined): boolean {
+  return (header ?? '')
+    .split(',')
+    .some(name => name.trim().toLowerCase() === 'linked-files')
 }
 
 /**
