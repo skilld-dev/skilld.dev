@@ -2,6 +2,8 @@ import antfu from '@antfu/eslint-config'
 import harlanzw from 'eslint-plugin-harlanzw'
 
 export default antfu({
+  // skilld sync writes .skills from skilld-dev/skilld. CI checks it with check:skills.
+  ignores: ['.skills/**'],
   rules: {
     'vue/no-useless-v-bind': 'off',
     'vue/attribute-hyphenation': 'off',
