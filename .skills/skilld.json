@@ -5,7 +5,7 @@
   "mode": "symlink",
   "skills": {
     "skilld": {
-      "source": "github:skilld-dev/skilld/skills/skilld#commit:fe3c82cf3dd5bea05036a747b1d9efa461f13c3b"
+      "source": "github:skilld-dev/skilld/skills/skilld#commit:a71ea9c8eefdd6e2578f9e62989ccac03133bc68"
     }
   }
 }

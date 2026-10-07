@@ -7,6 +7,7 @@ import type { SkillDemoView } from '../../server/utils/skill-demos'
 import type { ZipState } from '../utils/skill-zip'
 import type { SkillBehavior } from './_SkillBehaviors.vue'
 import { formatTimeAgo } from '@vueuse/core'
+import { demoRecording, demoSocialPicture } from '~~/app/utils/home-demos'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { readingsForSkillMd } from '#shared/behavior-readings'
 import { comparisonLinkForSkill } from '#shared/comparison-navigation'
@@ -1037,18 +1038,34 @@ function truncateReason(text: string, max: number): string {
   return `${collapsed.slice(0, max - 1).replace(/\s+\S*$/, '')}…`
 }
 
-defineOgImage('Skill.takumi', {
-  name: () => data.value?.name ?? '',
-  displayName: () => data.value?.displayName ?? data.value?.name ?? '',
-  owner: () => data.value?.owner ?? '',
-  ownerAvatar: () => data.value?.owner ? `https://github.com/${data.value.owner}.png?size=128` : '',
-  repo: () => data.value?.repo ?? 'skills',
-  curatorCount: () => data.value?.curators.length ?? 0,
-  reason: () => data.value?.curators.find(curator => curator.reason)?.reason ?? '',
-  reasonHandle: () => data.value?.curators.find(curator => curator.reason)?.handle ?? '',
-}, {
-  alt: () => `${data.value?.displayName ?? data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
-})
+// A Skill with a demo shares what the Agent made with it, as its demo page
+// does: the film's poster frame or the page's first screen. The server reads
+// the Skill before this runs, so the crawler gets the right card.
+const socialDemo = data.value?.demo ?? null
+const socialPicture = socialDemo ? demoSocialPicture(socialDemo) : undefined
+if (socialDemo && socialPicture) {
+  defineOgImage('Demo.takumi', {
+    name: socialDemo.name,
+    recording: demoRecording(socialDemo).sentence,
+    image: socialPicture.src,
+    imageWidth: socialPicture.width,
+    imageHeight: socialPicture.height,
+  }, { alt: `What /${socialDemo.name} made, on skilld` })
+}
+else {
+  defineOgImage('Skill.takumi', {
+    name: () => data.value?.name ?? '',
+    displayName: () => data.value?.displayName ?? data.value?.name ?? '',
+    owner: () => data.value?.owner ?? '',
+    ownerAvatar: () => data.value?.owner ? `https://github.com/${data.value.owner}.png?size=128` : '',
+    repo: () => data.value?.repo ?? 'skills',
+    curatorCount: () => data.value?.curators.length ?? 0,
+    reason: () => data.value?.curators.find(curator => curator.reason)?.reason ?? '',
+    reasonHandle: () => data.value?.curators.find(curator => curator.reason)?.handle ?? '',
+  }, {
+    alt: () => `${data.value?.displayName ?? data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
+  })
+}
 
 const siteOrigin = 'https://skilld.dev'
 const skillPagePath = computed(() => data.value?.registryPath ?? '')
@@ -1807,7 +1824,7 @@ useHead(computed(() => ({
             <div class="mb-2 flex items-baseline justify-between gap-2">
               <h2
                 id="files-heading"
-                class="section-label"
+                class="font-mono text-sm text-default"
               >
                 Files
               </h2>
@@ -1840,20 +1857,34 @@ useHead(computed(() => ({
             class="hidden lg:block"
             aria-labelledby="rail-behaviors-heading"
           >
-            <h2
-              id="rail-behaviors-heading"
-              class="section-label mb-2"
-            >
-              Skill behaviors
-            </h2>
+            <div class="mb-1 flex items-baseline justify-between gap-2">
+              <h2
+                id="rail-behaviors-heading"
+                class="font-mono text-sm text-default"
+              >
+                Skill behaviors
+              </h2>
+              <a
+                href="#skill-behaviors"
+                class="data-label inline-flex min-h-9 items-center gap-1 transition-colors hover:text-default"
+              >
+                Where each one appears
+                <UIcon
+                  name="i-lucide-arrow-down"
+                  class="size-3"
+                  aria-hidden="true"
+                />
+              </a>
+            </div>
             <ul
               role="list"
-              class="flex flex-wrap gap-1.5"
+              class="space-y-1.5 font-mono text-xs text-muted"
             >
               <li
                 v-for="behavior in behaviors"
                 :key="behavior.id"
-                class="skill-chip"
+                class="flex items-center gap-2"
+                :class="behavior.tier === 'ask' ? 'text-default' : undefined"
               >
                 <UIcon
                   :name="behaviorIcon(behavior)"
@@ -1868,17 +1899,6 @@ useHead(computed(() => ({
                 >, needs approval</span>
               </li>
             </ul>
-            <a
-              href="#skill-behaviors"
-              class="data-label mt-2 inline-flex min-h-6 items-center gap-1 transition-colors hover:text-default"
-            >
-              Where each one appears
-              <UIcon
-                name="i-lucide-arrow-down"
-                class="size-3"
-                aria-hidden="true"
-              />
-            </a>
           </section>
         </aside>
 
