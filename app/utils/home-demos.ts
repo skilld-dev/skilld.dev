@@ -119,12 +119,12 @@ export interface DemoPicture {
 }
 
 /**
- * The picture a demo page's social card shows: a film's poster frame, or the
- * first screen of the desktop page. A long page never serves whole, since a
- * 6000px shot would shrink to a strip. Undefined when the demo has neither;
- * the page keeps its text card then.
+ * The picture a demo's social card shows, on its demo page and its Skill
+ * page: a film's poster frame, or the first screen of the desktop page. A long
+ * page never serves whole, since a 6000px shot would shrink to a strip.
+ * Undefined when the demo has neither; the page keeps its text card then.
  */
-export function demoSocialPicture(demo: HomeDemoItem): DemoPicture | undefined {
+export function demoSocialPicture(demo: Pick<HomeDemoItem, 'video' | 'shots'>): DemoPicture | undefined {
   if (demo.video)
     return { src: demo.video.poster, width: demo.video.width, height: demo.video.height }
   const shot = demo.shots.find(shot => shot.viewport === 'desktop')

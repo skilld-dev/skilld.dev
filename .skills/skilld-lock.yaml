@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "transactionId": "1791339101009345295-0",
+  "transactionId": "1791345234786881456-0",
   "skills": {
     "skilld": {
       "source": {
         "type": "remote",
-        "source": "github:skilld-dev/skilld/skills/skilld#commit:fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
-        "commit_sha": "fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
+        "source": "github:skilld-dev/skilld/skills/skilld#commit:a71ea9c8eefdd6e2578f9e62989ccac03133bc68",
+        "commit_sha": "a71ea9c8eefdd6e2578f9e62989ccac03133bc68",
         "skill_path": "skills/skilld"
       },
       "sourceStatus": {
         "type": "verified",
-        "artifact_id": "sha256:c8633ed1d78d433dc4cb1ea8da74166f8f6910e3a4fd6664853e90f41f7541ff",
-        "content_sha256": "c8633ed1d78d433dc4cb1ea8da74166f8f6910e3a4fd6664853e90f41f7541ff",
-        "installed_sha256": "76f0bd7cfed129d7b1c6f8d0fbb71c0e96dde4f7611bd73f701ed523ac9083a1",
+        "artifact_id": "sha256:0ea5db9047ac38f4ac79dec2c20ccf29c4cf076f6eb83211829da5a9a33ff304",
+        "content_sha256": "0ea5db9047ac38f4ac79dec2c20ccf29c4cf076f6eb83211829da5a9a33ff304",
+        "installed_sha256": "83df67092189efdeb917f6d11cd578e11de764851a940763aed23ca0e5c16d10",
         "attestation_key_id": "skilld-production-2026-08"
       },
       "targets": [
@@ -40,8 +40,8 @@
       "skilld": {
         "source": {
           "type": "remote",
-          "source": "github:skilld-dev/skilld/skills/skilld#commit:fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
-          "commit_sha": "fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
+          "source": "github:skilld-dev/skilld/skills/skilld#commit:a71ea9c8eefdd6e2578f9e62989ccac03133bc68",
+          "commit_sha": "a71ea9c8eefdd6e2578f9e62989ccac03133bc68",
           "skill_path": "skills/skilld"
         },
         "targets": [

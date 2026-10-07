@@ -32,7 +32,7 @@ export function skillInstallCommand(owner: string, repo: string, skill: string):
 
 /** Whole-repository install. `add` takes every ref that names several Skills. */
 export function repoInstallCommand(owner: string, repo: string): string {
-  return `${V3_PREFIX} add ${owner}/${repo}`
+  return `${V3_PREFIX} add ${owner}/${repo} --all`
 }
 
 export type InstallRef

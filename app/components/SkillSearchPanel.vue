@@ -285,8 +285,8 @@ function retryRepositoryIndex(): void {
           @mousemove="hover(index)"
         >
           <!--
-            The box closes the panel when focus leaves it. Task search answers
-            inside the panel, so a press on its row keeps focus in the box.
+            The box closes the panel when focus leaves it, and this cell takes
+            no focus. A press keeps focus in the box, so the click still lands.
           -->
           <div
             :id="searchCellId(index, 0)"
@@ -296,7 +296,7 @@ function retryRepositoryIndex(): void {
             :aria-busy="row._tag === 'task' && row.status._tag === 'running' ? true : undefined"
             class="search-row__open"
             :class="{ 'search-row__open--static': row._tag === 'task' && !taskRowCopy(row.status).actionable }"
-            @mousedown="(event) => { if (row._tag === 'task') event.preventDefault() }"
+            @mousedown.prevent
             @click="emit('select', row)"
           >
             <template v-if="row._tag === 'skill'">

@@ -51,18 +51,19 @@ They do not prove every example works. Inspect source attempts and review findin
 
 The container image includes the pinned Agent bootstrap. Each session receives its own copy.
 Every job gets a fresh container. The Worker destroys it after saving the result.
-Durable Object alarms check progress and enforce the fifteen minute deadline.
+Durable Object alarms check progress and enforce the forty-five minute deadline.
+A GLM 5.3 step takes about 26 seconds. The runner tells the Agent to write `SKILL.md` by turn 20, so a deadline still leaves a candidate.
 
 ## Limits and failures
 
 The proof allows one active job and 96 model calls.
 Generation targets 35 turns. Independent review targets 20 turns.
 These turn targets guide the model. The gateway enforces the total call limit.
-OpenCode Go calls allow 8,192 output tokens. The gateway caps `max_tokens` and `max_completion_tokens`.
+OpenCode Go calls allow 32,768 output tokens, because GLM 5.3 reasoning counts as output. The gateway caps `max_tokens` and `max_completion_tokens`.
 Anthropic calls allow 8,192 output tokens, including a 2,048-token thinking budget.
 Google calls allow 4,096 output tokens.
 It limits each request to 512 KiB and each result to 1 MiB.
-The runner uses `skilld-harness@3.3.0` and returns its usage reports.
+The runner uses `skilld-harness@3.6.4` and returns its usage reports. That version returns failed output checks to the Agent for up to two repair turns.
 Reports sum generation, repair, and review attempts separately.
 If a token count is missing, the total stays unknown.
 Failed runs retain bounded tool traces and any earlier valid candidate.
@@ -73,6 +74,7 @@ The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the
 It blocks other destinations, hosted model tools, credential overrides, and model conversation reuse.
 For OpenCode Go, only chat completions pass. Every tool must have the `function` type.
 The gateway removes extra choices and service tier requests, because both raise the price.
+It forwards the `x-opencode-*` session headers, because OpenCode Go rejects a request without `x-opencode-session`.
 External documentation requests are blocked. Source files must carry the evidence for this proof.
 
 If generation fails, read `state.result.detail` and `state.result.generation` in the saved result.

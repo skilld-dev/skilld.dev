@@ -83,6 +83,10 @@ export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
     targetQuery: 'claude code agent skill',
     admissionBar: '390 searches a month. The head term "claude skills" is served by the homepage and /skills.',
   },
+  '/vs/skills-sh': {
+    targetQuery: 'skills.sh alternative',
+    admissionBar: 'Owner-approved exception, 2026-10-07: the competitor brand rule above would exclude it. No measured volume: the keyword provider holds no data for skills.sh queries, and Search Console shows five queries naming skills.sh at about one impression each over three months, none with "alternative". The homepage hero and Why band link it as the skills.sh alternative. Review at the 2026-11-11 gate: keep only if indexed with relevant query impressions.',
+  },
   '/vs/context7': {
     targetQuery: 'context7 vs skills',
     admissionBar: 'The human-written template that experiment C rolls out to concept pages. No measured volume; kept as the control.',

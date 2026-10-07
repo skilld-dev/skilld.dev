@@ -9,8 +9,7 @@ import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 // (SKILLD-1M, SKILLD-1N and the 2026-08-05 orgs family). These tests pin the
 // read-through SWR cache that stands in front of it: one D1 pass per owner
 // while the entry is fresh, stale entries served while exactly one refresh
-// recomputes in the background, and concurrent cold misses sharing a single
-// computation.
+// recomputes in the background.
 describe('org profile SWR cache', () => {
   const NOW_SEC = Math.floor(Date.now() / 1000)
   const owner = 'acme'
@@ -109,27 +108,6 @@ describe('org profile SWR cache', () => {
       const refreshed = cacheMap.get(cacheKey) as { v: Record<string, unknown>, t: number }
       expect(refreshed.t).toBeGreaterThan(staleT)
     })
-  })
-
-  it('shares one computation between concurrent requests on a cold miss', async () => {
-    const setItem = vi.fn(async () => {})
-    vi.stubGlobal('useStorage', () => ({
-      getItem: async () => null,
-      setItem,
-    }))
-
-    await handler(event())
-    const singleRunQueries = prepareCalls
-    const writesBeforeBurst = setItem.mock.calls.filter(([key]) => key === cacheKey).length
-
-    const beforeBurst = prepareCalls
-    const results = await Promise.all(Array.from({ length: 8 }, () => handler(event())))
-    const burstQueries = prepareCalls - beforeBurst
-
-    expect(new Set(results).size).toBe(1)
-    expect(burstQueries).toBeLessThanOrEqual(singleRunQueries)
-    const profileWrites = setItem.mock.calls.filter(([key]) => key === cacheKey).length
-    expect(profileWrites - writesBeforeBurst).toBe(1)
   })
 
   it('gives the ungh read a timeout and caches nothing when it fails', async () => {

@@ -203,8 +203,7 @@ describe('skillDetail command choice', () => {
     })
 
     expect(tabs!.findAll('.install-command')).toHaveLength(1)
-    expect(tabs!.get('.install-command').text()).toBe('https://skilld.dev/gh/antfu/skills/vite')
-    expect(tabs!.text()).toContain('Use this Skill:')
+    expect(tabs!.get('.install-command').text()).toBe('Use this Skill: https://skilld.dev/gh/antfu/skills/vite')
     const installTab = tabs!.findAll('button[aria-pressed]').find(button => button.text() === 'Install')
     expect(installTab, 'Install mode is missing').toBeTruthy()
     await installTab!.trigger('click')
@@ -213,10 +212,10 @@ describe('skillDetail command choice', () => {
     })
 
     expect(stacked!.findAll('.install-command').map(command => command.text())).toEqual([
-      'https://skilld.dev/gh/antfu/skills/vite',
+      'Use this Skill: https://skilld.dev/gh/antfu/skills/vite',
       'npx skilld install antfu/skills/vite',
     ])
-    expect(stacked!.findAll('button').some(button => button.text() === 'Copy prompt')).toBe(true)
+    expect(stacked!.get('button[aria-label="Copy Agent prompt"]')).toBeTruthy()
     expect(stacked!.get('button[aria-label="Copy install command"]')).toBeTruthy()
 
     wrapper.unmount()

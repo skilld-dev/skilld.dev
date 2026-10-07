@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  collectionInstallCmd,
+  curatorInstallCmd,
+  gitInstallCmd,
   skillInstallCmd,
   skillOutdatedCmd,
   skillPageUrl,
@@ -12,6 +15,14 @@ import {
 } from '../../shared/skill-commands'
 
 describe('skill commands', () => {
+  it.each([
+    [gitInstallCmd('antfu', 'skills'), 'npx skilld add antfu/skills --all'],
+    [curatorInstallCmd('harlan-zw'), 'npx skilld add @harlan-zw --all'],
+    [collectionInstallCmd('harlan-zw', 'stack'), 'npx skilld add @harlan-zw/stack --all'],
+  ])('makes bulk installation explicit: %s', (command, expected) => {
+    expect(command).toBe(expected)
+  })
+
   it.each([
     [skillRunCmd('nuxt', 'nuxt', 'seo'), 'npx skilld run nuxt/nuxt/seo'],
     [skillInstallCmd('nuxt', 'nuxt', 'seo'), 'npx skilld install nuxt/nuxt/seo'],

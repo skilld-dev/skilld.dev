@@ -64,37 +64,56 @@ export interface CachedOptions<T> {
   now?: () => number
 }
 
-/** The per-key dedup behind {@link singleFlight}. */
-const inflightComputes = new Map<string, Promise<unknown>>()
+/**
+ * How long one request's claim on refreshing a key stands. A Worker keeps a
+ * `waitUntil` task at most 30 seconds after its response, so a refresh that
+ * still runs past its claim was cut off.
+ */
+export const REFRESH_CLAIM_SECONDS = 30
+
+/** A request's claim on refreshing one stale key in this isolate. */
+interface RefreshClaim {
+  /** Epoch milliseconds. */
+  until: number
+}
+
+/** Refresh claims by cache key, for {@link claimRefresh}. */
+const refreshClaims = new Map<string, RefreshClaim>()
 
 /**
- * One in-flight computation per cache key, shared by {@link cached} and
- * {@link readThroughCache}.
+ * Claim the refresh of a stale `key` for this request. Answers null when
+ * another request in this isolate holds a claim that still stands; that
+ * request serves the stale value instead of computing again.
  *
  * A bare read-through cache turns every TTL expiry into a thundering herd:
- * after the entry dies, each concurrent request re-runs the whole compute
- * until the first write lands, and on these routes a compute is about six D1
- * queries plus a possible live GitHub render. The ops triage ledger
+ * after the entry goes stale, each concurrent request re-runs the whole
+ * compute until the first write lands, and on these routes a compute is about
+ * six D1 queries plus a possible live GitHub render. The ops triage ledger
  * attributes recurring D1 overload bursts (Sentry SKILLD-G/H/J/K/M/N/P/Q) to
- * exactly that shape, and Nitro's `defineCachedEventHandler` had the same
- * hole covered by `swr: true` + `staleMaxAge` before the detail route left it
- * (Sentry SKILLD-1V). This helper covers both helpers without the bare
- * `setItem` that made a KV 429 a 500: concurrent callers on one key share a
- * single computation, a single D1 pass, and a single KV write, which also
- * keeps the write under KV's one-write-per-second limit. The map is per
- * isolate, so the guarantee is per isolate; that is still the difference
- * between N computes and one.
+ * exactly that shape. One claim per key keeps a stale key to one compute and
+ * one KV write per isolate, which also keeps the write under KV's
+ * one-write-per-second limit.
+ *
+ * The claim is a finished value, never a promise. workerd ties a compute's
+ * I/O to the request that started it, and drops it when that request ends.
+ * A request that awaited a compute another request started would then wait
+ * forever, and so would every later request on that key in the isolate. So a
+ * compute stays with its own request: a cold or dead key computes in each
+ * request that reads it. A claim whose request ended lapses after
+ * {@link REFRESH_CLAIM_SECONDS}, and the next stale read refreshes.
  */
-function singleFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
-  const pending = inflightComputes.get(key)
-  if (pending)
-    return pending as Promise<T>
-  const promise = run()
-  inflightComputes.set(key, promise)
-  // Both callbacks return normally, so this derived promise never rejects
-  // and the original rejection still reaches every caller.
-  void promise.then(() => inflightComputes.delete(key), () => inflightComputes.delete(key))
-  return promise
+function claimRefresh(key: string, nowMs: number): RefreshClaim | null {
+  const held = refreshClaims.get(key)
+  if (held && held.until > nowMs)
+    return null
+  const claim = { until: nowMs + REFRESH_CLAIM_SECONDS * 1000 }
+  refreshClaims.set(key, claim)
+  return claim
+}
+
+function releaseRefresh(key: string, claim: RefreshClaim): void {
+  if (refreshClaims.get(key) === claim)
+    refreshClaims.delete(key)
 }
 
 /**
@@ -102,8 +121,9 @@ function singleFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
  *
  * - fresh (`age < ttlSeconds`): serve the stored value.
  * - stale (`age < ttlSeconds + staleSeconds`): serve the stored value and
- *   refresh in the background through `schedule`.
- * - dead or absent: recompute, awaited.
+ *   refresh in the background through `schedule`, unless another request in
+ *   this isolate holds the refresh claim.
+ * - dead or absent: recompute in this request, awaited.
  */
 export function cached<T>(options: CachedOptions<T>): Promise<T> {
   const { key, compute } = options
@@ -111,37 +131,41 @@ export function cached<T>(options: CachedOptions<T>): Promise<T> {
   const maxAgeSeconds = freshSeconds + (options.staleSeconds ?? 0)
   const nowSeconds = options.now ?? (() => Math.floor(Date.now() / 1000))
 
-  function computeOnce(): Promise<T> {
-    return singleFlight(key, async () => {
-      const value = await compute()
-      await writeCache(options.storage, key, { v: value, t: nowSeconds() } satisfies SwrEntry<T>, { ttl: maxAgeSeconds })
-      return value
-    })
+  async function computeAndStore(): Promise<T> {
+    const value = await compute()
+    await writeCache(options.storage, key, { v: value, t: nowSeconds() } satisfies SwrEntry<T>, { ttl: maxAgeSeconds })
+    return value
   }
 
   return (async () => {
     const entry = await readCache<SwrEntry<T>>(options.storage, key)
     if (isSwrEntry<T>(entry)) {
-      const age = nowSeconds() - entry.t
+      const now = nowSeconds()
+      const age = now - entry.t
       if (age < freshSeconds)
         return entry.v
       if (age < maxAgeSeconds) {
-        const refresh = computeOnce().catch((error: unknown) => {
-          emitOperationalEvent(createWideEvent({
-            'operation': 'swr-refresh',
-            'outcome': 'failed',
-            'cache.key': key,
-            'reason': error instanceof Error ? error.message : String(error),
-          }))
-        })
-        if (options.schedule)
-          options.schedule(refresh)
-        else
-          void refresh
+        const claim = claimRefresh(key, now * 1000)
+        if (claim) {
+          const refresh = computeAndStore()
+            .then(() => {}, (error: unknown) => {
+              emitOperationalEvent(createWideEvent({
+                'operation': 'swr-refresh',
+                'outcome': 'failed',
+                'cache.key': key,
+                'reason': error instanceof Error ? error.message : String(error),
+              }))
+            })
+            .finally(() => releaseRefresh(key, claim))
+          if (options.schedule)
+            options.schedule(refresh)
+          else
+            void refresh
+        }
         return entry.v
       }
     }
-    return computeOnce()
+    return computeAndStore()
   })()
 }
 
@@ -222,10 +246,10 @@ export interface ReadThroughOptions<T = unknown> {
   /** Seconds a stored value stays fresh and is served without a recompute. */
   ttl: number
   /**
-   * Extra seconds a stale value stays readable when its recompute fails.
-   * Defaults to `ttl`. The KV entry is stored with `ttl + staleTtl`, so a
-   * value that leaves the stale window is physically gone and cannot be
-   * served by accident.
+   * Extra seconds a stale value stays readable when its recompute fails, or
+   * while another request recomputes it. Defaults to `ttl`. The KV entry is
+   * stored with `ttl + staleTtl`, so a value that leaves the stale window is
+   * physically gone and cannot be served by accident.
    */
   staleTtl?: number
   /**
@@ -255,7 +279,8 @@ function resolveWindows<T>(options: ReadThroughOptions<T>, value: T): ReadThroug
 /**
  * Read-through with a stale fallback: serve the cached value while it is
  * fresh, recompute when it is stale or missing, and serve the stale value
- * when that recompute fails.
+ * when that recompute fails. A stale read that meets another request's
+ * refresh claim serves the stale value without a recompute.
  *
  * `readCache` already treats a failed read as a miss (Sentry SKILLD-S). The
  * remaining gap is the recompute behind the miss: when the cached entry
@@ -297,6 +322,10 @@ export async function readThroughCache<T>(
     if (ageSeconds < windows.ttl)
       return entry.value
     if (ageSeconds < windows.ttl + windows.staleTtl) {
+      const claim = claimRefresh(key, now)
+      // Another request in this isolate is recomputing this key.
+      if (!claim)
+        return entry.value
       try {
         return await storeComputed(storage, key, compute, options)
       }
@@ -309,6 +338,9 @@ export async function readThroughCache<T>(
           'reason': error instanceof Error ? error.message : String(error),
         }))
         return entry.value
+      }
+      finally {
+        releaseRefresh(key, claim)
       }
     }
   }
@@ -326,10 +358,8 @@ async function storeComputed<T>(
   compute: () => Promise<T>,
   options: ReadThroughOptions<T>,
 ): Promise<T> {
-  return singleFlight(key, async () => {
-    const value = await compute()
-    const windows = resolveWindows(options, value)
-    await writeCache(storage, key, { storedAt: Date.now(), value } satisfies CacheEnvelope<T>, { ttl: windows.ttl + windows.staleTtl })
-    return value
-  })
+  const value = await compute()
+  const windows = resolveWindows(options, value)
+  await writeCache(storage, key, { storedAt: Date.now(), value } satisfies CacheEnvelope<T>, { ttl: windows.ttl + windows.staleTtl })
+  return value
 }

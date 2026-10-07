@@ -5,7 +5,8 @@ describe('freeze audit', () => {
   it('indexes an admitted page and noindexes an audited page with no admission', () => {
     expect(pageRobots('/agents/codex')).toBe('index,follow')
     expect(pageRobots('/agents/windsurf')).toBe('noindex,follow')
-    expect(pageRobots('/vs/skills-sh')).toBe('noindex,follow')
+    expect(pageRobots('/verify')).toBe('noindex,follow')
+    expect(pageRobots('/vs/skills-sh')).toBe('index,follow')
   })
 
   it('leaves pages outside the audit alone', () => {

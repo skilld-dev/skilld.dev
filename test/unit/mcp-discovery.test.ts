@@ -249,8 +249,8 @@ describe('submit_repository', () => {
 
 describe('install_command', () => {
   it.each([
-    ['gh:nuxt/nuxt', 'npx skilld add nuxt/nuxt'],
-    ['nuxt/nuxt', 'npx skilld add nuxt/nuxt'],
+    ['gh:nuxt/nuxt', 'npx skilld add nuxt/nuxt --all'],
+    ['nuxt/nuxt', 'npx skilld add nuxt/nuxt --all'],
     ['anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
     ['skilld:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
     ['gh:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
@@ -292,7 +292,7 @@ describe('install_command', () => {
 
 describe('parseInstallRef', () => {
   it('round-trips every ref kind through installCommandFor', () => {
-    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add a/b')
+    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add a/b --all')
     expect(parseInstallRef('a/b/c/d')).toBeNull()
     expect(parseInstallRef('@')).toBeNull()
     expect(parseInstallRef('@harlan-zw')).toBeNull()
