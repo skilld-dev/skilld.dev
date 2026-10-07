@@ -472,5 +472,12 @@ async function readBoundedJson(response: Response, maximumBytes: number): Promis
     bytes.set(chunk, offset)
     offset += chunk.byteLength
   }
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown
+  const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  // A JSON.parse error quotes the start of the body, which holds the token.
+  try {
+    return JSON.parse(text) as unknown
+  }
+  catch {
+    throw new Error('GitHub App returned invalid JSON')
+  }
 }
