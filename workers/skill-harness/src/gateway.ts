@@ -20,7 +20,8 @@ function openCodeRoutingHeaders(request: Request): Record<string, string> {
   }
   return headers
 }
-const OPENCODE_GO_MAX_OUTPUT_TOKENS = 8192
+// GLM 5.3 reasoning counts as output. A proof step that hit 8,192 ended its turn with finish reason length.
+const OPENCODE_GO_MAX_OUTPUT_TOKENS = 32768
 // Web search, hosted plugins, live search, and remote MCP run on the provider at a separate cost.
 const OPENAI_COMPATIBLE_HOSTED_FIELDS = ['web_search_options', 'plugins', 'search_parameters', 'mcp_servers']
 
