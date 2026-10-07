@@ -73,6 +73,7 @@ The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the
 It blocks other destinations, hosted model tools, credential overrides, and model conversation reuse.
 For OpenCode Go, only chat completions pass. Every tool must have the `function` type.
 The gateway removes extra choices and service tier requests, because both raise the price.
+It forwards the `x-opencode-*` session headers, because OpenCode Go rejects a request without `x-opencode-session`.
 External documentation requests are blocked. Source files must carry the evidence for this proof.
 
 If generation fails, read `state.result.detail` and `state.result.generation` in the saved result.
