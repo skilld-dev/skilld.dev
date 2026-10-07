@@ -386,6 +386,9 @@ export default defineNuxtConfig({
         // .ico is a fixed multi-size bitmap, so it declares what it contains.
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg', sizes: 'any' },
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico', sizes: '16x16 32x32 48x48' },
+        // Google's favicon service, which Claude uses for connector icons, prefers a
+        // large icon. Without one it kept serving a retired mark for skilld.dev.
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '512x512' },
       ],
       style: [
         // A browser orders cascade layers by where each name first appears.
