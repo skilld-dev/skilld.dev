@@ -183,6 +183,40 @@ describe('the GitHub credential public Artifact builds read with', () => {
   })
 })
 
+// An installation token can stop working before the expiry GitHub gave it.
+// A 401 names the token, not the Repository, so one new token fixes it.
+describe('a build read GitHub answered 401 for the cached installation token', () => {
+  it('mints one new token and repeats the read with it, not with a fallback token', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, rejects: ['ghs_installation_1'] })
+    const reports: GithubCredentialReport[] = []
+    const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
+
+    const result = await source.resolve(request)
+
+    expect(github.mints).toHaveLength(2)
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1', 'Bearer ghs_installation_2'])
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_NOT_FOUND' })
+    expect(reports).toEqual([])
+  })
+
+  it('reads with the fallback token, and reports it, when GitHub rejects the new token too', async () => {
+    const keys = await appKeys()
+    const github = fakeGithub({ expiresAt: NOW + 3600, rejects: ['ghs_installation_1', 'ghs_installation_2'] })
+    const reports: GithubCredentialReport[] = []
+    const source = createArtifactGithubSource(appEnv(keys.pem), runtime(github, { report: event => reports.push(event) }))
+
+    await source.resolve(request)
+
+    expect(github.readAuthorizations).toEqual(['Bearer ghs_installation_1', 'Bearer ghs_installation_2', 'Bearer runs'])
+    expect(reports).toEqual([{
+      outcome: 'app-token-rejected',
+      reason: 'GitHub rejected a new read App installation token for skilld-dev/skills',
+      fallback: 'ARTIFACT_GITHUB_TOKEN',
+    }])
+  })
+})
+
 interface FakeGithub {
   fetch: typeof fetch
   mints: Array<{ url: string, authorization: string, body: unknown }>
@@ -195,8 +229,8 @@ function appDenied(): Response {
   return Response.json({ message: 'Resource not accessible by integration' }, { status: 403, headers: { 'x-ratelimit-remaining': '4321' } })
 }
 
-/** Answers every read 404, and every read with an installation token `answersApp` when set. */
-function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersApp?: () => Response }): FakeGithub {
+/** Answers every read 404, every read with an installation token `answersApp` when set, and 401 to a token in `rejects`. */
+function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersApp?: () => Response, rejects?: string[] }): FakeGithub {
   const mints: FakeGithub['mints'] = []
   const readAuthorizations: FakeGithub['readAuthorizations'] = []
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -210,6 +244,8 @@ function fakeGithub(options: { expiresAt: number, mintStatus?: number, answersAp
     }
     const authorization = headers.get('authorization')
     readAuthorizations.push(authorization)
+    if (authorization && options.rejects?.includes(authorization.slice('Bearer '.length)))
+      return Response.json({ message: 'Bad credentials' }, { status: 401 })
     if (options.answersApp && authorization?.startsWith('Bearer ghs_'))
       return options.answersApp()
     return Response.json({ message: 'Not Found' }, { status: 404 })

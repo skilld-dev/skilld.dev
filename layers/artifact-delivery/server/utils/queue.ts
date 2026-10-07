@@ -174,7 +174,8 @@ export function createArtifactGithubSource(
   const credential = createGithubCredential(parseArtifactGithubCredentialConfig(env), runtime)
   return withGithubCredential(
     credential,
-    token => createPublicGithubSourceClient({ fetch: runtime.fetch, token, onReadFailure: reportGithubReadFailure, cache }),
+    runtime.fetch,
+    (token, fetch) => createPublicGithubSourceClient({ fetch, token, onReadFailure: reportGithubReadFailure, cache }),
     runtime.report,
   )
 }

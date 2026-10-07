@@ -21,6 +21,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+const readRepo = (bindings: ReturnType<typeof resolveGithubBindings>) => getRepo('neondatabase', 'agent-skills', bindings)
+const readSummary = (bindings: ReturnType<typeof resolveGithubBindings>) => getRepoSummary('neondatabase', 'agent-skills', bindings)
+
 describe('registry GitHub reads with the read App', () => {
   it('reads with the installation token, not GITHUB_TOKEN', async () => {
     const github = await stubGithub({})
@@ -30,7 +33,7 @@ describe('registry GitHub reads with the read App', () => {
 
     expect(repo.status).toBe(200)
     expect(github.mints).toBe(1)
-    expect(github.reads).toEqual(['Bearer ghs_app'])
+    expect(github.reads).toEqual(['Bearer ghs_app_1'])
   })
 
   it('repeats a read GitHub denied the App with GITHUB_TOKEN, and reports it', async () => {
@@ -38,10 +41,10 @@ describe('registry GitHub reads with the read App', () => {
     const reports: GithubCredentialReport[] = []
     const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime(reports))
 
-    const repo = await getRepo('neondatabase', 'agent-skills', bindings)
+    const repo = await readRepo(bindings)
 
     expect(repo.status).toBe(200)
-    expect(github.reads).toEqual(['Bearer ghs_app', 'Bearer site'])
+    expect(github.reads).toEqual(['Bearer ghs_app_1', 'Bearer site'])
     expect(reports).toEqual([{
       outcome: 'app-denied',
       reason: 'GitHub denied the read App for /repos/neondatabase/agent-skills',
@@ -54,9 +57,9 @@ describe('registry GitHub reads with the read App', () => {
     const reports: GithubCredentialReport[] = []
     const bindings = resolveGithubBindings(await appEnv({}), runtime(reports))
 
-    const repo = await getRepo('neondatabase', 'agent-skills', bindings)
+    const repo = await readRepo(bindings)
 
-    expect(github.reads).toEqual(['Bearer ghs_app'])
+    expect(github.reads).toEqual(['Bearer ghs_app_1'])
     expect(repo).toMatchObject({ status: 403, denied: true, data: null })
     // The sync pauses every repository for a spent quota. A denial names one.
     expect(githubRateLimited(repo)).toBe(false)
@@ -67,24 +70,41 @@ describe('registry GitHub reads with the read App', () => {
     }])
   })
 
-  it('keeps a secondary rate limit a rate limit, with no second read', async () => {
-    const github = await stubGithub({ secondaryLimit: true })
+  // GITHUB_TOKEN is a personal token. A limit on the App is no denial, so it
+  // never reaches that token, on REST or on GraphQL.
+  it.each([
+    ['a secondary limit', 'REST', readRepo, 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.'],
+    ['a secondary limit', 'GraphQL', readSummary, 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.'],
+    ['the abuse detection limit', 'REST', readRepo, 'You have triggered an abuse detection mechanism. Please wait a few minutes before you try again.'],
+    ['the abuse detection limit', 'GraphQL', readSummary, 'You have triggered an abuse detection mechanism. Please wait a few minutes before you try again.'],
+  ] as const)('keeps %s on %s a rate limit, with no second read', async (_, __, read, message) => {
+    const github = await stubGithub({ limitMessage: message })
     const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
 
-    const repo = await getRepo('nuxt', 'ui', bindings)
+    const outcome = await read(bindings)
 
-    expect(github.reads).toEqual(['Bearer ghs_app'])
-    expect(githubRateLimited(repo)).toBe(true)
+    expect(github.reads).toEqual(['Bearer ghs_app_1'])
+    expect(githubRateLimited(outcome)).toBe(true)
+  })
+
+  it('never repeats a GraphQL RATE_LIMITED answer with GITHUB_TOKEN', async () => {
+    const github = await stubGithub({ graphqlRateLimited: true })
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
+
+    const summary = await readSummary(bindings)
+
+    expect(github.reads).toEqual(['Bearer ghs_app_1'])
+    expect(summary.data).toBeNull()
   })
 
   it('repeats a GraphQL summary GitHub answered FORBIDDEN with GITHUB_TOKEN', async () => {
     const github = await stubGithub({ deniesApp: true })
     const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
 
-    const summary = await getRepoSummary('neondatabase', 'agent-skills', bindings)
+    const summary = await readSummary(bindings)
 
     expect(summary.status).toBe(200)
-    expect(github.reads).toEqual(['Bearer ghs_app', 'Bearer site'])
+    expect(github.reads).toEqual(['Bearer ghs_app_1', 'Bearer site'])
   })
 
   it('leaves a FORBIDDEN alias to the per-repository sync and keeps the rest of the batch', async () => {
@@ -97,7 +117,17 @@ describe('registry GitHub reads with the read App', () => {
     ], bindings)
 
     expect(batch).toMatchObject({ _tag: 'read', summaries: [{ meta: { full_name: 'nuxt/ui' } }, null] })
-    expect(github.reads).toEqual(['Bearer ghs_app'])
+    expect(github.reads).toEqual(['Bearer ghs_app_1'])
+  })
+
+  it('never repeats a whole summary batch GitHub answered 403 with GITHUB_TOKEN', async () => {
+    const github = await stubGithub({ graphqlDeniesApp: true })
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
+
+    const batch = await getRepoSummariesBatch([{ owner: 'nuxt', repo: 'ui' }], bindings)
+
+    expect(batch).toMatchObject({ _tag: 'failed', status: 403 })
+    expect(github.reads).toEqual(['Bearer ghs_app_1'])
   })
 
   it('reads with GITHUB_TOKEN when no App secret is set, as in local development', async () => {
@@ -108,6 +138,97 @@ describe('registry GitHub reads with the read App', () => {
 
     expect(github.mints).toBe(0)
     expect(github.reads).toEqual(['Bearer local'])
+  })
+})
+
+// GITHUB_TOKEN's quota belongs to its owner. A denied Repository that it
+// cannot read either is a fact about that Repository, so the sync records
+// one failure and keeps going on the App's quota.
+describe('a read GITHUB_TOKEN repeats for a Repository that denies the App', () => {
+  it.each([
+    ['a spent quota', 'REST', readRepo],
+    ['a spent quota', 'GraphQL', readSummary],
+    ['a rejected token', 'REST', readRepo],
+    ['a rejected token', 'GraphQL', readSummary],
+  ] as const)('answers %s on %s as denied, not rate limited or unauthorized', async (answer, _, read) => {
+    await stubGithub({ deniesApp: true, fallbackAnswers: answer === 'a spent quota' ? 'rate-limited' : 'unauthorized' })
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
+
+    const outcome = await read(bindings)
+
+    expect(outcome).toMatchObject({ status: 403, denied: true, data: null })
+    expect(githubRateLimited(outcome)).toBe(false)
+  })
+
+  it.each([
+    ['REST', readRepo],
+    ['GraphQL', readSummary],
+  ] as const)('reports the App quota, not GITHUB_TOKEN\'s, on %s', async (_, read) => {
+    await stubGithub({ deniesApp: true, fallbackAnswers: 'low-quota' })
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
+
+    const outcome = await read(bindings)
+
+    expect(outcome.status).toBe(200)
+    expect(outcome.rateLimit?.remaining).toBe(4990)
+  })
+})
+
+// An installation token can stop working before the expiry GitHub gave it:
+// the App key rotated, or the token was revoked. One new token fixes every
+// later read, so GITHUB_TOKEN is not spent until that token fails too.
+describe('a read GitHub answered 401 for the cached installation token', () => {
+  it.each([
+    ['REST', readRepo],
+    ['GraphQL', readSummary],
+  ] as const)('mints one new token and repeats the %s read with it', async (_, read) => {
+    const github = await stubGithub({ rejects: ['ghs_app_1'] })
+    const reports: GithubCredentialReport[] = []
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime(reports))
+
+    const outcome = await read(bindings)
+
+    expect(outcome.status).toBe(200)
+    expect(github.mints).toBe(2)
+    expect(github.reads).toEqual(['Bearer ghs_app_1', 'Bearer ghs_app_2'])
+    expect(reports).toEqual([])
+  })
+
+  it('mints once for reads GitHub rejected together', async () => {
+    const github = await stubGithub({ rejects: ['ghs_app_1'] })
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
+    await getRepo('nuxt', 'ui', bindings)
+    github.reads.length = 0
+
+    await Promise.all([getRepo('nuxt', 'ui', bindings), getRepo('nuxt', 'nuxt', bindings), getRepo('nuxt', 'image', bindings)])
+
+    expect(github.mints).toBe(2)
+    expect(github.reads.filter(read => read === 'Bearer site')).toEqual([])
+  })
+
+  it('reads with GITHUB_TOKEN, and reports it, when GitHub rejects the new token too', async () => {
+    const github = await stubGithub({ rejects: ['ghs_app_1', 'ghs_app_2'] })
+    const reports: GithubCredentialReport[] = []
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime(reports))
+
+    const repo = await getRepo('nuxt', 'ui', bindings)
+
+    expect(repo.status).toBe(200)
+    expect(github.reads).toEqual(['Bearer ghs_app_1', 'Bearer ghs_app_2', 'Bearer site'])
+    expect(reports).toEqual([{
+      outcome: 'app-token-rejected',
+      reason: 'GitHub rejected a new read App installation token for /repos/nuxt/ui',
+      fallback: 'GITHUB_TOKEN',
+    }])
+  })
+
+  it('answers 401 when GitHub rejects the new token and no GITHUB_TOKEN is set', async () => {
+    await stubGithub({ rejects: ['ghs_app_1', 'ghs_app_2'] })
+    const bindings = resolveGithubBindings(await appEnv({}), runtime())
+
+    const repo = await getRepo('nuxt', 'ui', bindings)
+
+    expect(repo).toMatchObject({ status: 401, data: null })
   })
 })
 
@@ -131,25 +252,56 @@ async function appEnv(tokens: { GITHUB_TOKEN?: string }) {
   }
 }
 
+interface StubOptions {
+  /** `neondatabase` denies the App on every read, as it did on 2026-10-06. */
+  deniesApp?: boolean
+  /** Every read as the App answers 403 with this rate limit message. */
+  limitMessage?: string
+  /** Every GraphQL read as the App answers 200 with a RATE_LIMITED error. */
+  graphqlRateLimited?: boolean
+  /** Every GraphQL read as the App answers 403 with quota left. */
+  graphqlDeniesApp?: boolean
+  /** How GitHub answers the personal token. It reads everything by default. */
+  fallbackAnswers?: 'rate-limited' | 'unauthorized' | 'low-quota'
+  /** Installation tokens GitHub answers 401, as for a revoked token. */
+  rejects?: string[]
+}
+
 /**
- * GitHub as the App and a personal token see it. `neondatabase` denies the
- * App on every read, as it did on 2026-10-06, and answers a personal token.
+ * GitHub as the App and a personal token see it. Each mint answers a new
+ * installation token: `ghs_app_1`, then `ghs_app_2`.
  */
-async function stubGithub(options: { deniesApp?: boolean, secondaryLimit?: boolean }) {
+async function stubGithub(options: StubOptions) {
   const state = { mints: 0, reads: [] as Array<string | null> }
+  const appQuota = { 'x-ratelimit-remaining': '4990', 'x-ratelimit-limit': '5000' }
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const headers = new Headers(init?.headers)
     if (url.endsWith(`/app/installations/${INSTALLATION_ID}/access_tokens`)) {
       state.mints++
-      return Response.json({ token: 'ghs_app', expires_at: new Date((NOW + 3600) * 1000).toISOString() }, { status: 201 })
+      return Response.json({ token: `ghs_app_${state.mints}`, expires_at: new Date((NOW + 3600) * 1000).toISOString() }, { status: 201 })
     }
     const authorization = headers.get('authorization')
     state.reads.push(authorization)
-    const asApp = authorization === 'Bearer ghs_app'
-    if (options.secondaryLimit)
-      return Response.json({ message: 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.' }, { status: 403 })
-    if (url.endsWith('/graphql')) {
+    const asApp = authorization?.startsWith('Bearer ghs_app_') === true
+    const graphql = url.endsWith('/graphql')
+    if (asApp && options.rejects?.includes(authorization!.slice('Bearer '.length)))
+      return Response.json({ message: 'Bad credentials' }, { status: 401 })
+    if (asApp && options.limitMessage)
+      return Response.json({ message: options.limitMessage }, { status: 403, headers: appQuota })
+    if (asApp && graphql && options.graphqlDeniesApp)
+      return Response.json({ message: 'Resource not accessible by integration' }, { status: 403, headers: appQuota })
+    if (asApp && graphql && options.graphqlRateLimited)
+      return Response.json({ data: null, errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded for installation.' }] }, { headers: appQuota })
+    if (!asApp && options.fallbackAnswers === 'unauthorized')
+      return Response.json({ message: 'Bad credentials' }, { status: 401 })
+    if (!asApp && options.fallbackAnswers === 'rate-limited') {
+      return graphql
+        ? Response.json({ data: null, errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded for user ID 5326365.' }] }, { headers: { 'x-ratelimit-remaining': '0' } })
+        : Response.json({ message: 'API rate limit exceeded for user ID 5326365.' }, { status: 403, headers: { 'x-ratelimit-remaining': '0' } })
+    }
+    const quota = asApp ? appQuota : { 'x-ratelimit-remaining': options.fallbackAnswers === 'low-quota' ? '12' : '4000' }
+    if (graphql) {
       const body = JSON.parse(String(init?.body)) as { variables: Record<string, string> }
       const owners = Object.entries(body.variables).filter(([key]) => key === 'owner' || /^o\d+$/.test(key))
       const denied = options.deniesApp && asApp && owners.some(([, owner]) => owner === 'neondatabase')
@@ -170,8 +322,8 @@ async function stubGithub(options: { deniesApp?: boolean, secondaryLimit?: boole
       })
       if ('owner' in body.variables) {
         return denied
-          ? Response.json({ data: { repository: null }, errors: [{ type: 'FORBIDDEN', message: 'Resource not accessible by integration' }] })
-          : Response.json({ data: { repository: repository(body.variables.owner!, body.variables.repo!) } })
+          ? Response.json({ data: { repository: null }, errors: [{ type: 'FORBIDDEN', message: 'Resource not accessible by integration' }] }, { headers: quota })
+          : Response.json({ data: { repository: repository(body.variables.owner!, body.variables.repo!) } }, { headers: quota })
       }
       const data: Record<string, unknown> = {}
       const errors: Array<{ type: string, path: string[] }> = []
@@ -186,11 +338,11 @@ async function stubGithub(options: { deniesApp?: boolean, secondaryLimit?: boole
           data[alias] = repository(owner, name)
         }
       }
-      return Response.json(errors.length ? { data, errors } : { data })
+      return Response.json(errors.length ? { data, errors } : { data }, { headers: quota })
     }
     if (options.deniesApp && asApp && url.includes('/neondatabase/'))
-      return Response.json({ message: 'Resource not accessible by integration' }, { status: 403, headers: { 'x-ratelimit-remaining': '4990' } })
-    return Response.json({ name: 'repo', full_name: 'owner/repo', owner: { login: 'owner' }, default_branch: 'main' }, { status: 200 })
+      return Response.json({ message: 'Resource not accessible by integration' }, { status: 403, headers: quota })
+    return Response.json({ name: 'repo', full_name: 'owner/repo', owner: { login: 'owner' }, default_branch: 'main' }, { status: 200, headers: quota })
   }))
   return state
 }

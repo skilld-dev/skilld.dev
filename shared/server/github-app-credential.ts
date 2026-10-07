@@ -56,7 +56,7 @@ export interface GithubCredentialEnv {
  * secrets and paths, never a token value.
  */
 export interface GithubCredentialReport {
-  outcome: 'app-misconfigured' | 'app-token-unavailable' | 'app-denied'
+  outcome: 'app-misconfigured' | 'app-token-unavailable' | 'app-denied' | 'app-token-rejected'
   reason: string
   fallback: FallbackToken['name'] | 'anonymous' | 'none'
 }
@@ -108,6 +108,12 @@ export interface GithubReadCredential {
 
 export interface GithubCredential {
   current: () => Promise<GithubReadCredential>
+  /**
+   * The credential after GitHub answered 401 to `rejected`. The cached
+   * installation token is dropped and a new one minted, once for every read
+   * that held it.
+   */
+  renew: (rejected: GithubReadCredential) => Promise<GithubReadCredential>
   /** The token for a read GitHub denied the App, or null. */
   fallback: FallbackToken | null
 }
@@ -152,61 +158,138 @@ export function createGithubCredential(
   runtime: GithubCredentialRuntime,
 ): GithubCredential {
   if (config._tag === 'anonymous')
-    return { current: async () => ({ token: undefined, isApp: false }), fallback: null }
+    return staticGithubCredential(undefined)
   if (config._tag === 'token')
-    return { current: async () => ({ token: config.token.token, isApp: false }), fallback: null }
+    return staticGithubCredential(config.token.token)
   const fallbackName = config.fallback?.name ?? 'anonymous'
   const fallback = { token: config.fallback?.token, isApp: false }
   if (config._tag === 'app-misconfigured') {
-    return {
-      current: async () => {
-        runtime.report({ outcome: 'app-misconfigured', reason: config.reason, fallback: fallbackName })
-        return fallback
-      },
-      fallback: null,
+    const current = async (): Promise<GithubReadCredential> => {
+      runtime.report({ outcome: 'app-misconfigured', reason: config.reason, fallback: fallbackName })
+      return fallback
     }
+    return { current, renew: current, fallback: null }
   }
   const app = config.app
   const key = `${app.appId}:${app.installationId}`
+  const current = async (): Promise<GithubReadCredential> => {
+    const cached = runtime.tokenCache.tokens.get(key)
+    if (cached && cached.expiresAt - INSTALLATION_TOKEN_RENEW_SECONDS > runtime.now())
+      return { token: cached.token, isApp: true }
+    let pending = runtime.tokenCache.pending.get(key)
+    if (!pending) {
+      pending = mintInstallationToken(app, runtime).finally(() => runtime.tokenCache.pending.delete(key))
+      runtime.tokenCache.pending.set(key, pending)
+    }
+    const minted = await pending
+    if ('token' in minted) {
+      runtime.tokenCache.tokens.set(key, minted)
+      return { token: minted.token, isApp: true }
+    }
+    runtime.report({ outcome: 'app-token-unavailable', reason: minted.reason, fallback: fallbackName })
+    return fallback
+  }
   return {
-    current: async () => {
-      const cached = runtime.tokenCache.tokens.get(key)
-      if (cached && cached.expiresAt - INSTALLATION_TOKEN_RENEW_SECONDS > runtime.now())
-        return { token: cached.token, isApp: true }
-      let pending = runtime.tokenCache.pending.get(key)
-      if (!pending) {
-        pending = mintInstallationToken(app, runtime).finally(() => runtime.tokenCache.pending.delete(key))
-        runtime.tokenCache.pending.set(key, pending)
-      }
-      const minted = await pending
-      if ('token' in minted) {
-        runtime.tokenCache.tokens.set(key, minted)
-        return { token: minted.token, isApp: true }
-      }
-      runtime.report({ outcome: 'app-token-unavailable', reason: minted.reason, fallback: fallbackName })
-      return fallback
+    current,
+    renew: async (rejected) => {
+      // Another read that held the same token may have renewed it already.
+      if (runtime.tokenCache.tokens.get(key)?.token === rejected.token)
+        runtime.tokenCache.tokens.delete(key)
+      return await current()
     },
     fallback: config.fallback,
   }
 }
 
+/** A credential of one token, or anonymous reads, with no App and no fallback. */
+export function staticGithubCredential(token: string | undefined): GithubCredential {
+  const current = async (): Promise<GithubReadCredential> => ({ token, isApp: false })
+  return { current, renew: current, fallback: null }
+}
+
+/** The words GitHub uses for a primary limit, a secondary limit, and the older abuse limit. */
+export const GITHUB_RATE_LIMIT_MESSAGE = /\brate limit\b|\babuse detection\b/i
+
 /**
- * Whether GitHub refused a read because it denies the App, as opposed to a
- * spent quota. Organizations that restrict Apps answer 403 with quota left,
- * and no rate limit message. `neondatabase` did on 2026-10-06.
- *
- * It reads the body of a 403, so pass a clone or a response whose body is
- * not needed.
+ * Why GitHub refused a read made as the App: `unauthorized` names the token,
+ * and `denied` names the Repository.
  */
-export async function githubDeniedApp(response: Response): Promise<boolean> {
+export type GithubAppRefusal = 'unauthorized' | 'denied'
+
+/**
+ * How GitHub refused an HTTP read made as the App, or null when it did not.
+ *
+ * A 403 with quota left and no rate limit message is an organization that
+ * denies the App, as `neondatabase` did on 2026-10-06. A spent quota is no
+ * refusal: the read stands as rate limited.
+ *
+ * It reads the body of a 403, so pass a response whose body is not needed.
+ */
+export async function githubAppRefusal(response: Response): Promise<GithubAppRefusal | null> {
+  if (response.status === 401)
+    return 'unauthorized'
   if (response.status !== 403)
-    return false
+    return null
   if (response.headers.get('x-ratelimit-remaining') === '0' || response.headers.get('retry-after'))
-    return false
+    return null
   // A 403 body that will not read names no rate limit either, so it counts
   // as a denial. The status already says the read failed.
   const text = await response.text().catch(() => '')
-  return !/rate limit/i.test(text)
+  return GITHUB_RATE_LIMIT_MESSAGE.test(text) ? null : 'denied'
+}
+
+/** One read through a {@link GithubCredential}, settled. */
+export type GithubCredentialRead<A>
+  = | { _tag: 'read', answer: A }
+    /** GitHub refused the App, and the fallback token made the read again. */
+    | { _tag: 'fallback', answer: A, refused: A, refusal: GithubAppRefusal }
+    /** GitHub refused the App, and no fallback token may make the read. */
+    | { _tag: 'refused', answer: A, refusal: GithubAppRefusal }
+
+/**
+ * Make one read as the read App, and settle a refusal.
+ *
+ * A 401 drops the installation token and repeats the read once with a new
+ * one, so a revoked token does not move every read to the fallback. Only a
+ * denial, or a new token GitHub rejects too, reaches the fallback, and each
+ * of those is reported.
+ */
+export async function readWithGithubCredential<A>(
+  credential: GithubCredential,
+  read: {
+    /** The Repository or API path, for the report. Never a token or a query string. */
+    label: string
+    send: (token: string | undefined) => Promise<A>
+    /** How GitHub refused a read made as the App, or null when it did not. */
+    refusal: (answer: A) => Promise<GithubAppRefusal | null>
+    report: (event: GithubCredentialReport) => void
+    /** False for a read of many Repositories: one denial there names none of them. */
+    fallbackOnDenial: boolean
+  },
+): Promise<GithubCredentialRead<A>> {
+  let current = await credential.current()
+  let answer = await read.send(current.token)
+  let refusal = current.isApp ? await read.refusal(answer) : null
+  if (refusal === 'unauthorized') {
+    current = await credential.renew(current)
+    answer = await read.send(current.token)
+    refusal = current.isApp ? await read.refusal(answer) : null
+  }
+  if (refusal === null)
+    return { _tag: 'read', answer }
+  if (refusal === 'denied' && !read.fallbackOnDenial)
+    return { _tag: 'refused', answer, refusal }
+  const fallback = credential.fallback
+  read.report({
+    outcome: refusal === 'denied' ? 'app-denied' : 'app-token-rejected',
+    reason: refusal === 'denied'
+      ? `GitHub denied the read App for ${read.label}`
+      : `GitHub rejected a new read App installation token for ${read.label}`,
+    fallback: fallback?.name ?? 'none',
+  })
+  if (!fallback)
+    return { _tag: 'refused', answer, refusal }
+  return { _tag: 'fallback', answer: await read.send(fallback.token), refused: answer, refusal }
 }
 
 const installationTokenSchema = z.object({
