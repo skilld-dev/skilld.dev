@@ -72,9 +72,9 @@ function sourceLabel(url: string): string {
       </div>
       <nav class="vs-page__index mt-8" aria-label="On this page">
         <ol class="list-none p-0">
-          <li v-for="(reason, index) in reasons" :key="reason.id">
+          <li v-for="reason in reasons" :key="reason.id">
             <a :href="`#${reason.id}`">
-              <span class="vs-page__index-num">{{ String(index + 1).padStart(2, '0') }}</span>
+              <UIcon :name="reason.icon" class="size-3.5 shrink-0 text-muted" aria-hidden="true" />
               {{ reason.title }}
             </a>
           </li>
@@ -92,7 +92,10 @@ function sourceLabel(url: string): string {
         :aria-labelledby="`${reason.id}-heading`"
       >
         <div class="vs-row__words">
-          <p class="data-label">
+          <p class="vs-row__label data-label">
+            <span class="vs-row__icon" aria-hidden="true">
+              <UIcon :name="reason.icon" class="size-4" />
+            </span>
             {{ String(index + 1).padStart(2, '0') }} / {{ String(reasons.length).padStart(2, '0') }}
           </p>
           <h2 :id="`${reason.id}-heading`" class="vs-row__title text-highlighted text-balance">
@@ -260,10 +263,6 @@ function sourceLabel(url: string): string {
   border-color: var(--ui-border-accented);
 }
 
-.vs-page__index-num {
-  color: var(--ui-text-dimmed);
-}
-
 .vs-row {
   display: grid;
   /* minmax, so a nowrap line inside a picture cannot widen the column past the screen. */
@@ -290,6 +289,24 @@ function sourceLabel(url: string): string {
   .vs-row[data-flip] .vs-row__words {
     order: 2;
   }
+}
+
+.vs-row__label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* The same icon tile as the homepage rows. */
+.vs-row__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--ui-border-accented);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-highlighted);
 }
 
 .vs-row__title {

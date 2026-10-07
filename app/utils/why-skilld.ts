@@ -12,6 +12,8 @@ export type WhyReasonId = 'run' | 'behaviors' | 'cost' | 'devs' | 'author' | 'de
 
 export interface WhyReason {
   id: WhyReasonId
+  /** A lucide icon for the reason's row. Monochrome, like every icon in UI chrome. */
+  icon: string
   title: string
   /** What skilld does. */
   line: string
@@ -35,6 +37,7 @@ export const SKILLS_SH_CHECKED_ON = '7 Oct 2026'
 export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   run: {
     id: 'run',
+    icon: 'i-lucide-feather',
     title: 'No more skill bloat',
     line: 'Run a Skill once off. Your agent reads it for one session, and skilld writes no file, no lockfile entry, and no cache.',
     skillsSh: '`skills add` installs the files into your project. `skills use` writes them to a temporary directory.',
@@ -43,6 +46,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   },
   behaviors: {
     id: 'behaviors',
+    icon: 'i-lucide-square-terminal',
     title: 'Know what it runs',
     line: 'Skill behaviors flag shell commands, scripts, and network calls, with a link to each line. `skilld run` waits for your approval before remote code or credential reads.',
     skillsSh: 'Shows audit verdicts from Gen Agent Trust Hub, Socket, and Snyk.',
@@ -51,6 +55,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   },
   cost: {
     id: 'cost',
+    icon: 'i-lucide-gauge',
     title: 'Know what it costs',
     line: 'Every file shows its token cost, so you see what reaches your agent\'s context before it loads.',
     skillsSh: 'Shows the SKILL.md with no token cost. The full file tree needs its API and a Vercel token.',
@@ -59,6 +64,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   },
   devs: {
     id: 'devs',
+    icon: 'i-lucide-list-checks',
     title: 'Rankings you can check',
     line: 'Trending ranks Skills by the separate devs who posted about them, and links every post. Install counts never rank.',
     skillsSh: 'Ranks by install counts from the telemetry in its CLI.',
@@ -67,6 +73,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   },
   author: {
     id: 'author',
+    icon: 'i-lucide-user-pen',
     title: 'See who wrote it',
     line: 'Every Skill names the person who wrote it and links the exact SKILL.md in their repository.',
     skillsSh: 'Shows the owner and the repository, with a badge for verified organizations.',
@@ -75,6 +82,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   },
   demos: {
     id: 'demos',
+    icon: 'i-lucide-clapperboard',
     title: 'Preview what a Skill makes',
     line: 'A demo is one recorded run: the prompt, and what the agent built with the Skill.',
     skillsSh: 'Shows the SKILL.md and install counts, with no output from a run.',
@@ -83,6 +91,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   },
   telemetry: {
     id: 'telemetry',
+    icon: 'i-lucide-eye-off',
     title: 'No telemetry',
     line: 'The skilld CLI is open source under MIT. It sends no telemetry or analytics.',
     skillsSh: 'The skills CLI is MIT too. Its telemetry is on by default and sends Skill names and search queries. `DISABLE_TELEMETRY=1` turns it off.',
@@ -91,6 +100,7 @@ export const WHY_REASONS: Readonly<Record<WhyReasonId, WhyReason>> = {
   },
   independent: {
     id: 'independent',
+    icon: 'i-lucide-hand-heart',
     title: 'Independent',
     line: 'Harlan Wilton builds skilld. It has no sponsored listings, no paid placement, and no paywalls.',
     skillsSh: 'Vercel operates it.',

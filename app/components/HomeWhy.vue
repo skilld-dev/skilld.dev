@@ -85,7 +85,9 @@ function onKeydown(event: KeyboardEvent, index: number) {
             @pointerenter="onPointerEnter($event, reason.id)"
             @keydown="onKeydown($event, index)"
           >
-            <span class="home-why__num" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
+            <span class="home-why__icon" aria-hidden="true">
+              <UIcon :name="reason.icon" class="size-4" />
+            </span>
             <span class="min-w-0">
               <span class="home-why__title">{{ reason.title }}</span>
               <span class="home-why__line"><WhyText :text="reason.line" /></span>
@@ -158,17 +160,23 @@ function onKeydown(event: KeyboardEvent, index: number) {
   outline-offset: -2px;
 }
 
-.home-why__num {
+/* An icon tile, as in the Developers menu. The picked row inks its tile. */
+.home-why__icon {
+  display: grid;
   flex: none;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.5rem;
-  color: var(--ui-text-dimmed);
-  font-variant-numeric: tabular-nums;
-  transition: color 200ms ease-out;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-top: -0.125rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text-muted);
+  transition: color 200ms ease-out, border-color 200ms ease-out;
 }
 
-.home-why__tab[aria-selected='true'] .home-why__num {
+.home-why__tab[aria-selected='true'] .home-why__icon {
+  border-color: var(--ui-border-accented);
   color: var(--ui-text-highlighted);
 }
 
@@ -225,7 +233,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
 
 @media (prefers-reduced-motion: reduce) {
   .home-why__tab,
-  .home-why__num,
+  .home-why__icon,
   .home-why__panel,
   .home-why__panel[data-active] {
     transition: none;
