@@ -153,6 +153,34 @@ describe('tag preparation', () => {
     const fetcher = async () => Response.json({ name: 'package', version: '1.0.0', gitHead: 'd'.repeat(40), dist: { integrity: 'unused' } })
     expect(await prepareTag(request, api, fetcher)).toEqual({ _tag: 'Skipped', reason: 'PACKAGE_TAG_PROVENANCE_MISMATCH' })
   })
+
+  /** The default branch is at `mainVersion`; the tag commit is at `tagVersion`. */
+  const releaseLine = (tagVersion: string, mainVersion: string) => async (path: string) => {
+    if (path.includes('/contents/package.json'))
+      return { encoding: 'base64', content: btoa(JSON.stringify({ name: 'package', version: path.endsWith(`ref=${base}`) ? mainVersion : tagVersion })) }
+    return api(path.replace(/\/commits\/v[^/]+$/, '/commits/v1.0.0'))
+  }
+  const publishedAs = (version: string) => async () => Response.json({ name: 'package', version, gitHead: target, dist: { integrity: 'unused' } })
+
+  it('skips a maintenance release older than the default branch, so it never rewrites the newer Skill', async () => {
+    const result = await prepareTag({ ...request, tag: 'v1.3.13' }, releaseLine('1.3.13', '2.0.0-beta.14'), publishedAs('1.3.13'))
+    expect(result).toEqual({ _tag: 'Skipped', reason: 'TAG_OLDER_THAN_DEFAULT_BRANCH' })
+  })
+
+  it.each([
+    ['2.0.0-beta.14', '2.0.0-beta.14'],
+    ['2.0.0-beta.15', '2.0.0-beta.14'],
+    ['2.0.0', '2.0.0-beta.14'],
+    ['2.0.0-beta.10', '2.0.0-beta.9'],
+  ])('prepares tag %s while the default branch is at %s', async (tagVersion, mainVersion) => {
+    const result = await prepareTag({ ...request, tag: `v${tagVersion}` }, releaseLine(tagVersion, mainVersion), publishedAs(tagVersion))
+    expect(result).toMatchObject({ _tag: 'Prepared', value: { input: { spec: `package@${tagVersion}` } } })
+  })
+
+  it('skips a stable tag once the default branch moved to its next prerelease line', async () => {
+    const result = await prepareTag({ ...request, tag: 'v1.9.0' }, releaseLine('1.9.0', '2.0.0-alpha.1'), publishedAs('1.9.0'))
+    expect(result).toEqual({ _tag: 'Skipped', reason: 'TAG_OLDER_THAN_DEFAULT_BRANCH' })
+  })
 })
 
 describe('monorepo tag preparation', () => {
@@ -208,6 +236,14 @@ describe('monorepo tag preparation', () => {
   it('splits a tag that two packages with Skills share into one job each', async () => {
     expect(await prepareTag(nuxtSeoTag, nuxtSeo, published('@nuxtjs/seo', '5.3.16')))
       .toEqual({ _tag: 'Split', tag: 'v5.3.16', packageDirs: ['packages/devtools-layer', 'packages/nuxt-seo'] })
+  })
+
+  it('picks the Skill named after a scoped package, scope included, when the package has several', async () => {
+    const api = monorepo('nuxt-seo', 'v5.3.16', {
+      'packages/nuxt-seo': { name: '@nuxtjs/seo', version: '5.3.16' },
+    }, ['packages/nuxt-seo/skills/nuxtjs-seo/SKILL.md', 'packages/nuxt-seo/skills/seo-audit/SKILL.md'])
+    const result = await prepareTag(nuxtSeoTag, api, published('@nuxtjs/seo', '5.3.16'))
+    expect(result).toMatchObject({ _tag: 'Prepared', value: { skillRoot: 'packages/nuxt-seo/skills/nuxtjs-seo' } })
   })
 
   it('prepares only the package a split job names', async () => {

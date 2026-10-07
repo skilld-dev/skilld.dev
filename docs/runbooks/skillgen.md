@@ -14,7 +14,7 @@ A signed-in maintainer turns Skillgen on for each repository, and `skillgen_repo
 Turning it on needs admin or maintain access, a public repository, and a published package with a Skill.
 `workers/skill-harness/src/package-skills.ts` holds the package rule. The site and the Worker both import it.
 A package sits at the root or under `packages/<name>/`, with its Skill in `skills/<dir>/SKILL.md` beside its `package.json`.
-Skillgen supports npm packages only.
+Skillgen supports [npm](https://npmjs.com) packages only.
 
 Before the Worker queues a job, it asks `POST /api/internal/skillgen/opt-ins` which repositories in the event opted in.
 If the site does not answer, the webhook returns 503 and queues nothing. Redeliver the event from the App settings.
@@ -32,7 +32,7 @@ pnpm exec tsx scripts/skill-github-app-register.ts \
   ~/scratch/skilld-github-app
 ```
 
-Open the printed local URL in your personal GitHub browser.
+Open the printed local URL in your personal [GitHub](https://github.com) browser.
 The helper creates a public App owned by `skilld-dev`.
 Use a GitHub account allowed to register Apps for that organization.
 Other accounts can install the App on selected repositories.
@@ -57,6 +57,8 @@ New tag creation starts another job automatically.
 Each job lists the packages with a Skill on the default branch.
 It reads each one's `package.json` from the exact tag commit, and skips private packages.
 The tag must equal a package version, as `1.2.3`, `v1.2.3`, or `name@1.2.3`.
+If that version is older than the package version on the default branch, the job skips with `TAG_OLDER_THAN_DEFAULT_BRANCH`.
+So a maintenance release, such as `1.3.13` while `main` is at `2.0.0-beta.14`, never rewrites the newer Skill.
 If several packages match one tag, the job splits into one job per package.
 Each split job opens its own pull request on a branch named after the package directory.
 If the package publication follows the tag, the job waits for it.
@@ -86,9 +88,9 @@ The App never replaces a branch that someone could have edited.
 ## Inspect a job
 
 The webhook response includes job IDs.
-Read `/github/jobs/<id>` with `Authorization: Bearer <PROOF_TOKEN>`.
+Read `/github/jobs/<id>`{lang="html"} with `Authorization: Bearer <PROOF_TOKEN>`{lang="html"}.
 The response includes the phase or final outcome.
-Read `/proofs/<id>` with the same token for the Harness result.
+Read `/proofs/<id>`{lang="html"} with the same token for the Harness result.
 
 If a job failed, POST `/github/jobs/<id>/retry` with the same operator token.
 Retry waits until the previous Harness job finishes.
