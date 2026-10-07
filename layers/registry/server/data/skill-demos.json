@@ -110,6 +110,46 @@
     {
       "owner": "cloudai-x",
       "repo": "threejs-skills",
+      "name": "threejs-animation",
+      "makes": "game",
+      "authorName": "CloudAI-X",
+      "sourceUrl": "https://github.com/CloudAI-X/threejs-skills/blob/main/skills/threejs-animation/SKILL.md",
+      "prompt": "Build Clockwork Grove, a Three.js animated mechanical garden with original procedural flowers that unfold in a choreographed loop. Use actual Three.js AnimationClip tracks and mixers, with play/pause, speed, bloom phase scrubber, and reset controls. No external model assets. Bundle Three.js inline. Ensure the opening view already shows an interesting scene; include a clear WebGL-unavailable state. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "945fb8dfd3bb1a0fc1193089ec740ab28bdcc9c5",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-e93a839653.jpg",
+          "width": 1440,
+          "height": 913,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build Clockwork Grove, a Three.js animated mechanical garden with original procedural flowers that unfold in a choreogra",
+          "poster": {
+            "file": "desktop-poster-e4d906d754.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-557a1ee98c.jpg",
+          "width": 390,
+          "height": 1002,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build Clockwork Grove, a Three.js animated mechanical garden with original procedural flowers that unfold in a choreogra",
+          "poster": {
+            "file": "mobile-poster-96bcaadc42.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "owner": "cloudai-x",
+      "repo": "threejs-skills",
       "name": "threejs-interaction",
       "makes": "game",
       "authorName": "CloudAI-X",
@@ -135,6 +175,46 @@
           "height": 844,
           "viewport": "mobile",
           "alt": "Phone screenshot of the page the Agent built for: Make a tiny 3D arcade game called Gullwick: seagulls swoop down at a seaside chip stall, and you click or tap each gull "
+        }
+      ]
+    },
+    {
+      "owner": "cloudai-x",
+      "repo": "threejs-skills",
+      "name": "threejs-shaders",
+      "makes": "game",
+      "authorName": "CloudAI-X",
+      "sourceUrl": "https://github.com/CloudAI-X/threejs-skills/blob/main/skills/threejs-shaders/SKILL.md",
+      "prompt": "Build Chromatic Loom, a Three.js shader toy showing an original undulating fabric surface with woven bands and a luminous edge. Use actual ShaderMaterial vertex displacement and fragment colour, authored GLSL, and working amplitude, weave density, palette, pause, and reset controls. Bundle Three.js inline. Ensure a composed camera view and a clear WebGL-unavailable state. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "945fb8dfd3bb1a0fc1193089ec740ab28bdcc9c5",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-ec605c5301.jpg",
+          "width": 1440,
+          "height": 1097,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build Chromatic Loom, a Three.js shader toy showing an original undulating fabric surface with woven bands and a luminou",
+          "poster": {
+            "file": "desktop-poster-4793ec0b18.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-982b1ed468.jpg",
+          "width": 390,
+          "height": 1451,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build Chromatic Loom, a Three.js shader toy showing an original undulating fabric surface with woven bands and a luminou",
+          "poster": {
+            "file": "mobile-poster-607de95b06.jpg",
+            "height": 844
+          }
         }
       ]
     },
