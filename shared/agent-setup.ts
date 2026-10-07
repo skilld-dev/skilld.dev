@@ -58,11 +58,13 @@ Use the first section that fits your environment. Then tell the user what you se
 
 ## If you cannot run shell commands but your app supports MCP
 
-Ask the user to add this MCP server. It searches the registry:
+Ask the user to add this MCP server. It searches the registry and returns each Skill's SKILL.md:
 
 ${REGISTRY_MCP_URL}
 
 Setup steps for ChatGPT, Claude, Claude Code, Codex, Cursor, and VS Code: ${SITE_ORIGIN}/developers?setup=mcp
+
+To use a Skill in this chat, call \`get_skill\` and follow its \`markdown\` field. It is the SKILL.md at \`sourceCommit\`. The \`files\` beside it are listed, not included.
 
 ## If you can only fetch URLs
 
