@@ -1,6 +1,7 @@
 // @vitest-environment node
 import type { SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { SqliteD1 } from './helpers/d1-sqlite'
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { admittedSourceRequest } from '../../layers/artifact-delivery/server/utils/admitted-identity'
 import { findSkillRunIdentity } from '../../layers/registry/server/utils/skill-run-identity'
@@ -20,6 +21,8 @@ function db() {
     CREATE TABLE skill_revisions (
       owner TEXT, repo TEXT, name TEXT, sha TEXT, modified_at INTEGER
     )`)
+    harness.raw.exec('CREATE TABLE repos (owner TEXT, repo TEXT)')
+    harness.raw.exec(readFileSync('migrations/0146_repository_moves.sql', 'utf8'))
   }
   return harness
 }

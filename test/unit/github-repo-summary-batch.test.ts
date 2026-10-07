@@ -10,6 +10,7 @@ interface GraphqlBody {
 
 function repository(owner: string, name: string, tree: string) {
   return {
+    databaseId: 4242,
     name,
     nameWithOwner: `${owner}/${name}`,
     url: `https://github.com/${owner}/${name}`,

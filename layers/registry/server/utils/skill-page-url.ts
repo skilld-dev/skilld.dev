@@ -1,3 +1,4 @@
+import { findRepositoryAlias } from './repository-aliases'
 import { canonicalRepoSkillPath } from './skill-routes'
 
 export interface SkillPageSource {
@@ -44,8 +45,24 @@ export function skillPageCacheKey(source: SkillPageSource): string {
  * One indexed read: `idx_skills_owner_nocase` bounds it to one owner's rows.
  * `rendered_skill_path` is null on rows that never rendered, so the directory
  * name stands in for those.
+ *
+ * Delivery attests the name a run used, which can be the old name of a moved
+ * Repository. That name answers with the page under the new name.
  */
 export async function findSkillPagePath(
+  db: D1Database,
+  source: SkillPageSource,
+): Promise<string | null> {
+  const path = await findHeldSkillPagePath(db, source)
+  if (path)
+    return path
+  const alias = await findRepositoryAlias(db, { owner: source.owner, repo: source.repository })
+  return alias
+    ? await findHeldSkillPagePath(db, { ...source, owner: alias.targetOwner, repository: alias.targetRepo })
+    : null
+}
+
+async function findHeldSkillPagePath(
   db: D1Database,
   source: SkillPageSource,
 ): Promise<string | null> {

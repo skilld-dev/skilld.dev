@@ -252,6 +252,7 @@ export const RESERVED_MIGRATION_NUMBERS = {
   '0128': '#320 feat(indexnow-curated) claims 0128_indexnow.sql',
   '0129': '#322 feat(seo-trending-indexable) claims 0129_skill_trending_admissions.sql',
   '0135': '#404 fix(classifier-accuracy) claims 0135_relaunch_classifications.sql',
+  '0145': '#510 feat(artifact-delivery) claims 0145_artifact_resolution_linked_files.sql',
 } satisfies Readonly<Record<string, string>>
 
 /**

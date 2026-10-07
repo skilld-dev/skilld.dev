@@ -234,6 +234,7 @@ export async function getRepo(
 }
 
 interface RepoSummaryGql {
+  databaseId: number | null
   name: string
   nameWithOwner: string
   url: string
@@ -251,16 +252,28 @@ interface RepoSummaryGql {
   } | null
 }
 
-const REPO_SUMMARY_FIELDS = `name nameWithOwner url owner{login}
+const REPO_SUMMARY_FIELDS = `databaseId name nameWithOwner url owner{login}
       description stargazerCount forkCount pushedAt createdAt isArchived isFork
       defaultBranchRef{name target{... on Commit{oid tree{oid}}}}`
 
 export interface RepoSummary {
   meta: RepoMeta
+  /**
+   * GitHub's numeric Repository ID. It survives every rename and transfer, so
+   * it confirms that an old name and a new name are one Repository.
+   */
+  repositoryId: number
   headTreeSha: string | null
 }
 
-function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary {
+/**
+ * Parse one GraphQL Repository into a summary, or null without a Repository
+ * ID. The schema allows a null ID, and a Repository without one cannot be
+ * followed across a move.
+ */
+function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary | null {
+  if (typeof r.databaseId !== 'number')
+    return null
   const branch = r.defaultBranchRef?.name || 'main'
   const meta: RepoMeta = {
     name: r.name,
@@ -276,7 +289,7 @@ function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary {
     archived: r.isArchived,
     fork: r.isFork,
   }
-  return { meta, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null }
+  return { meta, repositoryId: r.databaseId, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null }
 }
 
 /**
@@ -311,7 +324,11 @@ export async function getRepoSummary(
   const r = out.data?.repository
   if (!r)
     return { status: 404, data: null, rateLimit: out.rateLimit, notModified: false }
-  return { status: 200, data: repoSummaryFromGql(r), rateLimit: out.rateLimit, notModified: false }
+  // A Repository without an ID fails like any other malformed answer.
+  const summary = repoSummaryFromGql(r)
+  return summary
+    ? { status: 200, data: summary, rateLimit: out.rateLimit, notModified: false }
+    : { status: 502, data: null, rateLimit: out.rateLimit, notModified: false }
 }
 
 /**
@@ -377,6 +394,8 @@ export async function getRepoSummariesBatch(
       return { _tag: 'failed', status: 502, rateLimit, requests: sent }
     for (let i = 0; i < batch.length; i++) {
       const r = out.data?.[`r${i}`]
+      // A summary without a usable Repository ID cannot be followed across a
+      // move, so it reads as no summary and the per-repository sync owns it.
       summaries.push(r ? repoSummaryFromGql(r) : null)
     }
   }
