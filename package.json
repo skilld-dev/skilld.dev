@@ -32,6 +32,7 @@
     "seo:curate-supported": "npx tsx scripts/curate-supported-source.ts",
     "embeddings:parity": "tsx scripts/check-embedding-parity.ts",
     "production:deploy": "tsx scripts/deploy-production.ts",
+    "production:deploy-signer": "tsx scripts/deploy-artifact-signer.ts",
     "production:smoke": "tsx scripts/check-production-smoke.ts",
     "production:edge-cache": "tsx scripts/check-edge-cache.ts",
     "registry:convergence": "tsx scripts/check-registry-convergence.ts",

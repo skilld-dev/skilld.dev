@@ -17,7 +17,16 @@ permissions:
   actions: read
 
 concurrency:
-  group: deploy-cloudflare-${{ inputs.target || 'site' }}
+  # Every Test run that completes starts this workflow, including pull request
+  # runs and cancelled main runs. Their deploy job skips, but a run in the
+  # deploy group still replaces the run waiting there. On 2026-10-07 a pull
+  # request's run cancelled the queued deploy of #526, so main stayed
+  # undeployed. Only a successful main push can deploy, so every other run
+  # takes a group of its own.
+  group: >-
+    ${{ (github.event_name == 'workflow_run' && (github.event.workflow_run.event != 'push' || github.event.workflow_run.conclusion != 'success'))
+    && format('deploy-cloudflare-noop-{0}', github.run_id)
+    || format('deploy-cloudflare-{0}', inputs.target || 'site') }}
   # A deploy in flight must finish. This workflow applies D1 migrations and then
   # deploys the signer and public Worker, then runs smoke and rollback. Cancelling
   # between those steps leaves migrated data against the previous Worker.
@@ -85,8 +94,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # Retries a transient Cloudflare API fault, such as code 10013. Any other
+      # failure stops the job at once.
       - name: Deploy Artifact signer
-        run: pnpm --filter @skilld/artifact-signer-worker deploy:production
+        run: pnpm production:deploy-signer
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
