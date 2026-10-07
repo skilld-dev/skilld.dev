@@ -28,9 +28,10 @@
  * renderer, so it gets a shell. `--shell` gives a page Skill the same shell, for
  * a Skill that checks its own output with a command; without it, that check is
  * skipped and a broken page can ship. Every shell runs in the Claude Code
- * sandbox: writes stay in the temp folder, secrets stay unreadable, and the
- * network reaches only package and code hosts. Third-party Skill text never
- * gets an open shell on this machine.
+ * sandbox: writes stay in the temp folder, secrets and agent sockets stay
+ * unreadable, the environment carries no keys, and the network reaches only
+ * package and code hosts. Third-party Skill text never gets an open shell on
+ * this machine.
  *
  * `--reshoot` retakes the screenshots of a page demo from its kept output,
  * without running the Agent again. `--resume` finishes a run whose Agent
@@ -47,7 +48,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
 import { copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { extname, join, relative, resolve, sep } from 'node:path'
+import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs, promisify } from 'node:util'
@@ -102,13 +103,36 @@ const SECRET_PATHS = ['~/.ssh', '~/.aws', '~/.config', '~/.gnupg', '~/.netrc', '
 /** The folders in ~/.local/share a run needs: Node and npx live under pnpm, and renderers read fonts. */
 const SHARED_DATA_READABLE = new Set(['pnpm', 'fonts'])
 
-/** Every secret path, plus each other folder in ~/.local/share, where tools keep their tokens. */
+/**
+ * The folders that hold this session's agent sockets. The SSH agent, the GPG
+ * agent, the keyring and the session bus answer anyone who reaches the socket,
+ * so reaching one is using the secret behind it.
+ */
+function socketFolders(env: NodeJS.ProcessEnv): string[] {
+  const runtime = env.XDG_RUNTIME_DIR
+  const ssh = env.SSH_AUTH_SOCK ? dirname(env.SSH_AUTH_SOCK) : null
+  // An SSH agent outside the runtime folder, such as one in `/tmp/ssh-XXXX`, needs its own entry.
+  const sshOutside = ssh && !(runtime && `${ssh}/`.startsWith(`${runtime}/`)) ? ssh : null
+  return [runtime, sshOutside].filter((path): path is string => Boolean(path))
+}
+
+/** Every secret path, each other folder in ~/.local/share, where tools keep their tokens, and the agent sockets. */
 function deniedPaths(): string[] {
   const shared = join(homedir(), '.local/share')
   const sharedData = existsSync(shared)
     ? readdirSync(shared).filter(entry => !SHARED_DATA_READABLE.has(entry)).map(entry => `~/.local/share/${entry}`)
     : []
-  return [...SECRET_PATHS, ...sharedData]
+  return [...SECRET_PATHS, ...sharedData, ...socketFolders(process.env)]
+}
+
+/**
+ * The only variables the Agent and its shell inherit. The rest of this shell's
+ * environment can hold API keys and socket paths that a Skill command could use.
+ */
+const AGENT_ENV = ['HOME', 'PATH', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'TMPDIR']
+
+function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(AGENT_ENV.flatMap(key => env[key] ? [[key, env[key]]] : []))
 }
 
 interface Shot {
@@ -244,9 +268,9 @@ function sandboxSettings(shell: Shell): string {
       },
       network: { allowedDomains: SANDBOX_DOMAINS },
     },
-    // A rule path starting `~/` is in the home folder; a bare `/home/...` path would be read as relative.
+    // A rule path starting `~/` is in the home folder and one starting `//` is absolute; a bare `/run/...` path would be read as relative.
     permissions: {
-      deny: denied.flatMap(path => [`Read(${path}/**)`, `Edit(${path}/**)`]),
+      deny: denied.map(path => path.startsWith('/') ? `/${path}` : path).flatMap(path => [`Read(${path}/**)`, `Edit(${path}/**)`]),
     },
   })
 }
@@ -291,7 +315,7 @@ async function record(cwd: string, pinnedRef: string, prompt: string, kind: Outp
     '--permission-mode',
     'acceptEdits',
     ...access,
-  ], { cwd, timeout: kind === 'video' ? VIDEO_RECORD_TIMEOUT_MS : RECORD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
+  ], { cwd, env: agentEnv(process.env), timeout: kind === 'video' ? VIDEO_RECORD_TIMEOUT_MS : RECORD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
   const result = JSON.parse(stdout) as { is_error?: boolean, result?: string, modelUsage?: Record<string, unknown> }
   if (result.is_error)
     throw new Error(`Claude Code reported an error: ${result.result ?? 'no message'}`)
