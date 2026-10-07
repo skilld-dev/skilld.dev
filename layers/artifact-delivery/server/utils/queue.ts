@@ -191,6 +191,7 @@ function defaultGithubSourceRuntime(): GithubCredentialRuntime {
     // and the registry reads in this isolate share it.
     tokenCache: isolateInstallationTokenCache(),
     report: reportGithubCredential,
+    random: Math.random,
   }
 }
 

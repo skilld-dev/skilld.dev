@@ -100,6 +100,7 @@ export function resolveGithubBindings(
       now: runtime.now ?? (() => Math.floor(Date.now() / 1000)),
       tokenCache: runtime.tokenCache ?? isolateInstallationTokenCache(),
       report,
+      random: Math.random,
     }),
     reportCredential: report,
   }
@@ -122,6 +123,7 @@ function readAsApp<A>(
   bindings: GithubBindings,
   read: {
     label: string
+    deadline?: AbortSignal
     send: (token: string | undefined) => Promise<A>
     refusal: (answer: A) => Promise<GithubAppRefusal | null>
     fallbackOnDenial: boolean
@@ -277,6 +279,8 @@ async function ghRequest<T>(
 
   const read = await readAsApp(bindings, {
     label: new URL(url).pathname,
+    // A page read's limit covers the mint it waits for, too.
+    deadline: init?.signal ?? undefined,
     send: token => fetch(url, { ...init, headers: withAuthorization(headers, token) }),
     refusal: githubAppRefusal,
     fallbackOnDenial: true,
