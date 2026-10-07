@@ -1,4 +1,5 @@
 import type { ArtifactAttestationStatement, CheckResult } from '../../../layers/artifact-delivery/server/schemas/contracts'
+import type { ArtifactSigningKeyBindingName, ArtifactSigningKeySlot, ArtifactSigningKeyWindow } from './slots'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import {
@@ -13,18 +14,17 @@ import { createAttestationSignaturePayload, encodeAttestationStatement } from '.
 import { checksPermitSigning, SIGNABLE_ARTIFACT_POLICIES } from '../../../layers/artifact-delivery/server/utils/checks'
 import { base64ToBytes, bytesToBase64Url, canonicalJson, digestHex } from '../../../layers/artifact-delivery/server/utils/encoding'
 import { ARTIFACT_POLICY_VERSION } from '../../../layers/artifact-delivery/server/utils/state'
+import { ARTIFACT_SIGNING_KEY_SLOTS, selectSigningKey } from './slots'
 
 type ArtifactSignerBindingName
-  = 'ARTIFACT_SIGNING_KEY_ID'
-    | 'ARTIFACT_SIGNING_KEY_NOT_AFTER'
-    | 'ARTIFACT_SIGNING_KEY_NOT_BEFORE'
-    | 'ARTIFACT_SIGNING_MAX_AGE_SECONDS'
-    | 'ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8'
+  = 'ARTIFACT_SIGNING_MAX_AGE_SECONDS'
     | 'DB'
     | 'PRIVATE_ARTIFACTS'
     | 'PUBLIC_ARTIFACTS'
 
+/** Either slot may be empty, so its vars and secret are optional here. */
 export type ArtifactSignerBindings = Pick<ArtifactSignerEnv, ArtifactSignerBindingName>
+  & Partial<Record<ArtifactSigningKeyBindingName, string>>
 
 export const ARTIFACT_SIGNER_MAX_REQUEST_BYTES = 512
 const MAX_ATTESTATION_STATEMENT_BYTES = 6_291_456
@@ -40,13 +40,22 @@ const signerRequestSchema = z.object({
   artifactId: artifactIdSchema,
 }).strict()
 
-const signerConfigSchema = z.object({
+const maximumAgeSecondsSchema = z.string().regex(/^[1-9]\d{0,3}$/).transform(Number).pipe(z.number().int().min(1).max(3600))
+
+const signingKeySchema = z.object({
   keyId: z.string().min(1).max(100),
   notBefore: z.string().datetime(),
   notAfter: z.string().datetime(),
-  maximumAgeSeconds: z.string().regex(/^[1-9]\d{0,3}$/).transform(Number).pipe(z.number().int().min(1).max(3600)),
   privateKey: z.string().min(2).max(512).regex(/^[\w-]+$/),
 }).strict()
+
+interface SigningKey extends ArtifactSigningKeyWindow {
+  privateKey: string
+}
+
+type SignerConfig
+  = { _tag: 'valid', maximumAgeSeconds: number, keys: SigningKey[] }
+    | SignerFailure
 
 const signingRowSchema = z.object({
   id: resolutionIdSchema,
@@ -148,22 +157,12 @@ async function routeArtifactSignerRequest(
   if (!parsedRequest.success)
     return failureResponse(failures.invalidRequest())
 
-  const parsedConfig = signerConfigSchema.safeParse({
-    keyId: env.ARTIFACT_SIGNING_KEY_ID,
-    notBefore: env.ARTIFACT_SIGNING_KEY_NOT_BEFORE,
-    notAfter: env.ARTIFACT_SIGNING_KEY_NOT_AFTER,
-    maximumAgeSeconds: env.ARTIFACT_SIGNING_MAX_AGE_SECONDS,
-    privateKey: env.ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8,
-  })
-  if (!parsedConfig.success)
-    return failureResponse(failures.signingKeyInvalid())
+  const config = parseSignerConfig(env)
+  if (config._tag === 'failure')
+    return failureResponse(config)
 
   const timestamp = now()
-  const keyNotBefore = Date.parse(parsedConfig.data.notBefore) / 1000
-  const keyNotAfter = Date.parse(parsedConfig.data.notAfter) / 1000
-  if (keyNotBefore >= keyNotAfter)
-    return failureResponse(failures.signingKeyInvalid())
-  if (timestamp < keyNotBefore || timestamp >= keyNotAfter)
+  if (!config.keys.some(key => key.notBefore <= timestamp && timestamp < key.notAfter))
     return failureResponse(failures.signingKeyNotActive())
 
   const initialRow = await loadSigningRow(env.DB, parsedRequest.data.resolutionId)
@@ -174,7 +173,7 @@ async function routeArtifactSignerRequest(
   if (initialRow.artifact_id !== parsedRequest.data.artifactId)
     return failureResponse(failures.artifactIdMismatch())
 
-  const validated = validateSigningRow(initialRow, parsedConfig.data.maximumAgeSeconds, timestamp)
+  const validated = validateSigningRow(initialRow, config.maximumAgeSeconds, timestamp)
   if (validated._tag === 'failure')
     return failureResponse(validated)
   const objectMatches = initialRow.visibility === 'private'
@@ -187,7 +186,10 @@ async function routeArtifactSignerRequest(
   if (!currentRow || canonicalJson(currentRow) !== canonicalJson(initialRow))
     return failureResponse(failures.stateChanged())
 
-  const privateKeyBytes = decodeCanonicalBase64Url(parsedConfig.data.privateKey)
+  const signingKey = selectSigningKey(config.keys, initialRow.created_at, timestamp)
+  if (!signingKey)
+    return failureResponse(failures.signingKeyNotActive())
+  const privateKeyBytes = decodeCanonicalBase64Url(signingKey.privateKey)
   if (!privateKeyBytes || privateKeyBytes.byteLength > 256)
     return failureResponse(failures.signingKeyInvalid())
   const imported = await crypto.subtle.importKey(
@@ -204,9 +206,43 @@ async function routeArtifactSignerRequest(
   const signature = await crypto.subtle.sign('Ed25519', imported.key, Uint8Array.from(payload).buffer)
   return jsonResponse({
     algorithm: 'Ed25519',
-    keyId: parsedConfig.data.keyId,
+    keyId: signingKey.keyId,
     value: bytesToBase64Url(new Uint8Array(signature)),
   }, 200)
+}
+
+function parseSignerConfig(env: ArtifactSignerBindings): SignerConfig {
+  const maximumAgeSeconds = maximumAgeSecondsSchema.safeParse(env.ARTIFACT_SIGNING_MAX_AGE_SECONDS)
+  if (!maximumAgeSeconds.success)
+    return failures.signingKeyInvalid()
+  const keys: SigningKey[] = []
+  for (const slot of Object.keys(ARTIFACT_SIGNING_KEY_SLOTS) as ArtifactSigningKeySlot[]) {
+    const names = ARTIFACT_SIGNING_KEY_SLOTS[slot]
+    // A slot with no vars is empty. Its secret alone is a staged key.
+    if (env[names.keyId] === undefined && env[names.notBefore] === undefined && env[names.notAfter] === undefined)
+      continue
+    const parsed = signingKeySchema.safeParse({
+      keyId: env[names.keyId],
+      notBefore: env[names.notBefore],
+      notAfter: env[names.notAfter],
+      privateKey: env[names.privateKey],
+    })
+    if (!parsed.success)
+      return failures.signingKeyInvalid()
+    const key: SigningKey = {
+      slot,
+      keyId: parsed.data.keyId,
+      notBefore: Date.parse(parsed.data.notBefore) / 1000,
+      notAfter: Date.parse(parsed.data.notAfter) / 1000,
+      privateKey: parsed.data.privateKey,
+    }
+    if (key.notBefore >= key.notAfter || keys.some(other => other.keyId === key.keyId))
+      return failures.signingKeyInvalid()
+    keys.push(key)
+  }
+  if (keys.length === 0)
+    return failures.signingKeyInvalid()
+  return { _tag: 'valid', maximumAgeSeconds: maximumAgeSeconds.data, keys }
 }
 
 function validateSigningRow(row: SigningRow, maximumAgeSeconds: number, now: number): ValidationResult {
