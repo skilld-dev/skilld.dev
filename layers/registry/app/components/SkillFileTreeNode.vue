@@ -73,23 +73,26 @@ const inlineRenderable = computed(() =>
         :title="node.path"
         @click="open = !open"
       >
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="size-3 text-muted transition-transform shrink-0"
-          :class="{ 'rotate-90': open }"
-          aria-hidden="true"
-        />
         <SkillFileIcon
           :name="open ? 'default-folder-opened' : 'default-folder'"
           class="size-4 shrink-0"
         />
-        <span class="tree-label">
+        <span
+          class="tree-label"
+          :style="{ '--label-tail': `${label.tail.length}ch` }"
+        >
           <span class="tree-label-head">{{ label.head }}</span>
           <span v-if="label.tail">{{ label.tail }}</span>
         </span>
         <span
           class="tree-size"
         >{{ folderFileCount }} {{ folderFileCount === 1 ? 'file' : 'files' }}</span>
+        <UIcon
+          name="i-lucide-chevron-right"
+          class="size-3 text-muted transition-transform shrink-0"
+          :class="{ 'rotate-90': open }"
+          aria-hidden="true"
+        />
       </button>
       <ul
         v-show="open"
@@ -128,12 +131,14 @@ const inlineRenderable = computed(() =>
         :title="node.path"
         @click="onFileClick"
       >
-        <span class="tree-spacer" aria-hidden="true" />
         <SkillFileIcon
           :name="fileIcon(node.name)"
           class="size-4 shrink-0"
         />
-        <span class="tree-label">
+        <span
+          class="tree-label"
+          :style="{ '--label-tail': `${label.tail.length}ch` }"
+        >
           <span class="tree-label-head">{{ label.head }}</span>
           <span v-if="label.tail">{{ label.tail }}</span>
         </span>
@@ -151,12 +156,14 @@ const inlineRenderable = computed(() =>
         :title="node.path"
         @click="onFileClick"
       >
-        <span class="tree-spacer" aria-hidden="true" />
         <SkillFileIcon
           :name="fileIcon(node.name)"
           class="size-4 shrink-0"
         />
-        <span class="tree-label">
+        <span
+          class="tree-label"
+          :style="{ '--label-tail': `${label.tail.length}ch` }"
+        >
           <span class="tree-label-head">{{ label.head }}</span>
           <span v-if="label.tail">{{ label.tail }}</span>
         </span>
@@ -173,12 +180,14 @@ const inlineRenderable = computed(() =>
         class="tree-row file"
         :title="node.path"
       >
-        <span class="tree-spacer" aria-hidden="true" />
         <SkillFileIcon
           :name="fileIcon(node.name)"
           class="size-4 shrink-0"
         />
-        <span class="tree-label">
+        <span
+          class="tree-label"
+          :style="{ '--label-tail': `${label.tail.length}ch` }"
+        >
           <span class="tree-label-head">{{ label.head }}</span>
           <span v-if="label.tail">{{ label.tail }}</span>
         </span>
@@ -200,9 +209,10 @@ const inlineRenderable = computed(() =>
 .tree-children {
   list-style: none;
   margin: 0;
-  padding-left: 0.875rem;
+  padding-left: 0.375rem;
   border-left: 1px dashed var(--ui-border);
-  margin-left: 0.4375rem;
+  /* Puts the guide line under the parent folder icon. */
+  margin-left: 0.9375rem;
 }
 .tree-row {
   display: flex;
@@ -232,10 +242,6 @@ const inlineRenderable = computed(() =>
   background: var(--ui-bg-muted);
   font-weight: 500;
 }
-.tree-spacer {
-  width: 0.75rem;
-  flex-shrink: 0;
-}
 .tree-size {
   flex-shrink: 0;
   font-size: 0.6875rem;
@@ -247,9 +253,13 @@ const inlineRenderable = computed(() =>
   flex: 1;
   min-width: 0;
   white-space: nowrap;
+  container-type: inline-size;
 }
+/* The tree is monospace. Rounding the head down to whole characters puts the
+   ellipsis flush against the tail, with no part-character gap between them. */
 .tree-label-head {
   min-width: 0;
+  max-width: round(down, calc(100cqw - var(--label-tail)), 1ch);
   overflow: hidden;
   text-overflow: ellipsis;
 }
