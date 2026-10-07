@@ -129,7 +129,7 @@ const codeClass = 'font-mono text-xs text-default'
               Review the pull request
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
-              Skillgen starts with your latest tag when you install the App. If you turned the repository on after the install, it starts at your next tag. Each new tag starts another run. If npm has not published the version yet, the run waits. Each run must finish within 30 minutes.
+              Skillgen starts with your latest tag when you install the App. If you turned the repository on after the install, it starts at your next tag. Each new tag starts another run. If npm has not published the version yet, the run waits. Each run must finish within an hour of starting.
             </p>
             <p class="mt-3 text-sm leading-relaxed text-muted">
               A model drafts the update from the tagged source with the skilld Harness. A separate review must accept it before anything reaches your repository. If the Skill needs no change, Skillgen opens nothing.

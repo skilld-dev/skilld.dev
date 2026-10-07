@@ -5,7 +5,7 @@
   "dependencies": {
     "@ai-sdk/harness": "1.0.138",
     "@ai-sdk/harness-opencode": "1.0.140",
-    "skilld-harness": "3.3.0",
+    "skilld-harness": "3.6.4",
     "ws": "8.21.0",
     "zod": "4.5.4"
   }

@@ -62,7 +62,7 @@ So a maintenance release, such as `1.3.13` while `main` is at `2.0.0-beta.14`, n
 If several packages match one tag, the job splits into one job per package.
 Each split job opens its own pull request on a branch named after the package directory.
 If the package publication follows the tag, the job waits for it.
-The whole job has a thirty minute deadline.
+The whole job has a sixty minute deadline, counted from when it leaves the queue.
 
 The job matches npm's `gitHead`, or npm's HTTPS provenance record, to that commit.
 The provenance match checks the package digest, repository, tag, and source commit.
@@ -102,6 +102,6 @@ Different tags resolving to the same commit reuse the recorded target.
 Generation failures persist as job outcomes. They produce no pull request.
 
 The App has one global queue and one active container.
-Jobs run one at a time, and the thirty minute deadline includes time in the queue.
+Jobs run one at a time. Time a job waits in the queue does not count toward its deadline.
 If 64 jobs are queued, the webhook answers 503. GitHub does not redeliver it.
 Organization keys and optional shared capacity require separate onboarding and budgets.
