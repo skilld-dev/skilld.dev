@@ -588,6 +588,126 @@
     {
       "owner": "leonxlnx",
       "repo": "taste-skill",
+      "name": "brutalist-skill",
+      "makes": "ui-component",
+      "authorName": "Leon Lin",
+      "sourceUrl": "https://github.com/Leonxlnx/taste-skill/blob/main/skills/brutalist-skill/SKILL.md",
+      "prompt": "Build Signal Yard, a fictional freight-dispatch control panel with Swiss typography and industrial terminal aesthetics. Show authored illustrative shipment data, a route map, working status filters, shipment detail selection, and dispatch confirmation. No real shipment claims. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "3206dd44fce91412cbfd5b2dbead29fb29a91bb9",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-0a0fe95042.jpg",
+          "width": 1440,
+          "height": 1423,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build Signal Yard, a fictional freight-dispatch control panel with Swiss typography and industrial terminal aesthetics. ",
+          "poster": {
+            "file": "desktop-poster-515d7d13d6.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-44b14a0686.jpg",
+          "width": 390,
+          "height": 2364,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build Signal Yard, a fictional freight-dispatch control panel with Swiss typography and industrial terminal aesthetics. ",
+          "poster": {
+            "file": "mobile-poster-94fcc71c35.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "owner": "leonxlnx",
+      "repo": "taste-skill",
+      "name": "minimalist-skill",
+      "makes": "ui-component",
+      "authorName": "Leon Lin",
+      "sourceUrl": "https://github.com/Leonxlnx/taste-skill/blob/main/skills/minimalist-skill/SKILL.md",
+      "prompt": "Build Margin Notes, a fictional quiet reading-journal workspace. Show an asymmetric editorial reading queue, a featured book, note editor, completion toggle, and working book filter. Use warm monochrome and meaningful muted tags. Keep session data in memory. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "3206dd44fce91412cbfd5b2dbead29fb29a91bb9",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-ed7eb1520e.jpg",
+          "width": 1440,
+          "height": 1273,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build Margin Notes, a fictional quiet reading-journal workspace. Show an asymmetric editorial reading queue, a featured ",
+          "poster": {
+            "file": "desktop-poster-e9c685238b.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-fe451dd5d6.jpg",
+          "width": 390,
+          "height": 2124,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build Margin Notes, a fictional quiet reading-journal workspace. Show an asymmetric editorial reading queue, a featured ",
+          "poster": {
+            "file": "mobile-poster-9ae8cbbb3b.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "owner": "leonxlnx",
+      "repo": "taste-skill",
+      "name": "soft-skill",
+      "makes": "landing-page",
+      "authorName": "Leon Lin",
+      "sourceUrl": "https://github.com/Leonxlnx/taste-skill/blob/main/skills/soft-skill/SKILL.md",
+      "prompt": "Build a premium landing page for Lilt House, a fictional listening room hosting small acoustic concerts. Choose editorial luxury with spacious typography and authored line art. Show three upcoming evenings, a working event selector, seat quantity, and an in-page reservation confirmation. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "3206dd44fce91412cbfd5b2dbead29fb29a91bb9",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-75d8e55d03.jpg",
+          "width": 1440,
+          "height": 2825,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a premium landing page for Lilt House, a fictional listening room hosting small acoustic concerts. Choose editoria",
+          "poster": {
+            "file": "desktop-poster-38e4dec80b.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-9f396a010e.jpg",
+          "width": 390,
+          "height": 3445,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a premium landing page for Lilt House, a fictional listening room hosting small acoustic concerts. Choose editoria",
+          "poster": {
+            "file": "mobile-poster-fb08d569b3.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "owner": "leonxlnx",
+      "repo": "taste-skill",
       "name": "taste-skill",
       "makes": "landing-page",
       "authorName": "Leon Lin",
