@@ -7,6 +7,7 @@ import type { SkillDemoView } from '../../server/utils/skill-demos'
 import type { ZipState } from '../utils/skill-zip'
 import type { SkillBehavior } from './_SkillBehaviors.vue'
 import { formatTimeAgo } from '@vueuse/core'
+import { demoRecording, demoSocialPicture } from '~~/app/utils/home-demos'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { readingsForSkillMd } from '#shared/behavior-readings'
 import { comparisonLinkForSkill } from '#shared/comparison-navigation'
@@ -1037,18 +1038,34 @@ function truncateReason(text: string, max: number): string {
   return `${collapsed.slice(0, max - 1).replace(/\s+\S*$/, '')}…`
 }
 
-defineOgImage('Skill.takumi', {
-  name: () => data.value?.name ?? '',
-  displayName: () => data.value?.displayName ?? data.value?.name ?? '',
-  owner: () => data.value?.owner ?? '',
-  ownerAvatar: () => data.value?.owner ? `https://github.com/${data.value.owner}.png?size=128` : '',
-  repo: () => data.value?.repo ?? 'skills',
-  curatorCount: () => data.value?.curators.length ?? 0,
-  reason: () => data.value?.curators.find(curator => curator.reason)?.reason ?? '',
-  reasonHandle: () => data.value?.curators.find(curator => curator.reason)?.handle ?? '',
-}, {
-  alt: () => `${data.value?.displayName ?? data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
-})
+// A Skill with a demo shares what the Agent made with it, as its demo page
+// does: the film's poster frame or the page's first screen. The server reads
+// the Skill before this runs, so the crawler gets the right card.
+const socialDemo = data.value?.demo ?? null
+const socialPicture = socialDemo ? demoSocialPicture(socialDemo) : undefined
+if (socialDemo && socialPicture) {
+  defineOgImage('Demo.takumi', {
+    name: socialDemo.name,
+    recording: demoRecording(socialDemo).sentence,
+    image: socialPicture.src,
+    imageWidth: socialPicture.width,
+    imageHeight: socialPicture.height,
+  }, { alt: `What /${socialDemo.name} made, on skilld` })
+}
+else {
+  defineOgImage('Skill.takumi', {
+    name: () => data.value?.name ?? '',
+    displayName: () => data.value?.displayName ?? data.value?.name ?? '',
+    owner: () => data.value?.owner ?? '',
+    ownerAvatar: () => data.value?.owner ? `https://github.com/${data.value.owner}.png?size=128` : '',
+    repo: () => data.value?.repo ?? 'skills',
+    curatorCount: () => data.value?.curators.length ?? 0,
+    reason: () => data.value?.curators.find(curator => curator.reason)?.reason ?? '',
+    reasonHandle: () => data.value?.curators.find(curator => curator.reason)?.handle ?? '',
+  }, {
+    alt: () => `${data.value?.displayName ?? data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
+  })
+}
 
 const siteOrigin = 'https://skilld.dev'
 const skillPagePath = computed(() => data.value?.registryPath ?? '')
