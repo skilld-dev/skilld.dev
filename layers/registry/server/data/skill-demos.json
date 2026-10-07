@@ -1,6 +1,46 @@
 {
   "demos": [
     {
+      "owner": "aktsmm",
+      "repo": "agent-skills",
+      "name": "visualize-as-infographic",
+      "makes": "diagram",
+      "authorName": "yamapan",
+      "sourceUrl": "https://github.com/aktsmm/Agent-Skills/blob/master/visualize-as-infographic/SKILL.md",
+      "prompt": "Create two colourful 1200x675 infographic patterns explaining a community tool library's four lending rules: reserve one tool, collect with ID, return within seven days, report damage. Use English, dark backgrounds, no signature, no numeric impact claims, and distinct visual directions. Follow the Skill: independent HTML files, render both PNGs, inspect both and fix defects. Also create index.html that embeds both final posters as inline images in a responsive gallery, with a working pattern selector and concise descriptions. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "e1c4ed13c42e7e28f6c98d1efe355d66a47ea43d",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-46c71a94ef.jpg",
+          "width": 1440,
+          "height": 2369,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Create two colourful 1200x675 infographic patterns explaining a community tool library's four lending rules: reserve one",
+          "poster": {
+            "file": "desktop-poster-5c45036ac0.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-44b64e39bd.jpg",
+          "width": 390,
+          "height": 1574,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Create two colourful 1200x675 infographic patterns explaining a community tool library's four lending rules: reserve one",
+          "poster": {
+            "file": "mobile-poster-40c457b954.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
       "owner": "anthropics",
       "repo": "skills",
       "name": "frontend-design",
@@ -95,6 +135,46 @@
           "height": 844,
           "viewport": "mobile",
           "alt": "Phone screenshot of the page the Agent built for: Make a tiny 3D arcade game called Gullwick: seagulls swoop down at a seaside chip stall, and you click or tap each gull "
+        }
+      ]
+    },
+    {
+      "owner": "conardli",
+      "repo": "garden-skills",
+      "name": "web-design-engineer",
+      "makes": "ui-component",
+      "authorName": "ConardLi",
+      "sourceUrl": "https://github.com/ConardLi/garden-skills/blob/main/skills/web-design-engineer/SKILL.md",
+      "prompt": "Build Daybreak Observatory, a fictional volunteer stargazing-session planner. Use an editorial dark astronomical visual direction with an authored star chart and copper accent. Label all observing conditions as illustrative. Show date selection, three session cards, a working participant count, target filter, reservation confirmation, and a hidden Tweaks panel with accent and density controls. Choose your temporary design system; no existing product branding applies. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "ea45dc563a42042341de36cc11806d8a870a6606",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-efb7b9ac74.jpg",
+          "width": 1440,
+          "height": 1624,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build Daybreak Observatory, a fictional volunteer stargazing-session planner. Use an editorial dark astronomical visual ",
+          "poster": {
+            "file": "desktop-poster-5e982269ff.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-98ca86c9d0.jpg",
+          "width": 390,
+          "height": 2853,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build Daybreak Observatory, a fictional volunteer stargazing-session planner. Use an editorial dark astronomical visual ",
+          "poster": {
+            "file": "mobile-poster-3ec3d614f4.jpg",
+            "height": 844
+          }
         }
       ]
     },
@@ -421,6 +501,35 @@
       "sourceUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/main/skills/make-interfaces-feel-better/SKILL.md"
     },
     {
+      "owner": "jimliu",
+      "repo": "baoyu-skills",
+      "name": "baoyu-diagram",
+      "makes": "diagram",
+      "authorName": "Jim Liu 宝玉",
+      "sourceUrl": "https://github.com/JimLiu/baoyu-skills/blob/main/skills/baoyu-diagram/SKILL.md",
+      "prompt": "Create a professional dark SVG sequence diagram for a fictional parcel-locker pickup. Actors are customer, kiosk, booking service, and locker. Messages are scan pickup code, validate code, valid booking response, unlock locker, door opens, and mark collected. Include invalid-code alternative clearly. Follow the Skill's standalone SVG output and save diagram.svg. Also embed that exact SVG into one responsive index.html, with a readable title and numbered-message legend, for the demo viewer. Do not replace the SVG with generic boxes. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "6699b802c049d6a165e403250a98477d87000b07",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-5a6f8ccb51.jpg",
+          "width": 1440,
+          "height": 1309,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Create a professional dark SVG sequence diagram for a fictional parcel-locker pickup. Actors are customer, kiosk, bookin",
+          "poster": {
+            "file": "desktop-poster-87dc351305.jpg",
+            "height": 900
+          }
+        }
+      ]
+    },
+    {
       "owner": "justinwetch",
       "repo": "higagentskills",
       "name": "higagentskills",
@@ -660,6 +769,47 @@
           "alt": "Phone screenshot of the page the Agent built for: Build Margin Notes, a fictional quiet reading-journal workspace. Show an asymmetric editorial reading queue, a featured ",
           "poster": {
             "file": "mobile-poster-9ae8cbbb3b.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "owner": "leonxlnx",
+      "repo": "taste-skill",
+      "name": "redesign-skill",
+      "makes": "landing-page",
+      "authorName": "Leon Lin",
+      "sourceUrl": "https://github.com/Leonxlnx/taste-skill/blob/main/skills/redesign-skill/SKILL.md",
+      "prompt": "Audit and redesign the supplied Needlework Repair page as a premium local clothing-repair service. Preserve its repair selector, exact prices ($18 hem, $12 button, $34 zip), and working booking confirmation. Keep vanilla CSS. Capture a before view, then verify those interactions after redesign. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "setup": "The folder held a plain clothing-repair booking page with a repair selector, price calculation, and booking confirmation.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "3206dd44fce91412cbfd5b2dbead29fb29a91bb9",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-b8d456492b.jpg",
+          "width": 1440,
+          "height": 2246,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Audit and redesign the supplied Needlework Repair page as a premium local clothing-repair service. Preserve its repair s",
+          "poster": {
+            "file": "desktop-poster-bbd1d720d4.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-673d8b9ce1.jpg",
+          "width": 390,
+          "height": 2891,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Audit and redesign the supplied Needlework Repair page as a premium local clothing-repair service. Preserve its repair s",
+          "poster": {
+            "file": "mobile-poster-ed2e89bd2b.jpg",
             "height": 844
           }
         }
@@ -1156,6 +1306,46 @@
           "height": 844,
           "viewport": "mobile",
           "alt": "Phone screenshot of the page the Agent built for: Build a small interactive WebGPU toy called Prism Pond with vgpu: a glowing field of floating geometric islands, a camer"
+        }
+      ]
+    },
+    {
+      "owner": "yfe404",
+      "repo": "tech-visualizer",
+      "name": "tech-visualizer",
+      "makes": "diagram",
+      "authorName": "Yann",
+      "sourceUrl": "https://github.com/yfe404/tech-visualizer/blob/main/tech-visualizer/SKILL.md",
+      "prompt": "Build a precise interactive explainer of breadth-first search called Searchfront. Use a small original graph with six labelled nodes. Show a queue, visited nodes, shortest-path discovery, live start/target selectors, play/pause, step, back, and reset. Make the difference between queued and visited nodes clear. The algorithm must run from input data rather than a canned animation. Don't ask questions. Make the design calls yourself. Use TypeScript for build tooling if needed. Save the final demo as one self-contained index.html with all CSS and runtime JavaScript inline. Bundle any package code locally. All visible controls must work. It will run in an opaque iframe with sandbox allow-scripts only: no form submissions, storage, popups, or downloads. Use explicit button handlers and in-page results. Support reduced motion, keyboard use, 390px mobile, and 1440px desktop. Verify the important controls in a browser before finishing.",
+      "agent": "Codex",
+      "agentVersion": "0.160.1",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "1995a33c7af638830bb6e2440d6c1d22c59df317",
+      "recordedAt": "2026-10-07",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-05d8094e8a.jpg",
+          "width": 1440,
+          "height": 1395,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a precise interactive explainer of breadth-first search called Searchfront. Use a small original graph with six la",
+          "poster": {
+            "file": "desktop-poster-fc30d6f004.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-47a19050d3.jpg",
+          "width": 390,
+          "height": 1441,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a precise interactive explainer of breadth-first search called Searchfront. Use a small original graph with six la",
+          "poster": {
+            "file": "mobile-poster-0343a979d6.jpg",
+            "height": 844
+          }
         }
       ]
     },

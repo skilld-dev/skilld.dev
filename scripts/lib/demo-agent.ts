@@ -12,7 +12,8 @@ export async function runDemoAgent(input: { command: string, args: string[], cwd
   const stderrLog = createWriteStream(join(input.cwd, 'codex-stderr.log'))
   const execution = run(input.command, input.args, {
     cwd: input.cwd,
-    env: input.env,
+    // Shell heredocs and renderers must keep temporary files in the writable sandbox.
+    env: { ...input.env, TMPDIR: input.cwd },
     timeout: input.timeout,
     maxBuffer: 64 * 1024 * 1024,
   })
