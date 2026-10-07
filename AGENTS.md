@@ -75,3 +75,9 @@ New Markdown at the repository root is an error. Identity and filters only.
 - The push-only grammar check (`pnpm cli:grammar`) blocks deployment until the npm `latest`
   release supports every command this site prints. Printing a command the released CLI lacks
   fails the deploy, not the page.
+- The skilld Skill comes from `skills/skilld` in `skilld-dev/skilld`. `.skills/skilld.json` pins
+  its commit, and `.skills/skilld` is the synced copy that Claude Code, Codex, and opencode load.
+  Never edit the copy. To update it, change the pinned commit and run `pnpm sync:skills`.
+  CI runs `pnpm check:skills`, which fails when the copy drifts from its declaration.
+- The Skill evals live in `skilld-dev/skilld` (`pnpm eval:opencode`). Point them at a local or
+  preview site with `--site <origin>` before you deploy an MCP or API change.

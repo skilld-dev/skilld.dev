@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "transactionId": "1791339101009345295-0",
+  "skills": {
+    "skilld": {
+      "source": {
+        "type": "remote",
+        "source": "github:skilld-dev/skilld/skills/skilld#commit:fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
+        "commit_sha": "fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
+        "skill_path": "skills/skilld"
+      },
+      "sourceStatus": {
+        "type": "verified",
+        "artifact_id": "sha256:c8633ed1d78d433dc4cb1ea8da74166f8f6910e3a4fd6664853e90f41f7541ff",
+        "content_sha256": "c8633ed1d78d433dc4cb1ea8da74166f8f6910e3a4fd6664853e90f41f7541ff",
+        "installed_sha256": "76f0bd7cfed129d7b1c6f8d0fbb71c0e96dde4f7611bd73f701ed523ac9083a1",
+        "attestation_key_id": "skilld-production-2026-08"
+      },
+      "targets": [
+        {
+          "agent": "claude-code",
+          "mode": "symlink"
+        },
+        {
+          "agent": "codex",
+          "mode": "symlink"
+        },
+        {
+          "agent": "opencode",
+          "mode": "symlink"
+        }
+      ]
+    }
+  },
+  "requirements": {
+    "skilld-dev-site": {}
+  },
+  "declarations": {
+    "skilld-dev-site": {
+      "skilld": {
+        "source": {
+          "type": "remote",
+          "source": "github:skilld-dev/skilld/skills/skilld#commit:fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
+          "commit_sha": "fe3c82cf3dd5bea05036a747b1d9efa461f13c3b",
+          "skill_path": "skills/skilld"
+        },
+        "targets": [
+          {
+            "agent": "claude-code",
+            "mode": "symlink"
+          },
+          {
+            "agent": "codex",
+            "mode": "symlink"
+          },
+          {
+            "agent": "opencode",
+            "mode": "symlink"
+          }
+        ]
+      }
+    }
+  }
+}
