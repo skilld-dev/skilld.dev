@@ -1,6 +1,6 @@
 import type { SkillFileTreeNode } from '../../layers/registry/app/utils/skill-file-tree'
 import { describe, expect, it } from 'vitest'
-import { buildSkillFileTree } from '../../layers/registry/app/utils/skill-file-tree'
+import { buildSkillFileTree, splitFileLabel } from '../../layers/registry/app/utils/skill-file-tree'
 
 function file(path: string, type: 'markdown' | 'code' = 'markdown') {
   return { path, size: 100, type }
@@ -53,5 +53,20 @@ describe('skill file tree', () => {
 
     expect(outline(tree)).toEqual(['docs/ (open)', '  api/ (open)', '    a.md', '  z.md', 'SKILL.md'])
     expect(tree.at(-1)).toMatchObject({ kind: 'file', asset: { path: 'SKILL.md', size: 7900 } })
+  })
+})
+
+describe('splitFileLabel', () => {
+  it('keeps a short name whole', () => {
+    expect(splitFileLabel('SKILL.md')).toEqual({ head: 'SKILL.md', tail: '' })
+  })
+
+  it('starts the kept tail at a word boundary', () => {
+    expect(splitFileLabel('package-lock.json')).toEqual({ head: 'package-', tail: 'lock.json' })
+    expect(splitFileLabel('shipreel.example.yml')).toEqual({ head: 'shipreel.', tail: 'example.yml' })
+  })
+
+  it('keeps the last eight characters when no boundary fits', () => {
+    expect(splitFileLabel('abcdefghijklmnopqrstuvwxyz.md')).toEqual({ head: 'abcdefghijklmnopqrstu', tail: 'vwxyz.md' })
   })
 })

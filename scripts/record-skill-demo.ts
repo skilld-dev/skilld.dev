@@ -4,6 +4,7 @@
  *   pnpm demo:record owner/repo/skill --makes landing-page --prompt "Build ... Save it as index.html." --output index.html
  *   pnpm demo:record owner/repo/skill --makes film --prompt "Make ... Render it as film.mp4." --output film.mp4
  *   pnpm demo:record owner/repo/skill --makes film --prompt "..." --output launch.mp4 --seed ./site --setup "The folder held ..."
+ *   pnpm demo:record owner/repo/skill --makes diagram --prompt "..." --output diagram.html --shell
  *
  * `--makes` is the demo's group on /skills/demos: one of DEMO_MAKES in
  * shared/demo-groups.ts. `--skill-page-only` keeps the demo on its Skill page
@@ -26,9 +27,13 @@
  *    The account comes from `CLOUDFLARE_ACCOUNT_ID`, else `wrangler.jsonc`.
  *
  * A page Skill gets only Read, Write and Edit. A video Skill has to run its
- * renderer, so its Bash runs in the Claude Code sandbox: writes stay in the temp
- * folder, secrets stay unreadable, and the network reaches only package and
- * code hosts. Third-party Skill text never gets an open shell on this machine.
+ * renderer, so it gets a shell. `--shell` gives a page Skill the same shell, for
+ * a Skill that checks its own output with a command; without it, that check is
+ * skipped and a broken page can ship. Every shell runs in the Claude Code
+ * sandbox: writes stay in the temp folder, secrets and agent sockets stay
+ * unreadable, the environment carries no keys, and the network reaches only
+ * package and code hosts. Third-party Skill text never gets an open shell on
+ * this machine.
  *
  * `--reshoot` retakes the screenshots of a page demo from its kept output,
  * without running the Agent again. `--resume` finishes a run whose Agent
@@ -45,7 +50,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
 import { copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { extname, join, relative, resolve, sep } from 'node:path'
+import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs, promisify } from 'node:util'
@@ -75,7 +80,7 @@ const VIEWPORTS = [
   { viewport: 'mobile', width: 390, height: 844 },
 ] as const
 
-/** Hosts a video Skill may reach from its sandboxed shell: packages, code, fonts, browsers. */
+/** Hosts a sandboxed shell may reach: packages, code, fonts, browsers. */
 const SANDBOX_DOMAINS = [
   'skilld.dev',
   '*.skilld.dev',
@@ -100,13 +105,36 @@ const SECRET_PATHS = ['~/.ssh', '~/.aws', '~/.config', '~/.gnupg', '~/.netrc', '
 /** The folders in ~/.local/share a run needs: Node and npx live under pnpm, and renderers read fonts. */
 const SHARED_DATA_READABLE = new Set(['pnpm', 'fonts'])
 
-/** Every secret path, plus each other folder in ~/.local/share, where tools keep their tokens. */
+/**
+ * The folders that hold this session's agent sockets. The SSH agent, the GPG
+ * agent, the keyring and the session bus answer anyone who reaches the socket,
+ * so reaching one is using the secret behind it.
+ */
+function socketFolders(env: NodeJS.ProcessEnv): string[] {
+  const runtime = env.XDG_RUNTIME_DIR
+  const ssh = env.SSH_AUTH_SOCK ? dirname(env.SSH_AUTH_SOCK) : null
+  // An SSH agent outside the runtime folder, such as one in `/tmp/ssh-XXXX`, needs its own entry.
+  const sshOutside = ssh && !(runtime && `${ssh}/`.startsWith(`${runtime}/`)) ? ssh : null
+  return [runtime, sshOutside].filter((path): path is string => Boolean(path))
+}
+
+/** Every secret path, each other folder in ~/.local/share, where tools keep their tokens, and the agent sockets. */
 function deniedPaths(): string[] {
   const shared = join(homedir(), '.local/share')
   const sharedData = existsSync(shared)
     ? readdirSync(shared).filter(entry => !SHARED_DATA_READABLE.has(entry)).map(entry => `~/.local/share/${entry}`)
     : []
-  return [...SECRET_PATHS, ...sharedData]
+  return [...SECRET_PATHS, ...sharedData, ...socketFolders(process.env)]
+}
+
+/**
+ * The only variables the Agent and its shell inherit. The rest of this shell's
+ * environment can hold API keys and socket paths that a Skill command could use.
+ */
+const AGENT_ENV = ['HOME', 'PATH', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'TMPDIR']
+
+function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(AGENT_ENV.flatMap(key => env[key] ? [[key, env[key]]] : []))
 }
 
 interface Shot {
@@ -150,8 +178,15 @@ interface DemoEntry {
 
 type OutputKind = 'page' | 'video'
 
+/**
+ * What the Agent's Bash may run. `skilld-run` allows only `npx skilld run`, the
+ * page default. `sandboxed` allows any command inside the sandbox: a video always
+ * gets it, and a page gets it with `--shell`.
+ */
+type Shell = { _tag: 'skilld-run' } | { _tag: 'sandboxed' }
+
 type Parsed
-  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null, skillPageOnly: boolean, resume: { dir: string, model: string } | null }
+  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, shell: Shell, seed: string | null, setup: string | null, skillPageOnly: boolean, resume: { dir: string, model: string } | null }
     | { _tag: 'reshoot', owner: string, repo: string, name: string }
     | { _tag: 'usage', message: string }
 
@@ -168,6 +203,7 @@ function parseInput(argv: string[]): Parsed {
       'model': { type: 'string' },
       'setup': { type: 'string' },
       'reshoot': { type: 'boolean', default: false },
+      'shell': { type: 'boolean', default: false },
       'skill-page-only': { type: 'boolean', default: false },
     },
   })
@@ -191,7 +227,8 @@ function parseInput(argv: string[]): Parsed {
   if (values.resume && !values.model)
     return { _tag: 'usage', message: 'A --resume folder needs --model: the model the interrupted run used.' }
   const resumed = values.resume && values.model ? { dir: resolve(values.resume), model: values.model } : null
-  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null, skillPageOnly: values['skill-page-only'], resume: resumed }
+  const shell: Shell = kind === 'video' || values.shell ? { _tag: 'sandboxed' } : { _tag: 'skilld-run' }
+  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, shell, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null, skillPageOnly: values['skill-page-only'], resume: resumed }
 }
 
 interface SkillSource {
@@ -217,15 +254,16 @@ async function skillSource(owner: string, repo: string, name: string): Promise<S
 }
 
 /**
- * The sandbox every recorded run works in. A film Skill may run any command in
- * it; a page Skill only its allowed one, since nothing else is auto-approved.
+ * The sandbox every recorded run works in. With the sandboxed shell, the Agent
+ * may run any command in it; without, only `npx skilld run`, since nothing else
+ * is auto-approved.
  */
-function sandboxSettings(kind: OutputKind): string {
+function sandboxSettings(shell: Shell): string {
   const denied = deniedPaths()
   return JSON.stringify({
     sandbox: {
       enabled: true,
-      autoAllowBashIfSandboxed: kind === 'video',
+      autoAllowBashIfSandboxed: shell._tag === 'sandboxed',
       allowUnsandboxedCommands: false,
       filesystem: {
         // The temp folder is the working directory; renderers cache browsers here too.
@@ -234,9 +272,9 @@ function sandboxSettings(kind: OutputKind): string {
       },
       network: { allowedDomains: SANDBOX_DOMAINS },
     },
-    // A rule path starting `~/` is in the home folder; a bare `/home/...` path would be read as relative.
+    // A rule path starting `~/` is in the home folder and one starting `//` is absolute; a bare `/run/...` path would be read as relative.
     permissions: {
-      deny: denied.flatMap(path => [`Read(${path}/**)`, `Edit(${path}/**)`]),
+      deny: denied.map(path => path.startsWith('/') ? `/${path}` : path).flatMap(path => [`Read(${path}/**)`, `Edit(${path}/**)`]),
     },
   })
 }
@@ -256,12 +294,12 @@ async function pinnedRun(skillRef: string): Promise<{ ref: string, commit: strin
   return { ref: match[1], commit: match[2] }
 }
 
-async function record(cwd: string, pinnedRef: string, prompt: string, kind: OutputKind): Promise<{ model: string, version: string }> {
+async function record(cwd: string, pinnedRef: string, prompt: string, kind: OutputKind, shell: Shell): Promise<{ model: string, version: string }> {
   const instruction = `First run \`npx skilld run '${pinnedRef}'\` and follow the Skill it prints. Then do this task in the current folder:\n\n${prompt}`
-  // A page Skill gets no shell beyond loading Skills; a film Skill gets a shell. Both run in the sandbox.
+  // Without the sandboxed shell, Bash runs nothing beyond loading Skills. Either way it runs in the sandbox.
   // No user or project settings: they would load this machine's CLAUDE.md, Skills and allow rules, and a
   // global allow rule then reaches past --allowedTools, which only pre-approves. Only these four tools exist.
-  const allowed = kind === 'video' ? 'Bash,Read,Write,Edit' : 'Bash(npx skilld run:*),Read,Write,Edit'
+  const allowed = shell._tag === 'sandboxed' ? 'Bash,Read,Write,Edit' : 'Bash(npx skilld run:*),Read,Write,Edit'
   const access = [
     '--setting-sources',
     '',
@@ -269,7 +307,7 @@ async function record(cwd: string, pinnedRef: string, prompt: string, kind: Outp
     '--tools',
     'Bash,Read,Write,Edit',
     '--settings',
-    sandboxSettings(kind),
+    sandboxSettings(shell),
     '--allowedTools',
     allowed,
   ]
@@ -281,7 +319,7 @@ async function record(cwd: string, pinnedRef: string, prompt: string, kind: Outp
     '--permission-mode',
     'acceptEdits',
     ...access,
-  ], { cwd, timeout: kind === 'video' ? VIDEO_RECORD_TIMEOUT_MS : RECORD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
+  ], { cwd, env: agentEnv(process.env), timeout: kind === 'video' ? VIDEO_RECORD_TIMEOUT_MS : RECORD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
   const result = JSON.parse(stdout) as { is_error?: boolean, result?: string, modelUsage?: Record<string, unknown> }
   if (result.is_error)
     throw new Error(`Claude Code reported an error: ${result.result ?? 'no message'}`)
@@ -502,7 +540,7 @@ async function reshoot(owner: string, repo: string, name: string): Promise<void>
 async function main(): Promise<void> {
   const input = parseInput(process.argv.slice(2))
   if (input._tag === 'usage') {
-    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --makes <group> --prompt "..." [--output index.html|film.mp4] [--seed dir --setup "..."] [--skill-page-only]\n       pnpm demo:record owner/repo/skill --reshoot`)
+    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --makes <group> --prompt "..." [--output index.html|film.mp4] [--shell] [--seed dir --setup "..."] [--skill-page-only]\n       pnpm demo:record owner/repo/skill --reshoot`)
     process.exitCode = 2
     return
   }
@@ -510,7 +548,7 @@ async function main(): Promise<void> {
     await reshoot(input.owner, input.repo, input.name)
     return
   }
-  const { owner, repo, name, makes, prompt, output, kind, seed, setup, skillPageOnly } = input
+  const { owner, repo, name, makes, prompt, output, kind, shell, seed, setup, skillPageOnly } = input
   const skillRef = `${owner}/${repo}/${name}`
   const source = await skillSource(owner, repo, name)
   const pinned = await pinnedRun(skillRef)
@@ -519,10 +557,10 @@ async function main(): Promise<void> {
   const cwd = resumed ? resumed.dir : await mkdtemp(join(tmpdir(), 'skilld-demo-'))
   if (seed && !resumed)
     await cp(seed, cwd, { recursive: true })
-  console.log(`Recording ${skillRef} at ${pinned.commit.slice(0, 7)} in ${cwd}`)
+  console.log(`Recording ${skillRef} at ${pinned.commit.slice(0, 7)} in ${cwd}${shell._tag === 'sandboxed' ? ' with the sandboxed shell' : ''}`)
   const agent = resumed
     ? { model: resumed.model, version: (await run('claude', ['--version'])).stdout.trim().split(' ')[0] ?? 'unknown' }
-    : await record(cwd, pinned.ref, prompt, kind)
+    : await record(cwd, pinned.ref, prompt, kind, shell)
 
   const produced = await findOutput(cwd, output)
   if (!produced)

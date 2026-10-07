@@ -21,6 +21,19 @@ const MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
  */
 export const INSTALLATION_TOKEN_RENEW_SECONDS = 5 * 60
 
+/**
+ * How long a failed mint stands. Reads in that time use the fallback without
+ * a mint, so a broken App costs one mint and one event a minute per isolate,
+ * not one per read.
+ */
+export const FAILED_MINT_SECONDS = 60
+
+/** The spread around {@link FAILED_MINT_SECONDS}, so isolates do not mint again together. */
+const FAILED_MINT_JITTER_SECONDS = 10
+
+/** The failure window key for App secrets that do not parse. */
+const MISCONFIGURED_KEY = 'misconfigured'
+
 /** The read App: metadata read only, installed on skilld-dev. */
 export interface ReadAppConfig {
   appId: number
@@ -73,11 +86,21 @@ interface CachedInstallationToken {
  */
 export interface InstallationTokenCache {
   tokens: Map<string, CachedInstallationToken>
-  pending: Map<string, Promise<CachedInstallationToken | { _tag: 'unavailable', reason: string }>>
+  /** Unix seconds until which a failure stands, by key. */
+  failedUntil: Map<string, number>
+  pending: Map<string, Promise<MintOutcome>>
 }
 
+/** How one mint ended. */
+type MintOutcome
+  = | { _tag: 'minted', token: CachedInstallationToken }
+    /** GitHub refused, failed or outlasted the mint's own limit. */
+    | { _tag: 'failed', reason: string }
+    /** The deadline of the read that started the mint ended it. It says nothing about the App. */
+    | { _tag: 'cut-off' }
+
 export function createInstallationTokenCache(): InstallationTokenCache {
-  return { tokens: new Map(), pending: new Map() }
+  return { tokens: new Map(), failedUntil: new Map(), pending: new Map() }
 }
 
 let isolateTokenCache: InstallationTokenCache | null = null
@@ -97,6 +120,8 @@ export interface GithubCredentialRuntime {
   now: () => number
   tokenCache: InstallationTokenCache
   report: (event: GithubCredentialReport) => void
+  /** A number in [0, 1), for the failed mint window's jitter. */
+  random: () => number
 }
 
 /** The credential for one GitHub read. An undefined token reads anonymously. */
@@ -107,13 +132,18 @@ export interface GithubReadCredential {
 }
 
 export interface GithubCredential {
-  current: () => Promise<GithubReadCredential>
+  /**
+   * The credential for one read. A mint the read waits for ends at
+   * `deadline`, and the read then rejects with the deadline's reason, as its
+   * own request would. A read with no deadline waits for the mint's own limit.
+   */
+  current: (deadline?: AbortSignal) => Promise<GithubReadCredential>
   /**
    * The credential after GitHub answered 401 to `rejected`. The cached
    * installation token is dropped and a new one minted, once for every read
-   * that held it.
+   * that held it, even while a failed mint stands.
    */
-  renew: (rejected: GithubReadCredential) => Promise<GithubReadCredential>
+  renew: (rejected: GithubReadCredential, deadline?: AbortSignal) => Promise<GithubReadCredential>
   /** The token for a read GitHub denied the App, or null. */
   fallback: FallbackToken | null
 }
@@ -151,7 +181,8 @@ export function parseGithubCredentialConfig(
  *
  * When the App cannot give a token, the read still runs on the fallback and
  * the reason is reported, so a broken key shows up as an event instead of as
- * a spent quota.
+ * a spent quota. A failure stands for about {@link FAILED_MINT_SECONDS}: reads
+ * in that window use the fallback with no mint and no second report.
  */
 export function createGithubCredential(
   config: GithubCredentialConfig,
@@ -163,42 +194,91 @@ export function createGithubCredential(
     return staticGithubCredential(config.token.token)
   const fallbackName = config.fallback?.name ?? 'anonymous'
   const fallback = { token: config.fallback?.token, isApp: false }
+  const cache = runtime.tokenCache
+  const failureStands = (key: string) => (cache.failedUntil.get(key) ?? 0) > runtime.now()
+  const standFailure = (key: string) => cache.failedUntil.set(
+    key,
+    runtime.now() + FAILED_MINT_SECONDS + (runtime.random() - 0.5) * FAILED_MINT_JITTER_SECONDS,
+  )
   if (config._tag === 'app-misconfigured') {
     const current = async (): Promise<GithubReadCredential> => {
-      runtime.report({ outcome: 'app-misconfigured', reason: config.reason, fallback: fallbackName })
+      if (!failureStands(MISCONFIGURED_KEY)) {
+        standFailure(MISCONFIGURED_KEY)
+        runtime.report({ outcome: 'app-misconfigured', reason: config.reason, fallback: fallbackName })
+      }
       return fallback
     }
     return { current, renew: current, fallback: null }
   }
   const app = config.app
   const key = `${app.appId}:${app.installationId}`
-  const current = async (): Promise<GithubReadCredential> => {
-    const cached = runtime.tokenCache.tokens.get(key)
-    if (cached && cached.expiresAt - INSTALLATION_TOKEN_RENEW_SECONDS > runtime.now())
-      return { token: cached.token, isApp: true }
-    let pending = runtime.tokenCache.pending.get(key)
-    if (!pending) {
-      pending = mintInstallationToken(app, runtime).finally(() => runtime.tokenCache.pending.delete(key))
-      runtime.tokenCache.pending.set(key, pending)
+  const startMint = (deadline: AbortSignal | undefined): Promise<MintOutcome> => {
+    const minting = mintInstallationToken(app, runtime, deadline)
+      .then((outcome) => {
+        if (outcome._tag === 'minted') {
+          cache.tokens.set(key, outcome.token)
+          cache.failedUntil.delete(key)
+        }
+        else if (outcome._tag === 'failed') {
+          // One event for the window, from the read that started the mint.
+          standFailure(key)
+          runtime.report({ outcome: 'app-token-unavailable', reason: outcome.reason, fallback: fallbackName })
+        }
+        return outcome
+      })
+      .finally(() => cache.pending.delete(key))
+    cache.pending.set(key, minting)
+    return minting
+  }
+  const credentialFor = async (deadline: AbortSignal | undefined, mintThroughFailure: boolean): Promise<GithubReadCredential> => {
+    while (true) {
+      deadline?.throwIfAborted()
+      const cached = cache.tokens.get(key)
+      if (cached && cached.expiresAt - INSTALLATION_TOKEN_RENEW_SECONDS > runtime.now())
+        return { token: cached.token, isApp: true }
+      let pending = cache.pending.get(key)
+      if (!pending) {
+        if (!mintThroughFailure && failureStands(key))
+          return fallback
+        pending = startMint(deadline)
+      }
+      const outcome = await untilAborted(pending, deadline)
+      if (outcome._tag === 'minted')
+        return { token: outcome.token.token, isApp: true }
+      if (outcome._tag === 'failed')
+        return fallback
+      // Another read's deadline ended that mint. This read's deadline has not
+      // ended, so it mints again.
     }
-    const minted = await pending
-    if ('token' in minted) {
-      runtime.tokenCache.tokens.set(key, minted)
-      return { token: minted.token, isApp: true }
-    }
-    runtime.report({ outcome: 'app-token-unavailable', reason: minted.reason, fallback: fallbackName })
-    return fallback
   }
   return {
-    current,
-    renew: async (rejected) => {
+    current: async deadline => await credentialFor(deadline, false),
+    renew: async (rejected, deadline) => {
       // Another read that held the same token may have renewed it already.
-      if (runtime.tokenCache.tokens.get(key)?.token === rejected.token)
-        runtime.tokenCache.tokens.delete(key)
-      return await current()
+      // The read that drops the token mints a new one, even while a failed
+      // mint stands: the token worked, so the App may work again.
+      const drops = cache.tokens.get(key)?.token === rejected.token
+      if (drops)
+        cache.tokens.delete(key)
+      return await credentialFor(deadline, drops)
     },
     fallback: config.fallback,
   }
+}
+
+/** The promise's value, or the deadline's reason if the deadline ends first. */
+async function untilAborted<A>(promise: Promise<A>, deadline: AbortSignal | undefined): Promise<A> {
+  if (!deadline)
+    return await promise
+  return await new Promise<A>((resolve, reject) => {
+    const abort = () => reject(deadline.reason)
+    if (deadline.aborted) {
+      abort()
+      return
+    }
+    deadline.addEventListener('abort', abort, { once: true })
+    void promise.then(resolve, reject).finally(() => deadline.removeEventListener('abort', abort))
+  })
 }
 
 /** A credential of one token, or anonymous reads, with no App and no fallback. */
@@ -259,6 +339,8 @@ export async function readWithGithubCredential<A>(
   read: {
     /** The Repository or API path, for the report. Never a token or a query string. */
     label: string
+    /** The read's own deadline, which also ends a mint the read waits for. */
+    deadline?: AbortSignal
     send: (token: string | undefined) => Promise<A>
     /** How GitHub refused a read made as the App, or null when it did not. */
     refusal: (answer: A) => Promise<GithubAppRefusal | null>
@@ -267,11 +349,11 @@ export async function readWithGithubCredential<A>(
     fallbackOnDenial: boolean
   },
 ): Promise<GithubCredentialRead<A>> {
-  let current = await credential.current()
+  let current = await credential.current(read.deadline)
   let answer = await read.send(current.token)
   let refusal = current.isApp ? await read.refusal(answer) : null
   if (refusal === 'unauthorized') {
-    current = await credential.renew(current)
+    current = await credential.renew(current, read.deadline)
     answer = await read.send(current.token)
     refusal = current.isApp ? await read.refusal(answer) : null
   }
@@ -313,7 +395,10 @@ export async function requestInstallationToken(input: {
   jwt: string
   installationId: number
   body: { repository_ids?: number[], permissions: Record<string, 'read'> }
+  /** The caller's deadline. The request also ends at its own limit. */
+  deadline?: AbortSignal
 }): Promise<InstallationTokenResult> {
+  const limit = AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS)
   const response = await input.fetch(`${GITHUB_API}/app/installations/${input.installationId}/access_tokens`, {
     method: 'POST',
     headers: {
@@ -326,7 +411,7 @@ export async function requestInstallationToken(input: {
     body: JSON.stringify(input.body),
     // workerd accepts only `follow` and `manual`. A redirect here is an error.
     redirect: 'manual',
-    signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+    signal: input.deadline ? AbortSignal.any([input.deadline, limit]) : limit,
   })
   if (response.status >= 300 && response.status < 400) {
     await response.body?.cancel()
@@ -383,23 +468,25 @@ export async function signGithubAppJwt(input: {
 async function mintInstallationToken(
   app: ReadAppConfig,
   runtime: Pick<GithubCredentialRuntime, 'fetch' | 'now'>,
-): Promise<CachedInstallationToken | { _tag: 'unavailable', reason: string }> {
+  deadline: AbortSignal | undefined,
+): Promise<MintOutcome> {
   const minted = await signGithubAppJwt({ issuer: String(app.appId), privateKeyPkcs8: app.privateKeyPkcs8, now: runtime.now() })
     .then(jwt => requestInstallationToken({
       fetch: runtime.fetch,
       jwt,
       installationId: app.installationId,
       body: { permissions: { metadata: 'read' } },
+      deadline,
     }))
-    // A network fault, a 5xx or a key WebCrypto rejects: the read uses the
-    // fallback token, and the reason reaches the report.
+    // A network fault, a 5xx, a timeout or a key WebCrypto rejects: the read
+    // uses the fallback token, and the reason reaches the report.
     .catch((error: unknown) => ({ _tag: 'failed' as const, reason: error instanceof Error ? error.message : String(error) }))
   if (minted._tag === 'failed')
-    return { _tag: 'unavailable', reason: minted.reason.slice(0, 200) }
+    return deadline?.aborted ? { _tag: 'cut-off' } : { _tag: 'failed', reason: minted.reason.slice(0, 200) }
   if (minted._tag === 'refused')
-    return { _tag: 'unavailable', reason: `GitHub refused the installation token (${minted.status})` }
+    return { _tag: 'failed', reason: `GitHub refused the installation token (${minted.status})` }
   const expiresAt = Math.floor(Date.parse(minted.expiresAt) / 1000)
-  return { token: minted.token, expiresAt }
+  return { _tag: 'minted', token: { token: minted.token, expiresAt } }
 }
 
 function firstToken(env: GithubCredentialEnv, names: ReadonlyArray<FallbackToken['name']>): FallbackToken | null {

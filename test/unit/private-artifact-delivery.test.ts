@@ -562,5 +562,6 @@ function requiredChecks() {
     { name: 'executable-files', version: '1', outcome: 'pass' as const, required: false },
     { name: 'omitted-files', version: '1', outcome: 'pass' as const, required: false },
     { name: 'symbolic-links', version: '1', outcome: 'pass' as const, required: false },
+    { name: 'behavior-review', version: '1', outcome: 'pass' as const, required: false },
   ]
 }

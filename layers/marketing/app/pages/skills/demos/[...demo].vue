@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~~/app/utils/home-demos'
 import { setResponseHeaders } from 'h3'
-import { demoKey } from '~~/app/utils/home-demos'
+import { demoKey, demoRecording, demoSocialPicture } from '~~/app/utils/home-demos'
 import { resolveAuthorName } from '~~/app/utils/skill-byline'
 import { demoNoun, groupDemos } from '#shared/demo-groups'
 import { demoPagePath, DEMOS_PATH, MIN_INDEXABLE_DEMOS, parseDemoRoute } from '#shared/demo-pages'
@@ -107,9 +107,24 @@ useHead({
   link: [{ rel: 'canonical', href: () => `https://skilld.dev${canonicalPath.value}` }],
 })
 
-defineOgImage('Page.takumi', pageDemo.value
-  ? { title: `What /${pageDemo.value.name} made`, description: clip(pageDemo.value.prompt, 120) }
-  : { title: 'See what skills make', description: 'Recorded runs of agent skills: the prompt, and what the Agent made.' }, { alt: pageDemo.value ? `What /${pageDemo.value.name} made, on skilld` : 'Skill demos on skilld' })
+// A shared demo page shows what the Agent made: the film's poster frame or the
+// page's first screen. The board, and a demo without such a picture, keep the
+// text card.
+const socialPicture = pageDemo.value ? demoSocialPicture(pageDemo.value) : undefined
+if (pageDemo.value && socialPicture) {
+  defineOgImage('Demo.takumi', {
+    name: pageDemo.value.name,
+    recording: demoRecording(pageDemo.value).sentence,
+    image: socialPicture.src,
+    imageWidth: socialPicture.width,
+    imageHeight: socialPicture.height,
+  }, { alt: `What /${pageDemo.value.name} made, on skilld` })
+}
+else {
+  defineOgImage('Page.takumi', pageDemo.value
+    ? { title: `What /${pageDemo.value.name} made`, description: clip(pageDemo.value.prompt, 120) }
+    : { title: 'See what skills make', description: 'Recorded runs of agent skills: the prompt, and what the Agent made.' }, { alt: pageDemo.value ? `What /${pageDemo.value.name} made, on skilld` : 'Skill demos on skilld' })
+}
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 import type { ProofInput, ProofResult, ProofState } from './contracts'
+import type { ModelProvider } from './gateway'
 import { Files, SandboxFileError } from '@cloudflare/sandbox'
 import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers'
 import { JOB_TIMEOUT_MS, MAX_MODEL_CALLS, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, parseJson, parseProofInput, parseProofResult, readBoundedBody } from './contracts'
@@ -8,7 +9,9 @@ import { startOutsideLock } from './startup'
 
 export { GithubJobs } from './github-jobs'
 
-function credentials(env: { PROVIDER: string, ANTHROPIC_API_KEY?: string, GOOGLE_GENERATIVE_AI_API_KEY?: string }): { provider: 'google' | 'anthropic', apiKey: string } | undefined {
+function credentials(env: { PROVIDER: string, ANTHROPIC_API_KEY?: string, GOOGLE_GENERATIVE_AI_API_KEY?: string, OPENCODE_API_KEY?: string }): { provider: ModelProvider, apiKey: string } | undefined {
+  if (env.PROVIDER === 'opencode-go' && env.OPENCODE_API_KEY)
+    return { provider: 'opencode-go', apiKey: env.OPENCODE_API_KEY }
   if (env.PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY)
     return { provider: 'anthropic', apiKey: env.ANTHROPIC_API_KEY }
   if (env.PROVIDER === 'google' && env.GOOGLE_GENERATIVE_AI_API_KEY)
@@ -70,6 +73,7 @@ export class SkillSandbox extends DurableObject<HarnessEnv> {
             PROVIDER: this.env.PROVIDER,
             ANTHROPIC_API_KEY: 'sandbox-placeholder',
             GOOGLE_GENERATIVE_AI_API_KEY: 'sandbox-placeholder',
+            OPENCODE_API_KEY: 'sandbox-placeholder',
             NODE_EXTRA_CA_CERTS: '/etc/cloudflare/certs/cloudflare-containers-ca.crt',
             SSL_CERT_FILE: '/etc/cloudflare/certs/cloudflare-containers-ca.crt',
           },

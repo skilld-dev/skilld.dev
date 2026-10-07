@@ -275,6 +275,7 @@ function runtime(
     now: overrides.now ?? (() => NOW),
     tokenCache: overrides.cache ?? createInstallationTokenCache(),
     report: overrides.report ?? (() => {}),
+    random: () => 0.5,
   }
 }
 

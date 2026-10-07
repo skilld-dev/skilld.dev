@@ -123,7 +123,9 @@ Each denial emits an `app-denied` event: `github-credential` for registry reads 
 
 If GitHub answers 401 to the cached installation token, the read mints one new token and repeats. If GitHub rejects the new token too, the read uses the fallback and emits an `app-token-rejected` event.
 
-If the App secrets are set but unusable, or GitHub refuses to mint a token, every read uses the fallback and emits an event with the reason. The sync then paces itself on the fallback's quota.
+If the App secrets are set but unusable, or a mint fails, reads use the fallback. The sync then paces itself on the fallback's quota. A failure stands for about 60 seconds in each isolate. In that time, reads make no mint, and the isolate emits one event with the reason. After a 401, the new mint runs even while a failure stands.
+
+A mint ends at the deadline of the read that waits for it. A `/gh` page read waits at most its 4 second limit. Builds and the sync wait up to the mint's own 15 second limit. A read deadline that ends a mint does not count as a failure.
 Keep the read App apart from the `GITHUB_APP_*` secrets below. Those belong to private delivery.
 
 Changing `NUXT_TOKEN_KEY` breaks stored GitHub credentials.

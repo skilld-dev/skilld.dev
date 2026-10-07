@@ -7,7 +7,7 @@ import {
   resolveGithubBindings,
 } from '../../layers/registry/server/utils/github-client'
 import { githubRateLimited } from '../../layers/registry/server/utils/github-rate-limited'
-import { createInstallationTokenCache } from '../../shared/server/github-app-credential'
+import { createInstallationTokenCache, INSTALLATION_TOKEN_RENEW_SECONDS } from '../../shared/server/github-app-credential'
 
 // Every Worker GitHub read used `GITHUB_TOKEN`, a personal token whose quota
 // the owner's own tools and CI runners also spend. The read App's
@@ -236,8 +236,144 @@ describe('a read GitHub answered 401 for the cached installation token', () => {
   })
 })
 
-function runtime(reports: GithubCredentialReport[] = []) {
-  return { tokenCache: createInstallationTokenCache(), now: () => NOW, report: (event: GithubCredentialReport) => reports.push(event) }
+// A mint GitHub never answered held a page read for the mint's own 15 second
+// limit, not the page's 4 second read limit.
+describe('a mint for a read with a deadline', () => {
+  it('ends at the read deadline, not at the mint limit', async () => {
+    const github = await stubGithub({ mintPlan: ['hang'] })
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
+    const started = Date.now()
+
+    await expect(getRepo('nuxt', 'ui', bindings, { timeoutMs: 50 })).rejects.toMatchObject({ name: 'TimeoutError' })
+
+    expect(Date.now() - started).toBeLessThan(2_000)
+    expect(github.mintSignals[0]?.aborted).toBe(true)
+    expect(github.reads).toEqual([])
+  })
+
+  // A page can start a read with little of its budget left. That says
+  // nothing about the App, so the next read mints again.
+  it('leaves the next read on the App when only the deadline ended the mint', async () => {
+    const github = await stubGithub({ mintPlan: ['hang'] })
+    const reports: GithubCredentialReport[] = []
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime(reports))
+    await expect(getRepo('nuxt', 'ui', bindings, { timeoutMs: 50 })).rejects.toMatchObject({ name: 'TimeoutError' })
+
+    const repo = await getRepo('nuxt', 'ui', bindings)
+
+    expect(repo.status).toBe(200)
+    expect(github.mints).toBe(2)
+    expect(github.reads).toEqual(['Bearer ghs_app_2'])
+    expect(reports).toEqual([])
+  })
+
+  it('holds a read with no deadline to no page deadline', async () => {
+    const github = await stubGithub({ mintPlan: ['hang'] })
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime())
+
+    const [page, sync] = await Promise.allSettled([
+      getRepo('nuxt', 'ui', bindings, { timeoutMs: 50 }),
+      getRepo('nuxt', 'nuxt', bindings),
+    ])
+
+    expect(page).toMatchObject({ status: 'rejected', reason: { name: 'TimeoutError' } })
+    expect(sync).toMatchObject({ status: 'fulfilled', value: { status: 200 } })
+    expect(github.mints).toBe(2)
+    expect(github.reads).toEqual(['Bearer ghs_app_2'])
+  })
+})
+
+// Every read tried a new mint after one failed, and reported it. A broken App
+// cost one mint and one event per read, and the sync paced on GITHUB_TOKEN.
+describe('a failed mint', () => {
+  it('stands for about a minute, then the next read mints again', async () => {
+    const github = await stubGithub({ mintPlan: ['fail'] })
+    const reports: GithubCredentialReport[] = []
+    const clock = { now: NOW }
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime(reports, clock))
+
+    await getRepo('nuxt', 'ui', bindings)
+    clock.now = NOW + 54
+    await getRepo('nuxt', 'ui', bindings)
+
+    expect(github.mints).toBe(1)
+    expect(github.reads).toEqual(['Bearer site', 'Bearer site'])
+    expect(reports).toEqual([{ outcome: 'app-token-unavailable', reason: 'GitHub App request returned 500', fallback: 'GITHUB_TOKEN' }])
+
+    clock.now = NOW + 65
+    await getRepo('nuxt', 'ui', bindings)
+
+    expect(github.mints).toBe(2)
+    expect(github.reads.at(-1)).toBe('Bearer ghs_app_2')
+  })
+
+  it('costs one mint and one report for reads that meet it together and after', async () => {
+    const github = await stubGithub({ mintPlan: ['fail'] })
+    const reports: GithubCredentialReport[] = []
+    const isolate = runtime(reports)
+    const env = await appEnv({ GITHUB_TOKEN: 'site' })
+    // Each request resolves its own bindings over the one isolate cache.
+    const read = (repo: string) => getRepo('nuxt', repo, resolveGithubBindings(env, isolate))
+
+    await Promise.all([read('ui'), read('nuxt'), read('image')])
+    await Promise.all([read('ui'), read('nuxt')])
+
+    expect(github.mints).toBe(1)
+    expect(github.reads).toEqual(Array.from({ length: 5 }).fill('Bearer site'))
+    expect(reports).toHaveLength(1)
+  })
+
+  it('never stops the one new mint after GitHub answered 401 for a minted token', async () => {
+    const rejects: string[] = []
+    const mintPlan: MintAnswer[] = []
+    let release = () => {}
+    const until = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const github = await stubGithub({ rejects, mintPlan, hold: { token: 'ghs_app_1', until } })
+    const reports: GithubCredentialReport[] = []
+    const clock = { now: NOW }
+    const bindings = resolveGithubBindings(await appEnv({ GITHUB_TOKEN: 'site' }), runtime(reports, clock))
+
+    // This read holds the first token while the next mint fails.
+    const held = getRepo('nuxt', 'ui', bindings)
+    await vi.waitFor(() => expect(github.reads).toEqual(['Bearer ghs_app_1']))
+    clock.now = NOW + 3600 - INSTALLATION_TOKEN_RENEW_SECONDS
+    mintPlan.push('fail')
+    await getRepo('nuxt', 'nuxt', bindings)
+    expect(github.reads.at(-1)).toBe('Bearer site')
+
+    rejects.push('ghs_app_1')
+    release()
+    const repo = await held
+
+    expect(repo.status).toBe(200)
+    expect(github.mints).toBe(3)
+    expect(github.reads.at(-1)).toBe('Bearer ghs_app_3')
+  })
+
+  it('reports unusable App secrets once a window, not once a read', async () => {
+    const github = await stubGithub({})
+    const reports: GithubCredentialReport[] = []
+    const clock = { now: NOW }
+    const env = { ...(await appEnv({ GITHUB_TOKEN: 'site' })), SKILLD_READ_APP_ID: 'not-an-id' }
+    const bindings = resolveGithubBindings(env, runtime(reports, clock))
+
+    await getRepo('nuxt', 'ui', bindings)
+    await getRepo('nuxt', 'nuxt', bindings)
+    expect(reports).toHaveLength(1)
+
+    clock.now = NOW + 65
+    await getRepo('nuxt', 'ui', bindings)
+
+    expect(github.mints).toBe(0)
+    expect(reports).toHaveLength(2)
+    expect(reports[1]).toEqual({ outcome: 'app-misconfigured', reason: 'SKILLD_READ_APP_ID is not a GitHub App ID', fallback: 'GITHUB_TOKEN' })
+  })
+})
+
+function runtime(reports: GithubCredentialReport[] = [], clock = { now: NOW }) {
+  return { tokenCache: createInstallationTokenCache(), now: () => clock.now, report: (event: GithubCredentialReport) => reports.push(event) }
 }
 
 async function appEnv(tokens: { GITHUB_TOKEN?: string }) {
@@ -269,24 +405,46 @@ interface StubOptions {
   fallbackAnswers?: 'rate-limited' | 'unauthorized' | 'low-quota'
   /** Installation tokens GitHub answers 401, as for a revoked token. */
   rejects?: string[]
+  /** How GitHub answers each mint, in order. A mint past the end succeeds. */
+  mintPlan?: MintAnswer[]
+  /** The first read with this token waits for `until` before GitHub answers it. */
+  hold?: { token: string, until: Promise<void> }
 }
+
+/** `hang` answers nothing until the request is aborted. `fail` answers 500. */
+type MintAnswer = 'hang' | 'fail'
 
 /**
  * GitHub as the App and a personal token see it. Each mint answers a new
  * installation token: `ghs_app_1`, then `ghs_app_2`.
  */
 async function stubGithub(options: StubOptions) {
-  const state = { mints: 0, reads: [] as Array<string | null> }
+  const state = { mints: 0, reads: [] as Array<string | null>, mintSignals: [] as Array<AbortSignal | null | undefined> }
+  const hold = { pending: options.hold }
   const appQuota = { 'x-ratelimit-remaining': '4990', 'x-ratelimit-limit': '5000' }
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const headers = new Headers(init?.headers)
     if (url.endsWith(`/app/installations/${INSTALLATION_ID}/access_tokens`)) {
       state.mints++
+      state.mintSignals.push(init?.signal)
+      const answer = options.mintPlan?.shift()
+      if (answer === 'fail')
+        return new Response('{}', { status: 500 })
+      if (answer === 'hang') {
+        return await new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal!.reason), { once: true })
+        })
+      }
       return Response.json({ token: `ghs_app_${state.mints}`, expires_at: new Date((NOW + 3600) * 1000).toISOString() }, { status: 201 })
     }
     const authorization = headers.get('authorization')
     state.reads.push(authorization)
+    if (hold.pending && authorization === `Bearer ${hold.pending.token}`) {
+      const until = hold.pending.until
+      hold.pending = undefined
+      await until
+    }
     const asApp = authorization?.startsWith('Bearer ghs_app_') === true
     const graphql = url.endsWith('/graphql')
     if (asApp && options.rejects?.includes(authorization!.slice('Bearer '.length)))

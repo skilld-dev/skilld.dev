@@ -35,6 +35,15 @@ const OMITTED_FILES_VERSION = '1'
  * the same reason as `omitted-files`. ADR-0014.
  */
 const SYMBOLIC_LINKS_VERSION = '1'
+/**
+ * A language model's reading of each match of a behavior that needs
+ * approval. It is not required, and nothing it says gates delivery: the
+ * skilld CLI gates on its own pattern match. `behavior-review.ts` builds it,
+ * outside this file, so the signer never bundles the matcher.
+ */
+export const BEHAVIOR_REVIEW_CHECK_NAME = 'behavior-review'
+/** A finding reads `PATH:LINE BEHAVIOR: VERDICT.`, then the reason. The skilld CLI parses it. */
+export const BEHAVIOR_REVIEW_CHECK_VERSION = '1'
 /** The skilld CLI refuses a check result with more findings, or a longer one. */
 const MAX_CHECK_FINDINGS = 100
 const MAX_CHECK_FINDING_CHARACTERS = 500
@@ -51,9 +60,15 @@ const POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS: ArtifactCheckSet = new Map([
   ['omitted-files', { version: OMITTED_FILES_VERSION, required: false }],
 ])
 
-const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
+/** The checks of policy `2026-10-07.4`, before the behavior review. */
+const POLICY_BEFORE_BEHAVIOR_REVIEW_CHECKS: ArtifactCheckSet = new Map([
   ...POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS,
   ['symbolic-links', { version: SYMBOLIC_LINKS_VERSION, required: false }],
+])
+
+const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
+  ...POLICY_BEFORE_BEHAVIOR_REVIEW_CHECKS,
+  [BEHAVIOR_REVIEW_CHECK_NAME, { version: BEHAVIOR_REVIEW_CHECK_VERSION, required: false }],
 ])
 
 /**
@@ -71,9 +86,9 @@ const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
  */
 export const SIGNABLE_ARTIFACT_POLICIES: ReadonlyMap<string, ArtifactCheckSet> = new Map([
   [ARTIFACT_POLICY_VERSION, CURRENT_ARTIFACT_CHECKS],
-  // ADR-0014 follows symbolic links and adds the `symbolic-links` check. The
-  // policy before it refused every link, so the bump closes no safety gap.
-  ['2026-10-07.3', POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS],
+  // ADR-0016 adds the `behavior-review` check, which is never required. The
+  // bump closes no safety gap.
+  ['2026-10-07.4', POLICY_BEFORE_BEHAVIOR_REVIEW_CHECKS],
 ])
 
 export interface CheckedArtifactSource {

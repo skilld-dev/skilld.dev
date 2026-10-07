@@ -44,7 +44,7 @@ minimumReleaseAgeExclude:
   - sitemapd@0.2.1 || 0.2.2
   - nuxt-skew-protection@1.5.2
   - '@nuxtjs/seo@5.3.14'
-  - skilld-protocol@2.5.0
+  - skilld-protocol@2.5.3
   - skilld-sdk@0.1.2
   - skilld
   - skilld-cli-darwin-arm64
@@ -227,7 +227,6 @@ patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.patch
   hookable@6.1.2: patches/hookable@6.patch
-  skilld-protocol@2.5.0: patches/skilld-protocol@2.5.0.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/sandbox': 1.0.0
@@ -290,7 +289,7 @@ catalog:
   # The header menu imports reka-ui directly. Keep it equal to the version
   # @nuxt/ui pins, or the client ships two copies.
   reka-ui: 2.10.4
-  skilld-protocol: ^2.5.0
+  skilld-protocol: ^2.5.3
   skilld-sdk: 0.1.2
   tailwindcss: ^4.3.3
   tsx: ^4.23.13

@@ -173,3 +173,26 @@ export function highlightLangFromPath(path: string): string {
 export function isInlineRenderable(type: 'markdown' | 'code' | 'image' | 'data' | 'other'): boolean {
   return type === 'markdown' || type === 'code' || type === 'data'
 }
+
+const LABEL_SPLIT_MIN = 17
+const LABEL_TAIL_MIN = 6
+const LABEL_TAIL_MAX = 12
+const LABEL_TAIL_FALLBACK = 8
+const LABEL_BOUNDARY = /[-_. ]/g
+
+/**
+ * Splits a long file name so the tree can truncate its middle and keep its
+ * end. Names like `setup-v1.md` and `setup-v2.md` then stay apart in a narrow
+ * column. The tail starts after a separator when one gives a tail of 6 to 12
+ * characters, so a word is not cut in half.
+ */
+export function splitFileLabel(name: string): { head: string, tail: string } {
+  if (name.length < LABEL_SPLIT_MIN)
+    return { head: name, tail: '' }
+  const cut = [...name.matchAll(LABEL_BOUNDARY)]
+    .map(match => match.index + 1)
+    .reverse()
+    .find(index => name.length - index >= LABEL_TAIL_MIN && name.length - index <= LABEL_TAIL_MAX)
+    ?? name.length - LABEL_TAIL_FALLBACK
+  return { head: name.slice(0, cut), tail: name.slice(cut) }
+}

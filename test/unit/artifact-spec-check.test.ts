@@ -1,8 +1,8 @@
 import type { ResolvedSource } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { ArtifactSourceFile } from '../../layers/artifact-delivery/server/utils/github-source'
 import { describe, expect, it } from 'vitest'
+import { checkFilesInMemory } from '../../layers/artifact-delivery/server/utils/build'
 import {
-  checkArtifactSource,
   checksBlockArtifact,
   checksPermitSigning,
 } from '../../layers/artifact-delivery/server/utils/checks'
@@ -63,10 +63,10 @@ describe('agent Skills specification check', () => {
 })
 
 async function check(skillPath: string, file: ArtifactSourceFile) {
-  return await checkArtifactSource(source(skillPath), [file])
+  return await checkFilesInMemory({}, source(skillPath), [file])
 }
 
-function specResult(results: Awaited<ReturnType<typeof checkArtifactSource>>['checkResults']) {
+function specResult(results: Awaited<ReturnType<typeof checkFilesInMemory>>['checkResults']) {
   return results.find(result => result.name === 'agent-skills-spec')
 }
 
