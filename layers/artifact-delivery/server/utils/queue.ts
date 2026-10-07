@@ -1,4 +1,5 @@
 import type { QueueBatch } from '#cf-jobs/server'
+import type { BehaviorReviewReport } from './behavior-reviewer'
 import type { ArtifactBuildDependencies } from './build'
 import type {
   ArtifactGithubCredentialEnv,
@@ -10,6 +11,8 @@ import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { z } from 'zod'
 import { emitOperationalEvent } from '#server/utils/operational-event'
 import { createArtifactSigner } from './attestation'
+import { BEHAVIOR_REVIEW_MODEL } from './behavior-review'
+import { BEHAVIOR_REVIEW_TIMEOUT_MS, createBehaviorReviewer } from './behavior-reviewer'
 import { failResolution, processArtifactBuild } from './build'
 import {
   createGithubAppClientFromEnv,
@@ -237,8 +240,55 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
     now: () => Math.floor(Date.now() / 1000),
+    reviewBehaviors: createBehaviorReviewer({
+      db: env.DB,
+      model: env.AI ? request => (env.AI as unknown as ModelBinding).run(BEHAVIOR_REVIEW_MODEL, request) : null,
+      nonce: () => crypto.randomUUID().slice(0, 8),
+      clock: () => Date.now(),
+      timeoutMs: BEHAVIOR_REVIEW_TIMEOUT_MS,
+      report: reportBehaviorReview,
+    }),
     ...privateDependencies,
   }
+}
+
+/** The Workers AI binding, as a partner model takes a Chat Completions body. */
+interface ModelBinding {
+  run: (model: string, body: unknown) => Promise<unknown>
+}
+
+/**
+ * One wide event per review, so the daily check-in can count model calls,
+ * tokens, and spend.
+ */
+function reportBehaviorReview(report: BehaviorReviewReport): void {
+  if (report._tag === 'read') {
+    emitOperationalEvent(createWideEvent({
+      'operation': 'behavior-review',
+      'outcome': report.invalid ? 'invalid-reply' : 'read',
+      'item.count': report.hits,
+      'model.inputTokens': report.usage.inputTokens,
+      'model.cachedTokens': report.usage.cachedTokens,
+      'model.outputTokens': report.usage.outputTokens,
+      'model.costMicros': report.costMicros,
+      'model.durationMs': report.latencyMs,
+    }), 'info')
+    return
+  }
+  if (report._tag === 'stored') {
+    emitOperationalEvent(createWideEvent({ 'operation': 'behavior-review', 'outcome': 'stored', 'reason': report.from, 'item.count': report.hits }), 'info')
+    return
+  }
+  if (report._tag === 'store-failed') {
+    emitOperationalEvent(createWideEvent({ operation: 'behavior-review', outcome: 'store-failed', reason: report.reason }))
+    return
+  }
+  emitOperationalEvent(createWideEvent({
+    'operation': 'behavior-review',
+    'outcome': 'unread',
+    'item.count': report.hits,
+    'reason': report.detail ? `${report.reason}: ${report.detail}` : report.reason,
+  }))
 }
 
 function createPrivateBuildDependencies(
