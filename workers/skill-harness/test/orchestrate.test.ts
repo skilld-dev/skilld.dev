@@ -49,6 +49,19 @@ describe('generation and review', () => {
     expect(review).toHaveBeenCalledTimes(2)
   })
 
+  it('skips review when an update leaves the Skill byte-identical, so Skillgen opens nothing', async () => {
+    const review = vi.fn()
+    const result = await runGeneration({ generate: async () => generated, review, readFiles: async () => files, baseline: [{ path: 'SKILL.md', content: 'checked Skill' }] })
+    expect(review).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ _tag: 'Ok', files, review: { summary: 'No change needed.', findings: [] }, reviewReport: { _tag: 'Unavailable' }, repairAttempts: 0 })
+  })
+
+  it('reviews an update that changed the Skill', async () => {
+    const review = vi.fn(async () => clean)
+    await runGeneration({ generate: async () => generated, review, readFiles: async () => files, baseline: [{ path: 'SKILL.md', content: 'older Skill' }] })
+    expect(review).toHaveBeenCalledOnce()
+  })
+
   it('returns clean output without spending a repair attempt', async () => {
     const generate = vi.fn(async () => generated)
     const result = await runGeneration({ generate, review: async () => clean, readFiles: async () => files })

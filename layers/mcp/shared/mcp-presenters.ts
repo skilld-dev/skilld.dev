@@ -16,6 +16,7 @@
 import type { OperationOutput } from 'skilld-sdk'
 import type { indexRequestsV1, repositoriesV1, skillsV1, trackSummarySchema, tracksV1, trendingSkillSchema } from 'skilld-sdk/contract'
 import type { InstallRef } from './mcp-install-command'
+import { skillDetailSchema } from 'skilld-sdk/contract'
 import { z } from 'zod'
 import { installCommandFor, skillRunCommand } from './mcp-install-command'
 
@@ -82,6 +83,7 @@ export const skillOutputSchema = z.object({
   license: z.string().optional(),
   allowedTools: z.array(z.string()).optional(),
   files: z.array(z.object({ path: z.string(), size: z.number().int() })).optional(),
+  behaviors: skillDetailSchema.client.shape.behaviors.optional(),
   /** Present only when the SKILL.md is gone upstream and this is the last copy. */
   sourceGone: z.literal(true).optional(),
   runCommand: z.string(),
@@ -268,6 +270,7 @@ export function presentSkill(answer: SkillAnswer): Presented<z.infer<typeof skil
     license: answer.license ?? undefined,
     allowedTools: answer.allowedTools.length ? answer.allowedTools : undefined,
     files: answer.files.length ? answer.files.map(file => ({ path: file.path, size: file.size })) : undefined,
+    behaviors: answer.behaviors.length ? answer.behaviors : undefined,
     sourceGone: answer.sourceGone ? true as const : undefined,
     runCommand: answer.runCommand,
     installCommand: answer.installCommand,
@@ -291,6 +294,7 @@ export function presentSkill(answer: SkillAnswer): Presented<z.infer<typeof skil
     structured.license ? `License: ${structured.license}` : undefined,
     structured.allowedTools ? `Allowed tools: ${structured.allowedTools.join(', ')}` : undefined,
     structured.files ? `Files beside SKILL.md: ${structured.files.map(file => file.path).join(', ')}` : undefined,
+    ...(structured.behaviors?.map(behavior => `Skill behaviors: ${behavior.label} (${behavior.tier}, ${behavior.total} ${behavior.total === 1 ? 'match' : 'matches'}) · ${behavior.locations.map(location => location.line === null ? location.path : `${location.path}:${location.line}`).join(', ')}`) ?? []),
     `Run once: \`${answer.runCommand}\` (one session, writes no files)`,
     `Install: \`${answer.installCommand}\` (keeps it in the project)`,
     SAFETY_NOTE,

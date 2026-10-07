@@ -70,6 +70,23 @@ describe('search_skills answer', () => {
 describe('get_skill answer', () => {
   const answer = fixture('skill-web-design-guidelines')
 
+  it('preserves Skill behaviors in text and schema-checked data', () => {
+    const behaviors = [{
+      id: 'network-access',
+      tier: 'ask' as const,
+      label: 'Network access',
+      locations: [{ path: 'SKILL.md', line: 12 }, { path: 'scripts/deploy.sh', line: null }],
+      total: 3,
+    }]
+    const presented = presentSkill({ ...answer, behaviors })
+    expect(skillOutputSchema.parse(presented.structured)).toMatchObject({ behaviors })
+    expect(presented.text).toContain('Network access')
+    expect(presented.text).toContain('ask')
+    expect(presented.text).toContain('SKILL.md:12')
+    expect(presented.text).toContain('scripts/deploy.sh')
+    expect(presented.text).toContain('3 matches')
+  })
+
   it('leads with provenance, freshness, and both commands', () => {
     const { text } = presentSkill(answer)
     expect(text).toContain('by Vercel Labs')

@@ -163,7 +163,7 @@ const GetSkillArgs = z.object({
 const getSkill: McpTool = {
   name: 'get_skill',
   title: 'Get Skill details',
-  description: 'Look up one skill by GitHub owner, repository, and skill name. Returns its provenance: the publisher, the exact SKILL.md file and commit on GitHub, and freshness (the last repository push and the last skill change). Also returns the full SKILL.md text, the skilld.dev page, runCommand, and installCommand. runCommand gives the skill to a coding agent for one session and writes no files. installCommand writes the skill into the project for every session. files lists the files beside SKILL.md without their contents. skilld does not check whether a skill is safe.',
+  description: 'Look up one skill by GitHub owner, repository, and skill name. Returns its provenance: the publisher, the exact SKILL.md file and commit on GitHub, and freshness (the last repository push and the last skill change). Also returns the full SKILL.md text, the skilld.dev page, runCommand, and installCommand. runCommand gives the skill to a coding agent for one session and writes no files. installCommand writes the skill into the project for every session. files lists the files beside SKILL.md without their contents. behaviors lists what SKILL.md and the file names ask an agent to do; a behavior with tier ask is one that skilld run holds for the user\'s approval. skilld does not check whether a skill is safe.',
   inputSchema: GetSkillArgs.shape,
   outputSchema: skillOutputSchema,
   examplePrompt: 'Who wrote vercel-labs/agent-skills/web-design-guidelines, and when did it last change?',
