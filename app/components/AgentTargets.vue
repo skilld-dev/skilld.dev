@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // No picker and no per-agent command. The CLI detects the agent and reports
 // where it installed, so the only thing the site still knows that the CLI
-// output does not is how a user confirms the install landed.
+// output does not is how a user confirms the install landed. Targets without a
+// checked step show their project folder instead.
 const open = ref(false)
 
 // Skill detail mounts this twice, so the list id must be unique per instance.
@@ -33,8 +34,12 @@ const listId = useId()
         <dt class="font-mono text-muted">
           {{ agent.label }}
         </dt>
-        <dd class="text-toned">
+        <dd v-if="agent.verify" class="text-toned">
           {{ agent.verify }}
+        </dd>
+        <!-- No checked step yet, so state the one fact the CLI fixes: where the files land. -->
+        <dd v-else class="text-toned">
+          Skills land in <code class="font-mono">{{ agent.projectDir }}</code> in your project.
         </dd>
       </div>
     </dl>
