@@ -109,12 +109,12 @@ export function withRequesterFallback(
       const client = await ownClient()
       return client ? await client.resolve(request) : first
     },
-    async load(source) {
-      const first = await shared.load(source)
+    async load(source, options) {
+      const first = await shared.load(source, options)
       if (first._tag !== 'rejected' || first.code !== 'RATE_LIMITED')
         return first
       const client = await ownClient()
-      return client ? await client.load(source) : first
+      return client ? await client.load(source, options) : first
     },
   }
 }

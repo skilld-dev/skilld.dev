@@ -34,6 +34,7 @@ import {
   transitionResolution,
 } from '../../layers/artifact-delivery/server/utils/state'
 import { handleArtifactSignerRequest } from '../../workers/artifact-signer/src/handler'
+import { loadedFromFiles } from '../fixtures/loaded-source'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_787_227_200
@@ -43,6 +44,7 @@ const MIGRATIONS = [
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
+  'migrations/0145_artifact_resolution_linked_files.sql',
   'migrations/0131_artifact_build_reuse.sql',
   'migrations/0144_artifact_resolution_requesters.sql',
 ]
@@ -505,7 +507,7 @@ async function createReuseHarness() {
 function githubServing(resolved: ResolvedSource) {
   return {
     resolve: vi.fn(async () => ({ _tag: 'resolved' as const, source: resolved })),
-    load: vi.fn(async () => ({ _tag: 'loaded' as const, value: { source: resolved, files } })),
+    load: vi.fn(async () => ({ _tag: 'loaded' as const, value: loadedFromFiles(resolved, files) })),
   } satisfies PublicGithubSourceClient
 }
 
@@ -594,7 +596,7 @@ function memoryBucket() {
       const object = describeObject(key)
       const stored = objects.get(key)
       return object && stored
-        ? { ...object, arrayBuffer: async () => Uint8Array.from(stored.bytes).buffer }
+        ? { ...object, arrayBuffer: async () => Uint8Array.from(stored.bytes).buffer, body: new Blob([Uint8Array.from(stored.bytes)]).stream() }
         : null
     },
   } as unknown as R2Bucket

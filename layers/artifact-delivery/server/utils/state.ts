@@ -26,7 +26,7 @@ import { canonicalJson, digestHex } from './encoding'
  * The signer also signs the policy before this one, so a deploy window fails
  * no run. Update `SIGNABLE_ARTIFACT_POLICIES` in `checks.ts` with each bump.
  */
-export const ARTIFACT_POLICY_VERSION = '2026-10-07.2'
+export const ARTIFACT_POLICY_VERSION = '2026-10-07.4'
 
 /**
  * Earlier policies under which every ready build packed the bytes this policy
@@ -36,11 +36,19 @@ export const ARTIFACT_POLICY_VERSION = '2026-10-07.2'
  * A bump that changes only checks adds the version it replaces. A bump that
  * changes the bytes of a folder an earlier policy accepted empties this set.
  *
+ * - `2026-10-07.3`: ADR-0014 follows the symbolic links that policy refused.
+ *   A folder it accepted held no link, so it packs the same files.
+ * - `2026-10-07.2`: ADR-0013 streams the archive and raises the limits, so
+ *   it packs folders that policy refused or left files out of. A folder it
+ *   packed whole packs the same files. Artifact order moved from UTF-16 to
+ *   UTF-8 path order, which differs only for a path outside the Basic
+ *   Multilingual Plane; such a stored archive packs differently and fails
+ *   the byte comparison, so it loads from GitHub.
  * - `2026-10-07.1`: #487 leaves large media out of a folder that policy
  *   refused. Every folder it accepted packs the same files.
  * - `2026-08-20.1`: #481 changed checks and Skill name resolution only.
  */
-export const BYTE_COMPATIBLE_POLICY_VERSIONS: ReadonlySet<string> = new Set(['2026-10-07.1', '2026-08-20.1'])
+export const BYTE_COMPATIBLE_POLICY_VERSIONS: ReadonlySet<string> = new Set(['2026-10-07.3', '2026-10-07.2', '2026-10-07.1', '2026-08-20.1'])
 
 export const ACTIVE_BUILD_STATES = [
   'requested',
@@ -97,6 +105,8 @@ const resolutionRowSchema = z.object({
   error_code: z.string().nullable(),
   error_retryable: z.union([z.literal(0), z.literal(1)]).nullable(),
   error_retry_after: z.number().int().positive().nullable().optional(),
+  /** 1 when the skilld CLI that asked reads linked files. */
+  linked_files: z.union([z.literal(0), z.literal(1)]).optional(),
   created_at: z.number().int(),
   updated_at: z.number().int(),
 })
@@ -139,18 +149,24 @@ const transitions: Record<BuildState, readonly BuildState[]> = {
   revoked: [],
 }
 
-export async function resolutionRequestIdentity(source: SourceRequest, idempotencyKey: string, accountId?: number): Promise<{
+export async function resolutionRequestIdentity(source: SourceRequest, idempotencyKey: string, accountId?: number, linkedFiles = false): Promise<{
   keyHash: string
   fingerprint: string
 }> {
   return {
     keyHash: await digestHex('SHA-256', `${accountId ?? 'public'}\0${idempotencyKey}`),
-    fingerprint: await digestHex('SHA-256', canonicalJson({ source, accountId: accountId ?? null })),
+    // The field is left out when false, so a fingerprint from before linked
+    // files still matches the same request.
+    fingerprint: await digestHex('SHA-256', canonicalJson({ source, accountId: accountId ?? null, ...(linkedFiles ? { linkedFiles } : {}) })),
   }
 }
 
+/**
+ * `served` is a ready Resolution that answers a new request for the same
+ * Repository, commit, Skill folder and policy. See `serveReadyResolution`.
+ */
 export type CreateResolutionResult
-  = { _tag: 'created' | 'existing', row: ResolutionRow }
+  = { _tag: 'created' | 'existing' | 'served', row: ResolutionRow }
     | { _tag: 'idempotency-conflict' }
 
 export async function createResolution(
@@ -164,6 +180,7 @@ export async function createResolution(
     installationId: number
     repositoryId: number
   } | { visibility: 'public' } = { visibility: 'public' },
+  linkedFiles = false,
 ): Promise<CreateResolutionResult> {
   // A new request key inserts and returns its row in one round trip. A
   // replayed key inserts nothing, and the lookup below finds its row.
@@ -174,10 +191,10 @@ export async function createResolution(
        id, request_key_hash, request_fingerprint, state, state_version,
        requested_owner, requested_repository, selector_type, selector_value,
        ref_type, ref_value, repository_id, visibility, account_id, github_installation_id,
-       created_at, updated_at
+       linked_files, created_at, updated_at
      ) VALUES (
        ?1, ?2, ?3, 'requested', 0, ?4, ?5, ?6, ?7, ?8, ?9,
-       ?10, ?11, ?12, ?13, ?14, ?14
+       ?10, ?11, ?12, ?13, ?15, ?14, ?14
      )
      RETURNING *`,
   ).bind(
@@ -195,6 +212,7 @@ export async function createResolution(
     access.visibility === 'private' ? access.accountId : null,
     access.visibility === 'private' ? access.installationId : null,
     now,
+    linkedFiles ? 1 : 0,
   ).first<Record<string, unknown>>()
   if (insert)
     return { _tag: 'created', row: resolutionRowSchema.parse(insert) }
@@ -461,7 +479,9 @@ export function presentResolution(row: ResolutionRow): ResolutionResponse {
       state: 'pending',
       resolutionId: row.id,
       stage: row.state as ActiveBuildState,
-      pollAfterMs: 1000,
+      // A read of a building Resolution waits for its next state, so the
+      // CLI may come back at once. See `waitForResolutionChange`.
+      pollAfterMs: 250,
     }
   }
   if (row.state === 'blocked') {

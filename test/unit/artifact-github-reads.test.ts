@@ -41,6 +41,7 @@ const MIGRATIONS = [
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
+  'migrations/0145_artifact_resolution_linked_files.sql',
   'migrations/0131_artifact_build_reuse.sql',
 ]
 const REPOSITORY_ID = 123456789
@@ -90,7 +91,7 @@ describe('gitHub reads per run', () => {
       '/repos/skilld-dev/skills',
       '/repos/skilld-dev/skills',
       `/repos/skilld-dev/skills/git/trees/${OTHER_TREE}?recursive=1`,
-      `/repos/skilld-dev/skills/tarball/${COMMIT}`,
+      `/skilld-dev/skills/tar.gz/${COMMIT}`,
     ])
     harness.close()
   })
@@ -138,7 +139,7 @@ describe('a policy bump that changes only checks', () => {
     const repeat = await harness.run(pinned)
 
     expect(repeat.row.state).toBe('ready')
-    expect(harness.github.paths()).toContain(`/repos/skilld-dev/skills/tarball/${COMMIT}`)
+    expect(harness.github.paths()).toContain(`/skilld-dev/skills/tar.gz/${COMMIT}`)
     harness.close()
   })
 
@@ -151,7 +152,7 @@ describe('a policy bump that changes only checks', () => {
     const repeat = await harness.run(pinned)
 
     expect(repeat.row.state).toBe('ready')
-    expect(harness.github.paths()).toContain(`/repos/skilld-dev/skills/tarball/${COMMIT}`)
+    expect(harness.github.paths()).toContain(`/skilld-dev/skills/tar.gz/${COMMIT}`)
     harness.close()
   })
 })
@@ -363,7 +364,8 @@ async function fakeGithub() {
     [`${base}/git/trees/${OTHER_TREE}?recursive=1`, () => json({ sha: OTHER_TREE, truncated: false, tree: [
       { path: 'SKILL.md', mode: '100644', type: 'blob', sha: otherBlob, size: OTHER_MD.byteLength },
     ] })],
-    [`${base}/tarball/${COMMIT}`, () => new Response(Uint8Array.from(tarball), { status: 200 })],
+    // codeload.github.com, which serves the archive without REST quota.
+    [`/skilld-dev/skills/tar.gz/${COMMIT}`, () => new Response(Uint8Array.from(tarball), { status: 200 })],
   ])
   let requested: string[] = []
   const fetch = vi.fn(async (input: RequestInfo | URL) => {
@@ -420,7 +422,7 @@ function memoryBucket(): R2Bucket {
     get: async (key: string) => {
       const object = describe(key)
       const stored = objects.get(key)
-      return object && stored ? { ...object, arrayBuffer: async () => Uint8Array.from(stored.bytes).buffer } : null
+      return object && stored ? { ...object, arrayBuffer: async () => Uint8Array.from(stored.bytes).buffer, body: new Blob([Uint8Array.from(stored.bytes)]).stream() } : null
     },
   } as unknown as R2Bucket
 }

@@ -89,7 +89,7 @@ describe('a Repository tree larger than one GitHub response', () => {
     })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource('skilld-dev', 'skills'))
+    const result = await client.load(resolvedSource('skilld-dev', 'skills'), { linkedFiles: false })
 
     expect(result._tag).toBe('loaded')
   })
@@ -129,7 +129,7 @@ describe('a moved Repository', () => {
     const fetchMock = movedRepositoryFetch()
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource('facebook', 'react', 10270250))
+    const result = await client.load(resolvedSource('facebook', 'react', 10270250), { linkedFiles: false })
 
     expect(result._tag).toBe('loaded')
     const reads = fetchMock.mock.calls.map(call => String(call[0]))
@@ -140,7 +140,7 @@ describe('a moved Repository', () => {
     const fetchMock = movedRepositoryFetch()
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource('facebook', 'react', 999))
+    const result = await client.load(resolvedSource('facebook', 'react', 999), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
   })

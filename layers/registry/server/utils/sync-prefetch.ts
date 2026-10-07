@@ -4,6 +4,7 @@ import type { GithubBindings, RepoSummary } from './github-client'
 import type { ExistingRepo } from './sync-repo'
 import { getRepoSummariesBatch } from './github-client'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
+import { sameRepositoryName } from './repository-move'
 import { repoUnchangedStatements, unchangedRepoStatus } from './sync-repo'
 
 /** One repository the hourly sync is about to queue. */
@@ -61,8 +62,9 @@ interface PrefetchRow extends ExistingRepo {
  * the writes here are the same statements `syncRepo` runs on that path.
  *
  * A discovery claim, a job still holding the repository's progress row, a
- * Skill-less repository and any repository GitHub gave no summary for keep
- * their job: `syncRepo` owns those verdicts.
+ * Skill-less repository, a repository GitHub moved to another name, and any
+ * repository GitHub gave no summary for keep their job: `syncRepo` owns those
+ * verdicts, the move included (ADR-0015).
  */
 export async function prefetchUnchangedRepos(
   dependencies: SyncPrefetchDependencies,
@@ -83,13 +85,14 @@ export async function prefetchUnchangedRepos(
   eligible.forEach((candidate, index) => {
     const row = rows.get(repoKey(candidate))
     const summary = batch.summaries[index]
-    if (!row || !summary || row.in_progress === 1 || !isUnchanged(row, summary))
+    if (!row || !summary || row.in_progress === 1 || isMoved(candidate, summary) || !isUnchanged(row, summary))
       return
     unchanged.add(repoKey(candidate))
     writes.push(repoUnchangedStatements(dependencies.db, {
       owner: candidate.owner,
       repo: candidate.repo,
       meta: summary.meta,
+      repositoryId: summary.repositoryId,
       checkedAt: dependencies.now,
       ownerVerified: candidate.ownerVerified,
     }))
@@ -103,6 +106,10 @@ export async function prefetchUnchangedRepos(
     unchanged: unchanged.size,
     requests: batch.requests,
   }
+}
+
+function isMoved(candidate: SyncCandidate, summary: RepoSummary): boolean {
+  return !sameRepositoryName(candidate, { owner: summary.meta.owner.login, repo: summary.meta.name })
 }
 
 function isUnchanged(row: PrefetchRow, summary: RepoSummary): boolean {

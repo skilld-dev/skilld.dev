@@ -39,6 +39,23 @@ describe('presentSkillDemo', () => {
   })
 })
 
+describe('presentSkillDemo first-screen posters', () => {
+  it('serves a tall shot with its first screen, at the shot width', () => {
+    const view = presentSkillDemo(demo({
+      shots: [{ file: 'desktop.jpg', width: 1440, height: 4102, alt: 'Desktop screenshot', viewport: 'desktop', poster: { file: 'desktop-poster.jpg', height: 900 } }],
+    }), null, 'https://media.example')
+    expect(view.shots[0]?.poster).toEqual({
+      src: 'https://media.example/demos/anthropics/skills/frontend-design/desktop-poster.jpg',
+      width: 1440,
+      height: 900,
+    })
+  })
+
+  it('gives a one-screen shot no poster, since the shot is its own first screen', () => {
+    expect(presentSkillDemo(demo(), null).shots[0]?.poster).toBeNull()
+  })
+})
+
 describe('presentSkillDemo for a video Skill', () => {
   it('serves the video and its poster, and offers no live page without one', () => {
     const view = presentSkillDemo(demo({

@@ -173,9 +173,17 @@ describe('artifact signing Worker', () => {
     fixture.close()
   })
 
-  it('rejects current check results under the previous policy', async () => {
-    const [policyVersion] = [...SIGNABLE_ARTIFACT_POLICIES].find(([version]) => version !== ARTIFACT_POLICY_VERSION)!
-    const fixture = await createSignerFixture({ policyVersion })
+  it('rejects check results the previous policy does not carry', async () => {
+    const [policyVersion, checkSet] = [...SIGNABLE_ARTIFACT_POLICIES].find(([version]) => version !== ARTIFACT_POLICY_VERSION)!
+    const fixture = await createSignerFixture({
+      policyVersion,
+      checks: [...checkSet].map(([name, check]) => ({
+        name,
+        version: name === 'credential-material' ? 'an-older-version' : check.version,
+        outcome: 'pass' as const,
+        required: check.required,
+      })),
+    })
 
     const response = await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW)
 
@@ -292,6 +300,7 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
     { name: 'credential-material', version: '2', outcome: 'pass', required: true },
     { name: 'executable-files', version: '1', outcome: 'pass', required: false },
     { name: 'omitted-files', version: '1', outcome: 'pass', required: false },
+    { name: 'symbolic-links', version: '1', outcome: 'pass', required: false },
   ]
   const statement = encodeAttestationStatement({
     ...createAttestationStatement({
@@ -376,6 +385,7 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
           : { contentSha256: metadataDigest, format: 'skilld-tar-v1' }),
       },
       arrayBuffer: async () => Uint8Array.from(body).buffer,
+      body: new Blob([Uint8Array.from(body)]).stream(),
     } as R2ObjectBody
   })
   const bindings = {
