@@ -147,6 +147,16 @@ Each status shows a title, then a detail line:
 
 Found Skills replace the search results under the heading `Skills for this task`, with the line `A language model picked these from a few searches of the registry.`
 
+### Behavior readings
+
+The Skill behaviors panel shows a behavior reading under each SKILL.md match that needs approval. GLOSSARY.md defines the term and ADR-0016 the mechanism.
+Name the model plainly, as a language model. Never call a reading a review, a scan, a safety call, or a false positive.
+The strings live in `layers/registry/app/components/_SkillBehaviors.vue`.
+
+- Each match: `SKILL.md:42 · Quoted example. {reason}`. `behaviorVerdictLabel` in `shared/behavior-readings.ts` owns the five labels: `Instruction`, `Quoted example`, `Prohibition`, `Documentation`, `Unclear`.
+- Panel note, shown when a match has a reading: `A language model read each match that needs approval in its context. Its reading is no guarantee and changes no approval.`
+- The skilld CLI approval message adds `(model reading: quoted example. {reason})` to each match, and ends its list with `A language model on skilld.dev wrote each model reading. A reading is no guarantee and changes no approval.` The CLI owns that string, so change it there first.
+
 ## Discord digest
 
 The weekly card uses `Trending skills this week` as its title and links to the trending page.
