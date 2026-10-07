@@ -7,10 +7,12 @@
  * truth). Duplicated rather than imported: ADR-0001 forbids reaching into
  * another layer's code, and the command shape is a product-wide convention,
  * not layer domain data.
+ *
+ * The MCP server covers Skill discovery and provenance only, so it names
+ * Skills and Repositories. Curator and collection refs stay with the CLI.
  */
 
 const V3_PREFIX = 'npx skilld'
-const PREFIX = `${V3_PREFIX} add`
 
 /**
  * The default handoff. `skilld run` gives the calling agent the skill now and
@@ -30,22 +32,12 @@ export function skillInstallCommand(owner: string, repo: string, skill: string):
 
 /** Whole-repository install. `add` takes every ref that names several Skills. */
 export function repoInstallCommand(owner: string, repo: string): string {
-  return `${PREFIX} ${owner}/${repo} --all`
-}
-
-export function curatorInstallCommand(login: string): string {
-  return `${PREFIX} @${login} --all`
-}
-
-export function collectionInstallCommand(login: string, slug: string): string {
-  return `${PREFIX} @${login}/${slug} --all`
+  return `${V3_PREFIX} add ${owner}/${repo} --all`
 }
 
 export type InstallRef
   = | { kind: 'skill', owner: string, repo: string, name: string }
     | { kind: 'repo', owner: string, repo: string }
-    | { kind: 'collection', login: string, slug: string }
-    | { kind: 'curator', login: string }
 
 const SEGMENT_RE = /^[\w.-]+$/
 
@@ -58,24 +50,14 @@ function validSegments(...segments: string[]): boolean {
  * - `owner/repo` (all skills in a repo)
  * - `owner/repo/name` (one skill)
  * - the same refs with the `gh:` or `skilld:` prefix that older CLI output printed
- * - `@login` (everything a curator publishes)
- * - `@login/slug` (one collection)
  *
- * An `npm:` ref has no installable target: the v3 CLI rejects it.
+ * A curator (`@login`), collection (`@login/slug`), or `npm:` ref has no
+ * target here.
  */
 export function parseInstallRef(raw: string): InstallRef | null {
   const ref = raw.trim()
-  if (!ref)
+  if (!ref || ref.startsWith('@'))
     return null
-
-  if (ref.startsWith('@')) {
-    const parts = ref.slice(1).split('/')
-    if (parts.length === 1 && validSegments(parts[0]!))
-      return { kind: 'curator', login: parts[0]! }
-    if (parts.length === 2 && validSegments(parts[0]!, parts[1]!))
-      return { kind: 'collection', login: parts[0]!, slug: parts[1]! }
-    return null
-  }
 
   const path = ref.replace(/^(?:gh|skilld):/, '')
   const parts = path.split('/')
@@ -92,9 +74,5 @@ export function installCommandFor(ref: InstallRef): string {
       return skillInstallCommand(ref.owner, ref.repo, ref.name)
     case 'repo':
       return repoInstallCommand(ref.owner, ref.repo)
-    case 'collection':
-      return collectionInstallCommand(ref.login, ref.slug)
-    case 'curator':
-      return curatorInstallCommand(ref.login)
   }
 }

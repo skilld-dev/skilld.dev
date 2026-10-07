@@ -13,16 +13,17 @@ Running is the default. `skilld run` hands you the skill for this session and wr
 
 1. Search before choosing a skill. Prefer `search_skills` through the skilld MCP server at `https://skilld.dev/api/mcp`.
 2. Inspect the chosen result with `get_skill`. Check its source repository, commit, trust signals, and freshness.
-3. Use `get_collection` when the user asks for a curated set of skills.
-4. Call `install_command` for the exact commands. Return them to the user; do not claim either one ran.
+3. Call `install_command` for the exact commands. Return them to the user; do not claim either one ran.
+
+To browse instead of search, use `list_tracks` and `get_track` for one kind of work, `list_trending` for the Skills developers talk about, or `get_repository` for every Skill in one Repository. Their rows carry the same `runCommand`.
 
 `search_skills` and `get_skill` return `runCommand` beside `installCommand`. Lead with `runCommand`. Offer `installCommand` only when the user asks to keep the skill.
 
 Without a shell, such as in a chat app, follow the `markdown` field from `get_skill` for this session. It is the skill's SKILL.md at `sourceCommit`. Tell the user the skill name and source repository first. The `files` beside it are listed, not included.
 
-`install_command` returns `runCommand` for a single-skill ref and `command` for the install. A collection, curator, repository, or npm ref has no run command yet, so `runCommand` is `null` there.
+`install_command` returns `runCommand` for a single-skill ref and `command` for the install. A repository ref has no run command, so `runCommand` is `null` there. The MCP server accepts only skill and repository refs.
 
-Every tool is read only. Running and installing both stay separate actions in the user's own environment.
+Every tool is read only, except `submit_repository`, which asks skilld.dev to index a public GitHub repository. Running and installing both stay separate actions in the user's own environment.
 
 ## Fork a Skill
 

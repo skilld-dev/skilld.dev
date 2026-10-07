@@ -7,7 +7,7 @@ vi.stubGlobal('defineOgImage', () => {})
 
 async function mountAt(route: string) {
   return await mountSuspended(
-    await import('../../layers/marketing/app/pages/developers.vue').then(module => module.default),
+    await import('../../layers/marketing/app/pages/developers/index.vue').then(module => module.default),
     { route },
   )
 }

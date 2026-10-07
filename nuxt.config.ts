@@ -362,8 +362,8 @@ export default defineNuxtConfig({
     route: '/api/mcp',
     name: 'skilld.dev discovery',
     version: '1.0.0',
-    description: 'Discover curated agent skills with provenance and a safe run or install command handoff.',
-    instructions: 'Search first, inspect provenance before recommending a skill, then return the run command for the user to approve and run. Offer the install command only when the user wants the skill in every session. This server never runs or installs anything.',
+    description: 'Discover curated agent skills with provenance and a run or install command handoff.',
+    instructions: 'skilld.dev is a curated registry of agent skills. Search first, inspect provenance before recommending a skill, then return the run command for the user to approve and run. Offer the install command only when the user wants the skill in every session. Without a shell, such as in a chat app, follow the markdown from get_skill for this session, and tell the user the skill name and source repository first. skilld.dev shows who wrote a skill and where its source lives. It does not review skills for safety, so never call a skill safe or verified. This server never runs or installs anything.',
     sessions: false,
     browserRedirect: '/',
     // The toolkit rejects a request whose Origin header is another site. Server-side

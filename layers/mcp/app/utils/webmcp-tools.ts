@@ -6,7 +6,10 @@ import { mcpTools } from '../../shared/mcp-tools'
 const UNTRUSTED_OUTPUT_TOOLS = new Set([
   'search_skills',
   'get_skill',
-  'get_collection',
+  'get_track',
+  'list_trending',
+  'get_repository',
+  'submit_repository',
 ])
 
 export type WebMcpRegistrationResult
@@ -32,7 +35,7 @@ export function createWebMcpTools(
       return { _tag: 'ok', data: result.structuredContent ?? {} }
     },
     annotations: {
-      readOnlyHint: true,
+      readOnlyHint: tool.annotations.readOnlyHint ?? false,
       untrustedContentHint: UNTRUSTED_OUTPUT_TOOLS.has(tool.name),
     },
   }))

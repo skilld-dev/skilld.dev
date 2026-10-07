@@ -23,7 +23,7 @@ The skilld CLI is open source under the [MIT License](https://github.com/skilld-
 - Each Skill stays in its author's GitHub Repository. The author owns it, and the license in that Repository applies to it.
 - skilld.dev shows the text of a Skill as its author wrote it, with a link to the source file.
 - Search summaries and tags on skilld.dev are machine-generated. skilld labels them as generated.
-- If you own a Repository and want its Skills removed from skilld.dev, [open an issue](https://github.com/skilld-dev/skilld.dev/issues) or email the address below.
+- If you own a Repository and want its Skills removed from skilld.dev, email the address below.
 
 ## Running a Skill
 
@@ -35,7 +35,7 @@ A Skill gives instructions to your Agent. Your Agent can then run commands, chan
 
 ## The MCP server and the API
 
-The MCP server lets [ChatGPT](https://chatgpt.com), Claude, and other MCP apps search the registry. It returns search results and commands as text. It runs nothing and installs nothing.
+The MCP server lets [ChatGPT](https://chatgpt.com), Claude, and other MCP apps search the registry. It returns search results and commands as text, and it can ask skilld.dev to index a public GitHub repository. It runs nothing and installs nothing.
 
 The skilld API serves the same registry to scripts and to the skilld CLI. Account operations need a skilld token.
 
@@ -65,4 +65,4 @@ skilld can change these terms. The date at the top shows the last change. If you
 
 ## Contact
 
-Email [harlan@harlanzw.com](mailto:harlan@harlanzw.com) with questions about these terms. For help with skilld.dev or the MCP server, [open an issue](https://github.com/skilld-dev/skilld.dev/issues).
+Email [harlan@harlanzw.com](mailto:harlan@harlanzw.com) with questions about these terms. For help with skilld.dev or the MCP server, email the same address or ask in the [Harlan's Open Source Discord](https://discord.com/invite/275MBUBvgP).

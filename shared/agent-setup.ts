@@ -12,6 +12,15 @@ const SITE_ORIGIN = 'https://skilld.dev'
 /** The discovery MCP server. `nuxt.config.ts` mounts it at `mcp.route`. */
 export const REGISTRY_MCP_URL = `${SITE_ORIGIN}/api/mcp`
 
+/**
+ * Claude's link opens its Add custom connector dialog with the name and URL
+ * filled in. The user still confirms before Claude adds anything.
+ */
+export function claudeConnectorUrl(url: string = REGISTRY_MCP_URL): string {
+  const query = new URLSearchParams({ modal: 'add-custom-connector', connectorName: 'skilld', connectorUrl: url })
+  return `https://claude.ai/customize/connectors?${query}`
+}
+
 /** Where `server/middleware/agent-md.ts` serves {@link agentSetupMarkdown}. */
 export const AGENT_SETUP_PATH = '/agent.md'
 export const AGENT_SETUP_URL = `${SITE_ORIGIN}${AGENT_SETUP_PATH}`

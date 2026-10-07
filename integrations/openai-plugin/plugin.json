@@ -11,24 +11,36 @@
   "homepage": "https://skilld.dev/developers?setup=mcp",
   "repository": "https://github.com/skilld-dev/skilld.dev",
   "license": "MIT",
-  "keywords": ["agent skills", "SKILL.md", "coding agents", "codex", "developer tools"],
+  "keywords": [
+    "agent skills",
+    "SKILL.md",
+    "coding agents",
+    "codex",
+    "developer tools"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "skilld",
         "shortDescription": "Curated agent skills by humans",
-        "longDescription": "skilld searches skilld.dev, a curated registry of agent skills. A skill is a SKILL.md file that a maintainer writes in their own GitHub repository. It teaches a coding agent how to use a library, a framework, or a workflow.\n\nAsk for a skill by topic, such as Tailwind CSS, Nuxt, or database migrations. skilld returns the matching skills with their author, source repository, GitHub star count, and skilld.dev page. For one skill, it shows the exact SKILL.md and commit on GitHub, when the skill last changed, and the full skill text, so you can read a skill before you run it. It also opens curated collections, where a curator explains why each skill is in the set.\n\nEvery skill comes with its commands. npx skilld run gives the skill to a coding agent for one session and writes no files. npx skilld install keeps the skill in a project. skilld runs and installs nothing itself. You run the command in your own terminal or coding agent.\n\nskilld needs no account and reads public registry data only.",
+        "longDescription": "skilld searches skilld.dev, a curated registry of agent skills. A skill is a SKILL.md file that a maintainer writes in their own GitHub repository. It teaches a coding agent how to use a library, a framework, or a workflow.\n\nAsk for a skill by topic, such as Tailwind CSS, Nuxt, or database migrations. skilld returns the matching skills with their author, source repository, GitHub star count, and skilld.dev page. For one skill, it shows the exact SKILL.md and commit on GitHub, when the skill last changed, and the full skill text, so you can read a skill before you run it.\n\nYou can also browse. A track is a page of skills for one kind of work, such as testing and debugging or design and interface work. The trending board shows which skills developers talked about on X and Bluesky, with a post that mentioned each one, and which skills gained GitHub stars fast. You can also list every skill that one GitHub repository publishes.\n\nEvery skill comes with its commands. npx skilld run gives the skill to a coding agent for one session and writes no files. npx skilld install keeps the skill in a project. skilld runs and installs nothing itself. You run the command in your own terminal or coding agent.\n\nskilld needs no account. It reads public registry data, and it can ask skilld.dev to index the skills in a public GitHub repository. A person still reviews which skills the registry admits.",
         "developerName": "Harlan Wilton",
         "category": "Developer Tools",
-        "capabilities": ["Search agent skills", "Show skill provenance and source", "Open curated collections", "Return run and install commands"],
+        "capabilities": [
+          "Search agent skills",
+          "Show skill provenance and source",
+          "Browse tracks and trending skills",
+          "Return run and install commands",
+          "Submit a repository for indexing"
+        ],
         "websiteURL": "https://skilld.dev",
-        "supportURL": "https://github.com/skilld-dev/skilld.dev/issues",
+        "supportURL": "https://skilld.dev/developers/mcp#support",
         "privacyPolicyURL": "https://skilld.dev/privacy",
         "termsOfServiceURL": "https://skilld.dev/terms",
         "defaultPrompt": [
           "Find a skill for Tailwind CSS and give me the run command.",
-          "Who wrote the web-design-guidelines skill, and when did it last change?",
-          "What is in the Agent builder essentials collection on skilld?"
+          "Which skills help with testing and debugging?",
+          "What skills are developers talking about this week?"
         ],
         "brandColor": "#E11D48",
         "brandColorDark": "#FB7185",
@@ -51,16 +63,16 @@
               "expected_behavior": "Names Vercel Labs as the publisher. Links the SKILL.md file on GitHub and gives its commit, the last repository push date, and the last skill change date."
             },
             {
-              "description": "Read a skill before running it",
-              "prompt": "Show me the SKILL.md of vercel-labs/agent-skills/web-design-guidelines before I run it.",
-              "tools_triggered": "get_skill",
-              "expected_behavior": "Returns the SKILL.md text with a link to its source file on GitHub, and the npx skilld run command for the skill."
+              "description": "Browse a track",
+              "prompt": "Which skills help with testing and debugging?",
+              "tools_triggered": "list_tracks, get_track",
+              "expected_behavior": "Finds the Testing and debugging track and lists its skills, each with its author, skilld.dev page, and npx skilld run command."
             },
             {
-              "description": "Open a curated collection",
-              "prompt": "What is in the agent-building-stack collection by harlan-zw on skilld?",
-              "tools_triggered": "get_collection",
-              "expected_behavior": "Returns the Agent builder essentials collection: its skills, the curator's reason for each skill, and the npx skilld add @harlan-zw/agent-building-stack command that installs the whole collection."
+              "description": "See what developers talk about",
+              "prompt": "What skills are developers talking about this week?",
+              "tools_triggered": "list_trending",
+              "expected_behavior": "Lists this week's trending skills in rank order. Each row says why it is there: developers mentioned it on X or Bluesky, with one post, or its GitHub stars rose. Each row gives an npx skilld run command. It does not call any skill popular or safe."
             },
             {
               "description": "Get the run command for one skill",
@@ -75,7 +87,7 @@
               "prompt": "Write a new SKILL.md for my React project and publish it on skilld."
             },
             {
-              "description": "Change registry data. Every skilld tool is read only.",
+              "description": "Change registry data. skilld has no tool that edits or deletes a skill.",
               "prompt": "Delete the tailwind skill from skilld.dev."
             },
             {
@@ -89,7 +101,7 @@
       },
       "publication": {
         "countries": [],
-        "release_notes": "First release. Search skilld.dev for agent skills, show who wrote each skill and where its source lives, open curated collections, and return run and install commands."
+        "release_notes": "First release. Search skilld.dev for agent skills, show who wrote each skill and where its source lives, browse tracks and the trending board, and return run and install commands."
       }
     }
   }

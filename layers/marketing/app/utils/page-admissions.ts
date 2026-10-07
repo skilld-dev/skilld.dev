@@ -43,6 +43,7 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
   '/docs/cli',
   '/cli',
   '/developers',
+  '/developers/mcp',
   '/skillgen',
   '/privacy',
   '/terms',
