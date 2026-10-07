@@ -73,6 +73,10 @@ describe('findSkillDemo', () => {
     expect(findSkillDemo('Anthropics', 'Skills', 'Frontend-Design', [demo()])?.name).toBe('frontend-design')
   })
 
+  it('finds a Skill page only demo, so its Skill page still shows it', () => {
+    expect(findSkillDemo('anthropics', 'skills', 'frontend-design', [demo({ skillPageOnly: true })])?.name).toBe('frontend-design')
+  })
+
   it('returns nothing for a Skill without a demo', () => {
     expect(findSkillDemo('anthropics', 'skills', 'pdf', [demo()])).toBeNull()
   })
@@ -91,6 +95,11 @@ describe('listShownSkillDemos', () => {
     const shown = listShownSkillDemos(new Set(['anthropics/skills/flagged']), [demo({ name: 'Flagged' }), demo({ name: 'kept' })])
     expect(shown.map(entry => entry.name)).toEqual(['kept'])
   })
+
+  it('leaves out a Skill page only demo', () => {
+    const shown = listShownSkillDemos(new Set(), [demo({ name: 'own-page', skillPageOnly: true }), demo({ name: 'kept' })])
+    expect(shown.map(entry => entry.name)).toEqual(['kept'])
+  })
 })
 
 describe('listDemoSitemapEntries', () => {
@@ -105,5 +114,10 @@ describe('listDemoSitemapEntries', () => {
 
   it('lists nothing once flags drop the shown demos below six, where the pages answer noindex', () => {
     expect(listDemoSitemapEntries(new Set(['anthropics/skills/skill-0']), six)).toEqual([])
+  })
+
+  it('never lists a Skill page only demo, nor counts it toward six', () => {
+    const [first, ...rest] = six
+    expect(listDemoSitemapEntries(new Set(), [{ ...first!, skillPageOnly: true }, ...rest])).toEqual([])
   })
 })

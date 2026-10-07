@@ -6,7 +6,9 @@
  *   pnpm demo:record owner/repo/skill --makes film --prompt "..." --output launch.mp4 --seed ./site --setup "The folder held ..."
  *
  * `--makes` is the demo's group on /skills/demos: one of DEMO_MAKES in
- * shared/demo-groups.ts.
+ * shared/demo-groups.ts. `--skill-page-only` keeps the demo on its Skill page
+ * alone: off /skills/demos, the homepage, and the demos sitemap. A re-record
+ * keeps an entry Skill page only.
  *   pnpm demo:record owner/repo/skill --reshoot
  *   pnpm demo:record owner/repo/skill --makes slides --prompt "..." --output deck.html --resume /tmp/skilld-demo-XXXX --model claude-opus-5-5
  *
@@ -140,6 +142,7 @@ interface DemoEntry {
   skillCommit: string
   recordedAt: string
   pin?: number
+  skillPageOnly?: true
   outputFile?: string
   video?: Video
   shots: Shot[]
@@ -148,7 +151,7 @@ interface DemoEntry {
 type OutputKind = 'page' | 'video'
 
 type Parsed
-  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null, resume: { dir: string, model: string } | null }
+  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null, skillPageOnly: boolean, resume: { dir: string, model: string } | null }
     | { _tag: 'reshoot', owner: string, repo: string, name: string }
     | { _tag: 'usage', message: string }
 
@@ -157,14 +160,15 @@ function parseInput(argv: string[]): Parsed {
     args: argv,
     allowPositionals: true,
     options: {
-      prompt: { type: 'string' },
-      makes: { type: 'string' },
-      output: { type: 'string', default: 'index.html' },
-      seed: { type: 'string' },
-      resume: { type: 'string' },
-      model: { type: 'string' },
-      setup: { type: 'string' },
-      reshoot: { type: 'boolean', default: false },
+      'prompt': { type: 'string' },
+      'makes': { type: 'string' },
+      'output': { type: 'string', default: 'index.html' },
+      'seed': { type: 'string' },
+      'resume': { type: 'string' },
+      'model': { type: 'string' },
+      'setup': { type: 'string' },
+      'reshoot': { type: 'boolean', default: false },
+      'skill-page-only': { type: 'boolean', default: false },
     },
   })
   const [ref] = positionals
@@ -187,7 +191,7 @@ function parseInput(argv: string[]): Parsed {
   if (values.resume && !values.model)
     return { _tag: 'usage', message: 'A --resume folder needs --model: the model the interrupted run used.' }
   const resumed = values.resume && values.model ? { dir: resolve(values.resume), model: values.model } : null
-  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null, resume: resumed }
+  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null, skillPageOnly: values['skill-page-only'], resume: resumed }
 }
 
 interface SkillSource {
@@ -425,7 +429,9 @@ async function writeEntry(entry: DemoEntry): Promise<void> {
   const key = (demo: DemoEntry) => `${demo.owner}/${demo.repo}/${demo.name}`.toLowerCase()
   const previous = manifest.demos.find(demo => key(demo) === key(entry))
   const demos = manifest.demos.filter(demo => key(demo) !== key(entry))
-  demos.push(previous?.pin && !entry.pin ? { ...entry, pin: previous.pin } : entry)
+  // A re-record keeps the earlier placement. A pin orders the homepage, so a Skill page only demo takes none.
+  const placed: DemoEntry = previous?.skillPageOnly ? { ...entry, skillPageOnly: true } : entry
+  demos.push(previous?.pin && !placed.pin && !placed.skillPageOnly ? { ...placed, pin: previous.pin } : placed)
   demos.sort((a, b) => key(a).localeCompare(key(b)))
   await writeFile(MANIFEST, `${JSON.stringify({ demos }, null, 2)}\n`)
 }
@@ -496,7 +502,7 @@ async function reshoot(owner: string, repo: string, name: string): Promise<void>
 async function main(): Promise<void> {
   const input = parseInput(process.argv.slice(2))
   if (input._tag === 'usage') {
-    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --makes <group> --prompt "..." [--output index.html|film.mp4] [--seed dir --setup "..."]\n       pnpm demo:record owner/repo/skill --reshoot`)
+    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --makes <group> --prompt "..." [--output index.html|film.mp4] [--seed dir --setup "..."] [--skill-page-only]\n       pnpm demo:record owner/repo/skill --reshoot`)
     process.exitCode = 2
     return
   }
@@ -504,7 +510,7 @@ async function main(): Promise<void> {
     await reshoot(input.owner, input.repo, input.name)
     return
   }
-  const { owner, repo, name, makes, prompt, output, kind, seed, setup } = input
+  const { owner, repo, name, makes, prompt, output, kind, seed, setup, skillPageOnly } = input
   const skillRef = `${owner}/${repo}/${name}`
   const source = await skillSource(owner, repo, name)
   const pinned = await pinnedRun(skillRef)
@@ -542,6 +548,7 @@ async function main(): Promise<void> {
     sourceUrl: source.sourceUrl,
     prompt,
     ...(setup ? { setup } : {}),
+    ...(skillPageOnly ? { skillPageOnly: true as const } : {}),
     agent: 'Claude Code',
     agentVersion: agent.version,
     model: agent.model,
