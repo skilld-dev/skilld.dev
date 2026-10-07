@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { githubSkillFileUrl } from '#shared/skill-file-url'
 

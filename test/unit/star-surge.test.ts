@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { StarObservationPoint } from '../../shared/star-surge'
 import { describe, expect, it } from 'vitest'
 import {

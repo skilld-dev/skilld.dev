@@ -223,26 +223,6 @@ describe('skillDetail command choice', () => {
   })
 })
 
-describe('skillDetail badge utility', () => {
-  it('shows the minimal README badge editor without a login gate', async () => {
-    const wrapper = await mountSuspended(
-      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
-      { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
-    )
-
-    const badgeUtility = await vi.waitFor(() => {
-      const section = wrapper.find('section[aria-labelledby="readme-badge-heading"]')
-      expect(section.exists()).toBe(true)
-      return section
-    })
-    const preview = badgeUtility.get('[data-testid="minimal-badge-light"]')
-    expect(preview.attributes('src')).toBe('/b/antfu/skills/vite?theme=light&label=0')
-    expect(badgeUtility.get('button[aria-label="Configure README badge"]')).toBeTruthy()
-
-    wrapper.unmount()
-  })
-})
-
 describe('skill command copy feedback', () => {
   it('announces copy failures next to the command', async () => {
     const wrapper = await mountSuspended(

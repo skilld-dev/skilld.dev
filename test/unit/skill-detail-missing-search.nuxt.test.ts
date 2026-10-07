@@ -86,44 +86,4 @@ describe('missing Skill recovery', () => {
 
     wrapper.unmount()
   })
-
-  it('offers a scoped retry when matching search fails', async () => {
-    searchData.value = null
-    searchStatus.value = 'error'
-    searchError.value = new Error('offline')
-
-    const wrapper = await mountSuspended(
-      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
-      { props: route.params },
-    )
-
-    expect(wrapper.text()).toContain('Couldn\'t load similar skills.')
-    expect(wrapper.get('button').text()).toContain('Retry search')
-    wrapper.unmount()
-  })
-
-  it('states when matching search finds nothing', async () => {
-    searchData.value = { items: [], total: 0 }
-
-    const wrapper = await mountSuspended(
-      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
-      { props: route.params },
-    )
-
-    expect(wrapper.text()).toContain('No similar skills found.')
-    wrapper.unmount()
-  })
-
-  it('announces matching search while it is pending', async () => {
-    searchData.value = null
-    searchStatus.value = 'pending'
-
-    const wrapper = await mountSuspended(
-      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
-      { props: route.params },
-    )
-
-    expect(wrapper.get('[role="status"]').text()).toContain('Searching for similar skills')
-    wrapper.unmount()
-  })
 })

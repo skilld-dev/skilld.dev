@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { pageRobots } from '../../layers/marketing/app/utils/page-admissions'
 import { resolveSkillPageState } from '../../layers/registry/app/utils/skill-page-state'

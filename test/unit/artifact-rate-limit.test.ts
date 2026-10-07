@@ -161,6 +161,22 @@ describe('gitHub secondary rate limits as values', () => {
     })
   })
 
+  // GitHub can send a secondary limit before its Retry-After, so only the
+  // message names it. As a denial it failed the run and spent the fallback token.
+  it('rejects a 403 whose message names a secondary rate limit as RATE_LIMITED', async () => {
+    const client = createPublicGithubSourceClient({
+      fetch: vi.fn(async () => Response.json(
+        { message: 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.' },
+        { status: 403, headers: { 'x-ratelimit-remaining': '4321' } },
+      )) as unknown as typeof fetch,
+    })
+
+    const result = await client.resolve(request)
+
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED' })
+    expect(result).not.toHaveProperty('retryAfterSeconds')
+  })
+
   it('rejects a 429 spent quota with its reset time', async () => {
     const client = createPublicGithubSourceClient({
       fetch: vi.fn(async () => new Response('{}', {

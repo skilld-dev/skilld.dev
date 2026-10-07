@@ -2,6 +2,7 @@ import type { H3EventContext } from 'h3'
 import type { SourceRequest } from '../schemas/contracts'
 import type { FetchAdmittedSkillIdentity } from './admitted-identity'
 import type { ArtifactBuildOutcome } from './build'
+import type { ServedResolution } from './served-resolution'
 import type { CreateResolutionResult } from './state'
 import { admittedSourceRequest } from './admitted-identity'
 import { recordResolutionRequester } from './requester-github'
@@ -13,6 +14,12 @@ export interface ResolutionRequestDependencies {
   lookupAdmitted: FetchAdmittedSkillIdentity
   enqueue: (resolutionId: string) => Promise<void>
   now: () => number
+  /**
+   * Answer a public request from a ready build, or name the source to build.
+   * `POST /api/v1/resolutions` passes it. The run sweep does not, so every
+   * sweep check still runs the build.
+   */
+  serveReady?: (source: SourceRequest, linkedFiles: boolean) => Promise<ServedResolution>
 }
 
 export type ResolutionAccess
@@ -67,10 +74,16 @@ export async function requestResolution(
   // A private build reads blobs and never links a file.
   const linkedFiles = input.access.visibility === 'public' && input.linkedFiles === true
   const identity = await resolutionRequestIdentity(input.source, input.idempotencyKey, accountId, linkedFiles)
-  const source = input.access.visibility === 'private'
+  const admitted = input.access.visibility === 'private'
     ? input.source
     : await admittedSourceRequest(input.source, dependencies.lookupAdmitted)
-  const result = await createResolution(dependencies.db, source, identity, dependencies.now(), input.access, linkedFiles)
+  // A ready build serves only a CLI that reads what it holds (see `findReusableBuild`).
+  const served: ServedResolution = input.access.visibility === 'public' && dependencies.serveReady
+    ? await dependencies.serveReady(admitted, linkedFiles)
+    : { _tag: 'build', source: admitted }
+  if (served._tag === 'served')
+    return served
+  const result = await createResolution(dependencies.db, served.source, identity, dependencies.now(), input.access, linkedFiles)
   if (result._tag === 'created' && input.access.visibility === 'public' && input.requesterAccountId) {
     await recordResolutionRequester(dependencies.db, {
       resolutionId: result.row.id,

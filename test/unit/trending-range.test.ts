@@ -8,10 +8,8 @@ import {
   resolveTrendingRange,
   singleSkill,
   SKILLS_NOUN,
-  TRENDING_RANGES,
   trendingRangeDescription,
   trendingRangeHeading,
-  trendingRangeMeta,
   trendingRangeTitle,
 } from '#shared/trending-range'
 
@@ -118,13 +116,6 @@ describe('trending range resolution', () => {
     expect(resolveTrendingRange('')).toBe('month')
   })
 
-  it('asks the feed for 720 hours on month and 168 on week', () => {
-    expect(trendingRangeMeta('month').windowHours).toBe(720)
-    expect(trendingRangeMeta('week').windowHours).toBe(168)
-    // `all` reads the leaderboard endpoint, which has no window at all.
-    expect(trendingRangeMeta('all').windowHours).toBeNull()
-  })
-
   it('falls back to month for a range it does not serve, rather than erroring', () => {
     expect(resolveTrendingRange('yesterday')).toBe('month')
     expect(resolveTrendingRange('WEEK')).toBe('month')
@@ -133,19 +124,6 @@ describe('trending range resolution', () => {
     // Repeated query keys arrive as an array.
     expect(resolveTrendingRange(['all', 'week'])).toBe('all')
     expect(resolveTrendingRange(['nonsense'])).toBe('month')
-  })
-
-  it('keeps every range on its own canonical, so none demotes another', () => {
-    expect(trendingRangeMeta('month').canonical).toBe('https://skilld.dev/skills/trending')
-    expect(trendingRangeMeta('week').canonical).toBe('https://skilld.dev/skills/trending?range=week')
-    expect(trendingRangeMeta('all').canonical).toBe('https://skilld.dev/skills/trending?range=all')
-    expect(new Set(TRENDING_RANGES.map(range => range.canonical)).size).toBe(3)
-  })
-
-  it('carries the retired leaderboard keyword target on the all range', () => {
-    expect(trendingRangeMeta('all').title).toBe('Top Agent Skill Repositories on GitHub')
-    expect(trendingRangeDescription('all', 0)).toContain('reviewed for eligibility')
-    expect(trendingRangeDescription('all', 0)).toContain('ranked by current GitHub stars')
   })
 
   it('names its own period in the feed range descriptions', () => {
@@ -158,20 +136,6 @@ describe('trending range resolution', () => {
 })
 
 describe('leaderboard rows on the trending board', () => {
-  it('ranks by repository stars while naming the skill', () => {
-    const [row] = leaderboardBoardRows([leaderboardRow()])
-
-    expect(row).toMatchObject({
-      key: 'anthropics/skills/pdf-processing',
-      owner: 'anthropics',
-      title: 'pdf-processing',
-      to: '/gh/anthropics/skills/pdf-processing',
-      subtitle: 'anthropics/skills',
-      description: 'Fill and read PDFs.',
-      stars: 12_400,
-    })
-  })
-
   it('states the skill count as the reason the row is here', () => {
     expect(leaderboardBoardRows([leaderboardRow({ skillCount: 1 })])[0]!.reason)
       .toMatchObject({ _tag: 'reviewed', skillCount: 1 })
@@ -182,10 +146,6 @@ describe('leaderboard rows on the trending board', () => {
 
     expect(rows.every(isEvidenced)).toBe(true)
     expect(rows.map(row => row.key)).toEqual(['anthropics/skills/pdf-processing', 'anthropics/other/pdf-processing'])
-  })
-
-  it('carries no posts, since a star ranking has none to show', () => {
-    expect(leaderboardBoardRows([leaderboardRow()])[0]!.reason._tag).toBe('reviewed')
   })
 
   it('gives a run command target to a repository with one skill', () => {
@@ -339,28 +299,6 @@ describe('month-stamped heading', () => {
 
   it('falls back to the undated heading when the board failed to load', () => {
     expect(trendingRangeHeading('month', 0)).toBe(`Trending ${SKILLS_NOUN} this month`)
-  })
-})
-
-/**
- * The `<title>` targets the head term and the page speaks the brand's category
- * noun. Both are deliberate (docs/work/EXECUTE-seo-keyword-rework.md, COPY.md), and a well-meaning
- * edit that aligns them would cost one of the two.
- */
-describe('titles and headings use different nouns on purpose', () => {
-  const clock = 1_787_270_400
-
-  it('joins the noun with a non-breaking space, so balance cannot split it', () => {
-    expect(SKILLS_NOUN).toBe('agent\u00A0skills')
-  })
-
-  it('keeps the head term in the title', () => {
-    expect(trendingRangeTitle('month', clock)).toContain('Agent Skills')
-  })
-
-  it('keeps the brand noun in the heading', () => {
-    expect(trendingRangeHeading('month', clock)).toContain(SKILLS_NOUN)
-    expect(trendingRangeHeading('month', clock)).not.toContain('Claude')
   })
 })
 

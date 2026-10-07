@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { XClient, XPage, XPost, XResult } from '../../shared/server/x-client'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'

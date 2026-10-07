@@ -1,4 +1,4 @@
-import type { PublicGithubSourceClient } from './github-source'
+import type { LoadSourceResult, PublicGithubSourceClient, ResolveSourceResult } from './github-source'
 import { requestInstallationToken, signGithubAppJwt } from './github-app'
 
 /**
@@ -44,7 +44,7 @@ export interface ArtifactGithubCredentialEnv {
 
 /** Why a build read with a fallback token. It names secrets, never a value. */
 export interface ArtifactGithubCredentialReport {
-  outcome: 'app-misconfigured' | 'app-token-unavailable'
+  outcome: 'app-misconfigured' | 'app-token-unavailable' | 'app-denied'
   reason: string
   fallback: FallbackToken['name'] | 'anonymous'
 }
@@ -76,8 +76,18 @@ export interface ArtifactGithubCredentialRuntime {
   report: (event: ArtifactGithubCredentialReport) => void
 }
 
-/** The credential for one GitHub read. Undefined reads anonymously. */
-export type ArtifactGithubCredential = () => Promise<string | undefined>
+/** The credential for one GitHub read. An undefined token reads anonymously. */
+export interface GithubReadCredential {
+  token: string | undefined
+  /** The read App's installation token, which a Repository can deny. */
+  isApp: boolean
+}
+
+export interface ArtifactGithubCredential {
+  current: () => Promise<GithubReadCredential>
+  /** The token after the read App, or null. */
+  fallback: FallbackToken | null
+}
 
 export function parseArtifactGithubCredentialConfig(env: ArtifactGithubCredentialEnv): ArtifactGithubCredentialConfig {
   const fallback = fallbackToken(env)
@@ -110,48 +120,77 @@ export function createArtifactGithubCredential(
   runtime: ArtifactGithubCredentialRuntime,
 ): ArtifactGithubCredential {
   if (config._tag === 'anonymous')
-    return async () => undefined
+    return { current: async () => ({ token: undefined, isApp: false }), fallback: null }
   if (config._tag === 'token')
-    return async () => config.token.token
+    return { current: async () => ({ token: config.token.token, isApp: false }), fallback: null }
   const fallbackName = config.fallback?.name ?? 'anonymous'
+  const fallback = { token: config.fallback?.token, isApp: false }
   if (config._tag === 'app-misconfigured') {
-    return async () => {
-      runtime.report({ outcome: 'app-misconfigured', reason: config.reason, fallback: fallbackName })
-      return config.fallback?.token
+    return {
+      current: async () => {
+        runtime.report({ outcome: 'app-misconfigured', reason: config.reason, fallback: fallbackName })
+        return fallback
+      },
+      fallback: null,
     }
   }
   const app = config.app
   const key = `${app.appId}:${app.installationId}`
-  return async () => {
-    const cached = runtime.tokenCache.tokens.get(key)
-    if (cached && cached.expiresAt - INSTALLATION_TOKEN_RENEW_SECONDS > runtime.now())
-      return cached.token
-    let pending = runtime.tokenCache.pending.get(key)
-    if (!pending) {
-      pending = mintInstallationToken(app, runtime).finally(() => runtime.tokenCache.pending.delete(key))
-      runtime.tokenCache.pending.set(key, pending)
-    }
-    const minted = await pending
-    if ('token' in minted) {
-      runtime.tokenCache.tokens.set(key, minted)
-      return minted.token
-    }
-    runtime.report({ outcome: 'app-token-unavailable', reason: minted.reason, fallback: fallbackName })
-    return config.fallback?.token
+  return {
+    current: async () => {
+      const cached = runtime.tokenCache.tokens.get(key)
+      if (cached && cached.expiresAt - INSTALLATION_TOKEN_RENEW_SECONDS > runtime.now())
+        return { token: cached.token, isApp: true }
+      let pending = runtime.tokenCache.pending.get(key)
+      if (!pending) {
+        pending = mintInstallationToken(app, runtime).finally(() => runtime.tokenCache.pending.delete(key))
+        runtime.tokenCache.pending.set(key, pending)
+      }
+      const minted = await pending
+      if ('token' in minted) {
+        runtime.tokenCache.tokens.set(key, minted)
+        return { token: minted.token, isApp: true }
+      }
+      runtime.report({ outcome: 'app-token-unavailable', reason: minted.reason, fallback: fallbackName })
+      return fallback
+    },
+    fallback: config.fallback,
   }
 }
 
 /**
  * A GitHub source client whose every read asks for the current credential, so
  * a long-lived client never reads with an expired installation token.
+ *
+ * Some organizations deny the read App on a public Repository that a personal
+ * token reads: `neondatabase/agent-skills` answered SOURCE_ACCESS_DENIED to
+ * every run on 2026-10-06. A read the App was denied repeats once with the
+ * fallback token, and the denial is reported.
  */
 export function withGithubCredential(
   credential: ArtifactGithubCredential,
   create: (token: string | undefined) => PublicGithubSourceClient,
+  report: (event: ArtifactGithubCredentialReport) => void,
 ): PublicGithubSourceClient {
+  const read = async <T extends ResolveSourceResult | LoadSourceResult>(
+    repository: { owner: string, repository: string },
+    run: (client: PublicGithubSourceClient) => Promise<T>,
+  ): Promise<T> => {
+    const current = await credential.current()
+    const first = await run(create(current.token))
+    const fallback = credential.fallback
+    if (!current.isApp || !fallback || first._tag !== 'rejected' || first.code !== 'SOURCE_ACCESS_DENIED')
+      return first
+    report({
+      outcome: 'app-denied',
+      reason: `GitHub denied the read App for ${repository.owner}/${repository.repository}`,
+      fallback: fallback.name,
+    })
+    return await run(create(fallback.token))
+  }
   return {
-    resolve: async request => await create(await credential()).resolve(request),
-    load: async (source, options) => await create(await credential()).load(source, options),
+    resolve: async request => await read(request, client => client.resolve(request)),
+    load: async (source, options) => await read(source, client => client.load(source, options)),
   }
 }
 

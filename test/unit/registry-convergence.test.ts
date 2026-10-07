@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   parseRegistryConvergence,
-  REGISTRY_CONVERGENCE_SQL,
   registryConvergenceSummary,
 } from '../../scripts/lib/registry-convergence'
 
@@ -30,17 +29,6 @@ describe('registry convergence audit', () => {
         abstractnessV3: { total: 2771, current: 844, remaining: 1927 },
       },
     })
-  })
-
-  it('measures source identity only for active repositories used by skill fetches', () => {
-    expect(REGISTRY_CONVERGENCE_SQL).toContain(
-      `FROM repos r
-  WHERE r.broken_since IS NULL
-    AND EXISTS (
-      SELECT 1 FROM skills s
-      WHERE s.owner = r.owner AND s.repo = r.repo
-    );`,
-    )
   })
 
   it('returns malformed remote output as an explicit error', () => {

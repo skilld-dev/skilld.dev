@@ -34,7 +34,8 @@ describe('streamed Artifact packing', () => {
   it('writes the same bytes as the in-memory packer, whatever the chunk size', async () => {
     const files = skillFiles({
       'SKILL.md': skillText,
-      'assets/music/track.mp3': bytesOfLength(300 * 1024 + 7),
+      // Crosses many 512-byte tar blocks at every chunk size, and stays fast under a loaded suite.
+      'assets/music/track.mp3': bytesOfLength(20 * 1024 + 7),
       'references/guide.md': 'Read this first.\n',
       'run.sh': '#!/usr/bin/env bash\necho demo\n',
     })

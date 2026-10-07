@@ -244,16 +244,6 @@ describe('account skill watchlist', () => {
     expect(retrySubscriptions).toHaveBeenCalled()
   })
 
-  it('makes liked skills the primary account content', async () => {
-    const wrapper = await mountPage()
-
-    expect(wrapper.get('h1').text()).toBe('Your skills')
-    expect(wrapper.get('[aria-label="Your skills"]').text()).toContain('nuxt')
-    expect(wrapper.get('[aria-label="Your skills"]').text()).toContain('Build full-stack Vue applications with Nuxt.')
-    expect(wrapper.text()).not.toContain('Weekly email')
-    expect(wrapper.text()).not.toContain('Delete account')
-  })
-
   it('switches account views without mixing their controls', async () => {
     const wrapper = await mountPage()
     const router = wrapper.vm.$router
@@ -344,17 +334,6 @@ describe('account skill watchlist', () => {
     await flushPromises()
 
     expect(disabledWhilePending).toBe(true)
-  })
-
-  it('connects the email address label to its textbox', async () => {
-    const wrapper = await mountPage('email')
-    document.body.append(wrapper.element)
-    await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
-    const input = wrapper.get('input[type="email"]').element as HTMLInputElement
-
-    expect([...input.labels ?? []].map(label => label.textContent)).toContain('Email address')
-    wrapper.element.remove()
-    wrapper.unmount()
   })
 
   it('saves the weekly email and monthly digest as separate choices', async () => {

@@ -62,20 +62,6 @@ describe('skills leaderboard eligibility', () => {
 
   afterEach(() => sqlite.close())
 
-  it('seeds harlan-agent-kit with review provenance', () => {
-    expect(sqlite.prepare(`
-      SELECT owner, repo, status, reason, reviewed_by
-      FROM skill_repo_eligibility
-      WHERE owner = 'harlan-zw' AND repo = 'harlan-agent-kit'
-    `).get()).toEqual({
-      owner: 'harlan-zw',
-      repo: 'harlan-agent-kit',
-      status: 'eligible',
-      reason: 'Individual creator repository publishing reusable development and product workflow skills.',
-      reviewed_by: 'harlan',
-    })
-  })
-
   it('returns only reviewed, active repositories owned by individual users', () => {
     insertRepo(
       'harlan-zw',

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { SkillTrendInput } from '../../shared/trending-skill-score'
 import { describe, expect, it } from 'vitest'
 import { rankSkillTrends, scoreSkillTrend } from '../../shared/trending-skill-score'

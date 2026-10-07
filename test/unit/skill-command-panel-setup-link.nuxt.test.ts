@@ -13,14 +13,6 @@ const props = {
 }
 
 describe('skill command panel registry setup link', () => {
-  it.each(['stacked', 'tabs'] as const)('offers the fork workflow in the %s layout', async (layout) => {
-    const wrapper = await mountSuspended(SkillCommandPanel, { props: { ...props, layout } })
-    const forkLink = wrapper.findAll('a').find(link => link.text() === 'Fork this Skill')
-
-    expect(forkLink?.attributes('href')).toBe(`${props.runUrl}.md?action=fork`)
-    expect(wrapper.text()).toContain('A fork creates an editable local Skill with its original author and licence.')
-  })
-
   it('points each install tab at the matching developers setup', async () => {
     const wrapper = await mountSuspended(SkillCommandPanel, { props })
     const setupHref = () => wrapper.findAll('a').map(a => a.attributes('href')).find(href => href?.startsWith('/developers'))

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createApp, eventHandler, toWebHandler } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApiRateLimitHandler } from '../../shared/server/api-rate-limit'

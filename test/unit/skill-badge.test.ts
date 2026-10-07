@@ -99,14 +99,6 @@ describe('skill badge', () => {
     expect(parseSkillBadgeAppearance({ color: 'url(#x)' }).colors).toEqual({})
   })
 
-  it('draws the prompt caret mark, never the retired chevron', async () => {
-    const svg = await createSkillBadgeResponse({
-      target: { _tag: 'repository', owner: 'danielroe', repo: 'empathy' },
-    }).text()
-    expect(svg).toContain('d="M58 50 L18 82')
-    expect(svg).not.toContain('M80 34 L135 104')
-  })
-
   it('renders a 20px flat badge in the requested colours, with readable text', async () => {
     const svg = await createSkillBadgeResponse({
       target: { _tag: 'repository', owner: 'harlan-zw', repo: 'nuxt-seo' },

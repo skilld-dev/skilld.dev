@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, describe, expect, it } from 'vitest'
 import { RECENT_UPDATES_SQL } from '../../server/utils/recent-updates-query'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'

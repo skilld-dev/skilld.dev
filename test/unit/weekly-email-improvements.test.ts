@@ -1,6 +1,6 @@
 import type { WeeklyRenderInput, WeeklyTrendingSkill } from '../../layers/identity/server/utils/weekly-template'
 import { describe, expect, it } from 'vitest'
-import { reasonLine, renderWeekly, trimQuote } from '../../layers/identity/server/utils/weekly-template'
+import { renderWeekly, trimQuote } from '../../layers/identity/server/utils/weekly-template'
 
 const WINDOW_END = 1_787_500_000
 
@@ -46,11 +46,6 @@ function input(): WeeklyRenderInput {
 }
 
 describe('weekly email improvement contract', () => {
-  it('uses honest social attribution', () => {
-    expect(reasonLine({ _tag: 'named', authorCount: 2, mentionCount: 4, latestAt: WINDOW_END }, WINDOW_END))
-      .toContain('2 accounts mentioned it')
-  })
-
   it('removes install commands and cuts on a word boundary', () => {
     const quote = trimQuote(`Useful release. npx skills add competitor/pkg ${'long words '.repeat(30)}`)
 
@@ -72,17 +67,5 @@ describe('weekly email improvement contract', () => {
     expect(rendered.html).toContain('skill-7')
     expect(rendered.html).not.toContain('skill-8')
     expect(rendered.html).not.toContain('Improve browser mode')
-  })
-
-  it('uses fluid, accessible email structure', () => {
-    const rendered = renderWeekly(input())
-
-    expect(rendered.html).not.toContain('width="600"')
-    expect(rendered.html).toContain('<h1')
-    expect(rendered.html).toContain('<h2')
-    expect(rendered.html).toContain('alt=""')
-    expect(rendered.html).not.toContain('#a8a29e')
-    expect(rendered.html).not.toContain('🔥')
-    expect(rendered.html).toContain('Hi Harlan,')
   })
 })

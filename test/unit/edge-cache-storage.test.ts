@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { EdgeCache, EdgeCacheStorageOptions } from '../../server/runtime/edge-cache-storage'
 import { createStorage } from 'unstorage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { frozenNoindexPaths, isPageAdmitted, PAGE_ADMISSIONS, pageRobots } from '../../layers/marketing/app/utils/page-admissions'
 
