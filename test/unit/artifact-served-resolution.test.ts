@@ -20,6 +20,7 @@ import { requestResolution } from '../../layers/artifact-delivery/server/utils/r
 import { serveReadyResolution } from '../../layers/artifact-delivery/server/utils/served-resolution'
 import { getResolution, presentResolution } from '../../layers/artifact-delivery/server/utils/state'
 import { handleArtifactSignerRequest } from '../../workers/artifact-signer/src/handler'
+import { loadedFromFiles } from '../fixtures/loaded-source'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_787_227_200
@@ -212,7 +213,7 @@ async function createHarness() {
     db: sqlite.db,
     github: {
       resolve: async () => ({ _tag: 'resolved', source: resolved }),
-      load: async () => ({ _tag: 'loaded', value: { source: resolved, files } }),
+      load: async () => ({ _tag: 'loaded', value: loadedFromFiles(resolved, files) }),
     } satisfies PublicGithubSourceClient,
     bucket: storage.bucket,
     signer: createArtifactSigner({
@@ -359,7 +360,7 @@ function memoryBucket() {
       const object = describeObject(key)
       const stored = objects.get(key)
       return object && stored
-        ? { ...object, arrayBuffer: async () => Uint8Array.from(stored.bytes).buffer }
+        ? { ...object, arrayBuffer: async () => Uint8Array.from(stored.bytes).buffer, body: new Blob([Uint8Array.from(stored.bytes)]).stream() }
         : null
     },
   } as unknown as R2Bucket
