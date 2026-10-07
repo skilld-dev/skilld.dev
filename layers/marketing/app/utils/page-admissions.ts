@@ -45,6 +45,7 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
   '/developers',
   '/skillgen',
   '/privacy',
+  '/terms',
   '/learn/private-repositories',
   '/learn/create-agent-skills',
   '/learn/author-project-skills',

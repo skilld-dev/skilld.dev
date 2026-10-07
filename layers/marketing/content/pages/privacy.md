@@ -1,8 +1,8 @@
 ---
 title: Privacy
 description: What skilld.dev stores, why it needs the data, how long it keeps it, and how you delete your account.
-label: Last updated 6 October 2026
-updatedAt: 2026-10-06
+label: Last updated 7 October 2026
+updatedAt: 2026-10-07
 ---
 
 ## In short
@@ -12,6 +12,7 @@ updatedAt: 2026-10-06
 - An account is optional. You sign in with [GitHub](https://github.com) to like Skills, watch Repositories, get email, or connect the skilld CLI.
 - You can delete your account from your dashboard at any time.
 - The skilld CLI sends no telemetry.
+- The MCP server for [ChatGPT](https://chatgpt.com), Claude, and other MCP apps needs no account. It receives only what each tool needs, such as your search text.
 
 ## When you visit
 
@@ -125,6 +126,21 @@ When you sign in with the CLI, skilld stores a record for that token:
 
 If the client sends your operating system and processor type, such as `darwin-arm64`, device sign-in records it. The sign-in page shows it, so you can check which machine asks for access. You can revoke a device in your [dashboard](/me/devices).
 
+## The MCP server
+
+ChatGPT, Claude, and other MCP apps can search skilld.dev through its MCP server at `https://skilld.dev/api/mcp`. The server needs no account and sets no cookie. Every tool is read only.
+
+When your chat app calls a tool, skilld receives what that tool needs:
+
+- `search_skills` receives your search text and a result count.
+- `get_skill` receives the owner, Repository, and name of one Skill.
+- `get_collection` receives a curator login and a collection slug.
+- `install_command` receives one Skill, Repository, or collection reference.
+
+skilld receives no chat history, no files from the chat, and no account details from the chat app. ChatGPT and Claude call the server from OpenAI or Anthropic servers, so skilld sees their IP address, not yours. Apps on your computer, such as Claude Code or Cursor, call it from your network. Rate limits count requests per IP address, and skilld stores no IP address.
+
+Search text goes to Workers AI, as [Search](#when-you-visit-search) describes. Request logs follow the rules under [When you visit](#when-you-visit). OpenAI and Anthropic handle your chat under their own privacy policies.
+
 ## Error reports
 
 skilld uses [Sentry](https://sentry.io) to find and fix errors.
@@ -171,4 +187,4 @@ Skills in your public Repositories stay in the registry, because GitHub is their
 
 ## Contact
 
-Email [harlan@harlanzw.com](mailto:harlan@harlanzw.com) with questions about your data. To report a security problem, use [GitHub private vulnerability reporting](https://github.com/skilld-dev/skilld/security/advisories/new).
+Harlan Wilton runs skilld.dev. Email [harlan@harlanzw.com](mailto:harlan@harlanzw.com) with questions about your data. To report a security problem, use [GitHub private vulnerability reporting](https://github.com/skilld-dev/skilld/security/advisories/new).

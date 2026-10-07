@@ -42,6 +42,15 @@ export function cursorInstallUrl(url: string = REGISTRY_MCP_URL): string {
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=${SERVER_NAME}&config=${encodeURIComponent(config)}`
 }
 
+/**
+ * Claude's link opens its Add custom connector dialog with the name and URL
+ * filled in. The user still confirms before Claude adds anything.
+ */
+export function claudeConnectorUrl(url: string = REGISTRY_MCP_URL): string {
+  const query = new URLSearchParams({ modal: 'add-custom-connector', connectorName: SERVER_NAME, connectorUrl: url })
+  return `https://claude.ai/customize/connectors?${query}`
+}
+
 /** VS Code's install link carries the whole server entry as URI-encoded JSON. */
 export function vscodeInstallUrl(url: string = REGISTRY_MCP_URL): string {
   return `vscode:mcp/install?${encodeURIComponent(vscodeServerJson(url))}`
