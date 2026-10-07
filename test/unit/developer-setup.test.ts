@@ -3,7 +3,8 @@ import type { ApiSampleCall } from '../../layers/marketing/app/utils/developer-s
 import { createSkilldClient } from 'skilld-sdk'
 import { skilldV1Protocol } from 'skilld-sdk/contract'
 import { describe, expect, it } from 'vitest'
-import { apiSampleCalls, claudeConnectorUrl, curlCall, cursorInstallUrl, vscodeInstallUrl } from '../../layers/marketing/app/utils/developer-setup'
+import { apiSampleCalls, curlCall, cursorInstallUrl, vscodeInstallUrl } from '../../layers/marketing/app/utils/developer-setup'
+import { claudeConnectorUrl } from '../../shared/agent-setup'
 
 describe('mCP install links', () => {
   it('opens Claude\'s custom connector dialog with the skilld name and the server URL', () => {

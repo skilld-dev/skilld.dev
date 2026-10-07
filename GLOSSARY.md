@@ -25,7 +25,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | collection | `layers/collections`, `/@login/slug` | collection N—N Skill | "collection" |
 | watch | `layers/identity` | account N—N Repository or collection | "watch" |
 | digest | `layers/identity` email | account 1—1 digest schedule | "digest" |
-| track | `/skills/<slug>`, `layers/registry` | track 1—N Skill | "track" |
+| track | `/skills/<slug>`, `layers/registry`, MCP `list_tracks` and `get_track` | track 1—N Skill | "track" |
 | comparison | `/compare/<slug>`, `layers/marketing` | comparison N—N Skill | "comparison" |
 | trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
 | trending award | `skill_trending_awards`, ADR-0011 | Skill 1—N trending award | "#3 trending" |
@@ -35,6 +35,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | behavior | `skilld-protocol/behaviors`, Skill page | Skill 1—N behavior | "Skill behaviors" |
 | behavior reading | `behavior-review` check result, Skill page, skilld CLI | behavior match 1—1 behavior reading | "model reading" |
 | Skillgen | `workers/skill-harness`, `/skillgen` | Repository 1—N pull request | "Skillgen" |
+| bootstrap run | `workers/skill-harness`, `/skillgen` | package 1—1 bootstrap run | "bootstrap run" |
 | task search | search box, `layers/registry` | sentence 1—N Skill | "Find skills for this task" |
 
 Collisions
@@ -145,11 +146,13 @@ Collisions
 
 ### track
 
-**Is:** a page of Skills for one kind of work, at `/skills/<slug>`. A person writes its label, its second-person line and its pinned Skills; a classifier category fills in the depth beneath them.
+**Is:** a page of Skills for one kind of work a developer wants done, at `/skills/<slug>`. A person writes its label, its second-person line and its pinned Skills; a classifier category fills in the depth beneath them.
 
 **Use for:** "hand-picked" names a track's pinned Skills in UI copy. "Pinned" stays in the code.
 
 **Never:** cluster, category, outcome, topic, use case (in UI). `CLUSTERS` and `abstractness_category` are the internal names and stay in the code.
+
+**Frozen identifiers:** the MCP tools `list_tracks` and `get_track`. Agents and directory listings call them by name, so a rename breaks every connected app.
 
 **Collides with:** collection. A track is ours, permanent, and one per kind of work. A collection belongs to a curator, at `/@login/slug`, and any number can exist.
 
@@ -320,6 +323,16 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Never:** bot (in UI copy), skill generator, auto-update.
 
 **Casing:** `Skillgen` in prose and UI. `skilld-skillgen` only where GitHub shows the App's name.
+
+### bootstrap run
+
+**Is:** the first Skillgen run for an npm package that has no Skill. A separate review must accept the Skill. Then Skillgen opens a pull request that adds it, lists it in the package's `files`, and adds the skilld.dev badge to the README. If the review confirms package bugs, Skillgen also opens one issue that lists them.
+
+**Use for:** that first run only. Each later release tag updates the Skill.
+
+**Never:** onboarding, scaffold, first-time setup.
+
+**Status:** planned. `docs/work/EXECUTE-skillgen-bootstrap.md` owns the work.
 
 ### guide skill
 

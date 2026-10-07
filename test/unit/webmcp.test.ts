@@ -26,14 +26,18 @@ describe('webmcp support', () => {
 })
 
 describe('webmcp discovery tools', () => {
-  it('exposes the MCP tools as read-only JSON Schema tools', () => {
+  it('exposes the MCP tools as JSON Schema tools with their read-only hints', () => {
     const tools = createWebMcpTools(deps(), new AbortController().signal)
 
     expect(tools.map(tool => tool.name)).toEqual([
       'search_skills',
       'get_skill',
-      'get_collection',
       'install_command',
+      'list_tracks',
+      'get_track',
+      'list_trending',
+      'get_repository',
+      'submit_repository',
     ])
     expect(tools[0]!.inputSchema).toMatchObject({
       type: 'object',
@@ -47,9 +51,13 @@ describe('webmcp discovery tools', () => {
       readOnlyHint: true,
       untrustedContentHint: true,
     })
-    expect(tools[3]!.annotations).toEqual({
+    expect(tools[2]!.annotations).toEqual({
       readOnlyHint: true,
       untrustedContentHint: false,
+    })
+    expect(tools.find(tool => tool.name === 'submit_repository')!.annotations).toEqual({
+      readOnlyHint: false,
+      untrustedContentHint: true,
     })
   })
 
@@ -89,8 +97,8 @@ describe('webmcp discovery tools', () => {
 
     const result = await registerWebMcpTools(modelContext, tools, controller)
 
-    expect(result).toEqual({ _tag: 'registered', count: 4 })
-    expect(registerTool).toHaveBeenCalledTimes(4)
+    expect(result).toEqual({ _tag: 'registered', count: tools.length })
+    expect(registerTool).toHaveBeenCalledTimes(tools.length)
     for (const call of registerTool.mock.calls)
       expect(call[1]).toEqual({ signal: controller.signal })
   })
