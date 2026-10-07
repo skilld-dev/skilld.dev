@@ -28,8 +28,12 @@ function discoveredComparisonRoutes(): string[] {
 
 const iconCollections = iconifyCollections(pkg)
 
-/** Vendor packages only lazy chunks import; see `vendor-shared` below. */
-const LAZY_ONLY_VENDOR = /[\\/]node_modules[\\/](?:zod|rangi)[\\/]/
+/**
+ * Vendor packages only lazy chunks import; see `vendor-shared` below. The
+ * last alternative also matches Nuxt's `comark-content%2Fcomponents.mjs`
+ * template, whose id carries no path separators.
+ */
+const LAZY_ONLY_VENDOR = /[\\/]node_modules[\\/](?:zod|rangi)[\\/]|comark-content(?:[\\/]|%2F)/
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
@@ -580,6 +584,13 @@ export default defineNuxtConfig({
     // takes two failed checks, so a day of stale serving on a quiet colo is
     // within the time the checks themselves take.
     '/skills/demos': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
+    // The CLI and developer pages read no data and no session, so they change
+    // only on deploy, and a deploy starts a new cache key. Uncached, each view
+    // rendered in the Worker: 110 to 250 ms to first byte from Sydney on
+    // 2026-10-07, against about 65 ms for a cached page. The 36000s total
+    // matches the window nuxt-skew-protection keeps old chunks for.
+    '/cli': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
+    '/developers': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
     // The homepage is the same shape as the board: rendered signed out, no
     // cookie read, and fed by the same feeds, so the same lifetimes hold. A
     // render measured 300 to 480 ms to first byte from Sydney on 2026-10-01.
@@ -745,12 +756,6 @@ export default defineNuxtConfig({
     viteEnvironmentApi: false,
   },
 
-  features: {
-    // Nuxt 4.6 emits unresolved inline-style chunks with this Rolldown graph.
-    // Load emitted CSS stylesheets instead.
-    inlineStyles: false,
-  },
-
   vite: {
     plugins: [dependencyPluginCompat()],
     $client: {
@@ -761,35 +766,44 @@ export default defineNuxtConfig({
       // sampled traces. Vitest runs server code through this config too, so
       // tests keep tracing.
       define: process.env.NODE_ENV === 'test' ? {} : { __SENTRY_TRACING__: false },
-    },
-    build: {
-      rolldownOptions: {
-        output: {
-          codeSplitting: {
-            // Googlebot spends 58% of its requests on JavaScript and renders
-            // each page with its own fetches, so the number of files a page
-            // needs is a crawl cost. Rolldown's default split made one chunk per
-            // set of importers, so a `/gh` page preloaded 75 files, 38 of them
-            // under 3 KB. This gathers the small `node_modules` modules that
-            // two or more chunks share into one chunk. Larger vendor modules
-            // keep their own lazy chunks.
-            //
-            // App code is left out on purpose. A shared app module in a group
-            // becomes a hub every importer names by hash, so one edit rehashed
-            // 44 chunks in a measured build. The vendor chunk only changes
-            // when a dependency does. Numbers: docs/ops/crawl-efficiency-2026-09-30.md.
-            //
-            // zod and rangi stay out. Only lazy pages use them (WebMCP, make-skill,
-            // developers, /me, admin; mdxg docs), but grouped they rode in the one
-            // vendor chunk every page preloads.
-            groups: [
-              {
-                name: 'vendor-shared',
-                test: (id: string) => id.includes('node_modules') && !LAZY_ONLY_VENDOR.test(id),
-                minShareCount: 2,
-                maxModuleSize: 8 * 1024,
-              },
-            ],
+      // Client build only. Applied to the server build too, the group left an
+      // unresolved chunk placeholder (`!~{002}~`) in Nuxt 4.6's inline-style
+      // chunks, and the Nitro bundle failed. That forced `inlineStyles: false`,
+      // which linked up to nine render-blocking stylesheets per page.
+      build: {
+        rolldownOptions: {
+          output: {
+            codeSplitting: {
+              // Googlebot spends 58% of its requests on JavaScript and renders
+              // each page with its own fetches, so the number of files a page
+              // needs is a crawl cost. Rolldown's default split made one chunk per
+              // set of importers, so a `/gh` page preloaded 75 files, 38 of them
+              // under 3 KB. This gathers the small `node_modules` modules that
+              // two or more chunks share into one chunk. Larger vendor modules
+              // keep their own lazy chunks.
+              //
+              // App code is left out on purpose. A shared app module in a group
+              // becomes a hub every importer names by hash, so one edit rehashed
+              // 44 chunks in a measured build. The vendor chunk only changes
+              // when a dependency does. Numbers: docs/ops/crawl-efficiency-2026-09-30.md.
+              //
+              // zod and rangi stay out. Only lazy pages use them (WebMCP, make-skill,
+              // developers, /me, admin; mdxg docs), but grouped they rode in the one
+              // vendor chunk every page preloads.
+              //
+              // comark-content stays out too. A group takes a module's static
+              // imports with it, and its ContentRenderer imports every content
+              // component, so the Skill card, the package setup form and zod
+              // (through that form) rode in this chunk on every page.
+              groups: [
+                {
+                  name: 'vendor-shared',
+                  test: (id: string) => id.includes('node_modules') && !LAZY_ONLY_VENDOR.test(id),
+                  minShareCount: 2,
+                  maxModuleSize: 8 * 1024,
+                },
+              ],
+            },
           },
         },
       },

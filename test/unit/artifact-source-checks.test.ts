@@ -2,7 +2,8 @@ import type { ResolvedSource } from '../../layers/artifact-delivery/server/schem
 import type { ArtifactSourceFile } from '../../layers/artifact-delivery/server/utils/github-source'
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { checkArtifactSource, checksBlockArtifact } from '../../layers/artifact-delivery/server/utils/checks'
+import { checkResultSchema } from '../../layers/artifact-delivery/server/schemas/contracts'
+import { checkArtifactSource, checksBlockArtifact, createArtifactCheckScanner } from '../../layers/artifact-delivery/server/utils/checks'
 
 // Keys are generated per run, so the repository never holds key material.
 const pkcs8 = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }) as string
@@ -56,6 +57,43 @@ describe('credential material check', () => {
   })
 })
 
+describe('credential material check over streamed bytes', () => {
+  it.each([1, 7, 1000, 65_536])('finds a key split across %i byte chunks', async (chunkSize) => {
+    const text = `${'x'.repeat(40_000)}\n${pkcs8}\n${'y'.repeat(40_000)}`
+
+    expect(credentialResult(streamedCheck(file('config/credentials.txt', text), chunkSize)))
+      .toEqual(credentialResult(await check(file('config/credentials.txt', text))))
+    expect(credentialResult(streamedCheck(file('config/credentials.txt', text), chunkSize))).toMatchObject({ outcome: 'fail' })
+  })
+
+  it('reads a file with invalid UTF-8 after a key as binary, as the whole-file check does', async () => {
+    const bytes = new Uint8Array([...new TextEncoder().encode(pkcs8), 0xFF, 0xFE])
+    const binary: ArtifactSourceFile = { path: 'assets/blob.bin', mode: 420, bytes, gitBlobSha: 'a'.repeat(40) }
+
+    expect(credentialResult(streamedCheck(binary, 512))).toMatchObject({ outcome: 'pass' })
+    expect(credentialResult(await check(binary))).toMatchObject({ outcome: 'pass' })
+  })
+})
+
+describe('check results for a Skill of 2,000 files', () => {
+  it('keeps every result inside the limits the skilld CLI verifies', async () => {
+    // The old 900 file limit hid this: the schema allows 100 findings of 500 characters.
+    const files = [
+      file('SKILL.md', '---\nname: demo\ndescription: Demo.\n---\n'),
+      ...Array.from({ length: 150 }, (_, index): ArtifactSourceFile => ({ ...file(`scripts/${'s'.repeat(600)}-${index}.sh`, 'echo\n'), mode: 493 })),
+    ]
+
+    const checked = await checkArtifactSource(source(), files)
+
+    for (const result of checked.checkResults)
+      expect(checkResultSchema.safeParse(result).success).toBe(true)
+    expect(checked.checkResults.find(result => result.name === 'executable-files')).toMatchObject({
+      outcome: 'warn',
+      summary: 'The Skill contains executable files. The first 100 of 150 are listed.',
+    })
+  })
+})
+
 describe('omitted files check', () => {
   it('passes when the Artifact holds every file', async () => {
     const checked = (await checkArtifactSource(source(), [file('SKILL.md', '---\nname: demo\n---\n')], [])).checkResults
@@ -102,6 +140,17 @@ async function check(extra: ArtifactSourceFile) {
   const skill = file('SKILL.md', '---\nname: demo\ndescription: Demo.\n---\n')
   const files = extra.path === 'SKILL.md' ? [extra] : [skill, extra]
   return (await checkArtifactSource(source(), files)).checkResults
+}
+
+function streamedCheck(extra: ArtifactSourceFile, chunkSize: number) {
+  const scanner = createArtifactCheckScanner(source())
+  for (const entry of [file('SKILL.md', '---\nname: demo\ndescription: Demo.\n---\n'), extra]) {
+    scanner.begin({ path: entry.path, mode: entry.mode, size: entry.bytes.byteLength })
+    for (let offset = 0; offset < entry.bytes.byteLength; offset += chunkSize)
+      scanner.chunk(entry.bytes.subarray(offset, offset + chunkSize))
+    scanner.end()
+  }
+  return scanner.finish([], []).checkResults
 }
 
 function credentialResult(results: Awaited<ReturnType<typeof check>>) {

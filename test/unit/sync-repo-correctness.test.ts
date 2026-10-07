@@ -24,6 +24,7 @@ function repoSummary(headTreeSha: string | null = 'new-tree') {
   return {
     status: 200,
     data: {
+      repositoryId: 1,
       headTreeSha,
       meta: {
         name: 'skills',
@@ -107,75 +108,6 @@ describe('syncRepo content acknowledgement', () => {
       rendered_raw_sha256: await skillContentSha256(rawSkill('Two')),
     })
     expect(sqlite.prepare(`SELECT last_tree_sha FROM repos`).pluck().get()).toBe('new-tree')
-  })
-
-  it('freezes registry identity while fetching a renamed repository by its canonical source', async () => {
-    github.getRepoSummary.mockResolvedValue(repoSummary())
-    github.getRepoSummary.mockResolvedValueOnce({
-      ...repoSummary(),
-      data: {
-        ...repoSummary().data,
-        meta: {
-          ...repoSummary().data.meta,
-          name: 'openclaw',
-          full_name: 'openclaw/openclaw',
-          html_url: 'https://github.com/openclaw/openclaw',
-          owner: { login: 'openclaw' },
-        },
-      },
-    })
-    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-new' }]))
-    github.getBlobsBatch.mockResolvedValue({
-      status: 200,
-      data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
-      unreadable: new Set(),
-      rateLimit: null,
-      notModified: false,
-    })
-
-    const result = await syncRepo('steipete', 'clawdis', {}, db, { ownerVerified: true })
-
-    expect(result).toMatchObject({ owner: 'steipete', repo: 'clawdis', status: 'indexed' })
-    expect(github.getTree).toHaveBeenCalledWith('openclaw', 'openclaw', 'main', {})
-    expect(github.getBlobsBatch).toHaveBeenCalledWith(
-      'openclaw',
-      'openclaw',
-      'main',
-      ['skills/one/SKILL.md'],
-      {},
-    )
-    expect(sqlite.prepare(`
-      SELECT owner, repo, source_owner, source_repo
-      FROM repos
-    `).get()).toEqual({
-      owner: 'steipete',
-      repo: 'clawdis',
-      source_owner: 'openclaw',
-      source_repo: 'openclaw',
-    })
-    expect(sqlite.prepare(`SELECT owner, repo FROM skills`).get()).toEqual({
-      owner: 'steipete',
-      repo: 'clawdis',
-    })
-
-    vi.clearAllMocks()
-    github.getRepoSummary.mockResolvedValueOnce({
-      ...repoSummary('new-tree'),
-      data: {
-        ...repoSummary('new-tree').data,
-        meta: {
-          ...repoSummary('new-tree').data.meta,
-          name: 'openclaw',
-          full_name: 'openclaw/openclaw',
-          html_url: 'https://github.com/openclaw/openclaw',
-          owner: { login: 'openclaw' },
-        },
-      },
-    })
-
-    await syncRepo('steipete', 'clawdis', {}, db)
-
-    expect(github.getRepoSummary).toHaveBeenCalledWith('openclaw', 'openclaw', {})
   })
 
   it('does not advance last_tree_sha when the blob batch fails', async () => {
@@ -784,7 +716,7 @@ function createDatabase(): Database.Database {
       forks INTEGER NOT NULL DEFAULT 0, pushed_at INTEGER, repo_created_at INTEGER,
       repo_meta_synced_at INTEGER, description TEXT, last_tree_sha TEXT, repo_kind TEXT NOT NULL DEFAULT 'creator',
       repo_kind_source TEXT NOT NULL DEFAULT 'computed', repo_skill_count INTEGER NOT NULL DEFAULT 0,
-      broken_since INTEGER, tree_truncated_at INTEGER, source_owner TEXT, source_repo TEXT, PRIMARY KEY (owner, repo)
+      broken_since INTEGER, tree_truncated_at INTEGER, source_owner TEXT, source_repo TEXT, repository_id INTEGER, PRIMARY KEY (owner, repo)
     );
     CREATE TABLE skills (
       name TEXT NOT NULL, owner TEXT NOT NULL, repo TEXT NOT NULL, display_name TEXT NOT NULL,

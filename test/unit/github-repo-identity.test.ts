@@ -8,6 +8,7 @@ describe('github repository identity', () => {
     const fetch = vi.fn(async () => Response.json({
       data: {
         repository: {
+          databaseId: 1072000123,
           name: 'openclaw',
           nameWithOwner: 'openclaw/openclaw',
           url: 'https://github.com/openclaw/openclaw',
@@ -36,6 +37,17 @@ describe('github repository identity', () => {
       html_url: 'https://github.com/openclaw/openclaw',
       owner: { login: 'openclaw' },
     })
+    expect(result.data?.repositoryId).toBe(1072000123)
     expect(fetch.mock.calls[0]?.[1]?.body).toContain('nameWithOwner')
+  })
+
+  it('fails the read when GitHub names no Repository ID', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      data: { repository: { databaseId: null, name: 'skills', nameWithOwner: 'acme/skills', owner: { login: 'acme' } } },
+    })))
+
+    const result = await getRepoSummary('acme', 'skills', {})
+
+    expect(result).toMatchObject({ status: 502, data: null })
   })
 })

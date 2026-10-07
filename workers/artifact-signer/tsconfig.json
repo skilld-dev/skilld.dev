@@ -7,7 +7,7 @@
     "paths": {
       "#shared/*": ["../../shared/*"]
     },
-    "types": ["./worker-configuration.d.ts"],
+    "types": ["./worker-configuration.d.ts", "node"],
     "allowJs": false,
     "strict": true,
     "noFallthroughCasesInSwitch": true,

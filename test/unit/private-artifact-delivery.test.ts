@@ -481,6 +481,7 @@ async function createReadyFixture(options: { mutateCiphertext?: boolean } = {}) 
           resolutionId: RESOLUTION_ID,
         },
         arrayBuffer: async () => body.buffer,
+        body: new Blob([Uint8Array.from(body)]).stream(),
       } as R2ObjectBody
     },
   } as R2Bucket
@@ -560,5 +561,6 @@ function requiredChecks() {
     { name: 'credential-material', version: '2', outcome: 'pass' as const, required: true },
     { name: 'executable-files', version: '1', outcome: 'pass' as const, required: false },
     { name: 'omitted-files', version: '1', outcome: 'pass' as const, required: false },
+    { name: 'symbolic-links', version: '1', outcome: 'pass' as const, required: false },
   ]
 }

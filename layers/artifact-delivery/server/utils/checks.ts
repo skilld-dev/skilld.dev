@@ -1,6 +1,8 @@
+import type { Hash } from 'node:crypto'
 import type { ArtifactFile, CheckResult, ResolvedSource } from '../schemas/contracts'
 import type { ArtifactSourceFile, OmittedArtifactFile } from './github-source'
-import { digestHex } from './encoding'
+import type { SymbolicLinkNote } from './symbolic-links'
+import { createHash } from 'node:crypto'
 import { ARTIFACT_POLICY_VERSION } from './state'
 
 /**
@@ -27,6 +29,12 @@ const EXECUTABLE_FILES_VERSION = '1'
  * accepts any check result that is not required.
  */
 const OMITTED_FILES_VERSION = '1'
+/**
+ * Lists each symbolic link in the Skill folder: followed, so the files it
+ * names are packed at the link path, or left out. It is not required, for
+ * the same reason as `omitted-files`. ADR-0014.
+ */
+const SYMBOLIC_LINKS_VERSION = '1'
 /** The skilld CLI refuses a check result with more findings, or a longer one. */
 const MAX_CHECK_FINDINGS = 100
 const MAX_CHECK_FINDING_CHARACTERS = 500
@@ -34,12 +42,18 @@ const MAX_CHECK_FINDING_CHARACTERS = 500
 /** The checks a statement under one policy carries, by check name. */
 export type ArtifactCheckSet = ReadonlyMap<string, { version: string, required: boolean }>
 
-const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
+/** The checks of policy `2026-10-07.3`, which refused every symbolic link. */
+const POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS: ArtifactCheckSet = new Map([
   ['path-policy', { version: PATH_POLICY_VERSION, required: true }],
   ['agent-skills-spec', { version: AGENT_SKILLS_CHECK_VERSION, required: false }],
   ['credential-material', { version: CREDENTIAL_MATERIAL_VERSION, required: true }],
   ['executable-files', { version: EXECUTABLE_FILES_VERSION, required: false }],
   ['omitted-files', { version: OMITTED_FILES_VERSION, required: false }],
+])
+
+const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
+  ...POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS,
+  ['symbolic-links', { version: SYMBOLIC_LINKS_VERSION, required: false }],
 ])
 
 /**
@@ -57,12 +71,9 @@ const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
  */
 export const SIGNABLE_ARTIFACT_POLICIES: ReadonlyMap<string, ArtifactCheckSet> = new Map([
   [ARTIFACT_POLICY_VERSION, CURRENT_ARTIFACT_CHECKS],
-  ['2026-10-07.1', new Map([
-    ['path-policy', { version: '1', required: true }],
-    ['agent-skills-spec', { version: '2026-10-07', required: false }],
-    ['credential-material', { version: '1', required: true }],
-    ['executable-files', { version: '1', required: false }],
-  ])],
+  // ADR-0014 follows symbolic links and adds the `symbolic-links` check. The
+  // policy before it refused every link, so the bump closes no safety gap.
+  ['2026-10-07.3', POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS],
 ])
 
 export interface CheckedArtifactSource {
@@ -74,40 +85,166 @@ export async function checkArtifactSource(
   source: ResolvedSource,
   files: ArtifactSourceFile[],
   omitted: OmittedArtifactFile[] = [],
+  symbolicLinks: SymbolicLinkNote[] = [],
 ): Promise<CheckedArtifactSource> {
-  const fileInventory = await Promise.all(files.map(async file => ({
-    path: file.path,
-    mode: file.mode,
-    size: file.bytes.byteLength,
-    sha256: await digestHex('SHA-256', file.bytes),
-  } satisfies ArtifactFile)))
-  const pathFindings = files
-    .filter(file => !splitUstarPath(file.path))
-    .map(file => file.path)
-  const pathPolicy: CheckResult = pathFindings.length > 0
-    ? {
-        name: 'path-policy',
-        version: PATH_POLICY_VERSION,
-        outcome: 'fail',
-        required: true,
-        summary: 'A Skill path cannot be represented by the Artifact format.',
-        findings: pathFindings,
-      }
-    : {
-        name: 'path-policy',
-        version: PATH_POLICY_VERSION,
-        outcome: 'pass',
-        required: true,
-      }
+  const scanner = createArtifactCheckScanner(source)
+  for (const file of files) {
+    scanner.begin({ path: file.path, mode: file.mode, size: file.bytes.byteLength })
+    scanner.chunk(file.bytes)
+    scanner.end()
+  }
+  return scanner.finish(omitted, symbolicLinks)
+}
 
-  const skill = files.find(file => file.path === 'SKILL.md')
+/** Receives the Skill files one at a time, each as a run of chunks. */
+export interface ArtifactFileObserver {
+  begin: (file: { path: string, mode: 420 | 493, size: number }) => void
+  chunk: (bytes: Uint8Array) => void
+  end: () => void
+}
+
+export interface ArtifactCheckScanner extends ArtifactFileObserver {
+  finish: (omitted: OmittedArtifactFile[], symbolicLinks: SymbolicLinkNote[]) => CheckedArtifactSource
+}
+
+/**
+ * Runs every check over files that stream past once, so a build never holds
+ * the whole Skill. Only SKILL.md is kept, for its frontmatter. The results
+ * match {@link checkArtifactSource} over the same bytes, in any chunk size.
+ */
+export function createArtifactCheckScanner(source: ResolvedSource): ArtifactCheckScanner {
+  const inventory: ArtifactFile[] = []
+  const pathFindings: string[] = []
+  const credentialFindings: string[] = []
+  const executableFindings: string[] = []
+  let skillBytes: Uint8Array[] | null = null
+  let current: {
+    path: string
+    mode: 420 | 493
+    size: number
+    sha256: Hash
+    credentials: CredentialScanner
+    skill: Uint8Array[] | null
+  } | null = null
+
+  return {
+    begin(file) {
+      if (current)
+        throw new Error(`The check scanner is still reading ${current.path}`)
+      current = {
+        ...file,
+        sha256: createHash('sha256'),
+        credentials: createCredentialScanner(),
+        skill: file.path === 'SKILL.md' ? [] : null,
+      }
+    },
+    chunk(bytes) {
+      if (!current)
+        throw new Error('The check scanner received bytes outside a file')
+      current.sha256.update(bytes)
+      current.credentials.chunk(bytes)
+      current.skill?.push(bytes.slice())
+    },
+    end() {
+      if (!current)
+        throw new Error('The check scanner ended no file')
+      const file = current
+      current = null
+      inventory.push({ path: file.path, mode: file.mode, size: file.size, sha256: file.sha256.digest('hex') })
+      if (!splitUstarPath(file.path))
+        pathFindings.push(file.path)
+      if (file.credentials.end())
+        credentialFindings.push(`${file.path} contains private key material.`)
+      if (file.mode === 493)
+        executableFindings.push(file.path)
+      if (file.skill)
+        skillBytes = file.skill
+    },
+    finish(omitted, symbolicLinks) {
+      if (current)
+        throw new Error(`The check scanner did not end ${current.path}`)
+      const pathPolicy: CheckResult = pathFindings.length > 0
+        ? {
+            name: 'path-policy',
+            version: PATH_POLICY_VERSION,
+            outcome: 'fail',
+            required: true,
+            summary: `A Skill path cannot be represented by the Artifact format.${listedNote(pathFindings)}`,
+            findings: boundedFindings(pathFindings),
+          }
+        : {
+            name: 'path-policy',
+            version: PATH_POLICY_VERSION,
+            outcome: 'pass',
+            required: true,
+          }
+      const credentialMaterial: CheckResult = credentialFindings.length > 0
+        ? {
+            name: 'credential-material',
+            version: CREDENTIAL_MATERIAL_VERSION,
+            outcome: 'fail',
+            required: true,
+            summary: `The Skill contains private key material.${listedNote(credentialFindings)}`,
+            findings: boundedFindings(credentialFindings),
+          }
+        : {
+            name: 'credential-material',
+            version: CREDENTIAL_MATERIAL_VERSION,
+            outcome: 'pass',
+            required: true,
+          }
+      const executableFiles: CheckResult = executableFindings.length > 0
+        ? {
+            name: 'executable-files',
+            version: EXECUTABLE_FILES_VERSION,
+            outcome: 'warn',
+            required: false,
+            summary: `The Skill contains executable files.${listedNote(executableFindings)}`,
+            findings: boundedFindings(executableFindings),
+          }
+        : {
+            name: 'executable-files',
+            version: EXECUTABLE_FILES_VERSION,
+            outcome: 'pass',
+            required: false,
+          }
+      return {
+        files: inventory,
+        checkResults: [
+          pathPolicy,
+          agentSkillsSpecResult(source, skillBytes),
+          credentialMaterial,
+          executableFiles,
+          omittedFilesResult(omitted),
+          symbolicLinksResult(symbolicLinks),
+        ],
+      }
+    },
+  }
+}
+
+/**
+ * The findings a check result carries. The skilld CLI refuses more than 100,
+ * or one longer than 500 characters, and a Skill may now hold 2,000 files.
+ */
+function boundedFindings(findings: string[]): string[] {
+  return findings.slice(0, MAX_CHECK_FINDINGS).map(finding => finding.slice(0, MAX_CHECK_FINDING_CHARACTERS))
+}
+
+/** Names how many findings a result leaves unlisted, or nothing when it lists them all. */
+function listedNote(findings: string[]): string {
+  return findings.length > MAX_CHECK_FINDINGS
+    ? ` The first ${MAX_CHECK_FINDINGS} of ${findings.length.toLocaleString('en-US')} are listed.`
+    : ''
+}
+
+function agentSkillsSpecResult(source: ResolvedSource, skillChunks: Uint8Array[] | null): CheckResult {
   const specFindings: string[] = []
-  let decodedSkill = ''
-  if (!skill) {
+  if (!skillChunks) {
     specFindings.push('SKILL.md is missing.')
   }
   else {
-    decodedSkill = decodeText(skill.bytes) ?? ''
+    const decodedSkill = decodeText(concatBytes(skillChunks)) ?? ''
     if (!decodedSkill) {
       specFindings.push('SKILL.md must contain UTF-8 text.')
     }
@@ -133,7 +270,7 @@ export async function checkArtifactSource(
       }
     }
   }
-  const agentSkillsSpec: CheckResult = specFindings.length > 0
+  return specFindings.length > 0
     ? {
         name: 'agent-skills-spec',
         version: AGENT_SKILLS_CHECK_VERSION,
@@ -148,52 +285,89 @@ export async function checkArtifactSource(
         outcome: 'pass',
         required: false,
       }
+}
 
-  const credentialFindings: string[] = []
-  for (const file of files) {
-    const text = decodeText(file.bytes)
-    if (!text)
-      continue
-    if (containsPrivateKey(text))
-      credentialFindings.push(`${file.path} contains private key material.`)
+/**
+ * Text the credential check reads around a chunk boundary. A key block the
+ * check finds is at most 16,384 body characters plus its two marker lines, so
+ * twice that keeps every block whole in one window.
+ */
+const CREDENTIAL_WINDOW_CHARACTERS = 32 * 1024
+
+interface CredentialScanner {
+  chunk: (bytes: Uint8Array) => void
+  /** True when the file is UTF-8 text that holds a private key. */
+  end: () => boolean
+}
+
+/**
+ * The credential check over a file that arrives in chunks. A file that is not
+ * valid UTF-8 from end to end is not text, so it has no finding, as before.
+ */
+function createCredentialScanner(): CredentialScanner {
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false })
+  let text = true
+  let found = false
+  let tail = ''
+  let pending = ''
+  // Small network reads collect into one piece first, so the window is not
+  // searched again for every few bytes.
+  const scan = (piece: string, flush: boolean): void => {
+    if (found)
+      return
+    pending += piece
+    if (!flush && pending.length < CREDENTIAL_WINDOW_CHARACTERS / 2)
+      return
+    const window = tail + pending
+    pending = ''
+    if (containsPrivateKey(window))
+      found = true
+    tail = window.slice(-CREDENTIAL_WINDOW_CHARACTERS)
   }
-  const credentialMaterial: CheckResult = credentialFindings.length > 0
-    ? {
-        name: 'credential-material',
-        version: CREDENTIAL_MATERIAL_VERSION,
-        outcome: 'fail',
-        required: true,
-        summary: 'The Skill contains private key material.',
-        findings: credentialFindings,
-      }
-    : {
-        name: 'credential-material',
-        version: CREDENTIAL_MATERIAL_VERSION,
-        outcome: 'pass',
-        required: true,
-      }
-
-  const executableFindings = files.filter(file => file.mode === 493).map(file => file.path)
-  const executableFiles: CheckResult = executableFindings.length > 0
-    ? {
-        name: 'executable-files',
-        version: EXECUTABLE_FILES_VERSION,
-        outcome: 'warn',
-        required: false,
-        summary: 'The Skill contains executable files.',
-        findings: executableFindings,
-      }
-    : {
-        name: 'executable-files',
-        version: EXECUTABLE_FILES_VERSION,
-        outcome: 'pass',
-        required: false,
-      }
-
+  const decode = (bytes?: Uint8Array): string | null => {
+    try {
+      return bytes ? decoder.decode(bytes, { stream: true }) : decoder.decode()
+    }
+    catch {
+      // Invalid UTF-8 is an expected result: the file is not text.
+      return null
+    }
+  }
   return {
-    files: fileInventory,
-    checkResults: [pathPolicy, agentSkillsSpec, credentialMaterial, executableFiles, omittedFilesResult(omitted)],
+    chunk(bytes) {
+      if (!text)
+        return
+      const piece = decode(bytes)
+      if (piece === null) {
+        text = false
+        tail = ''
+        pending = ''
+        return
+      }
+      scan(piece, false)
+    },
+    end() {
+      if (!text)
+        return false
+      const piece = decode()
+      if (piece === null)
+        return false
+      scan(piece, true)
+      return found
+    },
   }
+}
+
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+  if (parts.length === 1)
+    return parts[0]!
+  const merged = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0))
+  let offset = 0
+  for (const part of parts) {
+    merged.set(part, offset)
+    offset += part.byteLength
+  }
+  return merged
 }
 
 function omittedFilesResult(omitted: OmittedArtifactFile[]): CheckResult {
@@ -216,6 +390,36 @@ function omittedFilesResult(omitted: OmittedArtifactFile[]): CheckResult {
         ? finding
         : `${file.path}: ${file.bytes.toLocaleString('en-US')} bytes`.slice(0, MAX_CHECK_FINDING_CHARACTERS)
     }),
+  }
+}
+
+/** One symbolic link, as the `symbolic-links` check lists it. */
+function symbolicLinkFinding(note: SymbolicLinkNote): string {
+  if (note._tag === 'followed')
+    return `${note.path} -> ${note.target}`
+  if (note._tag === 'holds-itself')
+    return `${note.path} -> ${note.target}: left out, the folder holds the link`
+  return `${note.path}: left out, it is a link inside a followed folder`
+}
+
+function symbolicLinksResult(notes: SymbolicLinkNote[]): CheckResult {
+  if (notes.length === 0)
+    return { name: 'symbolic-links', version: SYMBOLIC_LINKS_VERSION, outcome: 'pass', required: false }
+  const followed = notes.filter(note => note._tag === 'followed').length
+  const leftOut = notes.length - followed
+  const sentences = [
+    followed === 1 ? '1 symbolic link was followed. Its files are packed at the link path.' : null,
+    followed > 1 ? `${followed} symbolic links were followed. Their files are packed at the link paths.` : null,
+    leftOut === 1 ? '1 symbolic link was left out.' : null,
+    leftOut > 1 ? `${leftOut} symbolic links were left out.` : null,
+  ]
+  return {
+    name: 'symbolic-links',
+    version: SYMBOLIC_LINKS_VERSION,
+    outcome: 'warn',
+    required: false,
+    summary: `${sentences.filter(sentence => sentence !== null).join(' ')}${listedNote(notes.map(symbolicLinkFinding))}`,
+    findings: boundedFindings(notes.map(symbolicLinkFinding)),
   }
 }
 

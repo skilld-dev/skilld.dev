@@ -8,8 +8,11 @@ import type { DigestDemoResponse } from '#layers/identity/server/api/digest/demo
 
 // A failed demo costs the section its picture, never its copy or its CTA:
 // `data` stays null on error and `hasDemo` gates the whole frame.
-const { data: demo } = await useFetch<DigestDemoResponse>('/api/digest/demo', {
+// Only the card and its row count reach the payload. The answer also carries
+// the whole email as `html`, which this preview never renders.
+const { data: demo } = await useFetch('/api/digest/demo', {
   key: 'home-digest-demo-v1',
+  transform: ({ card, rowCount }: DigestDemoResponse) => ({ card, rowCount }),
 })
 
 const hasDemo = computed(() => !!demo.value?.card && (demo.value?.rowCount ?? 0) > 0)

@@ -14,18 +14,26 @@
       "outputFile": "index.html",
       "shots": [
         {
-          "file": "desktop-2a201b3766.jpg",
+          "file": "desktop-d514027082.jpg",
           "width": 1440,
           "height": 4102,
           "viewport": "desktop",
-          "alt": "Desktop screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
+          "alt": "Desktop screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i",
+          "poster": {
+            "file": "desktop-poster-3180cdf6a9.jpg",
+            "height": 900
+          }
         },
         {
-          "file": "mobile-da8e537494.jpg",
+          "file": "mobile-32b72a3ea8.jpg",
           "width": 390,
           "height": 5065,
           "viewport": "mobile",
-          "alt": "Phone screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
+          "alt": "Phone screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i",
+          "poster": {
+            "file": "mobile-poster-f9b907cc90.jpg",
+            "height": 844
+          }
         }
       ],
       "authorName": "Anthropic",
@@ -49,7 +57,11 @@
           "width": 1440,
           "height": 927,
           "viewport": "desktop",
-          "alt": "Desktop screenshot of the page the Agent built for: Keep the default style guide. Draw an architecture diagram for Tidewhisk, a fictional ferry-booking service: web app, AP"
+          "alt": "Desktop screenshot of the page the Agent built for: Keep the default style guide. Draw an architecture diagram for Tidewhisk, a fictional ferry-booking service: web app, AP",
+          "poster": {
+            "file": "desktop-poster-caff9f689a.jpg",
+            "height": 900
+          }
         }
       ],
       "authorName": "Cathryn Lavery",
@@ -75,14 +87,22 @@
           "width": 1440,
           "height": 6000,
           "viewport": "desktop",
-          "alt": "Desktop screenshot of the page the Agent built for: Build a landing page for Glossmere, a fictional invoicing app for freelance translators that bills per word and per lang"
+          "alt": "Desktop screenshot of the page the Agent built for: Build a landing page for Glossmere, a fictional invoicing app for freelance translators that bills per word and per lang",
+          "poster": {
+            "file": "desktop-poster-2aeacf6003.jpg",
+            "height": 900
+          }
         },
         {
           "file": "mobile-4d54ba1970.jpg",
           "width": 390,
           "height": 6000,
           "viewport": "mobile",
-          "alt": "Phone screenshot of the page the Agent built for: Build a landing page for Glossmere, a fictional invoicing app for freelance translators that bills per word and per lang"
+          "alt": "Phone screenshot of the page the Agent built for: Build a landing page for Glossmere, a fictional invoicing app for freelance translators that bills per word and per lang",
+          "poster": {
+            "file": "mobile-poster-6ab5a5de6f.jpg",
+            "height": 844
+          }
         }
       ]
     },
@@ -224,11 +244,15 @@
       "outputFile": "flow.html",
       "shots": [
         {
-          "file": "desktop-70a1bca51d.jpg",
+          "file": "desktop-5bb32b6afc.jpg",
           "width": 1440,
           "height": 1060,
           "viewport": "desktop",
-          "alt": "Desktop screenshot of the page the Agent built for: Show me how Cogwhistle, a fictional bike-courier dispatch app, assigns a new delivery to a rider, from order to pickup. "
+          "alt": "Desktop screenshot of the page the Agent built for: Show me how Cogwhistle, a fictional bike-courier dispatch app, assigns a new delivery to a rider, from order to pickup. ",
+          "poster": {
+            "file": "desktop-poster-2dbf5169f1.jpg",
+            "height": 900
+          }
         }
       ],
       "authorName": "HumanLayer",
@@ -252,14 +276,22 @@
           "width": 1440,
           "height": 1164,
           "viewport": "desktop",
-          "alt": "Desktop screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a"
+          "alt": "Desktop screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a",
+          "poster": {
+            "file": "desktop-poster-21e78314b8.jpg",
+            "height": 900
+          }
         },
         {
           "file": "mobile-7180f99b12.jpg",
           "width": 390,
           "height": 2192,
           "viewport": "mobile",
-          "alt": "Phone screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a"
+          "alt": "Phone screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a",
+          "poster": {
+            "file": "mobile-poster-8abcea89bd.jpg",
+            "height": 844
+          }
         }
       ],
       "authorName": "Jakub Krehel",
@@ -311,7 +343,7 @@
       "skillCommit": "02dce5b6ff6210622788c15319c082e9cb9e7217",
       "recordedAt": "2026-10-06",
       "video": {
-        "file": "video-b200a41390.mp4",
+        "file": "video-f9f325cbb2.mp4",
         "poster": "poster-7f097c6c5c.jpg",
         "width": 1280,
         "height": 720,
@@ -348,14 +380,22 @@
           "width": 1440,
           "height": 905,
           "viewport": "desktop",
-          "alt": "Desktop screenshot of the page the Agent built for: Build a one-page dashboard for Wrenfold Bikes, a town bike share. This week's rides by station: Harbour 412, Station Roa"
+          "alt": "Desktop screenshot of the page the Agent built for: Build a one-page dashboard for Wrenfold Bikes, a town bike share. This week's rides by station: Harbour 412, Station Roa",
+          "poster": {
+            "file": "desktop-poster-8fa468cdbd.jpg",
+            "height": 900
+          }
         },
         {
           "file": "mobile-2c917bf37f.jpg",
           "width": 390,
           "height": 1751,
           "viewport": "mobile",
-          "alt": "Phone screenshot of the page the Agent built for: Build a one-page dashboard for Wrenfold Bikes, a town bike share. This week's rides by station: Harbour 412, Station Roa"
+          "alt": "Phone screenshot of the page the Agent built for: Build a one-page dashboard for Wrenfold Bikes, a town bike share. This week's rides by station: Harbour 412, Station Roa",
+          "poster": {
+            "file": "mobile-poster-4e7f952eb1.jpg",
+            "height": 844
+          }
         }
       ]
     },
@@ -375,11 +415,15 @@
       "outputFile": "index.html",
       "shots": [
         {
-          "file": "desktop-5912c3c3eb.jpg",
+          "file": "desktop-2bcdf1a732.jpg",
           "width": 1440,
           "height": 6000,
           "viewport": "desktop",
-          "alt": "Desktop screenshot of the page the Agent built for: Build a landing page for Kilnmarrow, a fictional shared pottery studio that rents kiln shelf space by the firing. Don't "
+          "alt": "Desktop screenshot of the page the Agent built for: Build a landing page for Kilnmarrow, a fictional shared pottery studio that rents kiln shelf space by the firing. Don't ",
+          "poster": {
+            "file": "desktop-poster-77ef6d0637.jpg",
+            "height": 900
+          }
         }
       ]
     },

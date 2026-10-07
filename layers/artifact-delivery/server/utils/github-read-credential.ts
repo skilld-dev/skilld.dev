@@ -190,7 +190,7 @@ export function withGithubCredential(
   }
   return {
     resolve: async request => await read(request, client => client.resolve(request)),
-    load: async source => await read(source, client => client.load(source)),
+    load: async (source, options) => await read(source, client => client.load(source, options)),
   }
 }
 

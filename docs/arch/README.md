@@ -58,6 +58,10 @@ One content hash can have several attestations with different sources or signing
 The grant must return the requested Resolution's attestation, or deny delivery.
 Public grants without the header select the newest attestation. Private grants retain Account access checks.
 
+A public build streams the Repository archive from codeload and never holds the whole Skill.
+The limits, the constraint behind each, and linked files: [ADR-0013](../adr/0013-artifact-size-limits-and-linked-files.md).
+A build follows each symbolic link in the Skill folder and packs the files it names: [ADR-0014](../adr/0014-symbolic-links-in-a-skill-folder.md).
+
 After a contract change in the `skilld-dev/skilld` repository, run `pnpm --filter skilld-sdk generate` and commit the document.
 Publish the new SDK version from that repository's `release.yml`. Then update this site's exact catalog pin.
 The route parity test checks the site against the published contract.
@@ -82,5 +86,7 @@ See [ADR-0007](../adr/0007-contract-in-the-cli-repository.md).
 | Marketing index | `/skills` |
 | Framework page | `/frameworks/[name]` |
 | Comparison | `/compare/<slug>` |
+
+A Repository that GitHub renamed or transferred moves to its new name, and every `/gh` URL under the old name answers 301 to the same path under the new one ([ADR-0015](../adr/0015-follow-moved-repositories.md)).
 
 The legacy `/people/[handle]` and `/people/[handle]/collections/[slug]` URLs are 410 Gone (with a 301 special-case for `/people/harlanzw.com → /@harlanzw`).

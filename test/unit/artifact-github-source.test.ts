@@ -4,6 +4,7 @@ import {
   createGithubSourceClient,
   createPublicGithubSourceClient,
 } from '../../layers/artifact-delivery/server/utils/github-source'
+import { readLoadedFiles } from '../fixtures/loaded-source'
 
 const commitSha = '0123456789abcdef0123456789abcdef01234567'
 const rootTreeSha = '89abcdef0123456789abcdef0123456789abcdef'
@@ -193,13 +194,15 @@ describe('public GitHub Artifact source', () => {
     expect(resolution._tag).toBe('resolved')
     if (resolution._tag !== 'resolved')
       return
-    const loaded = await client.load(resolution.source)
+    const loaded = await client.load(resolution.source, { linkedFiles: false })
 
-    expect(loaded._tag).toBe('loaded')
     expect(resolution.source).toMatchObject({ commitSha, treeSha: rootTreeSha })
-    expect(fetchMock.mock.calls.map(call => String(call[0]))).toContain(
-      `https://api.github.com/repos/skilld-dev/skills/git/blobs/${skillBlobSha}`,
-    )
+    expect(loaded).toMatchObject({
+      _tag: 'loaded',
+      value: { files: [{ path: 'SKILL.md', mode: 420, size: skillText.length, gitBlobSha: skillBlobSha }] },
+    })
+    // A load plans the bytes and reads none. A public build never reads a blob through the REST API.
+    expect(fetchMock.mock.calls.map(call => String(call[0])).filter(url => url.includes('/git/blobs/') || url.includes('codeload'))).toEqual([])
   })
 
   it('rejects a commit lookup that returns another identity', async () => {
@@ -228,10 +231,6 @@ describe('public GitHub Artifact source', () => {
 
   it.each([
     {
-      name: 'symbolic link',
-      unsafe: { path: 'references/latest', mode: '120000', type: 'blob', sha: '3'.repeat(40), size: 4 },
-    },
-    {
       name: 'Git submodule',
       unsafe: { path: 'references/vendor', mode: '160000', type: 'commit', sha: '4'.repeat(40) },
     },
@@ -239,7 +238,7 @@ describe('public GitHub Artifact source', () => {
     const fetchMock = sourceTreeFetch([blob('SKILL.md', skillBlobSha, skillText.length), unsafe])
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/git/blobs/'))).toBe(false)
@@ -261,7 +260,7 @@ describe('public GitHub Artifact source', () => {
     })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch, token: 'private-token' })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_ACCESS_DENIED' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -275,7 +274,7 @@ describe('public GitHub Artifact source', () => {
     ])
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({
       _tag: 'rejected',
@@ -329,7 +328,7 @@ describe('public GitHub Artifact source', () => {
     })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result._tag).toBe('loaded')
     if (result._tag === 'loaded')
@@ -344,7 +343,7 @@ describe('public GitHub Artifact source', () => {
     )
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/git/blobs/'))).toBe(false)
@@ -367,7 +366,7 @@ describe('public GitHub Artifact source', () => {
     })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
   })
@@ -380,7 +379,7 @@ describe('public GitHub Artifact source', () => {
     ])
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     if (result._tag === 'rejected')
@@ -389,13 +388,13 @@ describe('public GitHub Artifact source', () => {
 
   it('rejects bytes that do not match the commit blob digest', async () => {
     const changed = skillText.replace('demo work', 'other use')
-    const fetchMock = sourceTreeFetch(
-      [blob('SKILL.md', skillBlobSha, changed.length)],
-      { sha: skillBlobSha, size: changed.length, encoding: 'base64', content: btoa(changed) },
-    )
+    const fetchMock = sourceTreeFetch([blob('SKILL.md', skillBlobSha, changed.length)], undefined, false, changed)
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const loaded = await client.load(resolvedSource(), { linkedFiles: false })
+    if (loaded._tag !== 'loaded')
+      throw new Error('The load reads no bytes')
+    const result = await readLoadedFiles(loaded.value)
 
     expect(result).toMatchObject({
       _tag: 'rejected',
@@ -460,9 +459,11 @@ describe('private GitHub Artifact source', () => {
   })
 })
 
-function sourceTreeFetch(entries: object[], blobResult?: object, truncatedWalk = false) {
+function sourceTreeFetch(entries: object[], blobResult?: object, truncatedWalk = false, rawText?: string) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
+    if (url.startsWith('https://raw.githubusercontent.com/') && rawText !== undefined)
+      return new Response(rawText, { status: 200 })
     if (url.endsWith('/repos/skilld-dev/skills'))
       return json(publicRepository())
     if (url.endsWith(`/git/trees/${rootTreeSha}`))

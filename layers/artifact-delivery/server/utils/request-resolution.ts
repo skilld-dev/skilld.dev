@@ -1,8 +1,11 @@
 import type { H3EventContext } from 'h3'
 import type { SourceRequest } from '../schemas/contracts'
 import type { FetchAdmittedSkillIdentity } from './admitted-identity'
+import type { ArtifactBuildOutcome } from './build'
+import type { ServedResolution } from './served-resolution'
 import type { CreateResolutionResult } from './state'
 import { admittedSourceRequest } from './admitted-identity'
+import { recordResolutionRequester } from './requester-github'
 import { createResolution, resolutionRequestIdentity } from './state'
 
 export interface ResolutionRequestDependencies {
@@ -11,6 +14,12 @@ export interface ResolutionRequestDependencies {
   lookupAdmitted: FetchAdmittedSkillIdentity
   enqueue: (resolutionId: string) => Promise<void>
   now: () => number
+  /**
+   * Answer a public request from a ready build, or name the source to build.
+   * `POST /api/v1/resolutions` passes it. The run sweep does not, so every
+   * sweep check still runs the build.
+   */
+  serveReady?: (source: SourceRequest, linkedFiles: boolean) => Promise<ServedResolution>
 }
 
 export type ResolutionAccess
@@ -48,15 +57,115 @@ export function fetchAdmittedSkillIdentity(context?: H3EventContext): FetchAdmit
  */
 export async function requestResolution(
   dependencies: ResolutionRequestDependencies,
-  input: { source: SourceRequest, idempotencyKey: string, access: ResolutionAccess },
+  input: {
+    source: SourceRequest
+    idempotencyKey: string
+    access: ResolutionAccess
+    /**
+     * The signed-in account that sent a public request, or null. Its build may
+     * read GitHub with that account's own token once the shared quota is spent.
+     */
+    requesterAccountId?: number | null
+    /** The skilld CLI that sent the request reads linked files. See ADR-0013. */
+    linkedFiles?: boolean
+  },
 ): Promise<CreateResolutionResult> {
   const accountId = input.access.visibility === 'private' ? input.access.accountId : undefined
-  const identity = await resolutionRequestIdentity(input.source, input.idempotencyKey, accountId)
-  const source = input.access.visibility === 'private'
+  // A private build reads blobs and never links a file.
+  const linkedFiles = input.access.visibility === 'public' && input.linkedFiles === true
+  const identity = await resolutionRequestIdentity(input.source, input.idempotencyKey, accountId, linkedFiles)
+  const admitted = input.access.visibility === 'private'
     ? input.source
     : await admittedSourceRequest(input.source, dependencies.lookupAdmitted)
-  const result = await createResolution(dependencies.db, source, identity, dependencies.now(), input.access)
+  // A ready build serves only a CLI that reads what it holds (see `findReusableBuild`).
+  const served: ServedResolution = input.access.visibility === 'public' && dependencies.serveReady
+    ? await dependencies.serveReady(admitted, linkedFiles)
+    : { _tag: 'build', source: admitted }
+  if (served._tag === 'served')
+    return served
+  const result = await createResolution(dependencies.db, served.source, identity, dependencies.now(), input.access, linkedFiles)
+  if (result._tag === 'created' && input.access.visibility === 'public' && input.requesterAccountId) {
+    await recordResolutionRequester(dependencies.db, {
+      resolutionId: result.row.id,
+      accountId: input.requesterAccountId,
+      now: dependencies.now(),
+    })
+  }
   if (result._tag !== 'idempotency-conflict' && result.row.state === 'requested')
     await dependencies.enqueue(result.row.id)
   return result
+}
+
+/**
+ * The request header a skilld CLI sends to name the Artifact features it
+ * reads, as a comma-separated list. A CLI that sends none reads none.
+ */
+export const CLIENT_CAPABILITIES_HEADER = 'skilld-capabilities'
+
+/** Whether the header names `linked-files`. Unknown names are ignored. */
+export function readsLinkedFiles(header: string | undefined): boolean {
+  return (header ?? '')
+    .split(',')
+    .some(name => name.trim().toLowerCase() === 'linked-files')
+}
+
+/**
+ * When the queue takes over a build that ran in its request. A Worker keeps a
+ * request alive 30 s after its response, so a build the runtime stopped
+ * resumes on the queue a few seconds later.
+ */
+export const IN_REQUEST_BUILD_FALLBACK_SECONDS = 35
+
+export interface AfterResponseBuildDependencies {
+  /** Keep work alive after the response, such as the Worker's `waitUntil`. */
+  schedule: (work: Promise<unknown>) => void
+  /** Run the build here, as the queue consumer would. */
+  build: (resolutionId: string) => Promise<ArtifactBuildOutcome>
+  enqueue: (resolutionId: string, delaySeconds?: number) => Promise<void>
+  /** Settle a Resolution that neither this request nor the queue can build. */
+  failUnqueued: (resolutionId: string, error: unknown) => Promise<void>
+  reportBuildError: (resolutionId: string, error: unknown) => void
+}
+
+/**
+ * An `enqueue` that builds the Resolution in its own request, after the
+ * response, with the queue as the fallback.
+ *
+ * The queue delivered a build 1.2 s after the request at the median and 3.4 s
+ * at worst, in 20 production runs on 2026-10-07. Its consumer ran in US
+ * colos, where each D1 call to the Sydney primary took 158 to 244 ms. A
+ * request runs where the client reached Cloudflare, and from Sydney the same
+ * calls took 8 to 36 ms. Queue placement cannot move a consumer.
+ *
+ * A delayed message goes out first, so a build the runtime stops resumes on
+ * the queue. A build that throws goes to the queue at once, for its retry
+ * ladder. A build that follows an earlier build of the same Skill goes back
+ * on the queue after the wait it names, as the consumer does.
+ */
+export function buildAfterResponse(
+  dependencies: AfterResponseBuildDependencies,
+): (resolutionId: string) => Promise<void> {
+  return async (resolutionId) => {
+    dependencies.schedule(buildHere(dependencies, resolutionId))
+  }
+}
+
+async function buildHere(dependencies: AfterResponseBuildDependencies, resolutionId: string): Promise<void> {
+  const fallback = dependencies.enqueue(resolutionId, IN_REQUEST_BUILD_FALLBACK_SECONDS)
+    .then(() => ({ _tag: 'queued' as const }), (error: unknown) => ({ _tag: 'unqueued' as const, error }))
+  const outcome = await dependencies.build(resolutionId)
+    .then(value => ({ _tag: 'built' as const, value }), (error: unknown) => ({ _tag: 'threw' as const, error }))
+  const queued = await fallback
+  if (outcome._tag === 'built' && outcome.value._tag !== 'deferred')
+    return
+  if (outcome._tag === 'threw')
+    dependencies.reportBuildError(resolutionId, outcome.error)
+  const delaySeconds = outcome._tag === 'built' && outcome.value._tag === 'deferred'
+    ? outcome.value.delaySeconds
+    : undefined
+  const sent = await dependencies.enqueue(resolutionId, delaySeconds)
+    .then(() => null, (error: unknown) => error)
+  // With the delayed message queued, the consumer still takes the build over.
+  if (sent !== null && queued._tag === 'unqueued')
+    await dependencies.failUnqueued(resolutionId, sent)
 }

@@ -57,11 +57,24 @@ export function githubRatePauseUntil(
   return Math.min(now + 12 * 60 * 60, Math.max(fallback, (resetAt ?? 0) + 5))
 }
 
+/**
+ * Requests the sync leaves unspent in a GitHub bucket before it pauses.
+ *
+ * `GITHUB_TOKEN` is a personal token, and GitHub counts its quota per
+ * account, so every tool on that account draws on the same bucket. The sync
+ * spends about 10 REST requests and 130 GraphQL points an hour, and page
+ * views about 50 REST requests at most. 200 covers page views for the rest
+ * of any hour once the sync stops.
+ */
+export const GITHUB_SYNC_RESERVE = 200
+
 export function githubSyncPauseDecision(input: {
   owner: string
   repo: string
   now: number
   remaining?: number
+  /** The bucket `remaining` counts, from `x-ratelimit-resource`. */
+  resource?: string
   resetAt?: number
   rateLimited: boolean
   unauthorized: boolean
@@ -73,11 +86,12 @@ export function githubSyncPauseDecision(input: {
       reason: `${input.owner}/${input.repo}: GitHub credential rejected`,
     }
   }
-  if (!input.rateLimited && (input.remaining == null || input.remaining >= 200))
+  if (!input.rateLimited && (input.remaining == null || input.remaining >= GITHUB_SYNC_RESERVE))
     return { _tag: 'continue' }
+  const bucket = input.resource ? `${input.resource} ` : ''
   return {
     _tag: 'pause',
     pauseUntil: githubRatePauseUntil(input.now, input.resetAt),
-    reason: `${input.owner}/${input.repo}: ${input.rateLimited ? 'rate limited' : `${input.remaining} requests remaining`}`,
+    reason: `${input.owner}/${input.repo}: ${input.rateLimited ? 'rate limited' : `${input.remaining} ${bucket}requests remaining`}`,
   }
 }

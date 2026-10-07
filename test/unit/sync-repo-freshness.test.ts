@@ -16,6 +16,7 @@ function repoSummary(headTreeSha: string | null = 'same-tree', stars = 42) {
   return {
     status: 200,
     data: {
+      repositoryId: 1,
       headTreeSha,
       meta: {
         name: 'skills',
@@ -84,6 +85,7 @@ describe('syncRepo freshness cursor', () => {
         tree_truncated_at INTEGER,
         source_owner TEXT,
         source_repo TEXT,
+        repository_id INTEGER,
         PRIMARY KEY (owner, repo)
       );
       INSERT INTO repos (
@@ -215,6 +217,7 @@ describe('syncRepo freshness cursor', () => {
       FROM repos WHERE owner = 'acme' AND repo = 'skills'
     `).get()
 
+    expect(github.getTree).toHaveBeenCalledWith('acme', 'skills', 'moved-tree', {})
     expect(result.status).toBe('failed')
     expect(result.reason).toBe('tree_truncated')
     expect(row).toEqual({

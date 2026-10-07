@@ -5,7 +5,7 @@ import { gitBlobShaHex } from './encoding'
 const BLOCK_SIZE = 512
 
 export function createDeterministicUstar(inputFiles: ArtifactSourceFile[]): Uint8Array {
-  const files = [...inputFiles].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
+  const files = [...inputFiles].sort((left, right) => compareArtifactPaths(left.path, right.path))
   const byteLength = files.reduce(
     (total, file) => total + BLOCK_SIZE + roundToBlock(file.bytes.byteLength),
     BLOCK_SIZE * 2,
@@ -13,7 +13,7 @@ export function createDeterministicUstar(inputFiles: ArtifactSourceFile[]): Uint
   const archive = new Uint8Array(byteLength)
   let offset = 0
   for (const file of files) {
-    const header = createHeader(file)
+    const header = ustarHeader({ path: file.path, mode: file.mode, size: file.bytes.byteLength })
     archive.set(header, offset)
     offset += BLOCK_SIZE
     archive.set(file.bytes, offset)
@@ -22,7 +22,29 @@ export function createDeterministicUstar(inputFiles: ArtifactSourceFile[]): Uint
   return archive
 }
 
-function createHeader(file: ArtifactSourceFile): Uint8Array {
+/**
+ * The order of files in an Artifact: by the UTF-8 bytes of their paths.
+ *
+ * It is the order a Git archive lists a tree in, so a build can stream the
+ * Repository tarball and write each Skill file as it passes. All 487
+ * tarballs of the 2026-10-07 sweep listed their files in this order. It
+ * differs from JavaScript string order only where a path holds a character
+ * outside the Basic Multilingual Plane.
+ */
+export function compareArtifactPaths(left: string, right: string): number {
+  const length = Math.min(left.length, right.length)
+  for (let index = 0; index < length;) {
+    const leftPoint = left.codePointAt(index)!
+    const rightPoint = right.codePointAt(index)!
+    if (leftPoint !== rightPoint)
+      return leftPoint < rightPoint ? -1 : 1
+    index += leftPoint > 0xFFFF ? 2 : 1
+  }
+  return left.length === right.length ? 0 : left.length < right.length ? -1 : 1
+}
+
+/** The 512-byte USTAR header {@link createDeterministicUstar} writes for one file. */
+export function ustarHeader(file: { path: string, mode: 420 | 493, size: number }): Uint8Array {
   const path = splitUstarPath(file.path)
   if (!path)
     throw new Error(`Artifact path does not fit USTAR: ${file.path}`)
@@ -31,7 +53,7 @@ function createHeader(file: ArtifactSourceFile): Uint8Array {
   writeOctal(header, 100, 8, file.mode)
   writeOctal(header, 108, 8, 0)
   writeOctal(header, 116, 8, 0)
-  writeOctal(header, 124, 12, file.bytes.byteLength)
+  writeOctal(header, 124, 12, file.size)
   writeOctal(header, 136, 12, 0)
   header.fill(0x20, 148, 156)
   header[156] = 0x30
@@ -64,6 +86,14 @@ function writeOctal(target: Uint8Array, offset: number, size: number, value: num
 function roundToBlock(size: number): number {
   return Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE
 }
+
+/** The zero bytes that pad a file of this size to a whole block. */
+export function ustarPadding(size: number): number {
+  return roundToBlock(size) - size
+}
+
+/** The two zero blocks that close an archive. */
+export const USTAR_END_BYTES = BLOCK_SIZE * 2
 
 /**
  * Bytes {@link createDeterministicUstar} will write for files of these sizes.

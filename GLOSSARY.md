@@ -12,6 +12,8 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | Agent | the user's tool | Agent 1—N Agent target | "your agent" |
 | Repository | GitHub | Repository 1—N Skill | "repository" |
 | Artifact | skilld.dev API | Skill commit 1—1 Artifact | not shown |
+| linked file | Artifact attestation | Artifact 1—N linked file | not shown |
+| symbolic link | Skill folder, `symbolic-links` check result | Skill folder 1—N symbolic link | not shown |
 | source status | lockfile, skilld.dev API | Artifact 1—1 source status | "Verified", "Unverified", "Local" |
 | run | skilld CLI | Skill 1—1 run command | "run" |
 | demo | Skill page, homepage | Skill 1—N demo | "demo" |
@@ -261,6 +263,24 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Is:** a signed claim linking an Artifact to its Repository, commit, contents, and check results.
 
 **Never:** signature (bare), certificate, receipt.
+
+### linked file
+
+**Is:** a Skill file the Artifact attestation lists by path, size, and Git blob SHA, without packing its bytes. The skilld CLI reads it from GitHub at the attested commit and checks it against that SHA. Only a CLI that sends `Skilld-Capabilities: linked-files` gets one. See ADR-0013.
+
+**Never:** external file, remote asset, download, attachment.
+
+### omitted file
+
+**Is:** a Skill file left out of an Artifact for a size limit. The `omitted-files` check result names each one. A CLI that reads linked files gets a large file as a linked file instead.
+
+**Never:** skipped file, excluded file, dropped file.
+
+### symbolic link
+
+**Is:** a Git tree entry of mode `120000` whose blob holds a path. A build packs the files a link in the Skill folder names at the link path, or leaves the link out. The `symbolic-links` check result lists each one. See ADR-0014.
+
+**Never:** linked file (that is a file the CLI reads from GitHub), alias, shortcut, symlink in prose.
 
 ### check result
 

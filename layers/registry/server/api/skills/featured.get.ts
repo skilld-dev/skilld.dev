@@ -1,8 +1,9 @@
 import type { TagPayload } from '../../jobs/generate-tags'
+import type { GithubBindings } from '../../utils/github-client'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { FeaturedSkillsQuery } from '../../schemas/featured-query'
-import { GITHUB_PAGE_READ_TIMEOUT_MS } from '../../utils/github-client'
+import { getGithubJson, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../utils/github-client'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { getFeaturedOfficialSections, getTopReposByCount, getTopReposByStars } from '../../utils/skills-registry'
 
@@ -15,27 +16,30 @@ interface OwnerProfileRow {
   sync_status: string | null
 }
 
-async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerProfileRow | null> {
-  const res = await fetch(`https://api.github.com/users/${owner}`, {
-    signal: AbortSignal.timeout(GITHUB_PAGE_READ_TIMEOUT_MS),
-    headers: { 'User-Agent': 'skilld.dev', 'Accept': 'application/vnd.github+json' },
-  }).catch(() => {
-    emitOperationalEvent(createWideEvent({ operation: 'featured-owner-fetch', outcome: 'failed' }))
-    return null
-  })
+interface GithubOwnerResponse {
+  name?: string
+  bio?: string
+  blog?: string
+  location?: string
+  followers?: number
+  public_repos?: number
+  type?: string
+}
 
-  if (!res?.ok)
+async function fetchAndStoreOwner(owner: string, db: D1Database, bindings: GithubBindings): Promise<OwnerProfileRow | null> {
+  // Authenticated and conditional: an unchanged profile answers 304 from
+  // the ETag cache for free. Anonymous, this read shared the Worker IP's 60
+  // requests an hour with every other Cloudflare tenant, and failed.
+  const res = await getGithubJson<GithubOwnerResponse>(`/users/${encodeURIComponent(owner)}`, bindings, { timeoutMs: GITHUB_PAGE_READ_TIMEOUT_MS })
+    .catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'featured-owner-fetch', outcome: 'failed' }))
+      return null
+    })
+
+  if (!res?.data)
     return null
 
-  const data = await res.json() as {
-    name?: string
-    bio?: string
-    blog?: string
-    location?: string
-    followers?: number
-    public_repos?: number
-    type?: string
-  }
+  const data = res.data
 
   const kind = data.type === 'Organization' ? 'org' : 'user'
   await db.prepare(
@@ -66,7 +70,7 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerP
   }
 }
 
-async function loadOwnerProfiles(owners: string[], db: D1Database): Promise<Map<string, OwnerProfileRow>> {
+async function loadOwnerProfiles(owners: string[], db: D1Database, bindings: GithubBindings): Promise<Map<string, OwnerProfileRow>> {
   const profiles = new Map<string, OwnerProfileRow>()
   const now = Math.floor(Date.now() / 1000)
 
@@ -84,7 +88,7 @@ async function loadOwnerProfiles(owners: string[], db: D1Database): Promise<Map<
       profiles.set(owner, cached)
       return
     }
-    const fetched = await fetchAndStoreOwner(owner, db)
+    const fetched = await fetchAndStoreOwner(owner, db, bindings)
     if (fetched)
       profiles.set(owner, fetched)
     else if (cached && cached.sync_status !== '404')
@@ -122,7 +126,7 @@ const featuredSkillsHandler = defineApiHandler({
       })),
     })
 
-    const profileMap = await loadOwnerProfiles(devSections.map(s => s.owner), platform.db)
+    const profileMap = await loadOwnerProfiles(devSections.map(s => s.owner), platform.db, resolveGithubBindings(platform.env))
     const enriched = sections.map(enrichSkills)
     const enrichedDevs = devSections.map((section) => {
       const profile = profileMap.get(section.owner)
