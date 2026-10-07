@@ -1,4 +1,4 @@
-import { skilldSelfInstallCmd, skillRawUrl, skillRunCmd, skillSearchCmd } from './skill-commands'
+import { skilldSelfInstallCmd, skillRunCmd, skillSearchCmd } from './skill-commands'
 
 /**
  * The setup path that needs no terminal and no install: the developer pastes
@@ -64,12 +64,13 @@ ${REGISTRY_MCP_URL}
 
 Setup steps for ChatGPT, Claude, Claude Code, Codex, Cursor, and VS Code: ${SITE_ORIGIN}/developers?setup=mcp
 
-To use a Skill in this chat, call \`get_skill\` and follow its \`markdown\` field. It is the SKILL.md at \`sourceCommit\`. The \`files\` beside it are listed, not included.
+To use a Skill in this chat, call \`get_skill\`. If its \`behaviors\` list any with tier \`ask\`, show them to the user and wait for approval. Then follow its \`markdown\` field, the SKILL.md at \`sourceCommit\`. \`behaviors\` covers SKILL.md and the file names only. The \`files\` beside it are listed, not included.
 
 ## If you can only fetch URLs
 
 1. Search: ${SITE_ORIGIN}/api/v1/skills?q=tailwind
-2. Read the SKILL.md of a result as markdown. Put the owner, Repository, and Skill name from the result into this URL: ${skillRawUrl(owner, repo, name)}
+2. Read a result as JSON. Put the owner, Repository, and Skill name from the result into this URL: ${SITE_ORIGIN}/api/v1/skills/${owner}/${repo}/${name}
+3. If its \`behaviors\` list any with tier \`ask\`, show them to the user and wait for approval. Then follow its \`markdown\` field.
 
 ## Rules
 

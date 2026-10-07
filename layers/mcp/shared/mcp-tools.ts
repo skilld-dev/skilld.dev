@@ -162,7 +162,7 @@ const GetSkillArgs = z.object({
 const getSkill: McpTool = {
   name: 'get_skill',
   title: 'Get Skill details',
-  description: 'Look up one skill by GitHub owner, repository, and skill name. Returns its provenance: the publisher, the exact SKILL.md file and commit on GitHub, and freshness (the last repository push and the last skill change). Also returns the SKILL.md text, the skilld.dev page, runCommand, and installCommand. runCommand gives the skill to a coding agent for one session and writes no files. installCommand writes the skill into the project for every session. Without a shell, such as in a chat app, follow the SKILL.md text in markdown for this session. Tell the user the skill name and source repository first. Files beside SKILL.md are listed in files, not included.',
+  description: 'Look up one skill by GitHub owner, repository, and skill name. Returns its provenance: the publisher, the exact SKILL.md file and commit on GitHub, and freshness (the last repository push and the last skill change). Also returns the SKILL.md text, the skilld.dev page, runCommand, and installCommand. runCommand gives the skill to a coding agent for one session and writes no files. installCommand writes the skill into the project for every session. Without a shell, such as in a chat app, follow the SKILL.md text in markdown for this session. Tell the user the skill name and source repository first. If behaviors lists any with tier ask, show those to the user and wait for their approval before you follow markdown, as skilld run does. behaviors covers SKILL.md and the file names only, and files beside SKILL.md are listed in files, not included.',
   inputSchema: GetSkillArgs.shape,
   annotations: {
     readOnlyHint: true,
