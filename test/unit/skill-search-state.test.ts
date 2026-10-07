@@ -109,6 +109,22 @@ describe('search results belong to the current query', () => {
     expect(search.rows.value.map(row => row._tag)).toEqual(['repository', 'skill'])
   })
 
+  it('answers a one-Skill Repository with its Skill row alone', async () => {
+    fetchMock.mockResolvedValue({
+      kind: 'repository',
+      repository: { _tag: 'indexed', owner: 'owner', repo: 'skills', stars: 2, skillCount: 1, registryPath: '/gh/owner/skills' },
+      owner: 'owner',
+      understood: null,
+      items: response('shipreel').items,
+      total: 1,
+      mode: null,
+    })
+    await type('Owner/skills')
+    await debounce()
+    expect(search.state.value).toMatchObject({ _tag: 'ready', repository: { owner: 'owner', repo: 'skills' } })
+    expect(search.rows.value).toMatchObject([{ _tag: 'skill', skill: { name: 'shipreel' } }])
+  })
+
   it('offers the index action for a Repository the registry does not hold', async () => {
     fetchMock.mockResolvedValue({
       kind: 'repository',

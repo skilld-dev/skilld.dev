@@ -397,9 +397,17 @@ function useSkillSearchInternal() {
     if (server.repository?._tag === 'indexed') {
       const { owner, repo, stars, skillCount, registryPath } = server.repository
       const repositoryRow: SearchRepository = { owner, repo, stars, skillCount, registryPath }
+      // A Repository with one Skill is that Skill, and only the Skill row
+      // carries the run command. Enter then opens the Skill.
+      const isSkill = (row: SearchRow) => row._tag === 'skill'
+        && row.skill.owner.toLowerCase() === owner.toLowerCase()
+        && row.skill.repo.toLowerCase() === repo.toLowerCase()
+      const leadRows: SearchRow[] = skillCount === 1 && skillRows.some(isSkill)
+        ? []
+        : [{ _tag: 'repository', repository: repositoryRow }]
       return {
         _tag: 'ready',
-        rows: [{ _tag: 'repository', repository: repositoryRow }, ...skillRows],
+        rows: [...leadRows, ...skillRows],
         total: skillCount,
         repository: repositoryRow,
       }
