@@ -33,6 +33,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
 | behavior | `skilld-protocol/behaviors`, Skill page | Skill 1—N behavior | "Skill behaviors" |
+| behavior reading | `behavior-review` check result, Skill page, skilld CLI | behavior match 1—1 behavior reading | "model reading" |
 | Skillgen | `workers/skill-harness`, `/skillgen` | Repository 1—N pull request | "Skillgen" |
 | task search | search box, `layers/registry` | sentence 1—N Skill | "Find skills for this task" |
 
@@ -225,6 +226,18 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Use for:** the "Skill behaviors" panel and rail. A behavior marked "Needs approval" stops `skilld run` until the user approves it. The Skill page reads only SKILL.md and file names.
 
 **Never:** permission, capability, risk, threat, scan result, "safe", "secure". No match never means the Skill does nothing.
+
+### behavior reading
+
+**Is:** a language model's reading of one match of a behavior marked "Needs approval": what the matched line does where it stands, as one of five verdicts, with a reason of at most 20 words. The `behavior-review` check result carries the readings of one Artifact. See ADR-0016.
+
+**Verdicts:** Instruction, Quoted example, Prohibition, Documentation, Unclear.
+
+**Use for:** the line under a match in the Skill behaviors panel, and the CLI approval message. Always say a language model wrote it, and that it changes no approval.
+
+**Never:** review result, AI review, verdict (as the noun in UI), clearance, scan, audit, "safe", "cleared", "false positive". A reading never removes the approval a behavior needs.
+
+**Collides with:** behavior. A behavior is the pattern match, and it decides the approval. A reading only annotates one match.
 
 ### Owner
 

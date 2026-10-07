@@ -3,7 +3,8 @@ import type { ArtifactSourceFile } from '../../layers/artifact-delivery/server/u
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { checkResultSchema } from '../../layers/artifact-delivery/server/schemas/contracts'
-import { checkArtifactSource, checksBlockArtifact, createArtifactCheckScanner } from '../../layers/artifact-delivery/server/utils/checks'
+import { checkFilesInMemory } from '../../layers/artifact-delivery/server/utils/build'
+import { checksBlockArtifact, createArtifactCheckScanner } from '../../layers/artifact-delivery/server/utils/checks'
 
 // Keys are generated per run, so the repository never holds key material.
 const pkcs8 = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }) as string
@@ -83,7 +84,7 @@ describe('check results for a Skill of 2,000 files', () => {
       ...Array.from({ length: 150 }, (_, index): ArtifactSourceFile => ({ ...file(`scripts/${'s'.repeat(600)}-${index}.sh`, 'echo\n'), mode: 493 })),
     ]
 
-    const checked = await checkArtifactSource(source(), files)
+    const checked = await checkFilesInMemory({}, source(), files)
 
     for (const result of checked.checkResults)
       expect(checkResultSchema.safeParse(result).success).toBe(true)
@@ -96,14 +97,14 @@ describe('check results for a Skill of 2,000 files', () => {
 
 describe('omitted files check', () => {
   it('passes when the Artifact holds every file', async () => {
-    const checked = (await checkArtifactSource(source(), [file('SKILL.md', '---\nname: demo\n---\n')], [])).checkResults
+    const checked = (await checkFilesInMemory({}, source(), [file('SKILL.md', '---\nname: demo\n---\n')], [])).checkResults
 
     expect(omittedResult(checked)).toEqual({ name: 'omitted-files', version: '1', outcome: 'pass', required: false })
   })
 
   it('lists each omitted file with its size and source, and still lets the Skill run', async () => {
     const url = `https://github.com/acme/skills/blob/${'0'.repeat(40)}/skills/demo/assets/track.mp3`
-    const checked = (await checkArtifactSource(source(), [file('SKILL.md', '---\nname: demo\n---\n')], [
+    const checked = (await checkFilesInMemory({}, source(), [file('SKILL.md', '---\nname: demo\n---\n')], [
       { path: 'assets/track.mp3', bytes: 3_936_384, url },
     ])).checkResults
 
@@ -124,7 +125,7 @@ describe('omitted files check', () => {
       bytes: 3_000_000,
       url: `https://github.com/acme/skills/blob/main/assets/${'a'.repeat(400)}-${index}.png`,
     }))
-    const result = omittedResult((await checkArtifactSource(source(), [file('SKILL.md', '---\nname: demo\n---\n')], omitted)).checkResults)
+    const result = omittedResult((await checkFilesInMemory({}, source(), [file('SKILL.md', '---\nname: demo\n---\n')], omitted)).checkResults)
 
     expect(result?.summary).toBe('150 files over the size limits were left out of the Artifact. The first 100 are listed.')
     expect(result?.findings).toHaveLength(100)
@@ -139,7 +140,7 @@ function omittedResult(results: Awaited<ReturnType<typeof check>>) {
 async function check(extra: ArtifactSourceFile) {
   const skill = file('SKILL.md', '---\nname: demo\ndescription: Demo.\n---\n')
   const files = extra.path === 'SKILL.md' ? [extra] : [skill, extra]
-  return (await checkArtifactSource(source(), files)).checkResults
+  return (await checkFilesInMemory({}, source(), files)).checkResults
 }
 
 function streamedCheck(extra: ArtifactSourceFile, chunkSize: number) {

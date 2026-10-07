@@ -1,9 +1,11 @@
 import type { Hash } from 'node:crypto'
 import type { ResolvedSource } from '../schemas/contracts'
+import type { CollectedBehaviorHits } from './behavior-review'
 import type { ArtifactFileObserver, CheckedArtifactSource } from './checks'
 import type { OmittedArtifactFile, SourceRejection } from './github-source'
 import type { SymbolicLinkNote } from './symbolic-links'
 import { createHash } from 'node:crypto'
+import { createBehaviorHitCollector } from './behavior-review'
 import { createArtifactCheckScanner } from './checks'
 import { projectedUstarBytes, USTAR_END_BYTES, ustarHeader, ustarPadding } from './ustar'
 
@@ -120,6 +122,11 @@ export interface ScannedArtifact {
   contentSha256: string
   contentBytes: number
   checked: CheckedArtifactSource
+  /**
+   * The matches of behaviors that need approval, for the behavior review.
+   * The build turns them into the `behavior-review` check result.
+   */
+  behaviorHits: CollectedBehaviorHits
   /** The archive itself, when it is at most `spoolBytes`. Null means a store reads the files again. */
   spool: Uint8Array | null
   /** Files read from GitHub one by one, because their archive bytes failed. */
@@ -164,11 +171,25 @@ export async function scanArtifact(input: {
     const spool = contentBytes <= input.spoolBytes ? new Uint8Array(contentBytes) : null
     let written = 0
     const scanner = createArtifactCheckScanner(input.source)
+    const hits = createBehaviorHitCollector()
     const outcome = await packArtifactFiles({
       files: input.files,
       read: input.read,
       readFromGithub,
-      observer: scanner,
+      observer: {
+        begin: (file) => {
+          scanner.begin(file)
+          hits.begin(file)
+        },
+        chunk: (bytes) => {
+          scanner.chunk(bytes)
+          hits.chunk(bytes)
+        },
+        end: () => {
+          scanner.end()
+          hits.end()
+        },
+      },
       write: async (bytes) => {
         digest.update(bytes)
         spool?.set(bytes, written)
@@ -190,6 +211,7 @@ export async function scanArtifact(input: {
       contentSha256: digest.digest('hex'),
       contentBytes,
       checked: scanner.finish(input.omitted, input.symbolicLinks),
+      behaviorHits: hits.finish(),
       spool,
       readFromGithub,
     }

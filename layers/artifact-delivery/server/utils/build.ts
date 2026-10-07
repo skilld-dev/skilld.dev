@@ -9,8 +9,10 @@ import type {
 } from '../schemas/contracts'
 import type { PackedFile, ReadOutcome, SkillFileReader } from './artifact-pack'
 import type { ArtifactSigner } from './attestation'
+import type { CollectedBehaviorHits } from './behavior-review'
+import type { BehaviorReviewer } from './behavior-reviewer'
 import type { CheckedArtifactSource } from './checks'
-import type { PublicGithubSourceClient, SourceRejection } from './github-source'
+import type { ArtifactSourceFile, OmittedArtifactFile, PublicGithubSourceClient, SourceRejection } from './github-source'
 import type { ReadyBuildLookup, ReadyPublicBuild, ResolutionPatch, ResolutionRow } from './state'
 import type { TrustedRoot } from './trusted-root'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
@@ -29,7 +31,9 @@ import {
   encodeAttestationStatement,
   verifyArtifactAttestation,
 } from './attestation'
-import { checkArtifactSource, checksBlockArtifact, checksPermitSigning } from './checks'
+import { collectBehaviorHits } from './behavior-review'
+import { reviewWithoutModel } from './behavior-reviewer'
+import { BEHAVIOR_REVIEW_CHECK_NAME, checkArtifactSource, checksBlockArtifact, checksPermitSigning } from './checks'
 import { canonicalJson, digestHex } from './encoding'
 import { isRetryableProblem, storedFilesPassLoadRules } from './github-source'
 import { withRequesterFallback } from './requester-github'
@@ -80,6 +84,11 @@ export interface ArtifactBuildDependencies {
    * `artifact-build-reuse` wide event, which the daily check-in can count.
    */
   reportReuse?: (report: ArtifactBuildReuseReport) => void
+  /**
+   * Reads each match of a behavior that needs approval, for the
+   * `behavior-review` check result. The default reads none (ADR-0016).
+   */
+  reviewBehaviors?: BehaviorReviewer
   /** The stream R2 reads a streamed archive from. Workers use `FixedLengthStream`. */
   fixedLengthStream?: (length: number) => TransformStream<Uint8Array, Uint8Array>
 }
@@ -596,7 +605,7 @@ async function loadStoredBuild(
   return {
     _tag: 'loaded',
     source: ready.source,
-    checked: await checkArtifactSource(ready.source, files, []),
+    checked: await checkFilesInMemory(dependencies, ready.source, files),
     content: { contentSha256: ready.contentSha256, contentBytes: ready.contentBytes },
     linkedFiles: [],
     bytes: { _tag: 'spooled', archive: bytes },
@@ -818,13 +827,44 @@ async function loadAndCheck(
   return {
     _tag: 'loaded',
     source,
-    checked: scanned.checked,
+    checked: await withBehaviorReview(dependencies, source, scanned.checked, scanned.behaviorHits, recordedBehaviorReview(row)),
     content: { contentSha256: scanned.contentSha256, contentBytes: scanned.contentBytes },
     linkedFiles: plan.linked,
     bytes: scanned.spool
       ? { _tag: 'spooled', archive: scanned.spool }
       : { _tag: 'streamed', files: plan.files, read: plan.read, readFromGithub: scanned.readFromGithub },
   }
+}
+
+/** Every check over Skill files already in memory, the behavior review included. */
+export async function checkFilesInMemory(
+  dependencies: Pick<ArtifactBuildDependencies, 'reviewBehaviors'>,
+  source: ResolvedSource,
+  files: ArtifactSourceFile[],
+  omitted: OmittedArtifactFile[] = [],
+): Promise<CheckedArtifactSource> {
+  return await withBehaviorReview(dependencies, source, await checkArtifactSource(source, files, omitted), collectBehaviorHits(files), null)
+}
+
+/**
+ * The checks with the `behavior-review` result added. A build that already
+ * recorded its checks keeps the review it recorded: a model can read the
+ * same matches another way, and the signer refuses a statement whose checks
+ * differ from the recorded ones.
+ */
+async function withBehaviorReview(
+  dependencies: Pick<ArtifactBuildDependencies, 'reviewBehaviors'>,
+  source: ResolvedSource,
+  checked: CheckedArtifactSource,
+  collected: CollectedBehaviorHits,
+  recorded: CheckResult | null,
+): Promise<CheckedArtifactSource> {
+  const review = recorded ?? await (dependencies.reviewBehaviors ?? reviewWithoutModel)({ source, collected })
+  return { ...checked, checkResults: [...checked.checkResults, review] }
+}
+
+function recordedBehaviorReview(row: ResolutionRow): CheckResult | null {
+  return parseCheckResults(row.check_results_json).find(check => check.name === BEHAVIOR_REVIEW_CHECK_NAME) ?? null
 }
 
 async function requirePassingSource(
