@@ -30,16 +30,9 @@ const reasons = HOME_WHY_REASONS.map(id => WHY_REASONS[id])
   <section id="why" class="home-wm" aria-labelledby="why-heading">
     <span class="home-watermark" aria-hidden="true">Why</span>
     <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
-      <header>
-        <h2 id="why-heading" class="home-h2 text-balance">
-          What skilld <span class="home-ink">does differently</span>.
-        </h2>
-        <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-          A <NuxtLink to="/vs/skills-sh" class="inline-block text-default underline underline-offset-4 hover:text-primary">
-            skills.sh alternative
-          </NuxtLink> for devs who want to know who made a Skill before they run it.
-        </p>
-      </header>
+      <h2 id="why-heading" class="home-h2 text-balance">
+        What skilld <span class="home-ink">does differently</span>.
+      </h2>
 
       <ul class="home-why mt-8 list-none p-0">
         <li v-for="reason in reasons" :key="reason.id" class="home-why__col">
