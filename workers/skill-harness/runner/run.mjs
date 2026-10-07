@@ -50,12 +50,12 @@ async function execute() {
       'The network gateway allows npm registry and GitHub codeload only. Other destinations are unavailable.',
       'Do not retry a denied destination. Use prepared source and installed package types as evidence.',
       'If an example cannot run here, record it as untested. Never claim it passed.',
-      'This task updates an existing Skill. Keep unsupported claims out and avoid unrelated framework tutorials.',
+      'This task updates an existing Skill for a new release. Test only the lines the release changed; the earlier version\'s tests cover the rest.',
       'Batch related source reads into one tool call. Read each source file once unless evidence requires another read.',
       'Use one final command to check frontmatter, paths, and examples. Do not repeat counts, greps, or confirmation reads.',
       'After writing and checking the output, finish immediately. A separate independent review follows generation.',
       stage === 'generation'
-        ? 'Write SKILL.md to the output directory by model turn 20, then verify and edit it there. A deadline then still leaves a candidate. Aim to finish within 35 model turns. Reserve the remaining run budget for independent review and any repair.'
+        ? 'Copy the current Skill to the output directory first, so a deadline still leaves a candidate. Aim to finish within 25 model turns. Reserve the remaining run budget for independent review and any repair.'
         : 'Review source claims in batches. Aim to finish within 20 model turns. Return concrete findings when checks finish.',
       ...(findings.length ? ['Correct these review findings against the exact package source. Preserve other supported guidance.', JSON.stringify(findings)] : []),
     ].join('\n\n'))
@@ -95,6 +95,7 @@ async function execute() {
       path: file.path,
       content: await readFile(join(candidate.outputDir, file.path), 'utf8'),
     }))),
+    baseline: input.currentSkill,
   })
 }
 
