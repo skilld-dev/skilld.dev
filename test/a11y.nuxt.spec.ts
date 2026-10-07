@@ -634,13 +634,13 @@ describe('accessibility: components', () => {
     expect(picks).toHaveLength(3)
     expect(picks[0]?.getAttribute('aria-pressed')).toBe('true')
     const stage = () => container.querySelector('.demo-index__stage .demo-stage__open')?.getAttribute('href')
-    expect(stage()).toBe('/gh/anthropics/skills/one#demo')
+    expect(stage()).toBe('/skills/demos/anthropics/skills/one')
 
     picks[1]!.click()
     await nextTick()
     await new Promise(done => setTimeout(done, 400))
     expect(picks[1]?.getAttribute('aria-pressed')).toBe('true')
-    expect(stage()).toBe('/gh/anthropics/skills/two#demo')
+    expect(stage()).toBe('/skills/demos/anthropics/skills/two')
     expect(container.querySelector('a[href="/skills/demos"]')?.textContent).toContain('All 3 demos')
     wrapper.unmount()
   })
@@ -722,6 +722,11 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     expect(container.textContent).toContain('Recorded with Claude Code, Opus 5.5')
     expect(container.textContent).toContain('Recorded on an older version of this Skill.')
+    expect(container.querySelector('a[href="/skills/demos/anthropics/skills/frontend-design"]')?.textContent).toContain('All demos')
+
+    // A flagged Skill is off the board, and its demo page answers 404.
+    await wrapper.setProps({ onBoard: false })
+    expect(container.querySelector('a[href^="/skills/demos/"]')).toBeNull()
 
     await wrapper.get('button[aria-pressed="false"]').trigger('click')
     await nextTick()
