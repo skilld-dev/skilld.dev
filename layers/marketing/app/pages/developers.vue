@@ -5,17 +5,15 @@ import SetupSnippet from '../components/_SetupSnippet.vue'
 import {
   API_OPENAPI_PATH,
   apiSamples,
-  apiSampleSchema,
   apiSnippets,
   cursorInstallUrl,
   mcpApps,
-  mcpAppSchema,
   setupModes,
-  setupModeSchema,
   setupSnippets,
   SKILLD_SKILL_SOURCE,
   vscodeInstallUrl,
 } from '../utils/developer-setup'
+import { apiSampleSchema, mcpAppSchema, setupModeSchema } from '../utils/developer-setup-query'
 import { pageRobots } from '../utils/page-admissions'
 
 definePageMeta({ layout: 'account' })
