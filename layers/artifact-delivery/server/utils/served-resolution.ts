@@ -54,9 +54,9 @@ export type ServedResolutionReport
  */
 export function serveReadyResolution(
   dependencies: ServedResolutionDependencies,
-): (source: SourceRequest) => Promise<ServedResolution> {
+): (source: SourceRequest, linkedFiles: boolean) => Promise<ServedResolution> {
   const report = dependencies.report ?? emitServedEvent
-  return async (source) => {
+  return async (source, linkedFiles) => {
     const pinned = await pinToCommit(dependencies, source)
     if (pinned._tag !== 'pinned') {
       report({ _tag: 'miss', reason: pinned._tag })
@@ -68,7 +68,7 @@ export function serveReadyResolution(
       repository: pinned.source.repository,
       commitSha: pinned.commitSha,
       selector: pinned.source.selector,
-    })
+    }, linkedFiles)
     if (decision._tag === 'miss') {
       report({ _tag: 'miss', reason: decision.reason })
       return { _tag: 'build', source: pinned.source }

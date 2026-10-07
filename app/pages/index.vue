@@ -91,9 +91,10 @@ const [
     query: { limit: 24 },
     // The board ships only its head. The rest of the named Skills, with their
     // posts and star series, serve `/skills/trending` and would ride in this
-    // page's payload unread.
+    // page's payload unread. The texture reads only Skill names, so the
+    // repository cards stay out too: they were 47 kB of the payload.
     transform: (feed: TrendingFeedResponse) => ({
-      items: feed.items,
+      textureNames: feed.items.flatMap(repo => repo.skills.map(skill => `${repo.owner}/${repo.repo}/${skill.name}`)),
       board: feedBoardRows(feed).slice(0, HOME_BOARD_ROWS),
     }),
   })),
@@ -109,8 +110,6 @@ const { data: demosData } = useLazyFetch<{ items: HomeDemoItem[] }>('/api/skill-
 
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
-
-const trendingRepos = computed(() => trendingData.value?.items ?? [])
 
 /** Owners whose avatar failed, which means the GitHub account is gone; see `/skills/trending`. */
 const missingAvatars = ref(new Set<string>())
@@ -132,9 +131,7 @@ const showTrending = computed(() => (trendingData.value?.board.length ?? 0) >= H
 const weekBoardPath = trendingRangeMeta('week').path
 
 /** Real Skill names from this week's trending repositories, for the hero texture. */
-const heroTextureNames = computed(() =>
-  trendingRepos.value.flatMap(repo => repo.skills.map(skill => `${repo.owner}/${repo.repo}/${skill.name}`)),
-)
+const heroTextureNames = computed(() => trendingData.value?.textureNames ?? [])
 
 /**
  * Track order, measured 2026-09-04 rather than assumed.

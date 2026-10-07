@@ -1,12 +1,14 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import type { GithubBindings, RepoMeta } from './github-client'
+import type { RepositoryMovePlan, RepositoryName } from './repository-move'
 import type { SkillTrustTier } from './skill-trust'
 import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { repoStarObservationStatements } from './repo-history'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
+import { findHeldRepositoryName, moveRepository, planRepositoryMove, sameRepositoryName } from './repository-move'
 import { skillContentSha256 } from './skill-content-hash'
 import { parseSkillFile, registrySkillName } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
@@ -29,6 +31,11 @@ export interface SyncRepoStats {
   rateLimitResource?: string
   rateLimitResetAt?: number
   continuation?: SyncRepoContinuation
+  /**
+   * The registry identity the rows moved to, when GitHub answered the
+   * requested name with another one. The sync went on under that identity.
+   */
+  movedTo?: RepositoryName
 }
 
 export interface SyncRepoContinuation {
@@ -455,6 +462,24 @@ export async function refreshRepoAssets(
   }
 }
 
+/**
+ * Move every row of a Repository GitHub now serves as `current`, and answer
+ * the registry identity the rows carry after the move. A move into a name
+ * another Repository holds is refused, so nothing merges.
+ */
+async function followRepositoryMove(
+  db: D1Database,
+  requested: RepositoryName,
+  current: RepositoryName,
+  repositoryId: number,
+): Promise<RepositoryMovePlan> {
+  const plan = planRepositoryMove(current, await findHeldRepositoryName(db, current), repositoryId)
+  if (plan._tag === 'held')
+    return plan
+  await moveRepository(db, { from: requested, to: plan.to, source: current, repositoryId, movedAt: nowSec() })
+  return plan
+}
+
 async function loadExistingRepo(db: D1Database, owner: string, repo: string): Promise<ExistingRepo | null> {
   return await db
     .prepare(`
@@ -476,6 +501,7 @@ function markRepoSummaryCheckedStatement(
   owner: string,
   repo: string,
   meta: RepoMeta,
+  repositoryId: number,
   pushedAt: number | null,
   checkedAt: number,
 ): D1PreparedStatement {
@@ -492,7 +518,8 @@ function markRepoSummaryCheckedStatement(
            broken_since = NULL,
            tree_truncated_at = NULL,
            source_owner = ?,
-           source_repo = ?
+           source_repo = ?,
+           repository_id = ?
        WHERE owner = ? AND repo = ?`,
     )
     .bind(
@@ -505,6 +532,7 @@ function markRepoSummaryCheckedStatement(
       checkedAt,
       meta.owner.login,
       meta.name,
+      repositoryId,
       owner,
       repo,
     )
@@ -551,14 +579,15 @@ export function repoUnchangedStatements(
     owner: string
     repo: string
     meta: RepoMeta
+    repositoryId: number
     checkedAt: number
     ownerVerified: boolean
   },
 ): D1PreparedStatement[] {
-  const { owner, repo, meta, checkedAt } = input
+  const { owner, repo, meta, repositoryId, checkedAt } = input
   const pushedAt = epoch(meta.pushed_at)
   const statements = [
-    markRepoSummaryCheckedStatement(db, owner, repo, meta, pushedAt, checkedAt),
+    markRepoSummaryCheckedStatement(db, owner, repo, meta, repositoryId, pushedAt, checkedAt),
     clearRepoMissingSkillsStatement(db, owner, repo, checkedAt),
     ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
   ]
@@ -756,15 +785,16 @@ export interface SyncRepoOptions {
 }
 
 export async function syncRepo(
-  owner: string,
-  repo: string,
+  requestedOwner: string,
+  requestedRepo: string,
   bindings: GithubBindings,
   db: D1Database,
   opts: SyncRepoOptions = {},
 ): Promise<SyncRepoStats> {
+  const requested: RepositoryName = { owner: requestedOwner, repo: requestedRepo }
   const stats: SyncRepoStats = {
-    owner,
-    repo,
+    owner: requestedOwner,
+    repo: requestedRepo,
     status: 'failed',
     skillsSeen: 0,
     skillsUpserted: 0,
@@ -782,10 +812,10 @@ export async function syncRepo(
     stats.rateLimitResetAt = Math.max(stats.rateLimitResetAt ?? 0, rateLimit.reset)
   }
 
-  const existingRepo = await loadExistingRepo(db, owner, repo)
-  const requestSource = resolveRepoSourceIdentityFromRow({ owner, repo }, existingRepo)
+  const requestedRepoRow = await loadExistingRepo(db, requestedOwner, requestedRepo)
+  const requestSource = resolveRepoSourceIdentityFromRow(requested, requestedRepoRow)
   const repoRes = await getRepoSummary(requestSource.owner, requestSource.repo, bindings)
-  logRateLimit(`repo ${owner}/${repo}`, repoRes.rateLimit)
+  logRateLimit(`repo ${requestedOwner}/${requestedRepo}`, repoRes.rateLimit)
   trackRateLimit(repoRes.rateLimit)
 
   // A 401 is the credential, not the repository. Reporting it per repo made an
@@ -805,13 +835,14 @@ export async function syncRepo(
 
   if (!repoRes.data) {
     if (repoRes.status === 404 || repoRes.status === 410)
-      await markRepoMissing(db, owner, repo, nowSec())
+      await markRepoMissing(db, requestedOwner, requestedRepo, nowSec())
     stats.status = 'failed'
     stats.reason = `repo fetch ${repoRes.status}`
     return stats
   }
 
   const meta = repoRes.data.meta
+  const repositoryId = repoRes.data.repositoryId
   const sourceOwner = meta.owner.login
   const sourceRepo = meta.name
   const headTreeSha = repoRes.data.headTreeSha
@@ -819,10 +850,28 @@ export async function syncRepo(
   const repoPushedAt = epoch(meta.pushed_at)
   const checkedAt = opts.continuation?.checkedAt ?? nowSec()
 
+  // GitHub answers a renamed or transferred Repository with its new name.
+  // The rows follow it there, and the sync goes on under the new name, so a
+  // caller keyed by the old name still gets an outcome (ADR-0015).
+  const current: RepositoryName = { owner: sourceOwner, repo: sourceRepo }
+  const movePlan = sameRepositoryName(requested, current)
+    ? null
+    : await followRepositoryMove(db, requested, current, repositoryId)
+  if (movePlan?._tag === 'held') {
+    stats.status = 'failed'
+    stats.reason = `move_refused: ${current.owner}/${current.repo} is Repository ${repositoryId} on GitHub, and the registry holds that name for Repository ${movePlan.heldBy}`
+    return stats
+  }
+  const movedTo = movePlan?.to
+  if (movedTo)
+    stats.movedTo = movedTo
+  const { owner, repo } = movedTo ?? requested
+  const existingRepo = movedTo ? await loadExistingRepo(db, owner, repo) : requestedRepoRow
+
   const hasAdmittedSkills = await repoHasAdmittedSkills(db, owner, repo)
 
   const markUnchanged = async (status: 'skipped-tree-sha' | 'skipped-pushed-at'): Promise<SyncRepoStats> => {
-    await db.batch(repoUnchangedStatements(db, { owner, repo, meta, checkedAt, ownerVerified: opts.ownerVerified === true }))
+    await db.batch(repoUnchangedStatements(db, { owner, repo, meta, repositoryId, checkedAt, ownerVerified: opts.ownerVerified === true }))
     stats.status = opts.ownerVerified ? 'verified-only' : status
     return stats
   }
@@ -937,8 +986,8 @@ export async function syncRepo(
     `INSERT INTO repos (
        owner, repo, default_branch, stars, forks, description, pushed_at, repo_created_at,
        repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
-       repo_skill_count, broken_since, source_owner, source_repo
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+       repo_skill_count, broken_since, source_owner, source_repo, repository_id
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
      ON CONFLICT(owner, repo) DO UPDATE SET
        default_branch = excluded.default_branch,
        stars = excluded.stars,
@@ -954,7 +1003,8 @@ export async function syncRepo(
        broken_since = NULL,
        tree_truncated_at = NULL,
        source_owner = excluded.source_owner,
-       source_repo = excluded.source_repo`,
+       source_repo = excluded.source_repo,
+       repository_id = excluded.repository_id`,
   ).bind(
     owner,
     repo,
@@ -971,6 +1021,7 @@ export async function syncRepo(
     skillFiles.length,
     sourceOwner,
     sourceRepo,
+    repositoryId,
   )
 
   if (skillFiles.length === 0) {

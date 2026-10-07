@@ -2,13 +2,15 @@ import type {
   ArtifactAttestation,
   ArtifactFile,
   CheckResult,
+  LinkedArtifactFile,
   ProblemCode,
   ResolvedSource,
   SourceRequest,
 } from '../schemas/contracts'
+import type { PackedFile, ReadOutcome, SkillFileReader } from './artifact-pack'
 import type { ArtifactSigner } from './attestation'
 import type { CheckedArtifactSource } from './checks'
-import type { ArtifactSourceFile, PublicGithubSourceClient, SourceRejection } from './github-source'
+import type { PublicGithubSourceClient, SourceRejection } from './github-source'
 import type { ReadyBuildLookup, ReadyPublicBuild, ResolutionPatch, ResolutionRow } from './state'
 import type { TrustedRoot } from './trusted-root'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
@@ -19,7 +21,8 @@ import {
   resolvedSourceSchema,
   sourceRequestSchema,
 } from '../schemas/contracts'
-import { artifactR2Key, hasImmutableArtifact, putImmutableArtifact } from './artifact-storage'
+import { ARTIFACT_SPOOL_BYTES, packArtifactFiles, scanArtifact } from './artifact-pack'
+import { artifactR2Key, hasImmutableArtifact, putImmutableArtifact, putImmutableArtifactStream } from './artifact-storage'
 import {
   completeAttestation,
   createAttestationStatement,
@@ -41,7 +44,7 @@ import {
   publishArtifactRecord,
   transitionResolution,
 } from './state'
-import { createDeterministicUstar, readDeterministicUstar } from './ustar'
+import { readDeterministicUstar } from './ustar'
 
 export interface ArtifactBuildDependencies {
   db: D1Database
@@ -77,6 +80,8 @@ export interface ArtifactBuildDependencies {
    * `artifact-build-reuse` wide event, which the daily check-in can count.
    */
   reportReuse?: (report: ArtifactBuildReuseReport) => void
+  /** The stream R2 reads a streamed archive from. Workers use `FixedLengthStream`. */
+  fixedLengthStream?: (length: number) => TransformStream<Uint8Array, Uint8Array>
 }
 
 /** Why a build did not reuse a ready build of the same commit. */
@@ -87,6 +92,7 @@ export type ReuseMissReason
     | 'checks-changed'
     | 'record-mismatch'
     | 'bytes-missing'
+    | 'linked-files-differ'
 
 export type ArtifactBuildReuseReport
   = { _tag: 'hit', lookup: ReadyBuildLookup['_tag'], resolutionId: string, reusedFrom: string }
@@ -116,6 +122,7 @@ export interface ReusableBuild {
   contentBytes: number
   files: ArtifactFile[]
   checkResults: CheckResult[]
+  linkedFiles: LinkedArtifactFile[]
 }
 
 export type ReuseDecision
@@ -125,9 +132,20 @@ export type ReuseDecision
 interface LoadedBuild {
   _tag: 'loaded'
   source: ResolvedSource
-  files: ArtifactSourceFile[]
   checked: CheckedArtifactSource
+  content: { contentSha256: string, contentBytes: number }
+  linkedFiles: LinkedArtifactFile[]
+  bytes: ArtifactBytes
 }
+
+/**
+ * Where a loaded build gets the archive it stores: kept from its scan when
+ * small, written again from GitHub as it streams to R2, or already stored.
+ */
+type ArtifactBytes
+  = { _tag: 'spooled', archive: Uint8Array }
+    | { _tag: 'streamed', files: readonly PackedFile[], read: SkillFileReader, readFromGithub: ReadonlySet<string> }
+    | { _tag: 'stored', key: string }
 
 interface ReusedBuild {
   _tag: 'reused'
@@ -221,6 +239,15 @@ export async function processArtifactBuild(
           : rejectionCheckResults(loaded.rejection)
       if (loaded._tag === 'rejected' && loaded.rejection.code !== 'INVALID_SOURCE')
         return await failWithRejection(dependencies, row, loaded.rejection)
+      // A large archive streams from GitHub to R2 for a second time. That
+      // happens here, before the checks are recorded: the skilld CLI gives a
+      // Resolution 15 seconds at each stage after its checks pass.
+      if (loaded._tag === 'loaded' && row.visibility === 'public' && !checksBlockArtifact(checkResults)) {
+        const stored = await storePublicArtifact(dependencies, loaded)
+        if (stored._tag === 'rejected')
+          return await failWithRejection(dependencies, row, stored)
+        carried = { ...loaded, bytes: { _tag: 'stored', key: stored.key } }
+      }
       const advanced = await transitionResolution(dependencies.db, row, 'checking', {
         checkResultsJson: JSON.stringify(checkResults),
       }, now)
@@ -249,7 +276,7 @@ export async function processArtifactBuild(
       carried = loaded
       const content = loaded._tag === 'reused'
         ? { contentSha256: loaded.build.contentSha256, contentBytes: loaded.build.contentBytes }
-        : await packagedContent(loaded.files)
+        : loaded.content
       const advanced = await transitionResolution(dependencies.db, row, 'signing', {
         artifactId: `sha256:${content.contentSha256}`,
         contentSha256: content.contentSha256,
@@ -280,6 +307,8 @@ export async function processArtifactBuild(
           : await stageLoadedStatement(dependencies, row, content, loaded)
         if (statement._tag === 'content-changed')
           return await failResolution(dependencies, row, 'INVALID_SOURCE', false)
+        if (statement._tag === 'rejected')
+          return await failWithRejection(dependencies, row, statement)
         const staged = await transitionResolution(dependencies.db, row, 'signing', statement.patch, now)
         if (staged._tag === 'superseded')
           return { _tag: 'superseded', resolutionId }
@@ -320,9 +349,46 @@ export async function processArtifactBuild(
   throw new Error('Artifact build exceeded its state transition limit')
 }
 
-async function packagedContent(files: ArtifactSourceFile[]): Promise<{ contentSha256: string, contentBytes: number }> {
-  const archive = createDeterministicUstar(files)
-  return { contentSha256: await digestHex('SHA-256', archive), contentBytes: archive.byteLength }
+/**
+ * Stores a public Artifact under its content address. A small archive is
+ * already in memory from the scan. A larger one is read from GitHub again and
+ * written to R2 as it streams; R2 refuses it unless every byte matches the
+ * digest the scan found. Storing the same archive twice writes nothing.
+ */
+async function storePublicArtifact(
+  dependencies: ArtifactBuildDependencies,
+  loaded: LoadedBuild,
+): Promise<{ _tag: 'stored', key: string } | SourceRejection> {
+  const key = artifactR2Key(loaded.content.contentSha256)
+  const bytes = loaded.bytes
+  if (bytes._tag === 'stored')
+    return { _tag: 'stored', key: bytes.key }
+  const write = bytes._tag === 'spooled'
+    ? await putImmutableArtifact(dependencies.bucket, { key, bytes: bytes.archive, contentSha256: loaded.content.contentSha256 })
+    : await putImmutableArtifactStream<Exclude<ReadOutcome, { _tag: 'read' }>>(dependencies.bucket, {
+        key,
+        contentSha256: loaded.content.contentSha256,
+        contentBytes: loaded.content.contentBytes,
+        write: async (output) => {
+          const outcome = await packArtifactFiles({ files: bytes.files, read: bytes.read, readFromGithub: bytes.readFromGithub, write: output })
+          return outcome._tag === 'read' ? { _tag: 'written' as const } : { _tag: 'failed' as const, failure: outcome }
+        },
+      }, dependencies.fixedLengthStream)
+  if (write._tag === 'mutation-rejected')
+    throw new Error('Immutable Artifact storage rejected changed bytes')
+  if (write._tag === 'write-failed') {
+    if (write.failure._tag === 'rejected')
+      return write.failure
+    // The scan read the same commit a moment ago. Another answer now is a
+    // fault upstream, and a new attempt reads it again.
+    return {
+      _tag: 'rejected',
+      code: 'SOURCE_UNAVAILABLE',
+      summary: 'GitHub served other bytes for a Skill file on the second read.',
+      findings: [write.failure.path],
+    }
+  }
+  return { _tag: 'stored', key: write.key }
 }
 
 /** Store the loaded bytes, then stage the statement the signer signs. */
@@ -331,37 +397,38 @@ async function stageLoadedStatement(
   row: ResolutionRow,
   content: { artifactId: string, contentSha256: string, contentBytes: number },
   loaded: LoadedBuild,
-): Promise<StagedStatement> {
-  const archive = createDeterministicUstar(loaded.files)
-  const contentSha256 = await digestHex('SHA-256', archive)
-  if (contentSha256 !== content.contentSha256 || archive.byteLength !== content.contentBytes)
+): Promise<StagedStatement | SourceRejection> {
+  if (loaded.content.contentSha256 !== content.contentSha256 || loaded.content.contentBytes !== content.contentBytes)
     return { _tag: 'content-changed' }
-  const write = row.visibility === 'private'
-    ? await putEncryptedPrivateArtifact(dependencies, row, archive, contentSha256)
-    : await putImmutableArtifact(dependencies.bucket, {
-        key: artifactR2Key(contentSha256),
-        bytes: archive,
-        contentSha256,
-      })
-  if (write._tag === 'mutation-rejected')
-    throw new Error('Immutable Artifact storage rejected changed bytes')
+  let storagePatch: Pick<ResolutionPatch, 'r2Key' | 'ciphertextSha256' | 'ciphertextBytes' | 'encryptionKeyId'>
+  if (row.visibility === 'private') {
+    if (loaded.bytes._tag !== 'spooled')
+      throw new Error('A private Artifact must be packed in memory')
+    const write = await putEncryptedPrivateArtifact(dependencies, row, loaded.bytes.archive, content.contentSha256)
+    if (write._tag === 'mutation-rejected')
+      throw new Error('Immutable Artifact storage rejected changed bytes')
+    storagePatch = { r2Key: write.key, ...privateArtifactStoragePatch(write) }
+  }
+  else {
+    const stored = await storePublicArtifact(dependencies, loaded)
+    if (stored._tag === 'rejected')
+      return stored
+    storagePatch = { r2Key: stored.key }
+  }
   const statement = createAttestationStatement({
     artifactId: content.artifactId,
     createdAt: new Date(row.created_at * 1000).toISOString(),
     source: loaded.source,
-    contentSha256,
-    contentBytes: archive.byteLength,
+    contentSha256: content.contentSha256,
+    contentBytes: content.contentBytes,
     files: loaded.checked.files,
     checkResults: loaded.checked.checkResults,
+    linkedFiles: loaded.linkedFiles,
   })
-  const privateStoragePatch = row.visibility === 'private'
-    ? privateArtifactStoragePatch(write)
-    : {}
   return {
     _tag: 'staged',
     patch: {
-      r2Key: write.key,
-      ...privateStoragePatch,
+      ...storagePatch,
       attestationStatementJson: encodeAttestationStatement(statement),
     },
   }
@@ -396,6 +463,7 @@ function stageReusedStatement(
     contentBytes: content.contentBytes,
     files: build.files,
     checkResults: build.checkResults,
+    linkedFiles: build.linkedFiles,
   })
   return {
     _tag: 'staged',
@@ -494,13 +562,16 @@ async function loadStoredBuild(
   lookup: ReadyBuildLookup,
 ): Promise<LoadedBuild | null> {
   const ready = await findReadyPublicBuild(dependencies.db, lookup)
-  if (!ready)
+  // A check reads the stored archive whole, so only one the size a scan
+  // keeps in memory is checked again. A larger one streams from GitHub.
+  if (!ready || ready.contentBytes > ARTIFACT_SPOOL_BYTES)
     return null
   const attestation = parseStoredAttestation(ready.attestationJson)
   if (
     !attestation
     || (attestation.policyVersion !== ARTIFACT_POLICY_VERSION && !BYTE_COMPATIBLE_POLICY_VERSIONS.has(attestation.policyVersion))
     || !omittedNothing(attestation)
+    || !followedNoSymbolicLink(attestation)
     || !attestationMatchesRecord(attestation, ready)
     || !await verifyArtifactAttestation(attestation, dependencies.trustedRoot, dependencies.now())
   ) {
@@ -525,8 +596,10 @@ async function loadStoredBuild(
   return {
     _tag: 'loaded',
     source: ready.source,
-    files,
     checked: await checkArtifactSource(ready.source, files, []),
+    content: { contentSha256: ready.contentSha256, contentBytes: ready.contentBytes },
+    linkedFiles: [],
+    bytes: { _tag: 'spooled', archive: bytes },
   }
 }
 
@@ -538,6 +611,16 @@ async function loadStoredBuild(
 function omittedNothing(attestation: ArtifactAttestation): boolean {
   const omitted = attestation.checkResults.find(check => check.name === 'omitted-files')
   return omitted === undefined || omitted.outcome === 'pass'
+}
+
+/**
+ * Whether a stored build met no symbolic link. Its stored files cannot show
+ * which ones a link put there, so the check could not be made again from
+ * them. Policies before the `symbolic-links` check refused every link.
+ */
+function followedNoSymbolicLink(attestation: ArtifactAttestation): boolean {
+  const links = attestation.checkResults.find(check => check.name === 'symbolic-links')
+  return links === undefined || links.outcome === 'pass'
 }
 
 /**
@@ -570,7 +653,7 @@ async function decideReuse(
   lookup: ReadyBuildLookup,
   fitsRecord: (build: ReusableBuild) => boolean = () => true,
 ): Promise<ReuseDecision> {
-  const found = await findReusableBuild(dependencies, lookup)
+  const found = await findReusableBuild(dependencies, lookup, acceptsLinkedFiles(row))
   const decision: ReuseDecision = found._tag === 'hit' && !fitsRecord(found.build)
     ? { _tag: 'miss', reason: 'record-mismatch' }
     : found
@@ -595,6 +678,7 @@ async function decideReuse(
 export async function findReusableBuild(
   dependencies: Pick<ArtifactBuildDependencies, 'db' | 'bucket' | 'trustedRoot' | 'now'>,
   lookup: ReadyBuildLookup,
+  linkedFiles: boolean,
 ): Promise<ReuseDecision> {
   const ready = await findReadyPublicBuild(dependencies.db, lookup)
   if (!ready)
@@ -608,6 +692,8 @@ export async function findReusableBuild(
     return { _tag: 'miss', reason: 'checks-changed' }
   if (!attestationMatchesRecord(attestation, ready))
     return { _tag: 'miss', reason: 'record-mismatch' }
+  if (!deliversTo(attestation, linkedFiles))
+    return { _tag: 'miss', reason: 'linked-files-differ' }
   const stored = await hasImmutableArtifact(dependencies.bucket, {
     key: ready.r2Key,
     contentSha256: ready.contentSha256,
@@ -625,8 +711,27 @@ export async function findReusableBuild(
       contentBytes: ready.contentBytes,
       files: attestation.files,
       checkResults: attestation.checkResults,
+      linkedFiles: attestation.linkedFiles ?? [],
     },
   }
+}
+
+/**
+ * Whether a ready build answers a skilld CLI that does, or does not, read
+ * linked files. A build with linked files serves only a CLI that reads them.
+ * A build that left no file out serves both, since neither would link or
+ * omit anything. A build that left files out can only be rebuilt for a CLI
+ * that reads linked files: it may link some of them.
+ */
+function deliversTo(attestation: ArtifactAttestation, linkedFiles: boolean): boolean {
+  if (attestation.linkedFiles)
+    return linkedFiles
+  return !linkedFiles || omittedNothing(attestation)
+}
+
+/** Whether the Resolution came from a skilld CLI that reads linked files. */
+function acceptsLinkedFiles(row: ResolutionRow): boolean {
+  return row.linked_files === 1
 }
 
 /** Whether a stored attestation names exactly the bytes and source of its D1 record. */
@@ -694,11 +799,32 @@ async function loadAndCheck(
   const github = await githubForResolution(dependencies, row)
   if (isSourceRejection(github))
     return { _tag: 'rejected', rejection: github }
-  const loaded = await github.load(source)
+  const loaded = await github.load(source, { linkedFiles: acceptsLinkedFiles(row) })
   if (loaded._tag === 'rejected')
     return { _tag: 'rejected', rejection: loaded }
-  const checked = await checkArtifactSource(source, loaded.value.files, loaded.value.omitted)
-  return { _tag: 'loaded', source, files: loaded.value.files, checked }
+  const plan = loaded.value
+  // A private archive is encrypted whole, inside the private limits, so it is
+  // always kept. A public one is kept only when small.
+  const scanned = await scanArtifact({
+    source,
+    files: plan.files,
+    read: plan.read,
+    omitted: plan.omitted,
+    symbolicLinks: plan.symbolicLinks,
+    spoolBytes: row.visibility === 'private' ? Number.POSITIVE_INFINITY : ARTIFACT_SPOOL_BYTES,
+  })
+  if (scanned._tag === 'rejected')
+    return { _tag: 'rejected', rejection: scanned }
+  return {
+    _tag: 'loaded',
+    source,
+    checked: scanned.checked,
+    content: { contentSha256: scanned.contentSha256, contentBytes: scanned.contentBytes },
+    linkedFiles: plan.linked,
+    bytes: scanned.spool
+      ? { _tag: 'spooled', archive: scanned.spool }
+      : { _tag: 'streamed', files: plan.files, read: plan.read, readFromGithub: scanned.readFromGithub },
+  }
 }
 
 async function requirePassingSource(

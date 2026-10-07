@@ -11,6 +11,7 @@ import {
 } from '../../layers/artifact-delivery/server/utils/github-source'
 import { ARTIFACT_BUILD_QUEUE_NAME, consumeArtifactBuildBatch } from '../../layers/artifact-delivery/server/utils/queue'
 import { createResolution, getResolution, presentResolution, resolutionRequestIdentity } from '../../layers/artifact-delivery/server/utils/state'
+import { readLoadedFiles } from '../fixtures/loaded-source'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const commitSha = '0123456789abcdef0123456789abcdef01234567'
@@ -23,6 +24,7 @@ const ARTIFACT_MIGRATIONS = [
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
   'migrations/0144_artifact_resolution_requesters.sql',
+  'migrations/0145_artifact_resolution_linked_files.sql',
 ]
 const resolutionRequest: SourceRequest = {
   provider: 'github',
@@ -51,12 +53,13 @@ describe('gitHub rate limits as values', () => {
     })
   })
 
-  it('rejects a blob read the same way, part way through a load', async () => {
+  it('rejects a GitHub file read the same way, part way through a build', async () => {
     const client = createPublicGithubSourceClient({
+      now: () => NOW,
       fetch: vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
-        if (url.includes('/git/blobs/'))
-          return rateLimited()
+        if (url.startsWith('https://raw.githubusercontent.com/'))
+          return new Response(null, { status: 429, headers: { 'retry-after': '120' } })
         if (url.endsWith('/repos/skilld-dev/skills'))
           return json({ id: 123, name: 'skills', owner: { login: 'skilld-dev' }, private: false, default_branch: 'main' })
         if (url.endsWith('/git/trees/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'))
@@ -70,11 +73,12 @@ describe('gitHub rate limits as values', () => {
             tree: [{ path: 'SKILL.md', mode: '100644', type: 'blob', sha: 'd'.repeat(40), size: 12 }],
           })
         }
+        // codeload answers 404, so the build reads the file from GitHub.
         return json({}, 404)
       }) as unknown as typeof fetch,
     })
 
-    const result = await client.load({
+    const loaded = await client.load({
       provider: 'github',
       repositoryId: 123,
       owner: 'skilld-dev',
@@ -83,9 +87,11 @@ describe('gitHub rate limits as values', () => {
       commitSha,
       treeSha: 'a'.repeat(40),
       skillPath: 'skills/demo',
-    })
+    }, { linkedFiles: false })
+    if (loaded._tag !== 'loaded')
+      throw new Error('The load needs no file bytes')
 
-    expect(result).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED', retryAfterSeconds: RESET_AT })
+    expect(await readLoadedFiles(loaded.value)).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED', retryAfterSeconds: NOW + 120 })
   })
 
   it('omits the reset when GitHub sends no usable header', async () => {
@@ -170,12 +176,12 @@ describe('gitHub secondary rate limits as values', () => {
     })
   })
 
-  it('stops at a rate-limited tarball instead of reading every blob', async () => {
+  it('stops at a rate-limited archive instead of reading every file', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/tarball/')) {
+      if (url.includes('codeload.github.com')) {
         return new Response('{}', {
-          status: 403,
+          status: 429,
           headers: { 'retry-after': '60', 'content-type': 'application/json' },
         })
       }
@@ -201,7 +207,7 @@ describe('gitHub secondary rate limits as values', () => {
       now: () => NOW,
     })
 
-    const result = await client.load({
+    const loaded = await client.load({
       provider: 'github',
       repositoryId: 123,
       owner: 'skilld-dev',
@@ -210,10 +216,13 @@ describe('gitHub secondary rate limits as values', () => {
       commitSha,
       treeSha: 'a'.repeat(40),
       skillPath: 'skills/demo',
-    })
+    }, { linkedFiles: false })
 
-    expect(result).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED', retryAfterSeconds: NOW + 60 })
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/git/blobs/'))).toBe(false)
+    if (loaded._tag !== 'loaded')
+      throw new Error('The load needs no file bytes')
+
+    expect(await readLoadedFiles(loaded.value)).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED', retryAfterSeconds: NOW + 60 })
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('raw.githubusercontent.com'))).toBe(false)
   })
 })
 

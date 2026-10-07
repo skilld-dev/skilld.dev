@@ -35,6 +35,7 @@ function summaryResponse() {
     JSON.stringify({
       data: {
         repository: {
+          databaseId: 1,
           name: 'repo',
           nameWithOwner: 'owner/repo',
           url: 'https://github.com/owner/repo',

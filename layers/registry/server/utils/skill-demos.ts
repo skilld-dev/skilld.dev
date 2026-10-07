@@ -27,6 +27,15 @@ const shotSchema = z.object({
   height: z.number().int().positive(),
   alt: z.string().min(1),
   viewport: z.enum(['desktop', 'mobile']),
+  /**
+   * The first screen of a shot taller than one screen, at the shot's width and
+   * the viewport's height. The Skill page paints it first and loads the full
+   * page only when someone scrolls the window.
+   */
+  poster: z.object({
+    file: z.string().regex(/^[\w-]+\.jpg$/),
+    height: z.number().int().positive(),
+  }).optional(),
 })
 
 const videoSchema = z.object({
@@ -102,6 +111,8 @@ export interface SkillDemoShot {
   height: number
   alt: string
   viewport: 'desktop' | 'mobile'
+  /** The first screen, when the shot runs longer than one. */
+  poster: { src: string, width: number, height: number } | null
 }
 
 export interface SkillDemoVideo {
@@ -170,6 +181,7 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
       height: shot.height,
       alt: shot.alt,
       viewport: shot.viewport,
+      poster: shot.poster ? { src: `${media}/${shot.poster.file}`, width: shot.width, height: shot.poster.height } : null,
     })),
   }
 }

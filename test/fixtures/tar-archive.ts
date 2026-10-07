@@ -16,8 +16,16 @@ export interface TarFixtureEntry {
  * Builds a gzipped tar the way codeload does: every path under one top level
  * directory, file modes widened to 0664 and 0775.
  */
-export function tarGzFixture(topLevel: string, entries: TarFixtureEntry[]): Uint8Array {
+export function tarGzFixture(topLevel: string, entries: TarFixtureEntry[], options: { globalComment?: string } = {}): Uint8Array {
   const blocks: Uint8Array[] = []
+  if (options.globalComment !== undefined) {
+    // GitHub opens every archive with a pax global header that names the commit.
+    const record = paxRecord('comment', options.globalComment)
+    blocks.push(header('pax_global_header', record.byteLength, '0000666', 'g', ''))
+    const padded = new Uint8Array(Math.ceil(record.byteLength / BLOCK_SIZE) * BLOCK_SIZE)
+    padded.set(record)
+    blocks.push(padded)
+  }
   for (const entry of entries) {
     const bytes = entry.bytes ?? new Uint8Array(0)
     const typeflag = entry.typeflag ?? '0'
@@ -54,6 +62,14 @@ export function streamOf(bytes: Uint8Array, chunkSize = 1024): ReadableStream<Ui
       offset += chunkSize
     },
   })
+}
+
+function paxRecord(key: string, value: string): Uint8Array {
+  const body = ` ${key}=${value}\n`
+  let length = body.length + 1
+  while (`${length}${body}`.length !== length)
+    length++
+  return new TextEncoder().encode(`${length}${body}`)
 }
 
 function header(path: string, size: number, mode: string, typeflag: string, linkname: string): Uint8Array {
