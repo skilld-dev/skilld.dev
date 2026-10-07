@@ -34,8 +34,16 @@ describe('mCP public SDK discovery', () => {
 
     const result = await runTool('search_skills', { query: 'tailwind', limit: 1 }, deps(fetchApi), signal)
 
-    expect(result.structuredContent).toEqual(response)
-    expect(JSON.parse(result.content[0]!.text)).toEqual(response)
+    const linked = {
+      ...response,
+      items: response.items.map(item => ({
+        ...item,
+        pageUrl: `https://skilld.dev/gh/${item.source.owner}/${item.source.repository}/${item.source.selector.name}`,
+        runCommand: `npx skilld run ${item.source.owner}/${item.source.repository}/${item.source.selector.name}`,
+      })),
+    }
+    expect(result.structuredContent).toEqual(linked)
+    expect(JSON.parse(result.content[0]!.text)).toEqual(linked)
     const [input, options] = fetchApi.mock.calls[0]!
     const url = new URL(input)
     expect(url.pathname).toBe('/api/v1/skills')

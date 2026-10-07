@@ -3,9 +3,17 @@ import type { ApiSampleCall } from '../../layers/marketing/app/utils/developer-s
 import { createSkilldClient } from 'skilld-sdk'
 import { skilldV1Protocol } from 'skilld-sdk/contract'
 import { describe, expect, it } from 'vitest'
-import { apiSampleCalls, curlCall, cursorInstallUrl, vscodeInstallUrl } from '../../layers/marketing/app/utils/developer-setup'
+import { apiSampleCalls, claudeConnectorUrl, curlCall, cursorInstallUrl, vscodeInstallUrl } from '../../layers/marketing/app/utils/developer-setup'
 
 describe('mCP install links', () => {
+  it('opens Claude\'s custom connector dialog with the skilld name and the server URL', () => {
+    const link = new URL(claudeConnectorUrl('https://example.test/api/mcp?x=1'))
+    expect(`${link.origin}${link.pathname}`).toBe('https://claude.ai/customize/connectors')
+    expect(link.searchParams.get('modal')).toBe('add-custom-connector')
+    expect(link.searchParams.get('connectorName')).toBe('skilld')
+    expect(link.searchParams.get('connectorUrl')).toBe('https://example.test/api/mcp?x=1')
+  })
+
   it('gives Cursor the server URL as base64 JSON under the skilld name', () => {
     const link = new URL(cursorInstallUrl('https://example.test/api/mcp?x=1'))
     expect(`${link.protocol}//${link.host}${link.pathname}`).toBe('cursor://anysphere.cursor-deeplink/mcp/install')

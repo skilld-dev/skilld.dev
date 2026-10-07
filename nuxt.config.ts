@@ -366,6 +366,11 @@ export default defineNuxtConfig({
     instructions: 'Search first, inspect provenance before recommending a skill, then return the run command for the user to approve and run. Offer the install command only when the user wants the skill in every session. This server never runs or installs anything.',
     sessions: false,
     browserRedirect: '/',
+    // The toolkit rejects a request whose Origin header is another site. Server-side
+    // clients send none. The Claude and ChatGPT web apps may, so they are listed.
+    security: {
+      allowedOrigins: ['https://skilld.dev', 'https://claude.ai', 'https://claude.com', 'https://chatgpt.com', 'https://chat.openai.com'],
+    },
   },
 
   app: {
@@ -419,6 +424,10 @@ export default defineNuxtConfig({
     // Shared with the skill-harness Worker as SKILLGEN_SITE_TOKEN. It reads Skillgen opt-ins.
     skillgenToken: '',
     publicSiteUrl: 'https://skilld.dev',
+    // The OpenAI plugin portal's domain-verification token. Set the Worker
+    // secret NUXT_OPENAI_APPS_CHALLENGE. /.well-known/openai-apps-challenge
+    // serves it, and answers 404 while it is empty.
+    openaiAppsChallenge: '',
     // Task search, the search box's opt-in model answer. Set the Worker
     // variable NUXT_TASK_SEARCH_ENABLED=false to switch it off without a
     // deploy. The budget is micro-dollars per UTC day across every visitor:

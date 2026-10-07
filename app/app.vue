@@ -282,6 +282,12 @@ watch(() => route.fullPath, () => {
           >
             Privacy
           </NuxtLink>
+          <NuxtLink
+            to="/terms"
+            class="font-mono text-xs text-muted underline-offset-2 hover:underline hover:text-default"
+          >
+            Terms
+          </NuxtLink>
           <UButton
             icon="i-lucide-keyboard"
             color="neutral"
