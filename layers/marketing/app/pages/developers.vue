@@ -229,7 +229,7 @@ const uiClass = 'font-medium text-default'
                   class="min-h-11 hover:bg-primary-600 active:bg-primary-700"
                 />
                 <p class="mt-5">
-                  Claude opens the <strong :class="uiClass">Add custom connector</strong> dialog with skilld filled in. Check the name and the server URL, then confirm. In a chat, open the <strong :class="uiClass">+</strong> menu, select <strong :class="uiClass">Connectors</strong>, and check that skilld is on.
+                  Claude opens the <strong :class="uiClass">Add custom connector</strong> dialog with skilld filled in. Select <strong :class="uiClass">Continue</strong>, keep <strong :class="uiClass">No sign-in</strong>, and select <strong :class="uiClass">Add</strong>. Then select <strong :class="uiClass">Connect</strong>. In a chat, open the <strong :class="uiClass">+</strong> menu, select <strong :class="uiClass">Connectors</strong>, and check that skilld is on.
                 </p>
                 <p class="mt-4">
                   Or open <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener" :class="uiClass" class="underline underline-offset-2">Customize &gt; Connectors</a> in claude.ai or the Claude desktop app. Select <strong :class="uiClass">Add custom connector</strong>, name it skilld, and paste the server URL.
