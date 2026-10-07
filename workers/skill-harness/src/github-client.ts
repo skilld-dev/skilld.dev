@@ -80,6 +80,37 @@ async function readPackage(api: GithubRequest, prefix: string, packageDir: strin
   return pkg?.success && !pkg.data.private ? pkg.data : undefined
 }
 
+/** Semver precedence of two versions that `packageSchema` accepted: negative when `a` is older. */
+function compareVersions(a: string, b: string): number {
+  const split = (version: string) => {
+    const [core, pre] = version.split(/-(.*)/s)
+    return { core: core!.split('.').map(Number), pre: pre ? pre.split('.') : [] }
+  }
+  const left = split(a)
+  const right = split(b)
+  for (let index = 0; index < 3; index++) {
+    if (left.core[index] !== right.core[index])
+      return left.core[index]! - right.core[index]!
+  }
+  // A release outranks its prereleases.
+  if (!left.pre.length || !right.pre.length)
+    return right.pre.length - left.pre.length
+  for (let index = 0; index < Math.max(left.pre.length, right.pre.length); index++) {
+    const [x, y] = [left.pre[index], right.pre[index]]
+    if (x === undefined || y === undefined)
+      return x === undefined ? -1 : 1
+    if (x === y)
+      continue
+    const [nx, ny] = [/^\d+$/.test(x) ? Number(x) : undefined, /^\d+$/.test(y) ? Number(y) : undefined]
+    if (nx !== undefined && ny !== undefined)
+      return nx - ny
+    if (nx !== undefined || ny !== undefined)
+      return nx !== undefined ? -1 : 1
+    return x < y ? -1 : 1
+  }
+  return 0
+}
+
 /**
  * Resolves a tag to the one package whose Skill it updates. Monorepos keep
  * packages under `packages/`, so the Skills on the default branch name the
@@ -118,6 +149,11 @@ export async function prepareTag(request: TagRequest, api: GithubRequest, fetche
   if (matches.length > 1)
     return { _tag: 'Split', tag, packageDirs: matches.map(item => item.candidate.packageDir) }
   const { candidate, pkg } = match
+  // The pull request targets the default branch. A tag from an older release
+  // line, such as a 1.x maintenance branch, would rewrite its newer Skill.
+  const current = await readPackage(api, prefix, candidate.packageDir, baseSha)
+  if (current?.name === pkg.name && compareVersions(pkg.version, current.version) < 0)
+    return { _tag: 'Skipped', reason: 'TAG_OLDER_THAN_DEFAULT_BRANCH' }
   const skillRoot = packageSkillRoot(candidate, pkg.name)
   if (skillRoot === undefined)
     return { _tag: 'Skipped', reason: 'AMBIGUOUS_SKILL' }

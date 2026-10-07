@@ -42,13 +42,15 @@ export function packageSkillCandidates(paths: Iterable<string>): PackageSkillCan
 
 /**
  * The one Skill a package's runs update: its only Skill directory, or the one
- * named after the package without its scope. Undefined when neither decides.
+ * named after the package. `generate-package-skill` names `@nuxtjs/seo` as
+ * `nuxtjs-seo`; older Skills drop the scope. Undefined when nothing decides.
  */
 export function packageSkillRoot(candidate: PackageSkillCandidate, packageName: string): string | undefined {
   if (candidate.skillRoots.length === 1)
     return candidate.skillRoots[0]
-  const named = `${candidate.packageDir ? `${candidate.packageDir}/` : ''}skills/${packageName.split('/').at(-1)}`
-  return candidate.skillRoots.find(root => root === named)
+  const prefix = `${candidate.packageDir ? `${candidate.packageDir}/` : ''}skills/`
+  const names = [packageName.replace(/^@/, '').replace('/', '-'), packageName.split('/').at(-1)]
+  return names.map(name => `${prefix}${name}`).find(root => candidate.skillRoots.includes(root))
 }
 
 /** A release tag names a package version as `1.2.3`, `v1.2.3`, or `name@1.2.3`. */
