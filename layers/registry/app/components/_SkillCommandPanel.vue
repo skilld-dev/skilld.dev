@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { RunCheckFlag } from '#shared/run-check-flags'
 import type { ZipState } from '../utils/skill-zip'
-import { SKILL_RUN_PROMPT_LEAD } from '#shared/skill-commands'
 import SkillRunFlag from './_SkillRunFlag.vue'
+import SkillRunPrompt from './_SkillRunPrompt.vue'
 
 type CommandMode = 'run' | 'install'
 type InstallTarget = 'local' | 'claude' | 'chatgpt'
@@ -58,8 +58,6 @@ const registrySetup: Record<InstallTarget, { to: string, label: string }> = {
   claude: { to: '/developers?setup=mcp&app=claude', label: 'Search the registry from Claude' },
   chatgpt: { to: '/developers?setup=mcp&app=chatgpt', label: 'Search the registry from ChatGPT' },
 }
-// A wrapped URL breaks after a path slash, never inside a name or the origin.
-const runUrlParts = computed(() => runUrl.match(/^[a-z]+:\/\/[^/]+\/?|[^/]+\/|[^/]+$/gi) ?? [runUrl])
 
 const mode = defineModel<CommandMode>({ required: true })
 
@@ -90,17 +88,19 @@ function copyFrom(next: CommandMode) {
     class="space-y-8"
   >
     <div class="space-y-2">
-      <h2 class="font-mono text-sm text-default">
-        Run once off
-      </h2>
-      <p class="text-xs leading-relaxed text-muted">
-        Nothing lands on disk. Nothing to clean up.
-      </p>
+      <div class="space-y-1">
+        <h2 class="font-mono text-sm text-default">
+          Run once off
+        </h2>
+        <p class="text-xs leading-relaxed text-muted">
+          Nothing lands on disk. Nothing to clean up.
+        </p>
+      </div>
       <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-xs">
-        <code class="install-command install-command--wrap block min-w-0 flex-1 py-1"><span class="install-command__runner">{{ `${SKILL_RUN_PROMPT_LEAD} ` }}</span><span class="install-command__target"><template
-          v-for="(part, index) in runUrlParts"
-          :key="index"
-        >{{ part }}<wbr v-if="index < runUrlParts.length - 1"></template></span></code>
+        <SkillRunPrompt
+          :url="runUrl"
+          class="block min-w-0 flex-1 py-1"
+        />
         <UButton
           :icon="runCopied ? 'i-lucide-check' : 'i-lucide-copy'"
           color="neutral"
@@ -271,10 +271,11 @@ function copyFrom(next: CommandMode) {
     </div>
 
     <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-sm">
-      <code v-if="mode === 'run'" class="install-command install-command--wrap block min-w-0 flex-1 py-1"><span class="install-command__runner">{{ `${SKILL_RUN_PROMPT_LEAD} ` }}</span><span class="install-command__target"><template
-        v-for="(part, index) in runUrlParts"
-        :key="index"
-      >{{ part }}<wbr v-if="index < runUrlParts.length - 1"></template></span></code>
+      <SkillRunPrompt
+        v-if="mode === 'run'"
+        :url="runUrl"
+        class="block min-w-0 flex-1 py-1"
+      />
       <InstallCommand
         v-else
         :command="installCommand"

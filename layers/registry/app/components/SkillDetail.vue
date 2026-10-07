@@ -1807,7 +1807,7 @@ useHead(computed(() => ({
             <div class="mb-2 flex items-baseline justify-between gap-2">
               <h2
                 id="files-heading"
-                class="section-label"
+                class="font-mono text-sm text-default"
               >
                 Files
               </h2>
@@ -1867,6 +1867,7 @@ useHead(computed(() => ({
                 v-for="behavior in behaviors"
                 :key="behavior.id"
                 class="flex items-center gap-2"
+                :class="behavior.tier === 'ask' ? 'text-default' : undefined"
               >
                 <UIcon
                   :name="behaviorIcon(behavior)"

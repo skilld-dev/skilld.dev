@@ -19,14 +19,14 @@ const headingId = useId()
     role="note"
     :aria-labelledby="headingId"
     data-testid="skill-run-flag"
-    class="flex gap-2 rounded-lg border border-default bg-muted/30 px-3 py-2 text-xs leading-relaxed"
+    class="flex gap-2 text-xs leading-relaxed"
   >
     <UIcon
       name="i-lucide-circle-alert"
       class="mt-0.5 size-3.5 shrink-0 text-warning"
       aria-hidden="true"
     />
-    <div class="min-w-0 space-y-1">
+    <div class="min-w-0 space-y-0.5">
       <p
         :id="headingId"
         class="font-mono text-default"
@@ -43,7 +43,7 @@ const headingId = useId()
             :href="sourceUrl"
             target="_blank"
             rel="noopener"
-            class="font-mono underline underline-offset-2 transition-colors hover:text-default"
+            class="font-mono whitespace-nowrap underline underline-offset-2 transition-colors hover:text-default"
           >SKILL.md on GitHub</a>
         </template>
       </p>
