@@ -68,6 +68,37 @@
       "sourceUrl": "https://github.com/cathrynlavery/diagram-design/blob/main/skills/diagram-design/SKILL.md"
     },
     {
+      "owner": "cloudai-x",
+      "repo": "threejs-skills",
+      "name": "threejs-interaction",
+      "makes": "game",
+      "authorName": "CloudAI-X",
+      "sourceUrl": "https://github.com/CloudAI-X/threejs-skills/blob/main/skills/threejs-interaction/SKILL.md",
+      "prompt": "Make a tiny 3D arcade game called Gullwick: seagulls swoop down at a seaside chip stall, and you click or tap each gull to shoo it away before it steals a chip. The stall starts with 20 chips, and the round ends when they're gone. Don't stop to ask me questions; make the design calls yourself. Save it as one self-contained game.html with all CSS and JavaScript inline, loading Three.js from a CDN.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "945fb8dfd3bb1a0fc1193089ec740ab28bdcc9c5",
+      "recordedAt": "2026-10-07",
+      "outputFile": "game.html",
+      "shots": [
+        {
+          "file": "desktop-19f80a4d97.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Make a tiny 3D arcade game called Gullwick: seagulls swoop down at a seaside chip stall, and you click or tap each gull "
+        },
+        {
+          "file": "mobile-e3d45a6a35.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Make a tiny 3D arcade game called Gullwick: seagulls swoop down at a seaside chip stall, and you click or tap each gull "
+        }
+      ]
+    },
+    {
       "owner": "elayadesign",
       "repo": "ai-design-skills",
       "name": "landing-page-design",
@@ -329,6 +360,37 @@
       "sourceUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/main/skills/make-interfaces-feel-better/SKILL.md"
     },
     {
+      "owner": "larashero3-dotcom",
+      "repo": "lieflat-charts",
+      "name": "lieflat-charts",
+      "makes": "chart",
+      "authorName": null,
+      "sourceUrl": "https://github.com/larashero3-dotcom/lieflat-charts/blob/main/SKILL.md",
+      "prompt": "Make chart.html, one self-contained page with all CSS and JavaScript inline. Sorrelwick, a fictional bakery chain, moved its baking to dawn in May. Average minutes a loaf waited on the rack before it sold, April vs June 2026: Harbour 74 to 31, Mill Lane 58 to 40, Station 92 to 35, Green 47 to 44, Quayside 81 to 29, Abbey 66 to 52. Which shops did the dawn bake help? Write all text in English, and don't stop to ask me questions; make the design calls yourself.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "dd3dc9615aebb10bfeb280d22877f08d23e36a88",
+      "recordedAt": "2026-10-07",
+      "outputFile": "chart.html",
+      "shots": [
+        {
+          "file": "desktop-82dd6b3fbb.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Make chart.html, one self-contained page with all CSS and JavaScript inline. Sorrelwick, a fictional bakery chain, moved"
+        },
+        {
+          "file": "mobile-465aab745c.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Make chart.html, one self-contained page with all CSS and JavaScript inline. Sorrelwick, a fictional bakery chain, moved"
+        }
+      ]
+    },
+    {
       "owner": "latent-spaces",
       "repo": "brag",
       "name": "brag",
@@ -427,6 +489,37 @@
             "file": "mobile-poster-b509149d32.jpg",
             "height": 844
           }
+        }
+      ]
+    },
+    {
+      "owner": "nextlevelbuilder",
+      "repo": "ui-ux-pro-max-skill",
+      "name": "slides",
+      "makes": "slides",
+      "authorName": "Next Level Builder",
+      "sourceUrl": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/blob/main/.claude/skills/slides/SKILL.md",
+      "prompt": "Make an 8-slide seed pitch deck for Cindergrove, a fictional company that rents wood-fired pizza ovens by the weekend, where arrow keys or clicks advance the slides. Weekend bookings grew from 40 in January to 610 in September 2026. Don't stop to ask me questions; make the design calls yourself. Save it as one self-contained deck.html with all CSS and JavaScript inline; a chart library from a CDN is fine.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "91c193ac059b487d13ce535c7015b021eb71c841",
+      "recordedAt": "2026-10-07",
+      "outputFile": "deck.html",
+      "shots": [
+        {
+          "file": "desktop-d0a850bd78.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Make an 8-slide seed pitch deck for Cindergrove, a fictional company that rents wood-fired pizza ovens by the weekend, w"
+        },
+        {
+          "file": "mobile-750a76b933.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Make an 8-slide seed pitch deck for Cindergrove, a fictional company that rents wood-fired pizza ovens by the weekend, w"
         }
       ]
     },
