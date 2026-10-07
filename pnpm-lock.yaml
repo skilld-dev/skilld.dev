@@ -345,8 +345,8 @@ catalogs:
       specifier: ^2.5.3
       version: 2.5.3
     skilld-sdk:
-      specifier: 0.1.2
-      version: 0.1.2
+      specifier: 0.2.0
+      version: 0.2.0
     tailwindcss:
       specifier: ^4.3.3
       version: 4.3.3
@@ -508,7 +508,7 @@ importers:
         version: 2.5.3
       skilld-sdk:
         specifier: 'catalog:'
-        version: 0.1.2
+        version: 0.2.0
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -8632,8 +8632,8 @@ packages:
     resolution: {integrity: sha512-FZ7+DJe4DM+YNzNLlG5aLo/NY88Ie0pkO6um7l2NdWVUUvQWGhgTdUaYyYRPQVzK2e15PoChYvYyKMCtsrAl8g==}
     engines: {node: '>=22.0.0'}
 
-  skilld-sdk@0.1.2:
-    resolution: {integrity: sha512-nFo5TfDcMn8dRAM700L0nF3vwm5r/EENHBRNcNty2+OMXATNQTKU6VWOCkb3xIP2BGRtvbCI9maoV4vhgQKMYw==}
+  skilld-sdk@0.2.0:
+    resolution: {integrity: sha512-833JdLtIqknUF/EMQBQD50I4jHuVBI2I/Ly56+Ul+a8r+DsQMxl3Tu01MZ3JxrM712etdtfXzAn27NmZiRzMpQ==}
 
   slash@5.1.0:
     resolution: {integrity: sha512-ZA6oR3T/pEyuqwMgAKT0/hAv8oAXckzbkmR0UkUosQ+Mc4RxGoJkRmwHgHufaenlyAgE1Mxgpdcrf75y6XcnDg==}
@@ -19369,7 +19369,7 @@ snapshots:
     dependencies:
       zod: 4.5.4
 
-  skilld-sdk@0.1.2:
+  skilld-sdk@0.2.0:
     dependencies:
       zod: 4.5.4
 

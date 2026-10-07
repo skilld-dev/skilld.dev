@@ -22,7 +22,17 @@ export interface LegacySkillDetail {
   assets: { path: string, size: number }[]
   tags: { slug: string }[]
   summary: { text: string } | null
-  sourceFacts: { frontmatter: { allowedTools: string[] } }
+  sourceFacts: {
+    frontmatter: { allowedTools: string[] }
+    /** Matched on the SKILL.md text and the file names. Each location also carries a GitHub URL. */
+    behaviors: {
+      id: string
+      tier: 'ask' | 'show'
+      label: string
+      locations: { path: string, line: number | null }[]
+      total: number
+    }[]
+  }
   provenance: {
     sourceCommitSha: string | null
     skillFileUrl: string | null
@@ -59,5 +69,13 @@ export function presentSkillDetail(detail: LegacySkillDetail): OperationResult<t
     files: detail.assets.map(file => ({ path: file.path, size: Math.max(0, Math.trunc(file.size)) })),
     generatedSummary: detail.summary?.text ?? null,
     markdown: detail.raw,
+    // The page's locations also link GitHub. The contract keeps the path and line.
+    behaviors: detail.sourceFacts.behaviors.map(behavior => ({
+      id: behavior.id,
+      tier: behavior.tier,
+      label: behavior.label,
+      locations: behavior.locations.map(location => ({ path: location.path, line: location.line })),
+      total: behavior.total,
+    })),
   }
 }

@@ -45,7 +45,7 @@ minimumReleaseAgeExclude:
   - nuxt-skew-protection@1.5.2
   - '@nuxtjs/seo@5.3.14'
   - skilld-protocol@2.5.3
-  - skilld-sdk@0.1.2
+  - skilld-sdk@0.2.0
   - skilld
   - skilld-cli-darwin-arm64
   - skilld-cli-darwin-x64
@@ -291,7 +291,7 @@ catalog:
   # @nuxt/ui pins, or the client ships two copies.
   reka-ui: 2.10.4
   skilld-protocol: ^2.5.3
-  skilld-sdk: 0.1.2
+  skilld-sdk: 0.2.0
   tailwindcss: ^4.3.3
   tsx: ^4.23.13
   typescript: 6.0.3
