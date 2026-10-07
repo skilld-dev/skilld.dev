@@ -50,8 +50,8 @@
     "db:migrations:prod": "wrangler d1 migrations apply DB --remote",
     "checkin": "nuxt-checkin prepare && nuxt-checkin",
     "demo:record": "tsx scripts/record-skill-demo.ts",
-    "sync:skills": "pnpm dlx skilld@3.6.0 sync --plain",
-    "check:skills": "pnpm dlx skilld@3.6.0 sync --check --plain"
+    "sync:skills": "pnpm dlx skilld@3.6.4 sync --plain",
+    "check:skills": "pnpm dlx skilld@3.6.4 sync --check --plain"
   },
   "dependencies": {
     "@comark/nuxt": "catalog:",
