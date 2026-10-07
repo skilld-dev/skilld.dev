@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sleetgarden: from one upload to three thumbnails</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg:     light-dark(#f4f5f7, #0d1117);
+  --panel:  light-dark(#ffffff, #161b22);
+  --text:   light-dark(#111827, #e6edf3);
+  --muted:  light-dark(#6b7280, #8b949e);
+  --line:   light-dark(#d1d5db, #3d444d);
+  --line2:  light-dark(#e5e7eb, #2a3038);
+  --focal:  light-dark(#eff6ff, #132238);
+  --di:     light-dark(#2563eb, #5b9bff);
+  --ve:     light-dark(#059669, #34d399);
+  --sec:    light-dark(#dc2626, #f87171);
+  --script: light-dark(#7c3aed, #a78bfa);
+  --pipe:   light-dark(#d97706, #fbbf24);
+  --sky:    light-dark(#0284c7, #38bdf8);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"]  { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg); color: var(--text);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ---------- header ---------- */
+header { display: flex; align-items: flex-start; gap: 16px; padding: 14px 20px 6px; }
+header .titles { flex: 1; min-width: 0; }
+h1 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; min-width: 32px; padding: 0 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  cursor: pointer; font: inherit; font-size: 12px;
+}
+.icon-btn:hover { border-color: var(--muted); }
+.icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+#theme-toggle .moon { display: none; }
+:root[data-theme="dark"] #theme-toggle .sun { display: none; }
+:root[data-theme="dark"] #theme-toggle .moon { display: inline; }
+
+/* ---------- chips ---------- */
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 20px 12px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 9px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--panel);
+  font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.chip .name { color: var(--text); }
+.chip[aria-pressed="true"] { border-color: currentColor; box-shadow: 0 0 0 1px currentColor inset; }
+.chips .hint { color: var(--muted); font-size: 12px; margin-left: 4px; }
+
+/* ---------- 2-pane layout ---------- */
+main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; padding: 0 20px 18px; }
+.board {
+  position: relative; min-height: 0; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+}
+.zoombar {
+  position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; gap: 4px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px;
+}
+.zoombar button { border: 0; background: transparent; color: var(--text); width: 28px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+.zoombar button:hover { background: var(--bg); }
+.zoombar .pct { font-size: 11.5px; color: var(--muted); min-width: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+.canvas { position: absolute; inset: 0; cursor: grab; touch-action: none; }
+.canvas.panning { cursor: grabbing; }
+.canvas svg { width: 100%; height: 100%; display: block; user-select: none; }
+
+aside { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px;
+  animation: slide-in .25s ease-out;
+}
+.card h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 14px; font-weight: 680; }
+.card h2 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.card p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
+.card ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.card li { font-size: 12.5px; padding: 4px 6px; border-radius: 7px; transition: background .2s; }
+.card li.hl { background: color-mix(in srgb, var(--c) 14%, transparent); }
+.card .n {
+  display: inline-block; min-width: 22px; padding: 0 5px; margin-right: 6px; border-radius: 9px;
+  border: 1.3px solid var(--c); color: var(--c); font-size: 10.5px; font-weight: 700; text-align: center; line-height: 16px;
+}
+.card .n.ret { --c: var(--ve); }
+.card code { font-size: 11.5px; background: var(--bg); padding: 0 4px; border-radius: 4px; }
+.card.hidden { display: none; }
+@keyframes slide-in { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+
+/* ---------- SVG color mapping: light hex in attributes, CSS remaps per theme ---------- */
+svg [stroke="#2563eb"] { stroke: var(--di); }     svg [fill="#2563eb"] { fill: var(--di); }
+svg [stroke="#059669"] { stroke: var(--ve); }     svg [fill="#059669"] { fill: var(--ve); }
+svg [stroke="#dc2626"] { stroke: var(--sec); }    svg [fill="#dc2626"] { fill: var(--sec); }
+svg [stroke="#7c3aed"] { stroke: var(--script); } svg [fill="#7c3aed"] { fill: var(--script); }
+svg [stroke="#d97706"] { stroke: var(--pipe); }   svg [fill="#d97706"] { fill: var(--pipe); }
+svg [stroke="#0284c7"] { stroke: var(--sky); }    svg [fill="#0284c7"] { fill: var(--sky); }
+svg [stroke="#d1d5db"] { stroke: var(--line); }
+svg [stroke="#e5e7eb"] { stroke: var(--line2); }
+svg [fill="#ffffff"]   { fill: var(--panel); }
+svg [fill="#eff6ff"]   { fill: var(--focal); }
+svg [fill="#111827"]   { fill: var(--text); }
+svg [fill="#6b7280"]   { fill: var(--muted); }
+
+/* text halo so a nearby line never makes a label unreadable */
+svg text { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; font-family: inherit; }
+svg .badge text { stroke-width: 0; }
+
+/* ---------- interaction ---------- */
+svg [data-flow], svg [data-flows], svg .region { transition: opacity .25s; }
+svg .dim { opacity: .1; }
+svg .hit { stroke: transparent; stroke-width: 14; fill: none; cursor: pointer; }
+svg .badge, svg .lbl { cursor: pointer; }
+svg .flow-dot { opacity: 0; transition: opacity .25s; pointer-events: none; }
+svg .flow-dot.flowing { opacity: 1; }
+svg .flow-ping { display: none; pointer-events: none; }
+svg .flow-ping.flowing { display: inline; }
+svg .flow-ping-ring { fill: none; transform-box: fill-box; transform-origin: center; animation: flow-ping 2.6s ease-out infinite; }
+@keyframes flow-ping {
+  0%   { transform: scale(1);    opacity: .35; }
+  65%  { transform: scale(1.05); opacity: 0; }
+  100% { transform: scale(1.05); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  svg .flow-dot { display: none; }
+  svg .flow-ping-ring { animation: none; opacity: .3; }
+  .card { animation: none; }
+}
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  main { grid-template-columns: 1fr; grid-template-rows: 60vh auto; }
+}
+
+/* ---------- print: flat, static, everything visible ---------- */
+@media print {
+  body { display: block; overflow: visible; background: #fff; }
+  #theme-toggle, .zoombar, .chips .hint { display: none; }
+  main { display: block; padding: 0; }
+  .board { position: static; height: auto; border: 0; }
+  .canvas { position: static; }
+  .canvas svg { height: auto; }
+  aside { overflow: visible; display: block; }
+  .card, .card.hidden { display: block; break-inside: avoid; margin-top: 10px; animation: none; }
+  svg .dim { opacity: 1; }
+  svg .flow-dot, svg .flow-ping { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="titles">
+    <h1>Sleetgarden: from one upload to three thumbnails</h1>
+    <p class="sub">Solid line = request · dashed green = response or return leg · a small arc = two lines passing over each other. Scroll to zoom, drag to pan.</p>
+  </div>
+  <button class="icon-btn" id="theme-toggle" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">
+    <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+  </button>
+</header>
+
+<nav class="chips" aria-label="Flows">
+  <button class="chip" type="button" data-flow="u" style="color:var(--di)"><span class="dot"></span><span class="name">1–5 Upload</span></button>
+  <button class="chip" type="button" data-flow="s" style="color:var(--sec)"><span class="dot"></span><span class="name">S Virus scan</span></button>
+  <button class="chip" type="button" data-flow="r" style="color:var(--pipe)"><span class="dot"></span><span class="name">R Resize to 3 thumbnails</span></button>
+  <button class="chip" type="button" data-flow="f" style="color:var(--script)"><span class="dot"></span><span class="name">F Resize fails</span></button>
+  <button class="chip" type="button" data-flow="d" style="color:var(--sky)"><span class="dot"></span><span class="name">D Delivery via CDN</span></button>
+  <span class="hint">Click a flow, line, or numbered badge to follow it from start to finish. Press Esc to clear.</span>
+</nav>
+
+<main>
+<section class="board">
+  <div class="zoombar">
+    <button type="button" id="z-out" title="Zoom out">−</button>
+    <span class="pct" id="z-pct">100%</span>
+    <button type="button" id="z-in" title="Zoom in">+</button>
+    <button type="button" id="z-fit" title="Fit to view">⤢</button>
+  </div>
+  <div class="canvas" id="canvas">
+<svg id="diagram" viewBox="0 0 1480 700" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sleetgarden photo upload and thumbnail pipeline">
+<!-- LAYOUT PLAN
+  Columns (x): A 40–240 | B 340–540 | C 640–840 | D 940–1140 | E 1240–1440   (100px gutters)
+  Rows    (y): 1 90–166 | 2 330–406 (storage 330–426) | 3 580–656
+  Cells: A1 client · B1 Upload API (focal) · C1 virus scan · D1 resize queue · E1 dead-letter queue
+         B2 photo DB · C2 object storage · D2 image workers · E2 on-call alert · C3 CDN
+  Regions: "Upload & scan" 316–864 × 46–452 (B1,C1,B2,C2) · "Async resize" 916–1464 × 46–452 (D1,E1,D2,E2)
+  Corridors:
+    x=590   B|C gutter, U2 API→storage (down from y=156 to 360)
+    x=110 / x=170   left margin under client, D4 (return) / D1 (out) down to CDN row
+    y=490   below both regions, R5 workers→DB (status write, also used by F2)
+    y=600 / y=630   row 3, D1 / D4 between client column and CDN
+  Edge use: API left = U1 in / U5 out · API right = S1 out, S3 in, U2 out · API bottom = U3 out / U4 in
+            queue bottom = R2 out / F1 in · storage right = R3 out / R4 in · storage bottom = D2 in / D3 out
+  Forced crossings: R5 (y=490) over D2 (x=720) and D3 (x=780) → hops on R5 (amber vs sky/green).
+-->
+<defs>
+  <marker id="m-di"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker>
+  <marker id="m-ve"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#059669"/></marker>
+  <marker id="m-sec" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/></marker>
+  <marker id="m-sc"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker>
+  <marker id="m-pi"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d97706"/></marker>
+  <marker id="m-sky" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0284c7"/></marker>
+</defs>
+
+<!-- ===== arrows ===== -->
+<g id="arrows" fill="none">
+  <!-- U: upload -->
+  <line data-flow="u" x1="240" y1="110" x2="332" y2="110" stroke="#2563eb" stroke-width="1.8" marker-end="url(#m-di)"/>
+  <path data-flow="u" d="M540,156 H590 V360 H632" stroke="#2563eb" stroke-width="1.8" marker-end="url(#m-di)"/>
+  <line data-flow="u" x1="420" y1="166" x2="420" y2="322" stroke="#2563eb" stroke-width="1.8" marker-end="url(#m-di)"/>
+  <line data-flow="u" x1="480" y1="330" x2="480" y2="174" stroke="#059669" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#m-ve)"/>
+  <line data-flow="u" x1="340" y1="146" x2="248" y2="146" stroke="#059669" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#m-ve)"/>
+
+  <!-- S: virus scan -->
+  <line data-flow="s" x1="540" y1="104" x2="632" y2="104" stroke="#dc2626" stroke-width="1.8" marker-end="url(#m-sec)"/>
+  <line data-flow="s" x1="740" y1="166" x2="740" y2="322" stroke="#dc2626" stroke-width="1.8" marker-end="url(#m-sec)"/>
+  <line data-flow="s" x1="640" y1="128" x2="548" y2="128" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#m-sec)"/>
+
+  <!-- R: resize pipeline -->
+  <line data-flow="r" x1="840" y1="128" x2="932" y2="128" stroke="#d97706" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#m-pi)"/>
+  <line data-flow="r" x1="1000" y1="166" x2="1000" y2="322" stroke="#d97706" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#m-pi)"/>
+  <line data-flow="r" x1="840" y1="350" x2="932" y2="350" stroke="#d97706" stroke-width="1.8" marker-end="url(#m-pi)"/>
+  <line data-flow="r" x1="940" y1="392" x2="848" y2="392" stroke="#d97706" stroke-width="1.8" marker-end="url(#m-pi)"/>
+  <path data-flow="r f" d="M1040,406 V490 H788 A8,8 0 0 0 772,490 H728 A8,8 0 0 0 712,490 H440 V414" stroke="#d97706" stroke-width="1.8" marker-end="url(#m-pi)"/>
+
+  <!-- F: resize failure -->
+  <line data-flow="f" x1="1100" y1="330" x2="1100" y2="174" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#m-sc)"/>
+  <line data-flow="f" x1="1140" y1="110" x2="1232" y2="110" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#m-sc)"/>
+  <line data-flow="f" x1="1340" y1="166" x2="1340" y2="322" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#m-sc)"/>
+  <line data-flow="f" x1="1240" y1="146" x2="1148" y2="146" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#m-sc)"/>
+
+  <!-- D: delivery -->
+  <path data-flow="d" d="M170,166 V600 H632" stroke="#0284c7" stroke-width="1.8" marker-end="url(#m-sky)"/>
+  <line data-flow="d" x1="720" y1="580" x2="720" y2="434" stroke="#0284c7" stroke-width="1.8" marker-end="url(#m-sky)"/>
+  <line data-flow="d" x1="780" y1="426" x2="780" y2="572" stroke="#059669" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#m-ve)"/>
+  <path data-flow="d" d="M640,630 H110 V174" stroke="#059669" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#m-ve)"/>
+</g>
+
+<!-- ===== regions ===== -->
+<g class="region">
+  <rect x="316" y="46" width="548" height="406" rx="14" fill="none" stroke="#2563eb" stroke-width="1.2" stroke-dasharray="7 5" opacity="0.55"/>
+  <text x="332" y="68" font-size="11" font-weight="700" fill="#2563eb">Upload &amp; scan (synchronous edge)</text>
+</g>
+<g class="region">
+  <rect x="916" y="46" width="548" height="406" rx="14" fill="none" stroke="#d97706" stroke-width="1.2" stroke-dasharray="7 5" opacity="0.55"/>
+  <text x="932" y="68" font-size="11" font-weight="700" fill="#d97706">Async resize pipeline</text>
+</g>
+
+<!-- ===== boxes ===== -->
+<g class="box" data-flows="u d">
+  <rect class="box-rect" x="40" y="90" width="200" height="76" rx="10" fill="#ffffff" stroke="#d1d5db" stroke-width="1.3"/>
+  <text x="56" y="122" font-size="12.5" font-weight="680" fill="#111827">Sleetgarden app</text>
+  <text x="56" y="138" font-size="9" fill="#6b7280">iOS · Android · web</text>
+</g>
+<g class="box" data-flows="u s">
+  <rect class="box-rect" x="340" y="90" width="200" height="76" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.7"/>
+  <text x="356" y="122" font-size="12.5" font-weight="700" fill="#111827">Upload API</text>
+  <text x="356" y="138" font-size="9" fill="#6b7280">POST /photos · GET /photos/:id</text>
+</g>
+<g class="box" data-flows="s r">
+  <rect class="box-rect" x="640" y="90" width="200" height="76" rx="10" fill="#ffffff" stroke="#dc2626" stroke-width="1.4"/>
+  <text x="656" y="122" font-size="12.5" font-weight="680" fill="#111827">Virus scan</text>
+  <text x="656" y="138" font-size="9" fill="#6b7280">sandboxed scanner · no network</text>
+</g>
+<g class="box" data-flows="r f">
+  <rect class="box-rect" x="940" y="90" width="200" height="76" rx="10" fill="#ffffff" stroke="#d1d5db" stroke-width="1.3"/>
+  <text x="956" y="122" font-size="12.5" font-weight="680" fill="#111827">Resize queue</text>
+  <text x="956" y="138" font-size="9" fill="#6b7280">resize-jobs · max 3 receives</text>
+</g>
+<g class="box" data-flows="f">
+  <rect class="box-rect" x="1240" y="90" width="200" height="76" rx="10" fill="#ffffff" stroke="#d1d5db" stroke-width="1.3"/>
+  <text x="1256" y="122" font-size="12.5" font-weight="680" fill="#111827">Dead-letter queue</text>
+  <text x="1256" y="138" font-size="9" fill="#6b7280">resize-jobs-dlq · kept 14 days</text>
+</g>
+<g class="box" data-flows="u r f">
+  <rect class="box-rect" x="340" y="330" width="200" height="76" rx="10" fill="#ffffff" stroke="#0284c7" stroke-width="1.4"/>
+  <text x="356" y="362" font-size="12.5" font-weight="680" fill="#111827">Photo DB</text>
+  <text x="356" y="378" font-size="9" fill="#6b7280">status · owner · thumbnail keys</text>
+</g>
+<g class="box" data-flows="u s r d">
+  <rect class="box-rect" x="640" y="330" width="200" height="96" rx="10" fill="#ffffff" stroke="#0284c7" stroke-width="1.4"/>
+  <text x="656" y="354" font-size="12.5" font-weight="680" fill="#111827">Object storage</text>
+  <text x="656" y="368" font-size="9" fill="#6b7280">quarantine/ · originals/ · thumbs/</text>
+  <rect x="656" y="378" width="52" height="34" rx="5" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="682" y="393" font-size="9" font-weight="650" fill="#111827" text-anchor="middle">S</text>
+  <text x="682" y="405" font-size="8" fill="#6b7280" text-anchor="middle">150 px</text>
+  <rect x="714" y="378" width="52" height="34" rx="5" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="740" y="393" font-size="9" font-weight="650" fill="#111827" text-anchor="middle">M</text>
+  <text x="740" y="405" font-size="8" fill="#6b7280" text-anchor="middle">600 px</text>
+  <rect x="772" y="378" width="52" height="34" rx="5" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="798" y="393" font-size="9" font-weight="650" fill="#111827" text-anchor="middle">L</text>
+  <text x="798" y="405" font-size="8" fill="#6b7280" text-anchor="middle">1200 px</text>
+</g>
+<g class="box" data-flows="r f">
+  <rect class="box-rect" x="940" y="330" width="200" height="76" rx="10" fill="#ffffff" stroke="#d1d5db" stroke-width="1.3"/>
+  <text x="956" y="362" font-size="12.5" font-weight="680" fill="#111827">Image workers</text>
+  <text x="956" y="378" font-size="9" fill="#6b7280">libvips · autoscale on queue depth</text>
+</g>
+<g class="box" data-flows="f">
+  <rect class="box-rect" x="1240" y="330" width="200" height="76" rx="10" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.3"/>
+  <text x="1256" y="362" font-size="12.5" font-weight="650" fill="#6b7280">On-call alert</text>
+  <text x="1256" y="378" font-size="9" fill="#6b7280">fires when DLQ depth &gt; 0</text>
+</g>
+<g class="box" data-flows="d">
+  <rect class="box-rect" x="640" y="580" width="200" height="76" rx="10" fill="#ffffff" stroke="#d1d5db" stroke-width="1.3"/>
+  <text x="656" y="612" font-size="12.5" font-weight="680" fill="#111827">CDN</text>
+  <text x="656" y="628" font-size="9" fill="#6b7280">img.sleetgarden.app · 1-year cache</text>
+</g>
+
+<!-- ===== badges + labels ===== -->
+<g id="badges">
+  <!-- U -->
+  <g class="badge" data-flow="u" data-step="1"><circle cx="262" cy="110" r="9" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/><text x="262" y="113.5" font-size="10" font-weight="700" text-anchor="middle" fill="#2563eb">1</text></g>
+  <text class="lbl" data-flow="u" x="303" y="99" font-size="8.5" text-anchor="middle" fill="#6b7280">POST /photos</text>
+  <g class="badge" data-flow="u" data-step="2"><circle cx="590" cy="240" r="9" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/><text x="590" y="243.5" font-size="10" font-weight="700" text-anchor="middle" fill="#2563eb">2</text></g>
+  <text class="lbl" data-flow="u" x="598" y="292" font-size="8.5" fill="#6b7280">to quarantine/</text>
+  <g class="badge" data-flow="u" data-step="3"><circle cx="420" cy="220" r="9" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/><text x="420" y="223.5" font-size="10" font-weight="700" text-anchor="middle" fill="#2563eb">3</text></g>
+  <text class="lbl" data-flow="u" x="412" y="262" font-size="8.5" text-anchor="end" fill="#6b7280">insert row</text>
+  <g class="badge" data-flow="u" data-step="4"><circle cx="480" cy="276" r="9" fill="#ffffff" stroke="#059669" stroke-width="1.4"/><text x="480" y="279.5" font-size="10" font-weight="700" text-anchor="middle" fill="#059669">4</text></g>
+  <text class="lbl" data-flow="u" x="488" y="226" font-size="8.5" fill="#6b7280">row saved</text>
+  <g class="badge" data-flow="u" data-step="5"><circle cx="318" cy="146" r="9" fill="#ffffff" stroke="#059669" stroke-width="1.4"/><text x="318" y="149.5" font-size="10" font-weight="700" text-anchor="middle" fill="#059669">5</text></g>
+  <text class="lbl" data-flow="u" x="272" y="164" font-size="8.5" text-anchor="middle" fill="#6b7280">202 Accepted</text>
+
+  <!-- S -->
+  <g class="badge" data-flow="s" data-step="S1"><rect x="553" y="95.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#dc2626" stroke-width="1.4"/><text x="566" y="107.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#dc2626">S1</text></g>
+  <text class="lbl" data-flow="s" x="608" y="94" font-size="8.5" text-anchor="middle" fill="#6b7280">scan job</text>
+  <g class="badge" data-flow="s" data-step="S2"><rect x="727" y="221.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#dc2626" stroke-width="1.4"/><text x="740" y="233.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#dc2626">S2</text></g>
+  <text class="lbl" data-flow="s" x="748" y="282" font-size="8.5" fill="#6b7280">scan, then promote</text>
+  <g class="badge" data-flow="s" data-step="S3"><rect x="601" y="119.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#dc2626" stroke-width="1.4"/><text x="614" y="131.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#dc2626">S3</text></g>
+  <text class="lbl" data-flow="s" x="572" y="142" font-size="8.5" text-anchor="middle" fill="#6b7280">verdict</text>
+
+  <!-- R -->
+  <g class="badge" data-flow="r" data-step="R1"><rect x="877" y="119.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#d97706" stroke-width="1.4"/><text x="890" y="131.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#d97706">R1</text></g>
+  <text class="lbl" data-flow="r" x="890" y="112" font-size="8.5" text-anchor="middle" fill="#6b7280">if clean</text>
+  <g class="badge" data-flow="r" data-step="R2"><rect x="987" y="221.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#d97706" stroke-width="1.4"/><text x="1000" y="233.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#d97706">R2</text></g>
+  <text class="lbl" data-flow="r" x="1008" y="280" font-size="8.5" fill="#6b7280">pull job</text>
+  <g class="badge" data-flow="r" data-step="R3"><rect x="873" y="341.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#d97706" stroke-width="1.4"/><text x="886" y="353.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#d97706">R3</text></g>
+  <text class="lbl" data-flow="r" x="886" y="335" font-size="8.5" text-anchor="middle" fill="#6b7280">read original</text>
+  <g class="badge" data-flow="r" data-step="R4"><rect x="873" y="383.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#d97706" stroke-width="1.4"/><text x="886" y="395.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#d97706">R4</text></g>
+  <text class="lbl" data-flow="r" x="886" y="413" font-size="8.5" text-anchor="middle" fill="#6b7280">write 3 thumbnails</text>
+  <g class="badge" data-flow="r" data-step="R5"><rect x="1027" y="441.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#d97706" stroke-width="1.4"/><text x="1040" y="453.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#d97706">R5</text></g>
+  <text class="lbl" data-flow="r f" x="600" y="482" font-size="8.5" text-anchor="middle" fill="#6b7280">status: ready / failed</text>
+
+  <!-- F -->
+  <g class="badge" data-flow="f" data-step="F1"><rect x="1087" y="221.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#7c3aed" stroke-width="1.4"/><text x="1100" y="233.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#7c3aed">F1</text></g>
+  <text class="lbl" data-flow="f" x="1108" y="280" font-size="8.5" fill="#6b7280">nack, retry later</text>
+  <g class="badge" data-flow="f" data-step="F2"><rect x="927" y="481.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#7c3aed" stroke-width="1.4"/><text x="940" y="493.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#7c3aed">F2</text></g>
+  <g class="badge" data-flow="f" data-step="F3"><rect x="1155" y="101.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#7c3aed" stroke-width="1.4"/><text x="1168" y="113.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#7c3aed">F3</text></g>
+  <text class="lbl" data-flow="f" x="1190" y="95" font-size="8.5" text-anchor="middle" fill="#6b7280">after 3 attempts</text>
+  <g class="badge" data-flow="f" data-step="F4"><rect x="1327" y="221.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#7c3aed" stroke-width="1.4"/><text x="1340" y="233.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#7c3aed">F4</text></g>
+  <text class="lbl" data-flow="f" x="1348" y="280" font-size="8.5" fill="#6b7280">page on-call</text>
+  <g class="badge" data-flow="f" data-step="F5"><rect x="1199" y="137.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#7c3aed" stroke-width="1.4"/><text x="1212" y="149.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#7c3aed">F5</text></g>
+  <text class="lbl" data-flow="f" x="1180" y="166" font-size="8.5" text-anchor="middle" fill="#6b7280">manual replay</text>
+
+  <!-- D -->
+  <g class="badge" data-flow="d" data-step="D1"><rect x="157" y="371.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#0284c7" stroke-width="1.4"/><text x="170" y="383.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#0284c7">D1</text></g>
+  <text class="lbl" data-flow="d" x="180" y="470" font-size="8.5" fill="#6b7280">GET thumbnail</text>
+  <g class="badge" data-flow="d" data-step="D2"><rect x="707" y="531.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#0284c7" stroke-width="1.4"/><text x="720" y="543.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#0284c7">D2</text></g>
+  <text class="lbl" data-flow="d" x="710" y="566" font-size="8.5" text-anchor="end" fill="#6b7280">cache miss</text>
+  <g class="badge" data-flow="d" data-step="D3"><rect x="767" y="451.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#059669" stroke-width="1.4"/><text x="780" y="463.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#059669">D3</text></g>
+  <text class="lbl" data-flow="d" x="790" y="540" font-size="8.5" fill="#6b7280">origin bytes</text>
+  <g class="badge" data-flow="d" data-step="D4"><rect x="97" y="371.5" width="26" height="17" rx="8.5" fill="#ffffff" stroke="#059669" stroke-width="1.4"/><text x="110" y="383.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#059669">D4</text></g>
+  <text class="lbl" data-flow="d" x="102" y="470" font-size="8.5" text-anchor="end" fill="#6b7280">cached image</text>
+</g>
+</svg>
+  </div>
+</section>
+
+<aside id="sidebar">
+  <article class="card" data-flow="u" style="--c:var(--di)">
+    <h2><span class="dot"></span>Upload: get the bytes in safely</h2>
+    <p>The user taps "Share". All the app needs back is a photo ID, so it doesn't wait for scanning or resizing.</p>
+    <ol>
+      <li data-step="1"><span class="n">1</span>The app sends <code>POST /photos</code> (multipart, at most 25 MB) with the user's session token.</li>
+      <li data-step="2"><span class="n">2</span>The API streams the bytes to <code>quarantine/{photoId}</code>. Nothing in quarantine is ever publicly readable.</li>
+      <li data-step="3"><span class="n">3</span>The API inserts the photo row with <code>status = scanning</code>.</li>
+      <li data-step="4"><span class="n ret">4</span>The database confirms the row.</li>
+      <li data-step="5"><span class="n ret">5</span>The API returns <code>202 Accepted</code> with the <code>photoId</code>. The app shows the local preview and polls <code>GET /photos/{id}</code> (the same path as steps 1 and 5) until the status changes.</li>
+    </ol>
+  </article>
+
+  <article class="card" data-flow="s" style="--c:var(--sec)">
+    <h2><span class="dot"></span>Virus scan: the security gate</h2>
+    <p>No other part of the system touches a file until the scanner has passed it.</p>
+    <ol>
+      <li data-step="S1"><span class="n">S1</span>The API sends a scan job with the <code>photoId</code> and its quarantine key.</li>
+      <li data-step="S2"><span class="n">S2</span>The scanner reads the quarantined object. If the file is clean, the scanner moves it to <code>originals/</code> and deletes the quarantine copy.</li>
+      <li data-step="S3"><span class="n">S3</span>The scanner sends its verdict back to the API. <b>Clean:</b> status becomes <code>scanned</code>, and the scanner starts the resize flow (R1). <b>Infected:</b> the object is deleted, status becomes <code>rejected</code>, the app shows "Upload blocked", and nothing goes onto the queue.</li>
+    </ol>
+  </article>
+
+  <article class="card" data-flow="r" style="--c:var(--pipe)">
+    <h2><span class="dot"></span>Resize: one original becomes three thumbnails</h2>
+    <p>This part is asynchronous. The queue absorbs bursts, and workers scale with queue depth.</p>
+    <ol>
+      <li data-step="R1"><span class="n">R1</span>Only for clean files, the scanner enqueues <code>{photoId, sizes: [150, 600, 1200]}</code>.</li>
+      <li data-step="R2"><span class="n">R2</span>A worker pulls the job. The message stays hidden from other workers for 60 s while the worker processes it.</li>
+      <li data-step="R3"><span class="n">R3</span>The worker reads the original from <code>originals/{photoId}</code>.</li>
+      <li data-step="R4"><span class="n">R4</span>The worker writes <code>thumbs/{photoId}/s.webp</code> (150 px), <code>m.webp</code> (600 px), and <code>l.webp</code> (1200 px). The keys are deterministic, so a retry overwrites any earlier attempt instead of adding duplicates.</li>
+      <li data-step="R5"><span class="n">R5</span>The worker sets <code>status = ready</code> and saves the three keys, then acks (deletes) the message. The next poll from the app returns the thumbnail URLs.</li>
+    </ol>
+  </article>
+
+  <article class="card" data-flow="f" style="--c:var(--script)">
+    <h2><span class="dot"></span>When a resize fails</h2>
+    <p>Typical causes are a corrupt or truncated file, an unsupported format, a worker running out of memory, or a timeout. The upload itself is never lost because the original stays in <code>originals/</code>.</p>
+    <ol>
+      <li data-step="F1"><span class="n">F1</span>The worker hits an error and nacks the message. It becomes visible again after a backoff (30 s, then 2 min), and another worker picks it up through R2.</li>
+      <li data-step="F2"><span class="n">F2</span>On the third failed attempt, the worker writes <code>status = failed</code>, using the same database path as R5. The app shows a placeholder tile with a "Try again" button instead of spinning forever.</li>
+      <li data-step="F3"><span class="n">F3</span>After 3 receives, the queue moves the message to the dead-letter queue, so one bad file can't block the queue.</li>
+      <li data-step="F4"><span class="n">F4</span>When the DLQ depth goes above 0, the on-call engineer is paged.</li>
+      <li data-step="F5"><span class="n">F5</span>After a fix ships, on-call replays the DLQ into <code>resize-jobs</code>. R2 through R5 then run again, and any partial thumbnails are overwritten.</li>
+    </ol>
+  </article>
+
+  <article class="card" data-flow="d" style="--c:var(--sky)">
+    <h2><span class="dot"></span>Delivery: thumbnails reach viewers</h2>
+    <p>Only <code>thumbs/</code> is exposed, and only through the CDN.</p>
+    <ol>
+      <li data-step="D1"><span class="n">D1</span>When the status is <code>ready</code>, the app requests <code>img.sleetgarden.app/thumbs/{id}/m.webp</code> (S for grids, M for feed, L for full screen).</li>
+      <li data-step="D2"><span class="n">D2</span>On a cache miss, the CDN fetches the object from storage using signed origin access.</li>
+      <li data-step="D3"><span class="n ret">D3</span>Storage returns the bytes. Because the keys never change, the CDN caches them for a year.</li>
+      <li data-step="D4"><span class="n ret">D4</span>The CDN serves the image. Later viewers get it straight from the edge cache.</li>
+    </ol>
+  </article>
+
+  <article class="card principles" style="--c:var(--muted)">
+    <h2><span class="dot"></span>Principles</h2>
+    <ol>
+      <li>Nothing is resized or served until it has passed the virus scan.</li>
+      <li>Uploads return quickly (202). All the heavy work runs asynchronously behind a queue.</li>
+      <li>Thumbnail keys are deterministic, so retries are safe and the CDN can cache them indefinitely.</li>
+      <li>A failure is visible to the user (<code>failed</code>), recoverable (DLQ replay), and never loses the original.</li>
+    </ol>
+  </article>
+</aside>
+</main>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const root = document.documentElement;
+  const svg = document.getElementById('diagram');
+  const canvas = document.getElementById('canvas');
+  const flowsOf = el => (el.getAttribute('data-flow') || el.getAttribute('data-flows') || '').split(/\s+/).filter(Boolean);
+
+  /* ---------- theme ---------- */
+  const saved = localStorage.getItem('sleetgarden-flow-theme');
+  if (saved) root.dataset.theme = saved;
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const cur = root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    root.dataset.theme = cur === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('sleetgarden-flow-theme', root.dataset.theme);
+  });
+
+  /* ---------- arrows: hit areas, traveling dots, destination pings ---------- */
+  const arrows = [...svg.querySelectorAll('#arrows [data-flow][marker-end]')];
+  const boxes = [...svg.querySelectorAll('g.box')].map(g => {
+    const r = g.querySelector('.box-rect');
+    return { g, r, x: +r.getAttribute('x'), y: +r.getAttribute('y'), w: +r.getAttribute('width'), h: +r.getAttribute('height') };
+  });
+  const pathOf = el => el.tagName === 'line'
+    ? `M${el.getAttribute('x1')},${el.getAttribute('y1')} L${el.getAttribute('x2')},${el.getAttribute('y2')}`
+    : el.getAttribute('d');
+  const pinged = new Set();
+
+  arrows.forEach(a => {
+    const d = pathOf(a);
+    const flow = a.getAttribute('data-flow');
+    const color = a.getAttribute('stroke');
+
+    const hit = document.createElementNS(NS, 'path');
+    hit.setAttribute('d', d);
+    hit.setAttribute('class', 'hit');
+    hit.setAttribute('data-flow', flow);
+    a.before(hit);
+
+    const len = a.getTotalLength();
+    const dur = Math.min(3.5, Math.max(1.2, len / 130));
+    const dots = document.createElementNS(NS, 'g');
+    dots.setAttribute('class', 'flow-dot');
+    dots.setAttribute('data-flow', flow);
+    [0, dur / 2].forEach(begin => {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('r', '3.4');
+      c.setAttribute('fill', color);
+      const m = document.createElementNS(NS, 'animateMotion');
+      m.setAttribute('dur', dur.toFixed(2) + 's');
+      m.setAttribute('begin', begin.toFixed(2) + 's');
+      m.setAttribute('repeatCount', 'indefinite');
+      m.setAttribute('path', d);
+      c.appendChild(m);
+      dots.appendChild(c);
+    });
+    a.after(dots);
+
+    // ping the box nearest the arrowhead, in that box's own border color
+    const end = a.getPointAtLength(len);
+    const box = boxes.find(b => end.x >= b.x - 14 && end.x <= b.x + b.w + 14 && end.y >= b.y - 14 && end.y <= b.y + b.h + 14);
+    if (!box) return;
+    flowsOf(a).forEach(f => {
+      const key = f + '|' + box.x + ',' + box.y;
+      if (pinged.has(key)) return;
+      pinged.add(key);
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'flow-ping');
+      g.setAttribute('data-flow', f);
+      const ring = box.r.cloneNode(false);
+      ring.setAttribute('class', 'flow-ping-ring');
+      ring.setAttribute('fill', 'none');
+      ring.setAttribute('stroke-width', '2');
+      g.appendChild(ring);
+      box.g.insertBefore(g, box.r);
+    });
+  });
+
+  /* ---------- flow selection ---------- */
+  const chips = [...document.querySelectorAll('.chip')];
+  const cards = [...document.querySelectorAll('#sidebar .card')];
+  let current = null;
+
+  function select(flow, step) {
+    current = flow || null;
+    svg.querySelectorAll('[data-flow]').forEach(el => {
+      const mine = !!current && flowsOf(el).includes(current);
+      const animated = el.classList.contains('flow-dot') || el.classList.contains('flow-ping');
+      if (animated) el.classList.toggle('flowing', mine);
+      else el.classList.toggle('dim', !!current && !mine);
+    });
+    svg.querySelectorAll('g.box').forEach(g => g.classList.toggle('dim', !!current && !flowsOf(g).includes(current)));
+    svg.querySelectorAll('.region').forEach(g => g.classList.toggle('dim', !!current));
+    chips.forEach(c => c.setAttribute('aria-pressed', String(c.dataset.flow === current)));
+    cards.forEach(c => c.classList.toggle('hidden', !!current && c.dataset.flow !== current));
+    document.querySelectorAll('#sidebar li.hl').forEach(li => li.classList.remove('hl'));
+    if (step) {
+      const li = document.querySelector(`#sidebar .card[data-flow="${current}"] li[data-step="${step}"]`);
+      if (li) { li.classList.add('hl'); li.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    }
+  }
+
+  chips.forEach(c => c.addEventListener('click', () => select(current === c.dataset.flow ? null : c.dataset.flow)));
+  svg.addEventListener('click', e => {
+    if (suppressClick) return;
+    const badge = e.target.closest('.badge');
+    if (badge) return select(badge.dataset.flow, badge.dataset.step);
+    const el = e.target.closest('.hit, .lbl, [data-flows]');
+    if (el && el.matches('.hit, .lbl')) {
+      const fs = flowsOf(el);
+      return select(fs.includes(current) ? current : fs[0]);
+    }
+    if (!el) select(null);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') select(null); });
+
+  /* ---------- zoom / pan (viewBox based; 100% = fit to view) ---------- */
+  const base = { x: 0, y: 0, w: 1480, h: 700 };
+  let vb = { ...base };
+  const pct = document.getElementById('z-pct');
+  const apply = () => {
+    svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+    pct.textContent = Math.round(base.w / vb.w * 100) + '%';
+  };
+  const toSvg = (cx, cy) => {
+    const p = svg.createSVGPoint(); p.x = cx; p.y = cy;
+    return p.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  function zoomAt(factor, pt) {
+    const w = Math.min(base.w, Math.max(base.w / 8, vb.w / factor));
+    const k = w / vb.w;
+    if (w >= base.w) { vb = { ...base }; return apply(); }
+    vb = { x: pt.x - (pt.x - vb.x) * k, y: pt.y - (pt.y - vb.y) * k, w, h: vb.h * k };
+    apply();
+  }
+  const center = () => ({ x: vb.x + vb.w / 2, y: vb.y + vb.h / 2 });
+  document.getElementById('z-in').onclick = () => zoomAt(1.25, center());
+  document.getElementById('z-out').onclick = () => zoomAt(0.8, center());
+  document.getElementById('z-fit').onclick = () => { vb = { ...base }; apply(); };
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomAt(Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0015)), toSvg(e.clientX, e.clientY));
+  }, { passive: false });
+
+  let drag = null, suppressClick = false;
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    drag = { sx: e.clientX, sy: e.clientY, vx: vb.x, vy: vb.y, moved: false, id: e.pointerId };
+    suppressClick = false;
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) { drag.moved = true; canvas.setPointerCapture(drag.id); canvas.classList.add('panning'); }
+    const s = 1 / svg.getScreenCTM().a;
+    vb.x = drag.vx - dx * s; vb.y = drag.vy - dy * s;
+    apply();
+  });
+  const endDrag = () => {
+    if (drag && drag.moved) { suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); }
+    drag = null; canvas.classList.remove('panning');
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+
+  apply();
+})();
+</script>
+</body>
+</html>
