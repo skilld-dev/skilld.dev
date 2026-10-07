@@ -393,8 +393,10 @@ describe('requests that find no token in the isolate', () => {
     github.releaseMints()
 
     expect((await reads).map(repo => repo.status)).toEqual([200, 200])
-    expect(new Map(github.mintsBy)).toEqual(new Map([['first', 'ghs_app_1'], ['second', 'ghs_app_2']]))
-    expect(new Map(github.readsBy)).toEqual(new Map([['first', 'Bearer ghs_app_1'], ['second', 'Bearer ghs_app_2']]))
+    // Either request can sign its JWT first, so either can mint `ghs_app_1`.
+    const mintedBy = new Map(github.mintsBy.map(([request, token]) => [`Bearer ${token}`, request]))
+    const readWithMintOf = new Map(github.readsBy.map(([request, authorization]) => [request, mintedBy.get(authorization!)]))
+    expect(readWithMintOf).toEqual(new Map([['first', 'first'], ['second', 'second']]))
   })
 
   it('leaves a request on the App when the request whose mint it met ends', async () => {
