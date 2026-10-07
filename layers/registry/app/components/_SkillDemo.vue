@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SkillDemoView } from '../../server/utils/skill-demos'
 import { demoPagePath } from '#shared/demo-pages'
-import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
+import { demoAgentIcon, demoRecordingLabel } from '#shared/demo-recording'
 import SkillDemoShot from './_SkillDemoShot.vue'
 
 /**
@@ -21,7 +21,8 @@ const { demo, onBoard = true } = defineProps<{
 
 const desktopShot = computed(() => demo.shots.find(shot => shot.viewport === 'desktop') ?? demo.shots[0])
 const mobileShot = computed(() => demo.shots.find(shot => shot.viewport === 'mobile' && shot !== desktopShot.value))
-const recordedLabel = computed(() => `Recorded with ${demo.agent}, ${demoModelLabel(demo.model)}`)
+const recording = computed(() => demoRecordingLabel(demo.model, demo.effort))
+const recordedLabel = computed(() => `Recorded with ${demo.agent}, ${recording.value}`)
 
 const live = ref(false)
 
@@ -40,7 +41,7 @@ const DESKTOP_WINDOW_MEDIA = '(min-width: 48rem)'
       <p class="data-label inline-flex items-center gap-1.5" :title="recordedLabel">
         <span class="sr-only">{{ recordedLabel }}</span>
         <UIcon :name="demoAgentIcon(demo.agent)" class="size-3.5 shrink-0 text-default" aria-hidden="true" />
-        <span aria-hidden="true">{{ demoModelLabel(demo.model) }}</span>
+        <span aria-hidden="true">{{ recording }}</span>
       </p>
     </div>
 

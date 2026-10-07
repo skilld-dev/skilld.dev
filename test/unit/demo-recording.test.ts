@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { demoAgentIcon, demoModelLabel } from '../../shared/demo-recording'
+import { demoAgentIcon, demoModelLabel, demoRecordingLabel } from '../../shared/demo-recording'
+
+describe('demoRecordingLabel', () => {
+  it('shows the recorded effort with the model', () => {
+    expect(demoRecordingLabel('gpt-6.1-sol', 'medium')).toBe('gpt-6.1-sol, medium effort')
+  })
+
+  it('does not invent effort for an older recording', () => {
+    expect(demoRecordingLabel('claude-opus-5-5', null)).toBe('Opus 5.5')
+  })
+})
 
 describe('demoModelLabel', () => {
   it('reads a Claude model id as its family and version', () => {
