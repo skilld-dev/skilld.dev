@@ -2,7 +2,6 @@
 import type { RunCheckFlag } from '#shared/run-check-flags'
 import type { ZipState } from '../utils/skill-zip'
 import { SKILL_RUN_PROMPT_LEAD } from '#shared/skill-commands'
-import { AGENT_LOGOS } from '~/utils/agent-logos'
 import SkillRunFlag from './_SkillRunFlag.vue'
 
 type CommandMode = 'run' | 'install'
@@ -59,7 +58,8 @@ const registrySetup: Record<InstallTarget, { to: string, label: string }> = {
   claude: { to: '/developers?setup=mcp&app=claude', label: 'Search the registry from Claude' },
   chatgpt: { to: '/developers?setup=mcp&app=chatgpt', label: 'Search the registry from ChatGPT' },
 }
-const agentNames = AGENT_LOGOS.map(agent => agent.label).join(', ')
+// A wrapped URL breaks after a path slash, never inside a name or the origin.
+const runUrlParts = computed(() => runUrl.match(/^[a-z]+:\/\/[^/]+\/?|[^/]+\/|[^/]+$/gi) ?? [runUrl])
 
 const mode = defineModel<CommandMode>({ required: true })
 
@@ -74,6 +74,7 @@ const copyLabel = computed(() => commandCopied.value
   : mode.value === 'run' ? 'Copy Agent prompt' : 'Copy install command')
 const copyErrorId = useId()
 const installPanelId = useId()
+const forkNoteId = useId()
 
 // Stacked shows both commands, so the copy error follows the last click.
 function copyFrom(next: CommandMode) {
@@ -86,54 +87,31 @@ function copyFrom(next: CommandMode) {
   <div
     v-if="layout === 'stacked'"
     data-testid="skill-command-panel"
-    class="space-y-6"
+    class="space-y-8"
   >
-    <div class="flex items-center gap-2">
-      <div
-        role="img"
-        class="skill-agent-stack"
-        :aria-label="`Works with ${agentNames}`"
-      >
-        <span
-          v-for="agent in AGENT_LOGOS"
-          :key="agent.id"
-          :title="agent.label"
-        >
-          <UIcon
-            :name="agent.icon"
-            class="size-3"
-            aria-hidden="true"
-          />
-        </span>
-      </div>
-      <span
-        class="data-label"
-        aria-hidden="true"
-      >Works with your agent</span>
-    </div>
-
-    <div class="space-y-3">
-      <div class="space-y-1">
-        <h2 class="font-mono text-sm text-default">
-          Run once off
-        </h2>
-        <p class="text-xs leading-relaxed text-muted">
-          <strong class="font-medium text-default">This session only.</strong> Nothing lands on disk. Nothing to clean up.
-        </p>
-      </div>
-      <p class="rounded-lg border border-default bg-muted px-3 py-2 text-sm leading-relaxed text-default">
-        {{ SKILL_RUN_PROMPT_LEAD }} <code class="install-command install-command--wrap install-command__target inline">{{ runUrl }}</code>
+    <div class="space-y-2">
+      <h2 class="font-mono text-sm text-default">
+        Run once off
+      </h2>
+      <p class="text-xs leading-relaxed text-muted">
+        Nothing lands on disk. Nothing to clean up.
       </p>
-      <UButton
-        :icon="runCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-        :label="runCopied ? 'Copied' : 'Copy prompt'"
-        color="neutral"
-        variant="outline"
-        size="sm"
-        class="font-mono"
-        :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
-        @click="copyFrom('run')"
-      />
+      <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-xs">
+        <code class="install-command install-command--wrap block min-w-0 flex-1 py-1"><span class="install-command__runner">{{ `${SKILL_RUN_PROMPT_LEAD} ` }}</span><span class="install-command__target"><template
+          v-for="(part, index) in runUrlParts"
+          :key="index"
+        >{{ part }}<wbr v-if="index < runUrlParts.length - 1"></template></span></code>
+        <UButton
+          :icon="runCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="min-h-11 min-w-11 shrink-0"
+          :aria-label="runCopied ? 'Copied' : 'Copy Agent prompt'"
+          :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
+          @click="copyFrom('run')"
+        />
+      </div>
       <SkillRunFlag
         v-if="runFlag"
         :flag="runFlag"
@@ -141,7 +119,7 @@ function copyFrom(next: CommandMode) {
       />
     </div>
 
-    <div class="space-y-3 border-t border-default pt-6">
+    <div class="space-y-2">
       <h2 class="font-mono text-sm text-default">
         Install as a Skill
       </h2>
@@ -167,13 +145,13 @@ function copyFrom(next: CommandMode) {
       </div>
       <div
         :id="installPanelId"
-        class="space-y-3"
+        class="space-y-2 pt-1"
       >
         <template v-if="installTarget === 'local'">
           <p class="text-xs leading-relaxed text-muted">
             The files land in your project. The lockfile records them.
           </p>
-          <div class="flex items-center gap-2 rounded-lg border border-default py-1 pr-1 pl-3 text-sm">
+          <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-xs">
             <InstallCommand
               :command="installCommand"
               wrap
@@ -216,26 +194,47 @@ function copyFrom(next: CommandMode) {
             {{ zipState.message }}
           </p>
         </template>
-        <NuxtLink
-          :to="registrySetup[installTarget].to"
-          class="inline-flex min-h-11 items-center text-xs text-muted underline underline-offset-2 hover:text-default"
-        >
-          {{ registrySetup[installTarget].label }}
-        </NuxtLink>
       </div>
     </div>
 
-    <div class="space-y-1 border-t border-default pt-6">
-      <NuxtLink
-        :to="`${runUrl}.md?action=fork`"
-        class="inline-flex min-h-11 items-center font-mono text-sm text-default underline underline-offset-2 hover:text-primary"
-      >
-        Fork this Skill
-      </NuxtLink>
-      <p class="text-sm leading-relaxed text-muted">
-        A fork creates an editable local Skill with its original author and licence.
-      </p>
-    </div>
+    <ul
+      role="list"
+      class="font-mono text-xs"
+    >
+      <li>
+        <NuxtLink
+          :to="`${runUrl}.md?action=fork`"
+          class="inline-flex min-h-9 items-center gap-2 text-default underline-offset-2 hover:underline"
+          :aria-describedby="forkNoteId"
+        >
+          <UIcon
+            name="i-lucide-git-fork"
+            class="size-3.5"
+            aria-hidden="true"
+          />
+          Fork this Skill
+        </NuxtLink>
+        <p
+          :id="forkNoteId"
+          class="pb-1 pl-5.5 font-sans leading-relaxed text-muted"
+        >
+          A fork creates an editable local Skill with its original author and licence.
+        </p>
+      </li>
+      <li>
+        <NuxtLink
+          :to="registrySetup[installTarget].to"
+          class="inline-flex min-h-9 items-center gap-2 text-default underline-offset-2 hover:underline"
+        >
+          <UIcon
+            name="i-lucide-search"
+            class="size-3.5"
+            aria-hidden="true"
+          />
+          {{ registrySetup[installTarget].label }}
+        </NuxtLink>
+      </li>
+    </ul>
 
     <p
       v-if="copyError"
@@ -272,15 +271,16 @@ function copyFrom(next: CommandMode) {
     </div>
 
     <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-sm">
-      <div class="min-w-0 flex-1 py-1">
-        <p v-if="mode === 'run'" class="section-label mb-1">
-          Ask your Agent
-        </p>
-        <p v-if="mode === 'run'" class="leading-relaxed text-default">
-          {{ SKILL_RUN_PROMPT_LEAD }} <code class="install-command install-command--wrap install-command__target inline">{{ runUrl }}</code>
-        </p>
-        <InstallCommand v-else :command="installCommand" wrap class="block" />
-      </div>
+      <code v-if="mode === 'run'" class="install-command install-command--wrap block min-w-0 flex-1 py-1"><span class="install-command__runner">{{ `${SKILL_RUN_PROMPT_LEAD} ` }}</span><span class="install-command__target"><template
+        v-for="(part, index) in runUrlParts"
+        :key="index"
+      >{{ part }}<wbr v-if="index < runUrlParts.length - 1"></template></span></code>
+      <InstallCommand
+        v-else
+        :command="installCommand"
+        wrap
+        class="block min-w-0 flex-1 py-1"
+      />
       <UButton
         :icon="commandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
         color="neutral"
@@ -297,7 +297,7 @@ function copyFrom(next: CommandMode) {
       v-if="mode === 'run'"
       class="text-xs leading-relaxed text-muted"
     >
-      <strong class="font-medium text-default">This session only.</strong> Nothing lands on disk.
+      Nothing lands on disk. Nothing to clean up.
     </p>
     <SkillRunFlag
       v-if="mode === 'run' && runFlag"
@@ -305,14 +305,23 @@ function copyFrom(next: CommandMode) {
       :source-url="sourceUrl"
     />
 
-    <div class="space-y-1">
+    <div class="text-xs">
       <NuxtLink
         :to="`${runUrl}.md?action=fork`"
-        class="inline-flex min-h-11 items-center font-mono text-sm text-default underline underline-offset-2 hover:text-primary"
+        class="inline-flex min-h-11 items-center gap-2 font-mono text-default underline-offset-2 hover:underline"
+        :aria-describedby="forkNoteId"
       >
+        <UIcon
+          name="i-lucide-git-fork"
+          class="size-3.5"
+          aria-hidden="true"
+        />
         Fork this Skill
       </NuxtLink>
-      <p class="text-sm leading-relaxed text-muted">
+      <p
+        :id="forkNoteId"
+        class="pl-5.5 leading-relaxed text-muted"
+      >
         A fork creates an editable local Skill with its original author and licence.
       </p>
     </div>
@@ -327,24 +336,3 @@ function copyFrom(next: CommandMode) {
     </p>
   </div>
 </template>
-
-<style scoped>
-/* Overlapping monochrome marks, so the row reads as "every agent" without
-   pulling focus from the commands. */
-.skill-agent-stack {
-  display: flex;
-}
-.skill-agent-stack > span {
-  display: grid;
-  place-items: center;
-  width: 1.375rem;
-  height: 1.375rem;
-  border: 1px solid var(--ui-border);
-  border-radius: 999px;
-  background: var(--ui-bg);
-  color: var(--ui-text-muted);
-}
-.skill-agent-stack > span + span {
-  margin-left: -0.375rem;
-}
-</style>
