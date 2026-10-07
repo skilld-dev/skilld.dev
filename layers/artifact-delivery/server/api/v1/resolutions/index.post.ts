@@ -19,6 +19,7 @@ import {
   readsLinkedFiles,
   requestResolution,
 } from '../../../utils/request-resolution'
+import { serveReadyResolution } from '../../../utils/served-resolution'
 import { setSkillPageUrlHeader } from '../../../utils/skill-page'
 import { getResolution } from '../../../utils/state'
 
@@ -42,6 +43,7 @@ export default withArtifactProblems(defineApiHandler({
           body.source.repository,
         )
       : { _tag: 'not-found' as const }
+    const build = createArtifactBuildDependencies(platform.env)
     const result = await requestResolution({
       db: platform.db,
       lookupAdmitted: fetchAdmittedSkillIdentity(event.context),
@@ -68,6 +70,15 @@ export default withArtifactProblems(defineApiHandler({
         },
       }),
       now: () => Math.floor(Date.now() / 1000),
+      // A warm run takes the ready Resolution of its commit and skips the
+      // queue and the build.
+      serveReady: serveReadyResolution({
+        db: platform.db,
+        bucket: build.bucket,
+        trustedRoot: build.trustedRoot,
+        now: build.now,
+        resolveOnGithub: source => build.github.resolve(source),
+      }),
     }, {
       source: body.source,
       idempotencyKey,

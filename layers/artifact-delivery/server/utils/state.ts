@@ -161,8 +161,12 @@ export async function resolutionRequestIdentity(source: SourceRequest, idempoten
   }
 }
 
+/**
+ * `served` is a ready Resolution that answers a new request for the same
+ * Repository, commit, Skill folder and policy. See `serveReadyResolution`.
+ */
 export type CreateResolutionResult
-  = { _tag: 'created' | 'existing', row: ResolutionRow }
+  = { _tag: 'created' | 'existing' | 'served', row: ResolutionRow }
     | { _tag: 'idempotency-conflict' }
 
 export async function createResolution(
