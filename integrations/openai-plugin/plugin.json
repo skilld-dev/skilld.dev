@@ -23,14 +23,15 @@
       "interface": {
         "displayName": "skilld",
         "shortDescription": "Curated agent skills by humans",
-        "longDescription": "skilld searches skilld.dev, a curated registry of agent skills. A skill is a SKILL.md file that a maintainer writes in their own GitHub repository. It teaches a coding agent how to use a library, a framework, or a workflow.\n\nAsk for a skill by topic, such as Tailwind CSS, Nuxt, or database migrations. skilld returns the matching skills with their author, source repository, GitHub star count, and skilld.dev page. For one skill, it shows the exact SKILL.md and commit on GitHub, when the skill last changed, and the full skill text, so you can read a skill before you run it.\n\nYou can also browse. A track is a page of skills for one kind of work, such as testing and debugging or design and interface work. The trending board shows which skills developers talked about on X and Bluesky, with a post that mentioned each one, and which skills gained GitHub stars fast. You can also list every skill that one GitHub repository publishes.\n\nEvery skill comes with its commands. npx skilld run gives the skill to a coding agent for one session and writes no files. npx skilld install keeps the skill in a project. skilld runs and installs nothing itself. You run the command in your own terminal or coding agent.\n\nskilld needs no account and reads public registry data only.",
+        "longDescription": "skilld searches skilld.dev, a curated registry of agent skills. A skill is a SKILL.md file that a maintainer writes in their own GitHub repository. It teaches a coding agent how to use a library, a framework, or a workflow.\n\nAsk for a skill by topic, such as Tailwind CSS, Nuxt, or database migrations. skilld returns the matching skills with their author, source repository, GitHub star count, and skilld.dev page. For one skill, it shows the exact SKILL.md and commit on GitHub, when the skill last changed, and the full skill text, so you can read a skill before you run it.\n\nYou can also browse. A track is a page of skills for one kind of work, such as testing and debugging or design and interface work. The trending board shows which skills developers talked about on X and Bluesky, with a post that mentioned each one, and which skills gained GitHub stars fast. You can also list every skill that one GitHub repository publishes.\n\nEvery skill comes with its commands. npx skilld run gives the skill to a coding agent for one session and writes no files. npx skilld install keeps the skill in a project. skilld runs and installs nothing itself. You run the command in your own terminal or coding agent.\n\nskilld needs no account. It reads public registry data, and it can ask skilld.dev to index the skills in a public GitHub repository. A person still reviews which skills the registry admits.",
         "developerName": "Harlan Wilton",
         "category": "Developer Tools",
         "capabilities": [
           "Search agent skills",
           "Show skill provenance and source",
           "Browse tracks and trending skills",
-          "Return run and install commands"
+          "Return run and install commands",
+          "Submit a repository for indexing"
         ],
         "websiteURL": "https://skilld.dev",
         "supportURL": "https://skilld.dev/developers/mcp#support",
@@ -86,7 +87,7 @@
               "prompt": "Write a new SKILL.md for my React project and publish it on skilld."
             },
             {
-              "description": "Change registry data. Every skilld tool is read only.",
+              "description": "Change registry data. skilld has no tool that edits or deletes a skill.",
               "prompt": "Delete the tailwind skill from skilld.dev."
             },
             {

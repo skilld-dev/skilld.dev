@@ -177,7 +177,7 @@ const uiClass = 'font-medium text-default'
               Copy the server URL
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
-              No account and no API key. Every tool is read only.
+              No account and no API key. Every tool is read only, except the one that submits a repository for indexing.
             </p>
             <SetupSnippet class="mt-3" :code="REGISTRY_MCP_URL" label="server URL" />
           </div>

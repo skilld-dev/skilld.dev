@@ -35,7 +35,7 @@ A Skill gives instructions to your Agent. Your Agent can then run commands, chan
 
 ## The MCP server and the API
 
-The MCP server lets [ChatGPT](https://chatgpt.com), Claude, and other MCP apps search the registry. It returns search results and commands as text. It runs nothing and installs nothing.
+The MCP server lets [ChatGPT](https://chatgpt.com), Claude, and other MCP apps search the registry. It returns search results and commands as text, and it can ask skilld.dev to index a public GitHub repository. It runs nothing and installs nothing.
 
 The skilld API serves the same registry to scripts and to the skilld CLI. Account operations need a skilld token.
 

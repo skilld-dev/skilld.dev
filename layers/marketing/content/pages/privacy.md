@@ -128,7 +128,7 @@ If the client sends your operating system and processor type, such as `darwin-ar
 
 ## The MCP server
 
-ChatGPT, Claude, and other MCP apps can search skilld.dev through its MCP server at `https://skilld.dev/api/mcp`. The server needs no account and sets no cookie. Every tool is read only.
+ChatGPT, Claude, and other MCP apps can search skilld.dev through its MCP server at `https://skilld.dev/api/mcp`. The server needs no account and sets no cookie. Every tool is read only, except `submit_repository`.
 
 When your chat app calls a tool, skilld receives what that tool needs:
 
@@ -139,6 +139,7 @@ When your chat app calls a tool, skilld receives what that tool needs:
 - `get_track` receives a track slug, a result count, and an offset.
 - `list_trending` receives a period, a week or a month, and a result count.
 - `get_repository` receives the owner and name of one Repository and a result count.
+- `submit_repository` receives one Repository name or URL. skilld stores the index request with the Repository name and its status. It records nothing about who sent it.
 
 skilld receives no chat history, no files from the chat, and no account details from the chat app. ChatGPT and Claude call the server from OpenAI or Anthropic servers, so skilld sees their IP address, not yours. Apps on your computer, such as Claude Code or Cursor, call it from your network. Rate limits count requests per IP address, and skilld stores no IP address.
 

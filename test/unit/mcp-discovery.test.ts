@@ -1,5 +1,5 @@
 import type { McpToolDeps, McpToolResult } from '../../layers/mcp/shared/mcp-tools'
-import { problemType, repositoriesV1, skillsV1, tracksV1, trendingV1 } from 'skilld-sdk/contract'
+import { indexRequestsV1, problemType, repositoriesV1, skillsV1, tracksV1, trendingV1 } from 'skilld-sdk/contract'
 import { describe, expect, it, vi } from 'vitest'
 import { installCommandFor, parseInstallRef } from '../../layers/mcp/shared/mcp-install-command'
 import { mcpTools } from '../../layers/mcp/shared/mcp-tools'
@@ -15,7 +15,7 @@ async function runTool(toolName: string, args: unknown, toolDeps = deps(), signa
   return tool.run(toolDeps, args, signal)
 }
 
-function problem(code: 'NOT_FOUND' | 'RATE_LIMITED' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE', status: number): Response {
+function problem(code: 'NOT_FOUND' | 'RATE_LIMITED' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE' | 'INVALID_REQUEST', status: number): Response {
   return Response.json({
     type: problemType(code),
     title: code === 'NOT_FOUND' ? 'Not found' : 'Rate limited',
@@ -200,6 +200,50 @@ describe('browse tools', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toBe(message)
     expect(toolDeps.reportError).not.toHaveBeenCalled()
+  })
+})
+
+describe('submit_repository', () => {
+  const [queuedExample, indexedExample] = indexRequestsV1.operations.create.docs.examples
+
+  it('returns the indexed Skills with the Repository page', async () => {
+    const response = indexedExample!.response
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response, { status: 201 }))
+    const result = await runTool('submit_repository', { repository: 'vercel-labs/agent-skills' }, deps(fetchApi))
+    expect(result.structuredContent).toEqual({
+      ...response,
+      total: (response as { skills: unknown[] }).skills.length,
+      pageUrl: 'https://skilld.dev/gh/vercel-labs/agent-skills',
+    })
+    const [input, options] = fetchApi.mock.calls[0]!
+    expect(new URL(input).pathname).toBe('/api/v1/index-requests')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ repository: 'vercel-labs/agent-skills' })
+  })
+
+  it('returns a status URL for a queued request', async () => {
+    const response = queuedExample!.response as { id: string }
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response, { status: 201 }))
+    const result = await runTool('submit_repository', { repository: 'https://github.com/vercel-labs/agent-skills' }, deps(fetchApi))
+    expect(result.structuredContent).toEqual({
+      ...response,
+      pageUrl: 'https://skilld.dev/gh/vercel-labs/agent-skills',
+      statusUrl: `https://skilld.dev/api/v1/index-requests/${response.id}`,
+    })
+  })
+
+  it('explains a Repository the API cannot index', async () => {
+    const toolDeps = deps(vi.fn().mockResolvedValue(problem('INVALID_REQUEST', 400)))
+    const result = await runTool('submit_repository', { repository: 'https://gitlab.com/a/b' }, toolDeps)
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toBe('Cannot index https://gitlab.com/a/b. Send owner/repo or the URL of a public GitHub repository.')
+    expect(toolDeps.reportError).not.toHaveBeenCalled()
+  })
+
+  it('rejects text that names no Repository before fetching', async () => {
+    const toolDeps = deps()
+    expect((await runTool('submit_repository', { repository: 'not a repository' }, toolDeps)).isError).toBe(true)
+    expect(toolDeps.fetchApi).not.toHaveBeenCalled()
   })
 })
 

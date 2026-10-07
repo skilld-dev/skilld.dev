@@ -39,7 +39,7 @@ const linkClass = 'underline underline-offset-2 hover:text-default'
         MCP server
       </h1>
       <p class="mt-4 max-w-xl text-base leading-relaxed text-muted">
-        The skilld MCP server lets ChatGPT, Claude, and other MCP apps search and browse the registry. It needs no account, and every tool is read only.
+        The skilld MCP server lets ChatGPT, Claude, and other MCP apps search and browse the registry. It needs no account. Every tool reads the registry, except Submit a repository, which asks skilld.dev to index a public GitHub repository.
       </p>
       <CopyText class="mt-5" :text="REGISTRY_MCP_URL" label="server URL" />
       <ul class="mt-5 space-y-2 text-sm leading-relaxed text-muted">
@@ -79,7 +79,7 @@ const linkClass = 'underline underline-offset-2 hover:text-default'
               {{ tool.title }}
             </h3>
             <code class="font-mono text-xs text-muted">{{ tool.name }}</code>
-            <span v-if="tool.annotations.readOnlyHint" class="data-label">Read only</span>
+            <span class="data-label">{{ tool.annotations.readOnlyHint ? 'Read only' : 'Queues a request' }}</span>
           </div>
           <p :class="bodyClass">
             {{ tool.description }}
@@ -108,7 +108,7 @@ const linkClass = 'underline underline-offset-2 hover:text-default'
         Limits and data
       </h2>
       <ul class="mt-3 space-y-2 text-sm leading-relaxed text-muted">
-        <li>Every tool is read only. No tool writes data, and the server sets no cookie.</li>
+        <li>Every tool is read only, except Submit a repository. It queues an index request and changes nothing in the repository. The server sets no cookie.</li>
         <li>Each search or lookup counts against a limit of {{ RATE_LIMIT_PER_MINUTE }} requests a minute per IP address. ChatGPT and Claude call from their own servers, so their users share that allowance.</li>
         <li>Each tool receives only its inputs, such as your search text or a Skill name. It receives no chat history and no files.</li>
       </ul>

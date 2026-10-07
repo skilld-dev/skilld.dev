@@ -26,7 +26,7 @@ describe('webmcp support', () => {
 })
 
 describe('webmcp discovery tools', () => {
-  it('exposes the MCP tools as read-only JSON Schema tools', () => {
+  it('exposes the MCP tools as JSON Schema tools with their read-only hints', () => {
     const tools = createWebMcpTools(deps(), new AbortController().signal)
 
     expect(tools.map(tool => tool.name)).toEqual([
@@ -37,6 +37,7 @@ describe('webmcp discovery tools', () => {
       'get_track',
       'list_trending',
       'get_repository',
+      'submit_repository',
     ])
     expect(tools[0]!.inputSchema).toMatchObject({
       type: 'object',
@@ -53,6 +54,10 @@ describe('webmcp discovery tools', () => {
     expect(tools[2]!.annotations).toEqual({
       readOnlyHint: true,
       untrustedContentHint: false,
+    })
+    expect(tools.find(tool => tool.name === 'submit_repository')!.annotations).toEqual({
+      readOnlyHint: false,
+      untrustedContentHint: true,
     })
   })
 

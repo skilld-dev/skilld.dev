@@ -66,7 +66,7 @@ Any paid Claude plan can submit. Use these fields in the portal.
 | Slug | `skilld`. The slug is permanent after publication |
 | Use cases | Find agent skills by topic, check provenance and freshness before a run, browse a track or the trending board |
 | Requirements | None. Every tool works without an account |
-| Data access | Reads data only |
+| Data access | Reads data, and `submit_repository` queues an index request |
 | Company | Harlan Wilton, `https://skilld.dev`, `harlan@harlanzw.com` |
 | Authentication | No authentication |
 | Data handling | First-party API. No health data. No sponsored content |

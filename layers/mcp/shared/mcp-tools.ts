@@ -303,6 +303,44 @@ const getRepository: McpTool = {
   },
 }
 
+const SubmitRepositoryArgs = z.object({
+  repository: z.string().trim().min(3).max(2048).regex(/^(?:[\w.-]+\/[\w.-]+|https?:\/\/\S+)$/).describe('owner/repo, or the URL of a public GitHub repository'),
+})
+
+/** The most Skills an `indexed` answer returns, like get_repository. */
+const SUBMIT_SKILL_LIMIT = 30
+
+const submitRepository: McpTool = {
+  name: 'submit_repository',
+  title: 'Submit a repository',
+  description: 'Ask skilld.dev to index the Skills in a public GitHub repository. Takes owner/repo or a GitHub URL. If the registry already holds Skills from the repository, returns status indexed with those Skills and the repository\'s skilld.dev page. Otherwise it queues an index request and returns status queued, its id, and a status URL. The status URL reports progress, or the reason the request failed, such as a private or missing repository. A second request for a queued repository returns the same id. A person still reviews which Skills the registry admits. This changes nothing in the repository.',
+  inputSchema: SubmitRepositoryArgs.shape,
+  examplePrompt: 'Add github.com/vercel-labs/agent-skills to skilld.',
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  run: async (deps, args, signal) => {
+    const parsed = SubmitRepositoryArgs.safeParse(args)
+    if (!parsed.success)
+      return fail('Invalid arguments: repository is owner/repo or the URL of a public GitHub repository')
+    const { repository } = parsed.data
+    const result = await clientFor(deps).indexRequests.create({ body: { repository } }, { signal })
+    if (result._tag === 'Err' && result.error._tag === 'ApiFailure' && result.error.code === 'INVALID_REQUEST')
+      return fail(`Cannot index ${repository}. Send owner/repo or the URL of a public GitHub repository.`)
+    if (result._tag !== 'Ok')
+      return presentResult(deps, 'Repository submission', result)
+    const answer = result.value
+    const pageUrl = `${SITE_ORIGIN}/gh/${answer.owner}/${answer.repository}`
+    const value = answer.status === 'indexed'
+      ? { ...answer, skills: answer.skills.slice(0, SUBMIT_SKILL_LIMIT), total: answer.skills.length, pageUrl }
+      : { ...answer, pageUrl, statusUrl: `${SITE_ORIGIN}/api/v1/index-requests/${answer.id}` }
+    return presentResult(deps, 'Repository submission', { _tag: 'Ok', value })
+  },
+}
+
 const InstallCommandArgs = z.object({
   ref: z.string().trim().min(1).max(300).describe(`Skill or repository reference: ${ACCEPTED_REFS}`),
 })
@@ -349,4 +387,4 @@ const installCommand: McpTool = {
   },
 }
 
-export const mcpTools: McpTool[] = [searchSkills, getSkill, installCommand, listTracks, getTrack, listTrending, getRepository]
+export const mcpTools: McpTool[] = [searchSkills, getSkill, installCommand, listTracks, getTrack, listTrending, getRepository, submitRepository]

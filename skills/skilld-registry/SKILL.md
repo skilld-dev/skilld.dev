@@ -23,7 +23,7 @@ Without a shell, such as in a chat app, follow the `markdown` field from `get_sk
 
 `install_command` returns `runCommand` for a single-skill ref and `command` for the install. A repository ref has no run command, so `runCommand` is `null` there. The MCP server accepts only skill and repository refs.
 
-Every tool is read only. Running and installing both stay separate actions in the user's own environment.
+Every tool is read only, except `submit_repository`, which asks skilld.dev to index a public GitHub repository. Running and installing both stay separate actions in the user's own environment.
 
 ## Fork a Skill
 
