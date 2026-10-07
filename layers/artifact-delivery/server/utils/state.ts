@@ -461,7 +461,9 @@ export function presentResolution(row: ResolutionRow): ResolutionResponse {
       state: 'pending',
       resolutionId: row.id,
       stage: row.state as ActiveBuildState,
-      pollAfterMs: 1000,
+      // A read of a building Resolution waits for its next state, so the
+      // CLI may come back at once. See `waitForResolutionChange`.
+      pollAfterMs: 250,
     }
   }
   if (row.state === 'blocked') {

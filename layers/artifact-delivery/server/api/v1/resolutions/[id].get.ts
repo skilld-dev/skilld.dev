@@ -10,6 +10,7 @@ import {
 } from '../../../utils/github-app'
 import { canReadPrivateResolution } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
+import { waitForResolutionChange } from '../../../utils/resolution-wait'
 import { setSkillPageUrlHeader } from '../../../utils/skill-page'
 import { getResolution } from '../../../utils/state'
 
@@ -50,8 +51,15 @@ export default withArtifactProblems(defineApiHandler({
         throw createError({ statusCode: 404, message: 'Resolution not found' })
       }
     }
-    await setSkillPageUrlHeader(event, row)
-    return row
+    // A building Resolution answers when its state changes, so the CLI sees
+    // each stage, and the finished build, within one check of it landing.
+    const current = await waitForResolutionChange({
+      load: () => getResolution(platform.db, row.id),
+      sleep: milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)),
+      now: Date.now,
+    }, row)
+    await setSkillPageUrlHeader(event, current)
+    return current
   },
   presenter: presentArtifactResolution,
 }))
