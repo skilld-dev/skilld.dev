@@ -134,7 +134,7 @@ function copyFrom(next: CommandMode) {
           type="button"
           class="-mb-px min-h-9 border-b font-mono text-xs transition-colors"
           :class="installTarget === item.value
-            ? 'border-[var(--ui-text)] text-default'
+            ? 'border-primary text-default'
             : 'border-transparent text-muted hover:text-default'"
           :aria-pressed="installTarget === item.value"
           :aria-controls="installPanelId"
@@ -218,7 +218,7 @@ function copyFrom(next: CommandMode) {
           :id="forkNoteId"
           class="pb-1 pl-5.5 font-sans leading-relaxed text-muted"
         >
-          A fork creates an editable local Skill with its original author and licence.
+          Edit a local copy. It keeps the author and licence.
         </p>
       </li>
       <li>
@@ -323,7 +323,7 @@ function copyFrom(next: CommandMode) {
         :id="forkNoteId"
         class="pl-5.5 leading-relaxed text-muted"
       >
-        A fork creates an editable local Skill with its original author and licence.
+        Edit a local copy. It keeps the author and licence.
       </p>
     </div>
 
