@@ -1,5 +1,5 @@
 import type { McpToolDeps, McpToolResult } from '../../layers/mcp/shared/mcp-tools'
-import { collectionsV1, problemType, skillsV1 } from 'skilld-sdk/contract'
+import { problemType, skillsV1 } from 'skilld-sdk/contract'
 import { describe, expect, it, vi } from 'vitest'
 import { installCommandFor, parseInstallRef } from '../../layers/mcp/shared/mcp-install-command'
 import { mcpTools } from '../../layers/mcp/shared/mcp-tools'
@@ -92,37 +92,17 @@ describe('mCP public SDK discovery', () => {
     expect(toolDeps.fetchApi).toHaveBeenCalledOnce()
   })
 
-  it('uses server collection pagination and returns the collection contract', async () => {
-    const response = collectionsV1.operations.get.docs.examples[0]!.response
-    const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
-    const result = await runTool('get_collection', {
-      login: 'harlan-zw',
-      slug: 'design-engineering-essentials',
-      limit: 10,
-      offset: 20,
-    }, deps(fetchApi))
-
-    expect(result.structuredContent).toEqual(response)
-    expect(fetchApi).toHaveBeenCalledWith(
-      'https://skilld.dev/api/v1/collections/harlan-zw/design-engineering-essentials?limit=10&offset=20',
-      expect.objectContaining({ method: 'GET' }),
-    )
-  })
-
   it('bounds inputs before fetching', async () => {
     const toolDeps = deps()
     expect((await runTool('search_skills', { query: 'x'.repeat(201) }, toolDeps)).isError).toBe(true)
     expect((await runTool('search_skills', { query: 'seo', limit: 21 }, toolDeps)).isError).toBe(true)
-    expect((await runTool('get_collection', { login: 'harlan-zw', slug: 'x', limit: 51 }, toolDeps)).isError).toBe(true)
     expect(toolDeps.fetchApi).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['get_skill', { owner: 'ghost', repo: 'nothing', name: 'missing' }, 'Skill not found: ghost/nothing/missing'],
-    ['get_collection', { login: 'ghost', slug: 'nothing' }, 'Collection not found: @ghost/nothing'],
-  ])('maps %s NOT_FOUND without logging infrastructure errors', async (name, args, message) => {
+  it('maps get_skill NOT_FOUND without logging infrastructure errors', async () => {
     const toolDeps = deps(vi.fn().mockResolvedValue(problem('NOT_FOUND', 404)))
-    const result = await runTool(name, args, toolDeps)
+    const result = await runTool('get_skill', { owner: 'ghost', repo: 'nothing', name: 'missing' }, toolDeps)
+    const message = 'Skill not found: ghost/nothing/missing'
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toContain(message)
     expect(toolDeps.reportError).not.toHaveBeenCalled()
@@ -166,8 +146,6 @@ describe('install_command', () => {
     ['anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
     ['skilld:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
     ['gh:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
-    ['@harlan-zw', 'npx skilld add @harlan-zw'],
-    ['@harlan-zw/nuxt-stack', 'npx skilld add @harlan-zw/nuxt-stack'],
   ])('%s -> %s', async (ref, command) => {
     const result = await runTool('install_command', { ref })
     expect((result.structuredContent as any).command).toBe(command)
@@ -191,6 +169,12 @@ describe('install_command', () => {
     expect((single.structuredContent as any).note).toContain('skilld run')
   })
 
+  it.each(['@harlan-zw', '@harlan-zw/agent-building-stack'])('rejects the curator or collection ref %s', async (ref) => {
+    const result = await runTool('install_command', { ref })
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toBe(`Unrecognized ref: "${ref}". Accepted forms: "owner/repo", "owner/repo/skill-name".`)
+  })
+
   it('rejects unrecognized refs', async () => {
     const result = await runTool('install_command', { ref: 'not a ref!!' })
     expect(result).toMatchObject({ isError: true })
@@ -203,6 +187,8 @@ describe('parseInstallRef', () => {
     expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add a/b')
     expect(parseInstallRef('a/b/c/d')).toBeNull()
     expect(parseInstallRef('@')).toBeNull()
+    expect(parseInstallRef('@harlan-zw')).toBeNull()
+    expect(parseInstallRef('@harlan-zw/agent-building-stack')).toBeNull()
     expect(parseInstallRef('')).toBeNull()
   })
 

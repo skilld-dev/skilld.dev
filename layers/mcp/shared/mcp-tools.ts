@@ -15,7 +15,7 @@ const SITE_ORIGIN = 'https://skilld.dev'
  * One spelling for every place an agent reads the accepted refs: the tool
  * description, the input schema, and the unrecognized-ref failure.
  */
-const ACCEPTED_REFS = ['"owner/repo"', '"owner/repo/skill-name"', '"@login"', '"@login/collection-slug"'].join(', ')
+const ACCEPTED_REFS = ['"owner/repo"', '"owner/repo/skill-name"'].join(', ')
 
 /** Raw HTTP transport is injected. The SDK owns request and response parsing. */
 export interface McpToolDeps {
@@ -58,6 +58,8 @@ export interface McpTool {
   description: string
   inputSchema: Record<string, z.ZodType>
   annotations: McpToolAnnotations
+  /** A prompt that calls the tool. /developers/mcp prints it beside the tool. */
+  examplePrompt: string
   run: (deps: McpToolDeps, args: unknown, signal?: AbortSignal) => Promise<McpToolResult>
 }
 
@@ -137,6 +139,7 @@ const searchSkills: McpTool = {
   title: 'Search Skills',
   description: 'Search the skilld.dev registry for agent skills that match a topic. A skill is a SKILL.md file that a maintainer publishes in their own GitHub repository, and it works with any coding agent. Returns each match with its source repository, GitHub star count, skilld.dev page, and run command.',
   inputSchema: SearchArgs.shape,
+  examplePrompt: 'Find a skill for Tailwind CSS.',
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -162,8 +165,9 @@ const GetSkillArgs = z.object({
 const getSkill: McpTool = {
   name: 'get_skill',
   title: 'Get Skill details',
-  description: 'Look up one skill by GitHub owner, repository, and skill name. Returns its provenance: the publisher, the exact SKILL.md file and commit on GitHub, and freshness (the last repository push and the last skill change). Also returns the SKILL.md text, the skilld.dev page, runCommand, and installCommand. runCommand gives the skill to a coding agent for one session and writes no files. installCommand writes the skill into the project for every session. Without a shell, such as in a chat app, follow the SKILL.md text in markdown for this session. Tell the user the skill name and source repository first. Files beside SKILL.md are listed in files, not included.',
+  description: 'Look up one skill by GitHub owner, repository, and skill name. Returns its provenance: the publisher, the exact SKILL.md file and commit on GitHub, and freshness (the last repository push and the last skill change). Also returns the SKILL.md text in markdown, the skilld.dev page, runCommand, and installCommand. runCommand gives the skill to a coding agent for one session and writes no files. installCommand writes the skill into the project for every session. files lists the files beside SKILL.md without their contents. skilld does not check whether a skill is safe.',
   inputSchema: GetSkillArgs.shape,
+  examplePrompt: 'Who wrote vercel-labs/agent-skills/web-design-guidelines, and when did it last change?',
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -189,43 +193,12 @@ const getSkill: McpTool = {
   },
 }
 
-const GetCollectionArgs = z.object({
-  login: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/).describe('Curator GitHub login'),
-  slug: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/).describe('Collection slug'),
-  limit: z.number().int().min(1).max(50).default(25).describe('Maximum skills to return'),
-  offset: z.number().int().min(0).max(10_000).default(0).describe('Skills to skip for pagination'),
-})
-
-const getCollection: McpTool = {
-  name: 'get_collection',
-  title: 'Get collection',
-  description: 'Look up a curated collection by curator GitHub login and collection slug, as in skilld.dev/@login/slug. Returns the collection, its skills with the reason the curator gives for each, and one command that installs the whole collection.',
-  inputSchema: GetCollectionArgs.shape,
-  annotations: {
-    readOnlyHint: true,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: true,
-  },
-  run: async (deps, args, signal) => {
-    const parsed = GetCollectionArgs.safeParse(args)
-    if (!parsed.success)
-      return fail('Invalid arguments: login and slug are required strings')
-    const { login, slug, limit, offset } = parsed.data
-    const result = await clientFor(deps).collections.get({
-      params: { login, slug },
-      query: { limit, offset },
-    }, { signal })
-    return presentResult(deps, 'Collection lookup', result, `Collection not found: @${login}/${slug}`)
-  },
-}
-
 const InstallCommandArgs = z.object({
-  ref: z.string().trim().min(1).max(300).describe(`Skill, repo, collection, or curator reference: ${ACCEPTED_REFS}`),
+  ref: z.string().trim().min(1).max(300).describe(`Skill or repository reference: ${ACCEPTED_REFS}`),
 })
 
 // Only a single-skill ref has a run command, so the note must not promise one
-// for a repo, collection, or curator ref.
+// for a repository ref.
 function noteFor(runCommand: string | null): string {
   const install = 'The install command writes skill files locally and works with any coding agent.'
   if (!runCommand)
@@ -236,8 +209,9 @@ function noteFor(runCommand: string | null): string {
 const installCommand: McpTool = {
   name: 'install_command',
   title: 'Get run and install commands',
-  description: `Return the exact skilld CLI commands for a skill, repository, collection, or curator ref. For a single skill, runCommand gives the skill to a coding agent for one session and writes no files. command installs the skills into the project. Accepted refs: ${ACCEPTED_REFS}. This tool returns text only. It runs and installs nothing.`,
+  description: `Return the exact skilld CLI commands for a skill or a repository ref. For a single skill, runCommand gives the skill to a coding agent for one session and writes no files. command installs the skills into the project. Accepted refs: ${ACCEPTED_REFS}. This tool returns text only. It runs and installs nothing.`,
   inputSchema: InstallCommandArgs.shape,
+  examplePrompt: 'Give me the command to try anthropics/skills/skill-creator without installing it.',
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -265,4 +239,4 @@ const installCommand: McpTool = {
   },
 }
 
-export const mcpTools: McpTool[] = [searchSkills, getSkill, getCollection, installCommand]
+export const mcpTools: McpTool[] = [searchSkills, getSkill, installCommand]

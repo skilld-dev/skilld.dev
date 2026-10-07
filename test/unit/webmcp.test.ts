@@ -32,7 +32,6 @@ describe('webmcp discovery tools', () => {
     expect(tools.map(tool => tool.name)).toEqual([
       'search_skills',
       'get_skill',
-      'get_collection',
       'install_command',
     ])
     expect(tools[0]!.inputSchema).toMatchObject({
@@ -47,7 +46,7 @@ describe('webmcp discovery tools', () => {
       readOnlyHint: true,
       untrustedContentHint: true,
     })
-    expect(tools[3]!.annotations).toEqual({
+    expect(tools[2]!.annotations).toEqual({
       readOnlyHint: true,
       untrustedContentHint: false,
     })
@@ -89,8 +88,8 @@ describe('webmcp discovery tools', () => {
 
     const result = await registerWebMcpTools(modelContext, tools, controller)
 
-    expect(result).toEqual({ _tag: 'registered', count: 4 })
-    expect(registerTool).toHaveBeenCalledTimes(4)
+    expect(result).toEqual({ _tag: 'registered', count: tools.length })
+    expect(registerTool).toHaveBeenCalledTimes(tools.length)
     for (const call of registerTool.mock.calls)
       expect(call[1]).toEqual({ signal: controller.signal })
   })

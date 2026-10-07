@@ -134,8 +134,7 @@ When your chat app calls a tool, skilld receives what that tool needs:
 
 - `search_skills` receives your search text and a result count.
 - `get_skill` receives the owner, Repository, and name of one Skill.
-- `get_collection` receives a curator login and a collection slug.
-- `install_command` receives one Skill, Repository, or collection reference.
+- `install_command` receives one Skill or Repository reference.
 
 skilld receives no chat history, no files from the chat, and no account details from the chat app. ChatGPT and Claude call the server from OpenAI or Anthropic servers, so skilld sees their IP address, not yours. Apps on your computer, such as Claude Code or Cursor, call it from your network. Rate limits count requests per IP address, and skilld stores no IP address.
 

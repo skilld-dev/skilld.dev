@@ -1,21 +1,20 @@
 <script setup lang="ts">
-import { REGISTRY_MCP_URL } from '#shared/agent-setup'
-import ApiTokenSetup from '../components/_ApiTokenSetup.vue'
-import SetupSnippet from '../components/_SetupSnippet.vue'
+import { claudeConnectorUrl, REGISTRY_MCP_URL } from '#shared/agent-setup'
+import ApiTokenSetup from '../../components/_ApiTokenSetup.vue'
+import SetupSnippet from '../../components/_SetupSnippet.vue'
 import {
   API_OPENAPI_PATH,
   apiSamples,
   apiSnippets,
-  claudeConnectorUrl,
   cursorInstallUrl,
   mcpApps,
   setupModes,
   setupSnippets,
   SKILLD_SKILL_SOURCE,
   vscodeInstallUrl,
-} from '../utils/developer-setup'
-import { apiSampleSchema, mcpAppSchema, setupModeSchema } from '../utils/developer-setup-query'
-import { pageRobots } from '../utils/page-admissions'
+} from '../../utils/developer-setup'
+import { apiSampleSchema, mcpAppSchema, setupModeSchema } from '../../utils/developer-setup-query'
+import { pageRobots } from '../../utils/page-admissions'
 
 definePageMeta({ layout: 'account' })
 
@@ -306,6 +305,13 @@ const uiClass = 'font-medium text-default'
               The server returns the run command and the install command for each Skill. It never runs or installs a Skill. You choose what runs.
             </p>
             <SetupSnippet class="mt-3" :code="setupSnippets.mcpPrompt" label="example prompt" />
+            <UButton
+              to="/developers/mcp"
+              label="Tool reference, limits, and support"
+              color="neutral"
+              variant="link"
+              class="mt-2 min-h-11 px-0 text-sm"
+            />
           </div>
         </li>
       </ol>
