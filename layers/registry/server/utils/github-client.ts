@@ -84,6 +84,9 @@ export interface GithubBindingRuntime {
  * Pass the generated Cloudflare environment from the request platform or a
  * Nitro task. Falls back to process.env in local dev,
  * since `.env` populates process.env but not the Worker env binding.
+ *
+ * Resolve them inside each request, task or queue batch. The credential holds
+ * that request's mint in flight, which another request must never await.
  */
 export function resolveGithubBindings(
   cloudflareEnv?: GithubBindingSource,

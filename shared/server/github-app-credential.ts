@@ -81,14 +81,19 @@ interface CachedInstallationToken {
 }
 
 /**
- * Installation tokens kept between reads in one isolate. A token lives an
+ * Installation tokens kept between requests in one isolate. A token lives an
  * hour; minting one per read would add a request and a signature to each.
+ *
+ * It holds finished values only. workerd ties a promise, a `Response` or a
+ * stream to the request that made it. A request that awaited another
+ * request's mint could throw "Cannot perform I/O on behalf of a different
+ * request", or wait forever once that request ended. A mint in flight stays
+ * with the {@link GithubCredential} of the request that started it.
  */
 export interface InstallationTokenCache {
   tokens: Map<string, CachedInstallationToken>
   /** Unix seconds until which a failure stands, by key. */
   failedUntil: Map<string, number>
-  pending: Map<string, Promise<MintOutcome>>
 }
 
 /** How one mint ended. */
@@ -100,7 +105,7 @@ type MintOutcome
     | { _tag: 'cut-off' }
 
 export function createInstallationTokenCache(): InstallationTokenCache {
-  return { tokens: new Map(), failedUntil: new Map(), pending: new Map() }
+  return { tokens: new Map(), failedUntil: new Map() }
 }
 
 let isolateTokenCache: InstallationTokenCache | null = null
@@ -141,7 +146,7 @@ export interface GithubCredential {
   /**
    * The credential after GitHub answered 401 to `rejected`. The cached
    * installation token is dropped and a new one minted, once for every read
-   * that held it, even while a failed mint stands.
+   * through this credential that held it, even while a failed mint stands.
    */
   renew: (rejected: GithubReadCredential, deadline?: AbortSignal) => Promise<GithubReadCredential>
   /** The token for a read GitHub denied the App, or null. */
@@ -183,6 +188,10 @@ export function parseGithubCredentialConfig(
  * the reason is reported, so a broken key shows up as an event instead of as
  * a spent quota. A failure stands for about {@link FAILED_MINT_SECONDS}: reads
  * in that window use the fallback with no mint and no second report.
+ *
+ * Create one credential per request, scheduled task or queue batch. Reads
+ * through one credential share its mint in flight. A request with no cached
+ * token mints its own, and never waits for another request's mint.
  */
 export function createGithubCredential(
   config: GithubCredentialConfig,
@@ -212,22 +221,28 @@ export function createGithubCredential(
   }
   const app = config.app
   const key = `${app.appId}:${app.installationId}`
+  // This request's mint in flight. It never enters the isolate cache.
+  let pending: Promise<MintOutcome> | null = null
   const startMint = (deadline: AbortSignal | undefined): Promise<MintOutcome> => {
+    const failureAtStart = cache.failedUntil.get(key)
     const minting = mintInstallationToken(app, runtime, deadline)
       .then((outcome) => {
         if (outcome._tag === 'minted') {
           cache.tokens.set(key, outcome.token)
           cache.failedUntil.delete(key)
         }
-        else if (outcome._tag === 'failed') {
-          // One event for the window, from the read that started the mint.
+        // One event for the window. A failure another request recorded while
+        // this mint ran already has its event.
+        else if (outcome._tag === 'failed' && !(failureStands(key) && cache.failedUntil.get(key) !== failureAtStart)) {
           standFailure(key)
           runtime.report({ outcome: 'app-token-unavailable', reason: outcome.reason, fallback: fallbackName })
         }
         return outcome
       })
-      .finally(() => cache.pending.delete(key))
-    cache.pending.set(key, minting)
+      .finally(() => {
+        pending = null
+      })
+    pending = minting
     return minting
   }
   const credentialFor = async (deadline: AbortSignal | undefined, mintThroughFailure: boolean): Promise<GithubReadCredential> => {
@@ -236,13 +251,13 @@ export function createGithubCredential(
       const cached = cache.tokens.get(key)
       if (cached && cached.expiresAt - INSTALLATION_TOKEN_RENEW_SECONDS > runtime.now())
         return { token: cached.token, isApp: true }
-      let pending = cache.pending.get(key)
-      if (!pending) {
+      let minting = pending
+      if (!minting) {
         if (!mintThroughFailure && failureStands(key))
           return fallback
-        pending = startMint(deadline)
+        minting = startMint(deadline)
       }
-      const outcome = await untilAborted(pending, deadline)
+      const outcome = await untilAborted(minting, deadline)
       if (outcome._tag === 'minted')
         return { token: outcome.token.token, isApp: true }
       if (outcome._tag === 'failed')
