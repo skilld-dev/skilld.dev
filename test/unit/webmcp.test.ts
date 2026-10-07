@@ -70,7 +70,7 @@ describe('webmcp discovery tools', () => {
 
     expect(result).toEqual({
       _tag: 'ok',
-      data: { total: 0, items: [] },
+      data: { query: 'nuxt seo', total: 0, items: [] },
     })
     const [input, options] = fetchApi.mock.calls[0]!
     const url = new URL(input)

@@ -26,6 +26,7 @@ export default defineMcpHandler({
       title: tool.title,
       description: tool.description,
       inputSchema: tool.inputSchema,
+      outputSchema: tool.outputSchema.shape,
       // Claude's directory reads the title from the annotations as well.
       annotations: { title: tool.title, ...tool.annotations },
       handler: (args, extra) => tool.run(deps, args, extra.signal),

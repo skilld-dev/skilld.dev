@@ -8,11 +8,21 @@ function deps(fetchApi: McpToolDeps['fetchApi'] = vi.fn()): McpToolDeps {
   return { fetchApi, reportError: vi.fn() }
 }
 
-async function runTool(toolName: string, args: unknown, toolDeps = deps(), signal?: AbortSignal): Promise<McpToolResult> {
+function toolNamed(toolName: string) {
   const tool = mcpTools.find(candidate => candidate.name === toolName)
   if (!tool)
     throw new Error(`Missing tool: ${toolName}`)
-  return tool.run(toolDeps, args, signal)
+  return tool
+}
+
+async function runTool(toolName: string, args: unknown, toolDeps = deps(), signal?: AbortSignal): Promise<McpToolResult> {
+  return toolNamed(toolName).run(toolDeps, args, signal)
+}
+
+/** The MCP SDK rejects an answer that breaks the tool's output schema, so every success must parse. */
+function structured(toolName: string, result: McpToolResult): any {
+  expect(result.isError).not.toBe(true)
+  return toolNamed(toolName).outputSchema.parse(result.structuredContent)
 }
 
 function problem(code: 'NOT_FOUND' | 'RATE_LIMITED' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE' | 'INVALID_REQUEST', status: number): Response {
@@ -34,16 +44,14 @@ describe('mCP public SDK discovery', () => {
 
     const result = await runTool('search_skills', { query: 'tailwind', limit: 1 }, deps(fetchApi), signal)
 
-    const linked = {
-      ...response,
-      items: response.items.map(item => ({
-        ...item,
-        pageUrl: `https://skilld.dev/gh/${item.source.owner}/${item.source.repository}/${item.source.selector.name}`,
-        runCommand: `npx skilld run ${item.source.owner}/${item.source.repository}/${item.source.selector.name}`,
-      })),
+    const answer = structured('search_skills', result)
+    expect(answer.query).toBe('tailwind')
+    expect(answer.total).toBe(response.total)
+    for (const item of response.items) {
+      const ref = `${item.source.owner}/${item.source.repository}/${item.source.selector.name}`
+      expect(answer.items).toContainEqual(expect.objectContaining({ ref, pageUrl: `https://skilld.dev/gh/${ref}`, runCommand: `npx skilld run ${ref}` }))
+      expect(result.content[0]!.text).toContain(`npx skilld run ${ref}`)
     }
-    expect(result.structuredContent).toEqual(linked)
-    expect(JSON.parse(result.content[0]!.text)).toEqual(linked)
     const [input, options] = fetchApi.mock.calls[0]!
     const url = new URL(input)
     expect(url.pathname).toBe('/api/v1/skills')
@@ -60,7 +68,13 @@ describe('mCP public SDK discovery', () => {
       name: 'web-design-guidelines',
     }, deps(fetchApi))
 
-    expect(result.structuredContent).toEqual(response)
+    expect(structured('get_skill', result)).toMatchObject({
+      ref: `${response.owner}/${response.repository}/${response.name}`,
+      pageUrl: response.pageUrl,
+      runCommand: response.runCommand,
+      installCommand: response.installCommand,
+    })
+    expect(result.content[0]!.text).toContain(response.runCommand)
     expect(fetchApi).toHaveBeenCalledWith(
       'https://skilld.dev/api/v1/skills/vercel-labs/agent-skills/web-design-guidelines',
       expect.objectContaining({ method: 'GET' }),
@@ -74,9 +88,9 @@ describe('mCP public SDK discovery', () => {
     }
     const toolDeps = deps(vi.fn().mockResolvedValue(Response.json(response)))
     const result = await runTool('get_skill', { owner: 'a', repo: 'b', name: 'c' }, toolDeps)
-    expect(result.isError).not.toBe(true)
-    expect(result.structuredContent).toEqual(response)
-    expect(JSON.parse(result.content[0]!.text)).toEqual(response)
+    expect(structured('get_skill', result).skillMarkdown).toBe(response.markdown)
+    expect(result.content[0]!.text).toContain(response.markdown)
+    expect(result.content[0]!.text).toContain(response.runCommand)
     expect(toolDeps.reportError).not.toHaveBeenCalled()
   })
 
@@ -144,15 +158,16 @@ describe('browse tools', () => {
     const response = tracksV1.operations.list.docs.examples[0]!.response
     const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
     const result = await runTool('list_tracks', {}, deps(fetchApi))
-    expect(result.structuredContent).toEqual(response)
+    const answer = structured('list_tracks', result)
+    expect(answer.items.map((track: { slug: string }) => track.slug)).toEqual(response.items.map(track => track.slug))
     expect(new URL(fetchApi.mock.calls[0]![0]).pathname).toBe('/api/v1/tracks')
   })
 
   it('reads one track with bounded pagination', async () => {
     const response = tracksV1.operations.get.docs.examples[0]!.response
     const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
-    const result = await runTool('get_track', { slug: 'design' }, deps(fetchApi))
-    expect(result.structuredContent).toEqual(response)
+    const result = await runTool('get_track', { slug: 'design', offset: 0 }, deps(fetchApi))
+    expect(structured('get_track', result)).toMatchObject({ slug: response.slug, total: response.total, offset: 0 })
     expect(fetchApi).toHaveBeenCalledWith(
       'https://skilld.dev/api/v1/tracks/design?limit=10&offset=0',
       expect.objectContaining({ method: 'GET' }),
@@ -163,7 +178,10 @@ describe('browse tools', () => {
     const response = trendingV1.operations.list.docs.examples[0]!.response
     const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
     const result = await runTool('list_trending', { window: 'month', limit: 5 }, deps(fetchApi))
-    expect(result.structuredContent).toEqual(response)
+    const answer = structured('list_trending', result)
+    expect(answer.window).toBe('month')
+    expect(answer.items.map((row: { rank: number }) => row.rank)).toEqual(response.items.map((_, index) => index + 1))
+    expect(result.content[0]!.text).toContain('past month')
     const url = new URL(fetchApi.mock.calls[0]![0])
     expect(url.pathname).toBe('/api/v1/trending')
     expect(Object.fromEntries(url.searchParams)).toEqual({ window: 'month', limit: '5' })
@@ -174,7 +192,9 @@ describe('browse tools', () => {
     const skills = Array.from({ length: 3 }, (_, index) => ({ ...example.skills[0]!, name: `skill-${index}` }))
     const fetchApi = vi.fn().mockResolvedValue(Response.json({ ...example, skills }))
     const result = await runTool('get_repository', { owner: 'vercel-labs', repo: 'agent-skills', limit: 2 }, deps(fetchApi))
-    expect(result.structuredContent).toEqual({ ...example, skills: skills.slice(0, 2), total: 3 })
+    const answer = structured('get_repository', result)
+    expect(answer.items.map((item: { ref: string }) => item.ref)).toEqual(['vercel-labs/agent-skills/skill-0', 'vercel-labs/agent-skills/skill-1'])
+    expect(answer.total).toBe(3)
     expect(fetchApi).toHaveBeenCalledWith(
       'https://skilld.dev/api/v1/repositories/vercel-labs/agent-skills',
       expect.objectContaining({ method: 'GET' }),
@@ -210,9 +230,10 @@ describe('submit_repository', () => {
     const response = indexedExample!.response
     const fetchApi = vi.fn().mockResolvedValue(Response.json(response, { status: 201 }))
     const result = await runTool('submit_repository', { repository: 'vercel-labs/agent-skills' }, deps(fetchApi))
-    expect(result.structuredContent).toEqual({
-      ...response,
-      total: (response as { skills: unknown[] }).skills.length,
+    expect(structured('submit_repository', result)).toEqual({
+      status: 'indexed',
+      repository: 'vercel-labs/agent-skills',
+      skillCount: (response as { skills: unknown[] }).skills.length,
       pageUrl: 'https://skilld.dev/gh/vercel-labs/agent-skills',
     })
     const [input, options] = fetchApi.mock.calls[0]!
@@ -225,8 +246,9 @@ describe('submit_repository', () => {
     const response = queuedExample!.response as { id: string }
     const fetchApi = vi.fn().mockResolvedValue(Response.json(response, { status: 201 }))
     const result = await runTool('submit_repository', { repository: 'https://github.com/vercel-labs/agent-skills' }, deps(fetchApi))
-    expect(result.structuredContent).toEqual({
-      ...response,
+    expect(structured('submit_repository', result)).toMatchObject({
+      status: 'queued',
+      id: response.id,
       pageUrl: 'https://skilld.dev/gh/vercel-labs/agent-skills',
       statusUrl: `https://skilld.dev/api/v1/index-requests/${response.id}`,
     })
@@ -256,7 +278,7 @@ describe('install_command', () => {
     ['gh:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
   ])('%s -> %s', async (ref, command) => {
     const result = await runTool('install_command', { ref })
-    expect((result.structuredContent as any).command).toBe(command)
+    expect(structured('install_command', result).command).toBe(command)
   })
 
   it('offers the run command for a skill ref', async () => {
@@ -266,15 +288,15 @@ describe('install_command', () => {
 
   it('has no run command for a ref that names more than one skill', async () => {
     const result = await runTool('install_command', { ref: 'gh:nuxt/nuxt' })
-    expect((result.structuredContent as any).runCommand).toBeNull()
+    expect(structured('install_command', result)).not.toHaveProperty('runCommand')
   })
 
-  it('keeps skilld run out of the note when the ref has no run command', async () => {
+  it('mentions skilld run only for a ref that has a run command', async () => {
     const multi = await runTool('install_command', { ref: 'gh:nuxt/nuxt' })
-    expect((multi.structuredContent as any).note).not.toContain('skilld run')
+    expect(multi.content[0]!.text).not.toContain('skilld run')
 
     const single = await runTool('install_command', { ref: 'anthropics/skills/skill-creator' })
-    expect((single.structuredContent as any).note).toContain('skilld run')
+    expect(single.content[0]!.text).toContain('skilld run')
   })
 
   it.each(['@harlan-zw', '@harlan-zw/agent-building-stack'])('rejects the curator or collection ref %s', async (ref) => {

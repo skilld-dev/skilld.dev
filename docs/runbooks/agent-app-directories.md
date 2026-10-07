@@ -16,7 +16,7 @@ Both portals scan the tools from the live server. Every tool must keep these pro
 - A description that says what the tool does. It must not tell the model how to behave, call other apps, or fetch instructions from a URL.
 - Output that holds only what the request needs. Do not add request IDs, trace IDs, or debug fields.
 
-`layers/mcp/shared/mcp-tools.ts` holds the tools. The toolkit answers 403 to a request whose `Origin` header is not in `mcp.security.allowedOrigins` in `nuxt.config.ts`.
+`layers/mcp/shared/mcp-tools.ts` holds the tools. `layers/mcp/shared/mcp-presenters.ts` shapes each answer: Markdown in `content` for the model, and a compact copy in `structuredContent` that the MCP SDK checks against the tool's `outputSchema`. The public API answers stay complete for the CLI and the SDK. The toolkit answers 403 to a request whose `Origin` header is not in `mcp.security.allowedOrigins` in `nuxt.config.ts`.
 
 ## Change a tool
 
