@@ -60,6 +60,7 @@ Public grants without the header select the newest attestation. Private grants r
 
 A public build streams the Repository archive from codeload and never holds the whole Skill.
 The limits, the constraint behind each, and linked files: [ADR-0013](../adr/0013-artifact-size-limits-and-linked-files.md).
+A build follows each symbolic link in the Skill folder and packs the files it names: [ADR-0014](../adr/0014-symbolic-links-in-a-skill-folder.md).
 
 After a contract change in the `skilld-dev/skilld` repository, run `pnpm --filter skilld-sdk generate` and commit the document.
 Publish the new SDK version from that repository's `release.yml`. Then update this site's exact catalog pin.

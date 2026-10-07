@@ -571,6 +571,7 @@ async function loadStoredBuild(
     !attestation
     || (attestation.policyVersion !== ARTIFACT_POLICY_VERSION && !BYTE_COMPATIBLE_POLICY_VERSIONS.has(attestation.policyVersion))
     || !omittedNothing(attestation)
+    || !followedNoSymbolicLink(attestation)
     || !attestationMatchesRecord(attestation, ready)
     || !await verifyArtifactAttestation(attestation, dependencies.trustedRoot, dependencies.now())
   ) {
@@ -610,6 +611,16 @@ async function loadStoredBuild(
 function omittedNothing(attestation: ArtifactAttestation): boolean {
   const omitted = attestation.checkResults.find(check => check.name === 'omitted-files')
   return omitted === undefined || omitted.outcome === 'pass'
+}
+
+/**
+ * Whether a stored build met no symbolic link. Its stored files cannot show
+ * which ones a link put there, so the check could not be made again from
+ * them. Policies before the `symbolic-links` check refused every link.
+ */
+function followedNoSymbolicLink(attestation: ArtifactAttestation): boolean {
+  const links = attestation.checkResults.find(check => check.name === 'symbolic-links')
+  return links === undefined || links.outcome === 'pass'
 }
 
 /**
@@ -799,6 +810,7 @@ async function loadAndCheck(
     files: plan.files,
     read: plan.read,
     omitted: plan.omitted,
+    symbolicLinks: plan.symbolicLinks,
     spoolBytes: row.visibility === 'private' ? Number.POSITIVE_INFINITY : ARTIFACT_SPOOL_BYTES,
   })
   if (scanned._tag === 'rejected')

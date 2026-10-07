@@ -231,10 +231,6 @@ describe('public GitHub Artifact source', () => {
 
   it.each([
     {
-      name: 'symbolic link',
-      unsafe: { path: 'references/latest', mode: '120000', type: 'blob', sha: '3'.repeat(40), size: 4 },
-    },
-    {
       name: 'Git submodule',
       unsafe: { path: 'references/vendor', mode: '160000', type: 'commit', sha: '4'.repeat(40) },
     },

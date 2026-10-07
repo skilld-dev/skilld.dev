@@ -1,6 +1,7 @@
 import type { Hash } from 'node:crypto'
 import type { ArtifactFile, CheckResult, ResolvedSource } from '../schemas/contracts'
 import type { ArtifactSourceFile, OmittedArtifactFile } from './github-source'
+import type { SymbolicLinkNote } from './symbolic-links'
 import { createHash } from 'node:crypto'
 import { ARTIFACT_POLICY_VERSION } from './state'
 
@@ -28,6 +29,12 @@ const EXECUTABLE_FILES_VERSION = '1'
  * accepts any check result that is not required.
  */
 const OMITTED_FILES_VERSION = '1'
+/**
+ * Lists each symbolic link in the Skill folder: followed, so the files it
+ * names are packed at the link path, or left out. It is not required, for
+ * the same reason as `omitted-files`. ADR-0014.
+ */
+const SYMBOLIC_LINKS_VERSION = '1'
 /** The skilld CLI refuses a check result with more findings, or a longer one. */
 const MAX_CHECK_FINDINGS = 100
 const MAX_CHECK_FINDING_CHARACTERS = 500
@@ -35,12 +42,18 @@ const MAX_CHECK_FINDING_CHARACTERS = 500
 /** The checks a statement under one policy carries, by check name. */
 export type ArtifactCheckSet = ReadonlyMap<string, { version: string, required: boolean }>
 
-const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
+/** The checks of policy `2026-10-07.3`, which refused every symbolic link. */
+const POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS: ArtifactCheckSet = new Map([
   ['path-policy', { version: PATH_POLICY_VERSION, required: true }],
   ['agent-skills-spec', { version: AGENT_SKILLS_CHECK_VERSION, required: false }],
   ['credential-material', { version: CREDENTIAL_MATERIAL_VERSION, required: true }],
   ['executable-files', { version: EXECUTABLE_FILES_VERSION, required: false }],
   ['omitted-files', { version: OMITTED_FILES_VERSION, required: false }],
+])
+
+const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
+  ...POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS,
+  ['symbolic-links', { version: SYMBOLIC_LINKS_VERSION, required: false }],
 ])
 
 /**
@@ -58,9 +71,9 @@ const CURRENT_ARTIFACT_CHECKS: ArtifactCheckSet = new Map([
  */
 export const SIGNABLE_ARTIFACT_POLICIES: ReadonlyMap<string, ArtifactCheckSet> = new Map([
   [ARTIFACT_POLICY_VERSION, CURRENT_ARTIFACT_CHECKS],
-  // ADR-0013 changed loading and packaging only, so the policy before it
-  // carries the same checks.
-  ['2026-10-07.2', CURRENT_ARTIFACT_CHECKS],
+  // ADR-0014 follows symbolic links and adds the `symbolic-links` check. The
+  // policy before it refused every link, so the bump closes no safety gap.
+  ['2026-10-07.3', POLICY_BEFORE_SYMBOLIC_LINKS_CHECKS],
 ])
 
 export interface CheckedArtifactSource {
@@ -72,6 +85,7 @@ export async function checkArtifactSource(
   source: ResolvedSource,
   files: ArtifactSourceFile[],
   omitted: OmittedArtifactFile[] = [],
+  symbolicLinks: SymbolicLinkNote[] = [],
 ): Promise<CheckedArtifactSource> {
   const scanner = createArtifactCheckScanner(source)
   for (const file of files) {
@@ -79,7 +93,7 @@ export async function checkArtifactSource(
     scanner.chunk(file.bytes)
     scanner.end()
   }
-  return scanner.finish(omitted)
+  return scanner.finish(omitted, symbolicLinks)
 }
 
 /** Receives the Skill files one at a time, each as a run of chunks. */
@@ -90,7 +104,7 @@ export interface ArtifactFileObserver {
 }
 
 export interface ArtifactCheckScanner extends ArtifactFileObserver {
-  finish: (omitted: OmittedArtifactFile[]) => CheckedArtifactSource
+  finish: (omitted: OmittedArtifactFile[], symbolicLinks: SymbolicLinkNote[]) => CheckedArtifactSource
 }
 
 /**
@@ -146,7 +160,7 @@ export function createArtifactCheckScanner(source: ResolvedSource): ArtifactChec
       if (file.skill)
         skillBytes = file.skill
     },
-    finish(omitted) {
+    finish(omitted, symbolicLinks) {
       if (current)
         throw new Error(`The check scanner did not end ${current.path}`)
       const pathPolicy: CheckResult = pathFindings.length > 0
@@ -202,6 +216,7 @@ export function createArtifactCheckScanner(source: ResolvedSource): ArtifactChec
           credentialMaterial,
           executableFiles,
           omittedFilesResult(omitted),
+          symbolicLinksResult(symbolicLinks),
         ],
       }
     },
@@ -375,6 +390,36 @@ function omittedFilesResult(omitted: OmittedArtifactFile[]): CheckResult {
         ? finding
         : `${file.path}: ${file.bytes.toLocaleString('en-US')} bytes`.slice(0, MAX_CHECK_FINDING_CHARACTERS)
     }),
+  }
+}
+
+/** One symbolic link, as the `symbolic-links` check lists it. */
+function symbolicLinkFinding(note: SymbolicLinkNote): string {
+  if (note._tag === 'followed')
+    return `${note.path} -> ${note.target}`
+  if (note._tag === 'holds-itself')
+    return `${note.path} -> ${note.target}: left out, the folder holds the link`
+  return `${note.path}: left out, it is a link inside a followed folder`
+}
+
+function symbolicLinksResult(notes: SymbolicLinkNote[]): CheckResult {
+  if (notes.length === 0)
+    return { name: 'symbolic-links', version: SYMBOLIC_LINKS_VERSION, outcome: 'pass', required: false }
+  const followed = notes.filter(note => note._tag === 'followed').length
+  const leftOut = notes.length - followed
+  const sentences = [
+    followed === 1 ? '1 symbolic link was followed. Its files are packed at the link path.' : null,
+    followed > 1 ? `${followed} symbolic links were followed. Their files are packed at the link paths.` : null,
+    leftOut === 1 ? '1 symbolic link was left out.' : null,
+    leftOut > 1 ? `${leftOut} symbolic links were left out.` : null,
+  ]
+  return {
+    name: 'symbolic-links',
+    version: SYMBOLIC_LINKS_VERSION,
+    outcome: 'warn',
+    required: false,
+    summary: `${sentences.filter(sentence => sentence !== null).join(' ')}${listedNote(notes.map(symbolicLinkFinding))}`,
+    findings: boundedFindings(notes.map(symbolicLinkFinding)),
   }
 }
 

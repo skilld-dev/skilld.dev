@@ -26,7 +26,7 @@ import { canonicalJson, digestHex } from './encoding'
  * The signer also signs the policy before this one, so a deploy window fails
  * no run. Update `SIGNABLE_ARTIFACT_POLICIES` in `checks.ts` with each bump.
  */
-export const ARTIFACT_POLICY_VERSION = '2026-10-07.3'
+export const ARTIFACT_POLICY_VERSION = '2026-10-07.4'
 
 /**
  * Earlier policies under which every ready build packed the bytes this policy
@@ -36,6 +36,8 @@ export const ARTIFACT_POLICY_VERSION = '2026-10-07.3'
  * A bump that changes only checks adds the version it replaces. A bump that
  * changes the bytes of a folder an earlier policy accepted empties this set.
  *
+ * - `2026-10-07.3`: ADR-0014 follows the symbolic links that policy refused.
+ *   A folder it accepted held no link, so it packs the same files.
  * - `2026-10-07.2`: ADR-0013 streams the archive and raises the limits, so
  *   it packs folders that policy refused or left files out of. A folder it
  *   packed whole packs the same files. Artifact order moved from UTF-16 to
@@ -46,7 +48,7 @@ export const ARTIFACT_POLICY_VERSION = '2026-10-07.3'
  *   refused. Every folder it accepted packs the same files.
  * - `2026-08-20.1`: #481 changed checks and Skill name resolution only.
  */
-export const BYTE_COMPATIBLE_POLICY_VERSIONS: ReadonlySet<string> = new Set(['2026-10-07.2', '2026-10-07.1', '2026-08-20.1'])
+export const BYTE_COMPATIBLE_POLICY_VERSIONS: ReadonlySet<string> = new Set(['2026-10-07.3', '2026-10-07.2', '2026-10-07.1', '2026-08-20.1'])
 
 export const ACTIVE_BUILD_STATES = [
   'requested',

@@ -98,6 +98,7 @@ describe('artifact scan', () => {
       files: files.map(file => file.packed),
       read: memoryReader(files, 3),
       omitted: [],
+      symbolicLinks: [],
       spoolBytes: 1024 * 1024,
     })
 
@@ -120,6 +121,7 @@ describe('artifact scan', () => {
       files: files.map(file => file.packed),
       read: memoryReader(files, 1000),
       omitted: [],
+      symbolicLinks: [],
       spoolBytes: 2048,
     })
 
@@ -139,7 +141,7 @@ describe('artifact scan', () => {
       return await memoryReader(served, 5)(sink, readFromGithub)
     }
 
-    const scanned = await scanArtifact({ source, files: files.map(file => file.packed), read, omitted: [], spoolBytes: 1024 * 1024 })
+    const scanned = await scanArtifact({ source, files: files.map(file => file.packed), read, omitted: [], symbolicLinks: [], spoolBytes: 1024 * 1024 })
 
     expect(scanned).toMatchObject({ _tag: 'scanned', readFromGithub: new Set(['references/guide.md']) })
     expect(asked.map(paths => [...paths])).toEqual([[], ['references/guide.md']])
@@ -156,6 +158,7 @@ describe('artifact scan', () => {
       files: files.map(file => file.packed),
       read: memoryReader(tampered, 5),
       omitted: [],
+      symbolicLinks: [],
       spoolBytes: 1024 * 1024,
     })
 

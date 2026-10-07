@@ -81,6 +81,7 @@ describe('reading Skill files from the Repository archive', () => {
       commitSha,
       skillPath: 'skills/demo',
       files: plan,
+      linkSources: new Map(),
       maxArchiveBytes: 64 * 1024 * 1024,
       budget: { githubReads: 0 },
     })
@@ -359,6 +360,7 @@ async function readAll(
     commitSha,
     skillPath: options.skillPath ?? 'skills/demo',
     files,
+    linkSources: new Map(),
     maxArchiveBytes: options.maxArchiveBytes ?? 64 * 1024 * 1024,
     budget: { githubReads: options.githubReads ?? 100 },
     gunzip: inflated.stream,
