@@ -135,7 +135,9 @@
     "ARTIFACT_PRIVATE_ACCESS_ENABLED": "false",
     "ARTIFACT_KEY_WRAP_KEY_ACTIVE_SLOT": "primary",
     "ARTIFACT_KEY_WRAP_KEY_PRIMARY_ID": "skilld-wrap-2026-08",
-    "ARTIFACT_KEY_WRAP_KEY_SECONDARY_ID": ""
+    "ARTIFACT_KEY_WRAP_KEY_SECONDARY_ID": "",
+    // Public token the OpenAI plugin portal reads at /.well-known/openai-apps-challenge.
+    "NUXT_OPENAI_APPS_CHALLENGE": "IygUmSBQJVU5v275Y6kWojVpQkVxqckQf4k8cVmBiys"
   },
   "ai": {
     "binding": "AI",

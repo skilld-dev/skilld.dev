@@ -75,3 +75,11 @@ Any paid Claude plan can submit. Use these fields in the portal.
 Before you submit, add the server in Claude as a custom connector and call each tool once.
 After submission, Anthropic scans the server and lists it as a Community connector.
 Status and reviewer feedback appear in the portal. Escalations go to `mcp-review@anthropic.com`.
+
+## Icons
+
+Claude shows a connector's icon from Google's favicon service (`google.com/s2/favicons?domain=skilld.dev`), not from skilld.dev directly.
+Google caches that icon. Until 2026-10-07 it served a retired skilld mark, because the site declared no large icon.
+The site now declares `/apple-touch-icon.png`, and the MCP server lists its icons in `serverInfo.icons`.
+The Claude listing sets its custom icon URL to `https://skilld.dev/logo-icon.png`, which overrides the favicon in the directory listing only.
+The chat tile updates when Google refreshes its cache.
