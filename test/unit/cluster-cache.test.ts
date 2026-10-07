@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { H3Event } from 'h3'
 import type { DatabaseSync } from 'node:sqlite'
 import type { SqliteD1 } from './helpers/d1-sqlite'

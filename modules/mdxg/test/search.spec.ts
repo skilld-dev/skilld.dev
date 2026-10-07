@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { MdxgDocument, MdxgPage } from '../src/runtime/types'
 import { describe, expect, it } from 'vitest'
 import { searchMdxg } from '../src/runtime/utils/mdxg'

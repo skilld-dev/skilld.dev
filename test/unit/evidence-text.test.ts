@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { cleanEvidenceText, EVIDENCE_MAX_CHARS } from '../../shared/evidence-text'
 

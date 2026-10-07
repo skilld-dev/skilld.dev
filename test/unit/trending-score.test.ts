@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { EngagementCounts, ScoredPostInput } from '../../shared/trending-score'
 import { describe, expect, it } from 'vitest'
 import {

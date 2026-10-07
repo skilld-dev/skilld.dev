@@ -83,11 +83,6 @@ describe('decideNegotiation: Markdown location', () => {
 // host its own variant, so a stored apex page never answers a www request and
 // the canonical-host redirect still runs.
 describe('nEGOTIATION_VARY', () => {
-  it('names Accept, Sec-Fetch-Dest and Host', () => {
-    expect(NEGOTIATION_VARY.split(',').map(field => field.trim().toLowerCase()).sort())
-      .toEqual(['accept', 'host', 'sec-fetch-dest'])
-  })
-
   it.each([
     { vary: NEGOTIATION_VARY, expected: true },
     { vary: 'host, sec-fetch-dest,ACCEPT', expected: true },

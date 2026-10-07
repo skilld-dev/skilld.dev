@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, describe, expect, it } from 'vitest'
 import { clusterMembersSql } from '../../layers/registry/server/utils/cluster-membership'
 import { COMMUNITY_DIRECTORY_SQL } from '../../server/utils/community'

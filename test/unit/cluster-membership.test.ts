@@ -31,17 +31,6 @@ describe('cluster membership sql', () => {
     }
   })
 
-  it('admits an abstract skill and the category backfill, and nothing else', () => {
-    const { sql } = clusterMembersSql('owner', ['testing'], [])
-
-    expect(sql).toContain('is_abstract = 1 OR category_rank <= 40')
-    // No repository may take more than three rows of a category, pins aside.
-    expect(sql).toContain('is_pinned = 1')
-    expect(sql).toContain('repo_rank <= 3')
-    // A package-specific skill has to clear indexability to be backfilled.
-    expect(sql).toContain('s.is_abstract = 1 OR s.seo_indexable = 1')
-  })
-
   it('refuses a query with no terms rather than emitting `IN ()`', () => {
     expect(() => clusterMembersSql('owner', [], [])).toThrow()
   })

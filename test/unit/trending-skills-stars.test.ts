@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { loadTrendingSkills } from '../../shared/server/trending-skills'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'

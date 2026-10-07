@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { defineCheck, pass, runChecks, runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
 import { describe, expect, it, vi } from 'vitest'
 import healthEmailCheck from '../../checks/external/report'

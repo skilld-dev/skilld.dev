@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { AGENT_PAGES, agentPageById, compareCliVersions, publishedAgentPages, selectAgentSkills, unpublishedAgentPaths } from '../../layers/marketing/app/utils/agent-pages'
 
 describe('agentPageById', () => {

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { buildRetiredSitemapEntries, isRetiredSitemapActive } from '../../layers/registry/server/utils/retired-sitemap'
 

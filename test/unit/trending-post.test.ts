@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { PostSegment } from '../../shared/trending-post'
 import { describe, expect, it } from 'vitest'
 import { postExcerpt, relativeDay } from '../../shared/trending-post'

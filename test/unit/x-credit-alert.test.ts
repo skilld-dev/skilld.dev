@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { SendEmailInput, SendEmailResult } from '../../layers/identity/server/utils/email'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { notifyXCreditDepletion } from '../../server/utils/x-credit-alert'

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import { useTokenCreation } from '../../layers/identity/app/composables/useTokenCreation'
 

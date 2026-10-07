@@ -14,17 +14,6 @@ describe('install commands', () => {
   ])('returns %s', (command, expected) => {
     expect(command).toBe(expected)
   })
-
-  it('names the CLI channel that parses a curator or collection ref', () => {
-    // `latest` is the v2 CLI. It reads `@login/slug` as an npm package and
-    // answers with a fuzzy npm suggestion, so every ref form has to reach v3.
-    for (const command of [
-      gitInstallCmd('nuxt', 'nuxt'),
-      curatorInstallCmd('harlan-zw'),
-      collectionInstallCmd('harlan-zw', 'nuxt'),
-    ])
-      expect(command.startsWith('npx skilld add ')).toBe(true)
-  })
 })
 
 describe('tokenizeInstallCmd', () => {

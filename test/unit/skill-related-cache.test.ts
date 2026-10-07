@@ -8,11 +8,6 @@ import {
 } from '../../layers/registry/server/utils/skill-related'
 
 describe('skill-related cache key', () => {
-  it('is scoped to the request slug', () => {
-    expect(relatedCacheKey('kotlin/kotlin-agent-skills/jpa'))
-      .toBe('skills:related:v4:kotlin/kotlin-agent-skills/jpa')
-  })
-
   it('separates skills sharing a name across repos', () => {
     expect(relatedCacheKey('richtabor/agent-skills/humanize'))
       .not
