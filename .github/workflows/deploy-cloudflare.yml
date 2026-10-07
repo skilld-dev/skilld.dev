@@ -163,25 +163,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 2
-      - name: Detect Harness changes
-        id: changes
-        run: |
-          if [ "${{ github.event_name }}" = workflow_dispatch ] || ! git diff --quiet HEAD^ HEAD -- workers/skill-harness pnpm-workspace.yaml pnpm-lock.yaml .github/workflows/deploy-cloudflare.yml; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-            echo 'The Harness Worker did not change, so it keeps its current version.' >> "$GITHUB_STEP_SUMMARY"
-          fi
+          # The live version's commit can be many merges back.
+          fetch-depth: 0
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        if: steps.changes.outputs.deploy == 'true'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: steps.changes.outputs.deploy == 'true'
         with:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-        if: steps.changes.outputs.deploy == 'true'
+      # Compares the commit the live version was built from, not HEAD^. A merge
+      # that cancels an earlier run would otherwise hide that run's Harness change.
+      - name: Detect Harness changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            pnpm exec tsx scripts/harness-deploy-plan.ts
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Check the Harness Worker
         if: steps.changes.outputs.deploy == 'true'
         run: |
@@ -190,7 +192,9 @@ jobs:
           pnpm --filter @skilld/skill-harness-worker test:run
       - name: Deploy the Harness proof
         if: steps.changes.outputs.deploy == 'true'
-        run: pnpm --filter @skilld/skill-harness-worker deploy:proof
+        # The tag names the commit, so the next run diffs from what is live.
+        run: pnpm --filter @skilld/skill-harness-worker deploy:proof --tag "${COMMIT:0:12}" --message "$COMMIT"
         env:
+          COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
