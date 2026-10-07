@@ -59,7 +59,7 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
 export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
   '/skills/demos': {
     targetQuery: 'claude skills examples',
-    admissionBar: '720 searches a month, KD 32. NuxtSEO research keywords, 2026-10-06. Holds only demos a human approved by merging, and renders noindex below six. Review at the 2026-11-11 gate.',
+    admissionBar: '720 searches a month, KD 32. NuxtSEO research keywords, 2026-10-06. Holds only demos a human approved by merging, and renders noindex below six. Covers each demo page, `/skills/demos/<owner>/<repo>/<name>`, which targets "<skill> skill example" (owner-approved 2026-10-07; volume not measured). Review at the 2026-11-11 gate.',
   },
   '/compare/humanize-writing-skills': {
     targetQuery: 'best humanizer skill for claude',

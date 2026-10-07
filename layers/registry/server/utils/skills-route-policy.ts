@@ -26,7 +26,9 @@ const marketingPaths = new Set([
   ...CULLED_CLUSTER_SLUGS.map(slug => `/skills/${slug}`),
 ])
 
-const marketingPrefixes = ['/skills/tag/']
+// A demo page is `/skills/demos/<owner>/<repo>/<name>`. It must reach the
+// page, not the legacy `/gh` redirect below.
+const marketingPrefixes = ['/skills/tag/', '/skills/demos/']
 
 export function resolveSkillsRoute(
   pathname: string,
