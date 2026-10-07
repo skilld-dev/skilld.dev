@@ -55,10 +55,24 @@ const chunks = computed<ListChunk[]>(() => [
     <ol class="board-list editorial-ledger list-none p-0" :start="chunk.start">
       <li v-for="(row, offset) in chunk.rows" :key="row.key">
         <TrendingBoardItem
+          v-if="chunkIndex === 0"
           :row="row"
           :rank="chunk.start + offset"
           :surface="surface"
           @avatar-error="owner => emit('avatarError', owner)"
+        />
+        <!--
+          Rows past the head render on the server with every post, and hydrate
+          once they scroll into view. Hydrating all thirty rows at once was
+          the board's longest task.
+        -->
+        <LazyTrendingBoardItem
+          v-else
+          hydrate-on-visible
+          :row="row"
+          :rank="chunk.start + offset"
+          :surface="surface"
+          @avatar-error="(owner: string) => emit('avatarError', owner)"
         />
       </li>
     </ol>
