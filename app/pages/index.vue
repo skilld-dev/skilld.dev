@@ -130,6 +130,9 @@ const showTrending = computed(() => (trendingData.value?.board.length ?? 0) >= H
 
 const weekBoardPath = trendingRangeMeta('week').path
 
+/** The first row ranked by posts, for the ranking picture in the Why band. */
+const whyTrendingRow = computed(() => trendingBoard.value.find(row => row.reason._tag === 'posts') ?? null)
+
 /** Real Skill names from this week's trending repositories, for the hero texture. */
 const heroTextureNames = computed(() => trendingData.value?.textureNames ?? [])
 
@@ -315,6 +318,8 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
         </template>
       </div>
     </section>
+
+    <HomeWhy :trending-row="whyTrendingRow" />
 
     <HomeAgents />
 

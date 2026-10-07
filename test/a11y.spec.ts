@@ -1,6 +1,8 @@
 import type { AxeResults, RunOptions } from 'axe-core'
 import type { Component } from 'vue'
 import type { WeeklyDemoResponse } from '../../server/api/weekly/demo.get'
+import type { HomeDemoItem } from '../app/utils/home-demos'
+import type { TrendingBoardRow } from '../shared/trending-range'
 import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
@@ -781,6 +783,102 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  /** The head of a trending board, ranked by two posts. */
+  const WHY_TRENDING_ROW: TrendingBoardRow = {
+    key: 'acme/brag/brag',
+    owner: 'acme',
+    repo: 'brag',
+    name: 'brag',
+    title: 'brag',
+    to: '/gh/acme/brag',
+    subtitle: null,
+    description: 'Makes a launch film.',
+    stars: 120,
+    starSeries: [],
+    names: ['brag'],
+    skill: { owner: 'acme', repo: 'brag', name: 'brag' },
+    reason: {
+      _tag: 'posts',
+      posts: [
+        { url: 'https://x.com/ada/status/1', text: 'Tried /brag on our launch, it made the whole film.', platform: 'x', handle: 'ada', authorName: 'Ada', authorAvatar: null, likes: 4, when: '1d' },
+        { url: 'https://x.com/lin/status/2', text: 'brag is great', platform: 'x', handle: 'lin', authorName: 'Lin', authorAvatar: null, likes: 1, when: '2d' },
+      ],
+      mentionsByDay: [0, 0, 0, 0, 0, 1, 1],
+    },
+  }
+
+  const WHY_DEMO: HomeDemoItem = {
+    owner: 'acme',
+    repo: 'brag',
+    name: 'brag',
+    skillPath: 'SKILL.md',
+    makes: 'film',
+    authorName: 'Ada',
+    sourceUrl: 'https://github.com/acme/brag/blob/main/SKILL.md',
+    prompt: 'Make a short launch film for this project.',
+    agent: 'Claude Code',
+    model: 'claude-opus-5-5',
+    recordedAt: '2026-10-01',
+    shots: [{ src: 'https://media.skilld.dev/brag.png', width: 1440, height: 900, alt: 'The launch film', viewport: 'desktop' }],
+    liveUrl: null,
+    video: null,
+  }
+
+  it('homeWhy has no violations, shows four reasons, and ends on the comparison', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeWhy'),
+      { attachTo: container, props: { trendingRow: WHY_TRENDING_ROW } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect([...container.querySelectorAll('h3')].map(heading => heading.textContent?.trim())).toEqual([
+      'Run a Skill once off',
+      'Read every file first',
+      'Ranked by devs, never installs',
+      'See who wrote it',
+    ])
+    // The ranking picture quotes the first post in the poster's words.
+    expect(container.textContent).toContain('@ada')
+    expect(container.querySelector('a[href="/gh/acme/brag"]')).not.toBeNull()
+    const links = [...container.querySelectorAll('a')].map(link => link.getAttribute('href'))
+    expect(links.at(-1)).toBe('/vs/skills-sh')
+    wrapper.unmount()
+  })
+
+  it('whyVisual draws every reason without violations, and no demo picture without a demo', async () => {
+    for (const id of ['run', 'files', 'devs', 'author', 'demos', 'telemetry', 'independent'] as const) {
+      const container = createIsolatedContainer()
+      const wrapper = await mountSuspended(
+        await loadComponent('why/_WhyVisual'),
+        { attachTo: container, props: { id, trendingRow: WHY_TRENDING_ROW, demo: WHY_DEMO } },
+      )
+      const results = await runAxe(container)
+      expect(results.violations, `${id}\n${formatViolations(results)}`).toHaveLength(0)
+      expect(container.querySelector('.why-panel'), id).not.toBeNull()
+      wrapper.unmount()
+    }
+
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('why/_WhyVisual'),
+      { attachTo: container, props: { id: 'demos', demo: null } },
+    )
+    expect(container.querySelector('.why-panel')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('whyVisual keeps the ranking signals when no trending row arrived', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('why/_WhyVisual'),
+      { attachTo: container, props: { id: 'devs', trendingRow: null } },
+    )
+    expect(container.textContent).toContain('never ranks')
+    expect(container.querySelector('a[href^="/gh/"]')).toBeNull()
+    wrapper.unmount()
+  })
+
   it('cliInstallChip has no violations, leads with the native install, and switches platform', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -871,6 +969,16 @@ describe('accessibility: component coverage', () => {
     'home-demos/_DemoPicture', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoRecording', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoVideo', // A part of HomeDemos; its play rules need a real browser, checked by hand
+    'why/_WhyPanel', // The frame of every Why picture, scanned inside the WhyVisual tests
+    'why/_WhyRunVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyFilesVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyDevsVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyAuthorVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyDemoVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyTelemetryVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyMakerVisual', // A Why picture, scanned inside the WhyVisual tests
+    'why/_WhyText', // The words of each reason, scanned inside the HomeWhy test
+    'why/_WhyTrustLine', // The line under the Why band, scanned inside the HomeWhy test
   ]
 
   /**
