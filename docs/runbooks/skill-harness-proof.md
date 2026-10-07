@@ -1,10 +1,10 @@
 # Skill generation on Cloudflare
 
-This proof runs `skilld-harness` against an exact public npm package version.
+This proof runs `skilld-harness` against an exact public [npm](https://npmjs.com) package version.
 It uses an existing Skill as the update baseline.
 The result includes generated files, output checks, review findings, source attempts, and model call counts.
 
-The proof produces a file bundle. GitHub tag handling and pull request publication follow this runtime proof.
+The proof produces a file bundle. [GitHub](https://github.com) tag handling and pull request publication follow this runtime proof.
 
 ## Deploy the proof
 
@@ -18,10 +18,16 @@ To deploy a branch by hand, dispatch the workflow with `target=harness-proof`.
 gh workflow run deploy-cloudflare.yml --ref BRANCH --field target=harness-proof
 ```
 
-Configure `ANTHROPIC_API_KEY` and `PROOF_TOKEN` as Worker secrets.
+By default, OpenCode runs GLM 5.3 through OpenCode Go: `PROVIDER=opencode-go` and `MODEL=glm-5.3`.
+Configure `OPENCODE_API_KEY` and `PROOF_TOKEN` as Worker secrets.
+For Anthropic, set `PROVIDER=anthropic`, a supported model, and `ANTHROPIC_API_KEY`.
 For Google, set `PROVIDER=google`, a supported model, and `GOOGLE_GENERATIVE_AI_API_KEY`.
 Use a temporary proof token. Do not put either secret in a repository file or container environment.
 The container receives a placeholder. Its outbound gateway adds the model credential inside the Worker.
+
+The runner disables model list fetches. The model must exist in the model snapshot of the pinned OpenCode.
+After a bootstrap update, run `OPENCODE_DISABLE_MODELS_FETCH=true opencode models opencode-go` with that OpenCode version.
+If the model is missing, declare it in `openCodeConfig` in `runner/run.mjs`.
 
 ## Run an update
 
@@ -52,6 +58,7 @@ Durable Object alarms check progress and enforce the fifteen minute deadline.
 The proof allows one active job and 96 model calls.
 Generation targets 35 turns. Independent review targets 20 turns.
 These turn targets guide the model. The gateway enforces the total call limit.
+OpenCode Go calls allow 8,192 output tokens. The gateway caps `max_tokens` and `max_completion_tokens`.
 Anthropic calls allow 8,192 output tokens, including a 2,048-token thinking budget.
 Google calls allow 4,096 output tokens.
 It limits each request to 512 KiB and each result to 1 MiB.
@@ -64,6 +71,8 @@ These bounds constrain usage. They do not constitute a measured dollar budget.
 
 The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the configured model provider.
 It blocks other destinations, hosted model tools, credential overrides, and model conversation reuse.
+For OpenCode Go, only chat completions pass. Every tool must have the `function` type.
+The gateway removes extra choices and service tier requests, because both raise the price.
 External documentation requests are blocked. Source files must carry the evidence for this proof.
 
 If generation fails, read `state.result.detail` and `state.result.generation` in the saved result.
