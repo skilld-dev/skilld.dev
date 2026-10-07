@@ -3,8 +3,10 @@ import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
 /**
  * The reasons the homepage band does not draw, as one quiet line: who builds
- * skilld, the CLI claim from the hero, and what the registry never sells. It
- * ends on the route to the full comparison.
+ * skilld, the CLI claim from the hero, that the Agents section reaches chat
+ * apps and fetch-only agents with no shell, and what the registry never sells.
+ * It ends on the route to the full comparison. No rule above it: the tab list
+ * already closes on one.
  */
 </script>
 
@@ -28,6 +30,9 @@ import { githubAvatarProxyUrl } from '#shared/image-proxy'
       <li>
         <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI, no telemetry</a>
       </li>
+      <li>
+        <a href="#agents">Works without a terminal</a>
+      </li>
       <li>No paid placement</li>
     </ul>
     <UButton
@@ -48,8 +53,6 @@ import { githubAvatarProxyUrl } from '#shared/image-proxy'
   align-items: center;
   justify-content: space-between;
   gap: 1rem 2rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--ui-border);
 }
 
 .why-trust__claims {

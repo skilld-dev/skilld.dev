@@ -29,10 +29,18 @@ function pick(id: WhyReasonId) {
   active.value = id
 }
 
-/** A mouse picks on hover. Touch and pen pick on tap, so a scroll never flips the stage. */
-function onPointerEnter(event: PointerEvent, id: WhyReasonId) {
-  if (event.pointerType === 'mouse')
-    pick(id)
+/**
+ * A mouse picks on hover. Touch and pen pick on tap, so a scroll never flips
+ * the stage. When a tab already holds focus, focus follows the pick, so the
+ * ring never sits on a row the stage no longer shows.
+ */
+function onPointerEnter(event: PointerEvent, id: WhyReasonId, index: number) {
+  if (event.pointerType !== 'mouse')
+    return
+  pick(id)
+  const tabs = tabRefs.value ?? []
+  if (tabs.some(tab => tab === document.activeElement))
+    tabs[index]?.focus({ preventScroll: true })
 }
 
 /** The tabs pattern: arrows move and pick, Home and End jump to the ends. */
@@ -82,7 +90,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
             :aria-controls="`why-panel-${reason.id}`"
             :tabindex="active === reason.id ? 0 : -1"
             @click="pick(reason.id)"
-            @pointerenter="onPointerEnter($event, reason.id)"
+            @pointerenter="onPointerEnter($event, reason.id, index)"
             @keydown="onKeydown($event, index)"
           >
             <span class="home-why__icon" aria-hidden="true">
@@ -155,9 +163,10 @@ function onKeydown(event: KeyboardEvent, index: number) {
   background: var(--ui-bg-elevated);
 }
 
+/* Inside the row's rules. The site-wide focus ring sets its offset with
+   !important, so the inset needs it too, or the ring overhangs the list. */
 .home-why__tab:focus-visible {
-  outline: 2px solid var(--ui-primary);
-  outline-offset: -2px;
+  outline-offset: -2px !important;
 }
 
 /* An icon tile, as in the Developers menu. The picked row inks its tile. */
