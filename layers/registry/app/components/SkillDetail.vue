@@ -1750,7 +1750,7 @@ useHead(computed(() => ({
 
       <!-- The header width, like Related: the demo answers the header question, not the file viewer one. -->
       <div v-if="data.demo" class="mx-auto max-w-5xl px-4 pt-6 sm:px-6 md:pt-8">
-        <SkillDemo :demo="data.demo" :on-board="!runFlag" />
+        <SkillDemo :demo="data.demo" :on-board="!runFlag && !data.demo.skillPageOnly" />
       </div>
 
       <!-- The two command blocks are breakpoint twins, so neither can hold the anchor. -->

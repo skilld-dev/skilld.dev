@@ -18,6 +18,10 @@ import manifest from '../data/skill-demos.json'
  * Media lives at `DEMO_MEDIA_ORIGIN`, the bucket's custom domain, under
  * content-hashed names, so a URL never changes what it serves.
  *
+ * A demo marked `skillPageOnly` shows on its Skill page and nowhere else:
+ * not on `/skills/demos`, the homepage, a demo page of its own, or the
+ * `demos` sitemap.
+ *
  * Cull path: delete the entry, its `server/demos/<owner>/<repo>/<name>/`
  * folder, and the bucket's `demos/<owner>/<repo>/<name>/` prefix.
  */
@@ -72,12 +76,16 @@ const demoSchema = z.object({
   recordedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   /** Lower comes first on the homepage. Unpinned demos follow, newest first. */
   pin: z.number().int().positive().optional(),
+  /** Shown on the Skill page alone: left off the board, the homepage, and the `demos` sitemap, with no demo page. */
+  skillPageOnly: z.literal(true).optional(),
   /** File name inside `server/demos/<owner>/<repo>/<name>/`, served sandboxed as the live demo. */
   outputFile: z.string().regex(/^[\w-]+\.html$/).optional(),
   video: videoSchema.optional(),
   shots: z.array(shotSchema).min(1),
 }).refine(demo => demo.outputFile !== undefined || demo.video !== undefined, {
   message: 'A demo needs an output page or a video.',
+}).refine(demo => !(demo.skillPageOnly && demo.pin), {
+  message: 'A Skill page only demo takes no pin: a pin orders the homepage, which leaves it out.',
 })
 
 export type SkillDemoRecord = z.infer<typeof demoSchema>
@@ -101,12 +109,13 @@ export function listSkillDemos(demos: readonly SkillDemoRecord[] = SKILL_DEMOS):
 }
 
 /**
- * The demos a visitor may see. A demo whose Skill holds a run check flag stays
- * out until a check passes: a visitor who watches it would copy a run command
+ * The demos the board, the homepage, and the demo pages show. A Skill page
+ * only demo stays out. So does a demo whose Skill holds a run check flag,
+ * until a check passes: a visitor who watches it would copy a run command
  * that fails.
  */
 export function listShownSkillDemos(flagged: ReadonlySet<string>, demos: readonly SkillDemoRecord[] = SKILL_DEMOS): readonly SkillDemoRecord[] {
-  return listSkillDemos(demos).filter(demo => !flagged.has(runCheckFlagKey(demo.owner, demo.repo, demo.name)))
+  return listSkillDemos(demos).filter(demo => !demo.skillPageOnly && !flagged.has(runCheckFlagKey(demo.owner, demo.repo, demo.name)))
 }
 
 export interface DemoSitemapEntry {
@@ -171,6 +180,8 @@ export interface SkillDemoView {
   recordedAt: string
   /** True when the Skill moved past the commit the demo recorded. */
   outdated: boolean
+  /** Shown on the Skill page alone, so the Demo panel links to no demo page. */
+  skillPageOnly: boolean
   /** The sandboxed output page, when the demo kept one. */
   liveUrl: string | null
   video: SkillDemoVideo | null
@@ -196,6 +207,7 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
     skillCommit: demo.skillCommit,
     recordedAt: demo.recordedAt,
     outdated: currentCommit !== null && currentCommit !== demo.skillCommit,
+    skillPageOnly: demo.skillPageOnly ?? false,
     liveUrl: demo.outputFile ? `${path}/live` : null,
     video: demo.video
       ? {

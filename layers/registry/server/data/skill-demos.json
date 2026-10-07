@@ -674,6 +674,38 @@
       ]
     },
     {
+      "owner": "thebstar",
+      "repo": "shipreel",
+      "name": "shipreel",
+      "makes": "film",
+      "authorName": "Bikram Sutar",
+      "sourceUrl": "https://github.com/theBstar/shipreel/blob/main/plugins/shipreel/skills/shipreel/SKILL.md",
+      "prompt": "Make a shipreel for the idempotent-bookings branch. It has no pull request yet, so read the change from git against main. Don't stop to ask me questions. Save the final video as walkthrough.mp4 in this folder.",
+      "setup": "The folder held Mossgrove, a fictional garden-plot booking API, with the change on its own branch. Its shipreel.yml set a local Piper voice and a 60-second target.",
+      "skillPageOnly": true,
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292",
+      "model": "claude-opus-5-5",
+      "skillCommit": "0d6978b76e0ce94355ea896ff164a359a4fe94c6",
+      "recordedAt": "2026-10-07",
+      "video": {
+        "file": "video-7c69af2173.mp4",
+        "poster": "poster-b751e14017.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 62.7
+      },
+      "shots": [
+        {
+          "file": "poster-b751e14017.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: Make a shipreel for the idempotent-bookings branch. It has no pull request yet, so read the change from git against main"
+        }
+      ]
+    },
+    {
       "owner": "tt-a1i",
       "repo": "archify",
       "name": "archify",

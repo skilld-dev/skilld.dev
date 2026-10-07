@@ -99,6 +99,8 @@ Collisions
 
 **Rule:** a demo shows the Agent's output, never the Skill author's work. It always names how it was recorded.
 
+**Placement:** a demo shows on its Skill page, the homepage, `/skills/demos`, and its own demo page. A Skill page only demo shows on its Skill page alone.
+
 **Groups:** demos group by what the Skill makes, on `/skills/demos`: films and launch videos, landing pages, UI components, and diagrams and explainers. A group is not a track: tracks sort Skills by kind of work.
 
 ### preview
