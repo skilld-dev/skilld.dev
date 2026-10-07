@@ -9,7 +9,8 @@ import { runGeneration } from './orchestrate.ts'
 import { createRunTrace } from './trace.ts'
 
 const startedAt = Date.now()
-const signal = AbortSignal.timeout(14 * 60 * 1000)
+// One minute under JOB_TIMEOUT_MS, so the runner writes its result before the Worker gives up.
+const signal = AbortSignal.timeout(44 * 60 * 1000)
 const trace = createRunTrace()
 
 async function execute() {
@@ -54,7 +55,7 @@ async function execute() {
       'Use one final command to check frontmatter, paths, and examples. Do not repeat counts, greps, or confirmation reads.',
       'After writing and checking the output, finish immediately. A separate independent review follows generation.',
       stage === 'generation'
-        ? 'Aim to finish within 35 model turns. Reserve the remaining run budget for independent review and any repair.'
+        ? 'Write SKILL.md to the output directory by model turn 20, then verify and edit it there. A deadline then still leaves a candidate. Aim to finish within 35 model turns. Reserve the remaining run budget for independent review and any repair.'
         : 'Review source claims in batches. Aim to finish within 20 model turns. Return concrete findings when checks finish.',
       ...(findings.length ? ['Correct these review findings against the exact package source. Preserve other supported guidance.', JSON.stringify(findings)] : []),
     ].join('\n\n'))

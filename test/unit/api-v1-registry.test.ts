@@ -141,7 +141,7 @@ describe('repositories.get', () => {
       pushedAt: '2026-09-28T14:02:11.000Z',
       repositoryUrl: 'https://github.com/vercel/skills',
       pageUrl: 'https://skilld.dev/gh/vercel-labs/agent-skills',
-      installCommand: 'npx skilld add vercel-labs/agent-skills',
+      installCommand: 'npx skilld add vercel-labs/agent-skills --all',
     })
     expect(answer.skills.map(skill => skill.name)).toEqual(['beta', 'alpha'])
   })

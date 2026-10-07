@@ -2,10 +2,12 @@ import type { PreparedTag } from './github-client'
 import type { TagRequest } from './github-events'
 import { DurableObject } from 'cloudflare:workers'
 import { githubInstallationClient, prepareTag, publishSkill } from './github-client'
+import { jobExpired } from './job-deadline'
 import { followsRetryChain } from './job-retry'
 
 type Outcome = Awaited<ReturnType<typeof publishSkill>> | { _tag: 'Skipped', reason: string } | { _tag: 'Failed', code: string, detail: string }
-interface Job { id: string, request: TagRequest, receivedAt: number }
+/** `startedAt` is when the job reached the head of the queue. */
+interface Job { id: string, request: TagRequest, receivedAt: number, startedAt?: number }
 type State = Job & (
   { _tag: 'Queued' }
   | { _tag: 'Ready' | 'Generating' | 'Publishing', context: PreparedTag }
@@ -54,7 +56,7 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
     if (!job)
       return null
     // The operator gets outcomes and source identity, without baseline file contents.
-    return { id: job.id, request: job.request, receivedAt: job.receivedAt, _tag: job._tag, ...(job._tag === 'Finished' ? { outcome: job.outcome } : {}) }
+    return { id: job.id, request: job.request, receivedAt: job.receivedAt, startedAt: job.startedAt, _tag: job._tag, ...(job._tag === 'Finished' ? { outcome: job.outcome } : {}) }
   }
 
   async alarm(): Promise<void> {
@@ -63,9 +65,12 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
     if (!id)
       return
     await this.ctx.storage.setAlarm(Date.now() + 10_000)
-    const state = await this.ctx.storage.get<State>(`job-${id}`)
-    if (!state)
+    const stored = await this.ctx.storage.get<State>(`job-${id}`)
+    if (!stored)
       throw new Error('APP_JOB_STATE_MISSING')
+    const state = stored.startedAt === undefined && stored._tag !== 'Finished' ? { ...stored, startedAt: Date.now() } : stored
+    if (state !== stored)
+      await this.ctx.storage.put<State>(`job-${id}`, state)
     if (state._tag === 'Finished') {
       await this.ctx.storage.transaction(async (storage) => {
         const current = await storage.get<string[]>('queue') ?? []
@@ -73,8 +78,8 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
       })
       return
     }
-    if (Date.now() - state.receivedAt > 30 * 60 * 1000) {
-      await this.finish(state, { _tag: 'Failed', code: 'APP_JOB_DEADLINE', detail: 'The job exceeded thirty minutes.' })
+    if (jobExpired(state, Date.now())) {
+      await this.finish(state, { _tag: 'Failed', code: 'APP_JOB_DEADLINE', detail: 'The job exceeded its deadline after it started.' })
       return
     }
     await this.advance(state).catch(async (cause: unknown) => {
