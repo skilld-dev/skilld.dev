@@ -15,17 +15,17 @@ const ADD_PREFIX = `${CLI_PREFIX} add`
 
 /** Every Skill one GitHub Repository carries. */
 export function gitInstallCmd(owner: string, repo: string): string {
-  return `${ADD_PREFIX} ${owner}/${repo}`
+  return `${ADD_PREFIX} ${owner}/${repo} --all`
 }
 
 /** Every Skill one curator's collections name. */
 export function curatorInstallCmd(handle: string): string {
-  return `${ADD_PREFIX} @${handle}`
+  return `${ADD_PREFIX} @${handle} --all`
 }
 
 /** Every Skill one collection names. */
 export function collectionInstallCmd(handle: string, slug: string): string {
-  return `${ADD_PREFIX} @${handle}/${slug}`
+  return `${ADD_PREFIX} @${handle}/${slug} --all`
 }
 
 function skillRef(owner: string, repo: string, skill: string): string {

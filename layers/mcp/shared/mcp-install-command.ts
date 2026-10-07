@@ -30,15 +30,15 @@ export function skillInstallCommand(owner: string, repo: string, skill: string):
 
 /** Whole-repository install. `add` takes every ref that names several Skills. */
 export function repoInstallCommand(owner: string, repo: string): string {
-  return `${PREFIX} ${owner}/${repo}`
+  return `${PREFIX} ${owner}/${repo} --all`
 }
 
 export function curatorInstallCommand(login: string): string {
-  return `${PREFIX} @${login}`
+  return `${PREFIX} @${login} --all`
 }
 
 export function collectionInstallCommand(login: string, slug: string): string {
-  return `${PREFIX} @${login}/${slug}`
+  return `${PREFIX} @${login}/${slug} --all`
 }
 
 export type InstallRef

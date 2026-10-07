@@ -161,13 +161,13 @@ describe('mCP public SDK discovery', () => {
 
 describe('install_command', () => {
   it.each([
-    ['gh:nuxt/nuxt', 'npx skilld add nuxt/nuxt'],
-    ['nuxt/nuxt', 'npx skilld add nuxt/nuxt'],
+    ['gh:nuxt/nuxt', 'npx skilld add nuxt/nuxt --all'],
+    ['nuxt/nuxt', 'npx skilld add nuxt/nuxt --all'],
     ['anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
     ['skilld:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
     ['gh:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
-    ['@harlan-zw', 'npx skilld add @harlan-zw'],
-    ['@harlan-zw/nuxt-stack', 'npx skilld add @harlan-zw/nuxt-stack'],
+    ['@harlan-zw', 'npx skilld add @harlan-zw --all'],
+    ['@harlan-zw/nuxt-stack', 'npx skilld add @harlan-zw/nuxt-stack --all'],
   ])('%s -> %s', async (ref, command) => {
     const result = await runTool('install_command', { ref })
     expect((result.structuredContent as any).command).toBe(command)
@@ -200,7 +200,7 @@ describe('install_command', () => {
 
 describe('parseInstallRef', () => {
   it('round-trips every ref kind through installCommandFor', () => {
-    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add a/b')
+    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add a/b --all')
     expect(parseInstallRef('a/b/c/d')).toBeNull()
     expect(parseInstallRef('@')).toBeNull()
     expect(parseInstallRef('')).toBeNull()
