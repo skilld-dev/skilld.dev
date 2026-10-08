@@ -192,9 +192,13 @@ Open a pull request that adds these vars to `workers/artifact-signer/wrangler.js
 Use the same window as the trusted root entry, or a window inside it.
 
 ```jsonc
-"ARTIFACT_SIGNING_SECONDARY_KEY_ID": "skilld-production-2026-11",
-"ARTIFACT_SIGNING_SECONDARY_KEY_NOT_BEFORE": "2026-10-14T00:00:00.000Z",
-"ARTIFACT_SIGNING_SECONDARY_KEY_NOT_AFTER": "2027-05-20T00:00:00.000Z"
+{
+  "vars": {
+    "ARTIFACT_SIGNING_SECONDARY_KEY_ID": "skilld-production-2026-11",
+    "ARTIFACT_SIGNING_SECONDARY_KEY_NOT_BEFORE": "2026-10-14T00:00:00.000Z",
+    "ARTIFACT_SIGNING_SECONDARY_KEY_NOT_AFTER": "2027-05-20T00:00:00.000Z"
+  }
+}
 ```
 
 Regenerate the signer types in the same pull request:
