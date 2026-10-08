@@ -1,15 +1,11 @@
--- Pin legacy snapshots to their recorded Skill revision until the next sync.
+-- A Skill revision names its instructions, not its supporting file inventory.
+-- Leave old snapshots unpinned until sync captures both at the same commit.
 ALTER TABLE skills ADD COLUMN rendered_commit_sha TEXT;
 
-UPDATE skills SET rendered_commit_sha = (
-  SELECT sr.sha FROM skill_revisions sr
-  WHERE sr.owner = skills.owner AND sr.repo = skills.repo AND sr.name = skills.name
-  ORDER BY sr.modified_at DESC LIMIT 1
-);
-
--- Revisit root Skills so their supporting files enter the stored inventory.
+-- Clear both skip cursors for every Skill repository, including dormant ones.
+-- Root inventories and legacy snapshots then refresh without another push.
 UPDATE repos SET last_tree_sha = NULL, pushed_at = NULL
 WHERE EXISTS (
   SELECT 1 FROM skills s
-  WHERE s.owner = repos.owner AND s.repo = repos.repo AND s.rendered_skill_path = 'SKILL.md'
+  WHERE s.owner = repos.owner AND s.repo = repos.repo
 );
