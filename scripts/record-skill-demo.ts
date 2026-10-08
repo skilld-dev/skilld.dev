@@ -53,6 +53,7 @@
 
 import type { DemoMakes } from '../shared/demo-groups'
 import type { DemoEffort } from '../shared/demo-recording'
+import type { DemoTokenUsage } from '../shared/demo-usage'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
@@ -65,6 +66,7 @@ import { parseArgs, promisify } from 'node:util'
 import { chromium } from '@playwright/test'
 import { DEMO_MAKES } from '../shared/demo-groups'
 import { DEMO_EFFORTS } from '../shared/demo-recording'
+import { codexDemoTokenUsage } from '../shared/demo-usage'
 import { runDemoAgent } from './lib/demo-agent'
 
 const run = promisify(execFile)
@@ -178,6 +180,7 @@ interface DemoEntry {
   agentVersion: string
   model: string
   effort?: DemoEffort
+  tokenUsage?: DemoTokenUsage
   skillCommit: string
   recordedAt: string
   pin?: number
@@ -667,6 +670,7 @@ async function main(): Promise<void> {
     agentVersion: agent.version,
     model: agent.model,
     ...(input.effort ? { effort: input.effort } : {}),
+    ...(input.agent === 'codex' ? { tokenUsage: codexDemoTokenUsage(await readFile(join(cwd, 'codex-events.jsonl'), 'utf8')) ?? undefined } : {}),
     skillCommit: pinned.commit,
     recordedAt: new Date().toISOString().slice(0, 10),
     ...media,

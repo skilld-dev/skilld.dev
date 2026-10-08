@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
 import { demoPagePath } from '#shared/demo-pages'
-import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio } from '~/utils/home-demos'
+import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio, demoRecording } from '~/utils/home-demos'
 import DemoActions from './_DemoActions.vue'
 import DemoMedia from './home-demos/_DemoMedia.vue'
 import DemoRecording from './home-demos/_DemoRecording.vue'
@@ -31,27 +31,32 @@ const { demo, surface = 'demos', eager = false, showPrompt = false, live = false
 /** The output page itself, when this stage shows it live. A film always plays as video. */
 const stage = useTemplateRef<HTMLElement>('stage')
 const { record } = useDemoEngagement(() => `${demo.owner}/${demo.repo}/${demo.name}`, surface, stage)
+const recording = computed(() => demoRecording(demo))
 const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 </script>
 
 <template>
   <div class="demo-stage" :class="{ 'demo-stage--compact': presentation === 'compact' }">
     <div v-if="presentation !== 'hero'" class="demo-stage__head">
-      <DemoRecording :demo />
+      <details v-if="showPrompt && presentation === 'compact'" class="demo-stage__task">
+        <summary class="data-label">
+          <span>Prompt</span>
+          <DemoRecording :demo />
+        </summary>
+        <p v-if="recording.usage" class="data-label demo-stage__usage">
+          {{ recording.usage.sentence }}
+        </p>
+        <p class="demo-stage__prompt">
+          {{ demo.prompt }}
+        </p>
+      </details>
+      <DemoRecording v-else :demo />
       <NuxtLink :to="opens === 'skill-page' ? demoHref(demo) : demoPagePath(demo)" class="demo-stage__open">
         Open the demo<span class="sr-only"> of /{{ demo.name }}</span>
         <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
       </NuxtLink>
     </div>
-    <details v-if="showPrompt && presentation === 'compact'" class="demo-stage__task">
-      <summary class="data-label">
-        Prompt
-      </summary>
-      <p class="demo-stage__prompt">
-        {{ demo.prompt }}
-      </p>
-    </details>
-    <p v-else-if="showPrompt && presentation !== 'hero'" class="demo-stage__prompt">
+    <p v-if="showPrompt && presentation === 'full'" class="demo-stage__prompt">
       <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
@@ -201,15 +206,44 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
   padding-block-end: env(safe-area-inset-bottom, 0px);
 }
 
+.demo-stage--compact .demo-stage__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.demo-stage--compact .demo-stage__open {
+  grid-area: 1 / 2;
+}
+
 .demo-stage__task {
-  margin-block-end: 0.75rem;
+  grid-area: 1 / 1 / auto / -1;
 }
 
 .demo-stage__task summary {
-  display: list-item;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding-inline-end: 8rem;
   min-block-size: 2.75rem;
   padding-block: 0.75rem;
   cursor: pointer;
+}
+
+.demo-stage__usage {
+  margin-block: 0.5rem;
+}
+
+.demo-stage__task summary::before {
+  content: '▸';
+}
+
+.demo-stage__task[open] summary::before {
+  content: '▾';
+}
+
+.demo-stage__task :deep(.demo-recording__part) {
+  white-space: normal;
 }
 
 .demo-stage__task summary:focus-visible {

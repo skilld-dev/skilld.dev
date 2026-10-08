@@ -38,7 +38,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 624256,
+        "cachedInputTokens": 577664,
+        "outputTokens": 9780
+      }
     },
     {
       "owner": "anthropics",
@@ -145,7 +150,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 1038004,
+        "cachedInputTokens": 983936,
+        "outputTokens": 18479
+      }
     },
     {
       "owner": "cloudai-x",
@@ -216,7 +226,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 870630,
+        "cachedInputTokens": 816000,
+        "outputTokens": 17671
+      }
     },
     {
       "owner": "conardli",
@@ -256,7 +271,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 1091572,
+        "cachedInputTokens": 1000576,
+        "outputTokens": 16312
+      }
     },
     {
       "owner": "echris6",
@@ -607,7 +627,12 @@
             "height": 900
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 712577,
+        "cachedInputTokens": 655616,
+        "outputTokens": 11710
+      }
     },
     {
       "owner": "justinwetch",
@@ -812,7 +837,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 1043345,
+        "cachedInputTokens": 982528,
+        "outputTokens": 14970
+      }
     },
     {
       "owner": "leonxlnx",
@@ -852,7 +882,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 622760,
+        "cachedInputTokens": 569600,
+        "outputTokens": 20715
+      }
     },
     {
       "owner": "leonxlnx",
@@ -893,7 +928,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 1021578,
+        "cachedInputTokens": 959744,
+        "outputTokens": 18617
+      }
     },
     {
       "owner": "leonxlnx",
@@ -1467,7 +1507,12 @@
             "height": 844
           }
         }
-      ]
+      ],
+      "tokenUsage": {
+        "inputTokens": 852569,
+        "cachedInputTokens": 782464,
+        "outputTokens": 20092
+      }
     },
     {
       "owner": "zarazhangrui",

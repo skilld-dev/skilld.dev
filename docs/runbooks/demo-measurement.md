@@ -61,3 +61,14 @@ Homepage display order may vary, but each row keeps its original rank.
 Record deployment times beside the aggregate export.
 Change one surface per comparison, then collect another seven full days.
 A local preview cannot establish conversion lift or campaign performance.
+
+## Recorded token usage
+
+Recording metadata is separate from anonymous demo engagement counts.
+The recorder saves Codex usage from completed turns.
+Input includes cached input. Total tokens equal input plus output.
+The page shows input, cached input, and output when Prompt opens.
+Missing usage stays absent. The page does not estimate dollar costs.
+
+Nine existing Codex demos carry usage from their matching completed recording events.
+The backfill matched each Skill ref, source commit, prompt, and model against its recording log.

@@ -1,7 +1,9 @@
 import type { DemoMakes } from '#shared/demo-groups'
+import type { DemoEffort } from '#shared/demo-recording'
+import type { DemoTokenUsage } from '#shared/demo-usage'
 import type { SkillCardSkill } from '~/types/skill-card'
 import { DEMO_GROUPS } from '#shared/demo-groups'
-import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
+import { demoAgentIcon, demoRecordingLabel } from '#shared/demo-recording'
 
 /**
  * The fields the homepage reads from `/api/skill-demos`. Declared here, not
@@ -21,6 +23,8 @@ export interface HomeDemoItem {
   /** How the demo was recorded (GLOSSARY "demo"). The endpoint already sends these. */
   agent: string
   model: string
+  effort?: DemoEffort | null
+  tokenUsage?: DemoTokenUsage | null
   /** `YYYY-MM-DD`. */
   recordedAt: string
   shots: HomeDemoShot[]
@@ -170,13 +174,23 @@ export interface DemoRecordingView {
   model: string
   /** The COPY.md provenance line, for screen readers and the title. */
   sentence: string
+  usage?: { label: string, sentence: string }
 }
 
 /** How a demo was recorded, short enough for a card. */
-export function demoRecording(demo: Pick<HomeDemoItem, 'agent' | 'model'>): DemoRecordingView {
+export function demoRecording(demo: Pick<HomeDemoItem, 'agent' | 'model' | 'effort' | 'tokenUsage'>): DemoRecordingView {
+  const model = demoRecordingLabel(demo.model, demo.effort ?? null)
+  const usage = demo.tokenUsage
+  const count = (value: number) => value.toLocaleString('en-US')
   return {
     icon: demoAgentIcon(demo.agent),
-    model: demoModelLabel(demo.model),
-    sentence: `Recorded with ${demo.agent}, ${demoModelLabel(demo.model)}`,
+    model,
+    sentence: `Recorded with ${demo.agent}, ${model}`,
+    ...(usage
+      ? { usage: {
+          label: `${(usage.inputTokens + usage.outputTokens).toLocaleString('en-US', { notation: 'compact', maximumSignificantDigits: 3 })} tokens`,
+          sentence: `Input: ${count(usage.inputTokens)}; cached input: ${count(usage.cachedInputTokens)}; output: ${count(usage.outputTokens)}`,
+        } }
+      : {}),
   }
 }

@@ -13,9 +13,15 @@ const recording = computed(() => demoRecording(demo))
 
 <template>
   <span class="demo-recording" :title="recording.sentence">
-    <UIcon :name="recording.icon" class="demo-recording__icon" aria-hidden="true" />
-    <span class="demo-recording__part" aria-hidden="true">{{ recording.model }}</span>
+    <span class="demo-recording__part" aria-hidden="true">
+      <UIcon :name="recording.icon" class="demo-recording__icon" aria-hidden="true" />
+      {{ recording.model }}
+    </span>
     <span class="sr-only">{{ recording.sentence }}</span>
+    <span v-if="recording.usage" class="demo-recording__usage" :title="recording.usage.sentence">
+      <span aria-hidden="true">{{ recording.usage.label }}</span>
+      <span class="sr-only">{{ recording.usage.label }}. {{ recording.usage.sentence }}</span>
+    </span>
   </span>
 </template>
 
@@ -38,7 +44,9 @@ const recording = computed(() => demoRecording(demo))
 }
 
 .demo-recording__icon {
-  flex: none;
+  display: inline-block;
+  vertical-align: -0.125rem;
+  margin-inline-end: 0.375rem;
   inline-size: 0.875rem;
   block-size: 0.875rem;
 }

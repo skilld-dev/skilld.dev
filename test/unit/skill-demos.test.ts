@@ -125,3 +125,11 @@ describe('listDemoSitemapEntries', () => {
     expect(listDemoSitemapEntries(new Set(), [{ ...first!, skillPageOnly: true }, ...rest])).toEqual([])
   })
 })
+
+describe('recorded token usage', () => {
+  it('preserves the recorded breakdown and leaves missing usage unknown', () => {
+    const tokenUsage = { inputTokens: 150, cachedInputTokens: 110, outputTokens: 30 }
+    expect(presentSkillDemo(demo({ tokenUsage }), null).tokenUsage).toEqual(tokenUsage)
+    expect(presentSkillDemo(demo(), null).tokenUsage).toBeNull()
+  })
+})
