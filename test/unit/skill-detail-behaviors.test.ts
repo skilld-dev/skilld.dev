@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW_SEC = Math.floor(Date.now() / 1000)
+const repositoryLicense = vi.hoisted(() => vi.fn().mockResolvedValue({ _tag: 'known', license: 'MIT' }))
+vi.mock('../../layers/registry/server/utils/skill-license', () => ({ readRepositoryLicense: repositoryLicense }))
 
 vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
 vi.stubGlobal('defineCachedEventHandler', (handler: unknown) => handler)
@@ -32,6 +34,8 @@ function seed(sourceResolved: number) {
 }
 
 interface Body {
+  license: string | null
+  licenseSource: 'skill' | 'repository' | null
   sourceFacts: { behaviors: Array<{ id: string, tier: string, locations: Array<{ path: string, line: number | null, url: string | null }> }> }
 }
 
@@ -46,10 +50,28 @@ async function detail(): Promise<Body> {
 beforeEach(() => {
   vi.resetModules()
   cacheMap.clear()
+  repositoryLicense.mockClear()
   harness = createSqliteD1(allMigrations())
 })
 
 describe('skill detail behaviors', () => {
+  it('uses the root Repository license at the snapshot commit', async () => {
+    seed(1)
+    harness.raw.prepare('UPDATE skills SET rendered_skill_path = \'SKILL.md\', rendered_commit_sha = ?').run('c'.repeat(40))
+    const body = await detail()
+    expect(body.license).toBe('MIT')
+    expect(body.licenseSource).toBe('repository')
+    expect(repositoryLicense.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ owner: 'acme', repo: 'skills', commit: 'c'.repeat(40) }))
+  })
+
+  it('keeps declared Skill terms above the Repository license', async () => {
+    seed(1)
+    harness.raw.prepare('UPDATE skills SET rendered_skill_path = \'SKILL.md\', rendered_commit_sha = ?, rendered_raw = ?').run('c'.repeat(40), '---\nname: setup\nlicense: BSD-3-Clause\n---\n\nUse this Skill.')
+    const body = await detail()
+    expect(body.license).toBe('BSD-3-Clause')
+    expect(body.licenseSource).toBe('skill')
+    expect(repositoryLicense).not.toHaveBeenCalled()
+  })
   it('names each behavior in SKILL.md and the stored file names, with a link to where it appears', async () => {
     seed(1)
 

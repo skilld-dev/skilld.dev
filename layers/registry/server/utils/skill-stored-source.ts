@@ -15,9 +15,11 @@ export interface StoredSkillRow {
   source_resolved: number | null
   rendered_status: string | null
   rendered_raw: string | null
+  rendered_commit_sha: string | null
   rendered_skill_path: string | null
   /** JSON array of `{ path, size, type }`, written by the sync. */
   assets: string | null
+  references_count: number
 }
 
 export type SkillFileType = 'markdown' | 'code' | 'image' | 'data' | 'other'
@@ -42,7 +44,7 @@ export async function loadStoredSkillRow(
   return db
     .prepare(`
       SELECT r.default_branch, r.source_owner, r.source_repo,
-             s.source_resolved, s.rendered_status, s.rendered_raw, s.rendered_skill_path, s.assets
+             s.source_resolved, s.rendered_status, s.rendered_raw, s.rendered_skill_path, s.rendered_commit_sha, s.assets, s.references_count
       FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
       WHERE s.owner = ? AND s.repo = ? AND s.name = ?
     `)
@@ -68,7 +70,7 @@ export function readStoredSkillMd(skill: RepoIdentity, row: StoredSkillRow): Sto
   return {
     _tag: 'ok',
     body: row.rendered_raw,
-    source: `${source.owner}/${source.repo}@${row.default_branch || 'main'}/${row.rendered_skill_path}`,
+    source: `${source.owner}/${source.repo}@${row.rendered_commit_sha ?? 'unknown'}/${row.rendered_skill_path}`,
   }
 }
 
@@ -112,25 +114,25 @@ export type StoredSkillFiles
     | { _tag: 'gone' }
 
 /**
- * The file list as of the last sync. A Skill whose SKILL.md sits at the
- * repository root has no stored assets, so its list is empty but its
- * `skillPath` is set. A Skill with no resolved SKILL.md has `skillPath: null`.
+ * The file list as of the last sync, including a root Skill's supporting files.
+ * A Skill with no resolved SKILL.md has `skillPath: null`.
  */
 export function readStoredSkillFiles(row: StoredSkillRow): StoredSkillFiles {
   if (row.source_resolved === 0)
     return { _tag: 'gone' }
-  const branch = row.default_branch || 'main'
+  const branch = row.rendered_commit_sha || row.default_branch || 'main'
   if (row.rendered_status !== 'ok' || !row.rendered_skill_path)
     return { _tag: 'ok', payload: { skillPath: null, branch, files: [], total: 0 } }
   const selected = selectSkillFiles(parseStoredAssets(row.assets))
   return {
     _tag: 'ok',
-    payload: { skillPath: row.rendered_skill_path, branch, files: selected.files, total: selected.total },
+    payload: { skillPath: row.rendered_skill_path, branch, files: selected.files, total: Math.max(row.references_count, selected.total) },
   }
 }
 
 export type ReferencedFileTarget
   = | { _tag: 'ok', url: string, path: string, source: string }
+    | { _tag: 'unavailable' }
     | { _tag: 'missing' }
 
 /**
@@ -146,7 +148,9 @@ export function resolveReferencedFileTarget(
   if (!row.rendered_skill_path)
     return { _tag: 'missing' }
   const source = resolveRepoSourceIdentityFromRow(skill, row)
-  const branch = row.default_branch || 'main'
+  if (!row.rendered_commit_sha)
+    return { _tag: 'unavailable' }
+  const branch = row.rendered_commit_sha
   const skillDir = row.rendered_skill_path.replace(/(?:^|\/)skill\.md$/i, '')
   const path = skillDir ? `${skillDir}/${filePath}` : filePath
   return {

@@ -76,6 +76,10 @@ export default defineApiHandler({
     // A file beside SKILL.md (e.g. `references/foo.md`) is not stored, so it
     // is the one read that still reaches GitHub. Its directory comes from D1.
     const target = resolveReferencedFileTarget(skill, row, filePath)
+    if (target._tag === 'unavailable') {
+      setHeader(event, 'retry-after', RAW_RETRY_AFTER)
+      throw createError({ statusCode: 503, message: 'Skill source commit is unavailable. Try again after the next sync.' })
+    }
     if (target._tag === 'missing')
       throw createError({ statusCode: 404, message: 'Referenced file not found in repository' })
 

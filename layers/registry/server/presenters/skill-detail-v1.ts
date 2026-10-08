@@ -1,4 +1,5 @@
 import type { OperationResult, skillsV1 } from 'skilld-sdk/contract'
+import { createError } from 'h3'
 import { epochSecondsToIso, presentCount } from '#shared/server/skill-cards'
 import { skillInstallCmd, skillRunCmd } from '#shared/skill-commands'
 
@@ -31,7 +32,7 @@ export interface LegacySkillDetail {
       label: string
       locations: { path: string, line: number | null }[]
       total: number
-    }[]
+    }[] | null
   }
   provenance: {
     sourceCommitSha: string | null
@@ -44,6 +45,8 @@ export interface LegacySkillDetail {
 const SITE_ORIGIN = 'https://skilld.dev'
 
 export function presentSkillDetail(detail: LegacySkillDetail): OperationResult<typeof skillsV1.operations.get> {
+  if (detail.sourceFacts.behaviors === null)
+    throw createError({ statusCode: 503, message: 'Skill behaviors are unavailable. Try again later.' })
   return {
     owner: detail.owner,
     repository: detail.repo,

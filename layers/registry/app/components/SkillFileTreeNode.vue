@@ -43,7 +43,8 @@ const isActive = computed(() => {
 const githubUrl = computed(() => {
   if (props.node.kind !== 'file')
     return ''
-  return `https://github.com/${props.owner}/${props.repo}/blob/${props.branch}/${props.skillDir}/${props.node.path}`
+  const path = props.skillDir ? `${props.skillDir}/${props.node.path}` : props.node.path
+  return `https://github.com/${props.owner}/${props.repo}/blob/${props.branch}/${path}`
 })
 
 // A plain click opens the file in the viewer. Modified clicks keep the

@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import type { z } from 'zod'
 import type { Platform } from '#shared/server/platform'
 
-import { cached } from '#shared/server/cache'
+import { cached, readThroughCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { githubSkillFileUrl } from '#shared/skill-file-url'
 import { selectSkillFiles } from '#shared/skill-files'
@@ -17,6 +17,7 @@ import { skillPageBehaviors } from '../../utils/skill-behaviors'
 import { findSkillDemo, presentSkillDemo } from '../../utils/skill-demos'
 import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
+import { readRepositoryLicense } from '../../utils/skill-license'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
@@ -145,13 +146,14 @@ const DETAIL_COLUMNS_SQL = `r.forks, r.repo_created_at,
   s.seo_index_reasons, s.seo_index_synced_at,
   s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
   s.trust_source, s.trust_reasons, s.trust_synced_at,
-  s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html,
+  s.rendered_status, s.rendered_commit_sha, s.rendered_raw, s.rendered_frontmatter, s.rendered_html,
   (SELECT sr.sha FROM skill_revisions sr
     WHERE sr.owner = s.owner AND sr.repo = s.repo AND sr.name = s.name
     ORDER BY sr.modified_at DESC LIMIT 1) AS latest_revision_sha,
   ${SKILL_TRENDING_AWARDS_SQL}`
 
 interface SkillDetailRow {
+  rendered_commit_sha: string | null
   // repo meta
   stars: number | null
   forks: number | null
@@ -218,7 +220,7 @@ const skillDetailHandler = defineApiHandler({
 
     return cached({
       storage: useStorage('edge-cache'),
-      key: `skills:detail:v4:${slug.toLowerCase()}`,
+      key: `skills:detail:v5:${slug.toLowerCase()}`,
       ttlSeconds: DETAIL_CACHE_TTL,
       staleSeconds: DETAIL_CACHE_STALE_TTL,
       compute: () => loadSkillDetail(event, platform, slug),
@@ -255,7 +257,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
 
   const source = resolveRepoSourceIdentityFromRow(skill, row)
   const githubUrl = `https://github.com/${source.owner}/${source.repo}`
-  const branch = row.default_branch || 'main'
+  const branch = row.rendered_commit_sha || row.default_branch || 'main'
   const repoSkillNames = (repoSkillRows.results ?? []).map(candidate => candidate.name)
 
   // Warm path: render is in D1. Cold path (no usable stored render): render
@@ -271,7 +273,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
           repo: source.repo,
           name: skill.name,
           branch,
-          skillDir: row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? '',
+          skillDir: row.rendered_skill_path?.replace(/(?:^|\/)SKILL\.md$/i, '') ?? '',
           filePath: '',
           skillNames: repoSkillNames,
           registryOwner: skill.owner,
@@ -316,7 +318,29 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const keywords = rawAiTags.filter(t => !knownTagSlugs.has(t))
 
   const description = frontmatterString(rendered.frontmatter, 'description') ?? skill.description ?? null
-  const license = frontmatterString(rendered.frontmatter, 'license')
+  let license = frontmatterString(rendered.frontmatter, 'license')
+  let licenseSource: 'skill' | 'repository' | null = license ? 'skill' : null
+  if (!license && rendered.skillPath === 'SKILL.md' && row.rendered_commit_sha && row.source_resolved !== 0) {
+    const commit = row.rendered_commit_sha
+    const repositoryLicense = await readThroughCache(
+      useStorage('edge-cache'),
+      `skill:license:v1:${source.owner}/${source.repo}@${commit}`,
+      async () => {
+        const answer = await readRepositoryLicense({ ...source, commit }, resolveGithubBindings(event.context.platform?.env))
+        if (answer._tag === 'unavailable')
+          throw new Error(`Repository license unavailable (${answer.status})`)
+        return answer
+      },
+      { ttl: 60 * 60 * 24 * 7 },
+    ).catch((error: unknown) => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-license', outcome: 'failed', reason: error instanceof Error ? error.message : String(error) }))
+      return null
+    })
+    if (repositoryLicense?._tag === 'known') {
+      license = repositoryLicense.license
+      licenseSource = 'repository'
+    }
+  }
   let assets: { path: string, size: number, type: string }[] = []
   if (row.assets) {
     try {
@@ -352,7 +376,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     source: { owner: source.owner, repo: source.repo, branch, skillPath: sourceGone ? null : rendered.skillPath },
   })
   // `current_sha` is the blob sha of SKILL.md, not a commit, so it cannot pin a link.
-  const sourceCommitSha = row.latest_revision_sha ?? null
+  const sourceCommitSha = row.rendered_commit_sha ?? null
   const skillDemo = findSkillDemo(skill.owner, skill.repo, skill.name)
   const pushedAtIso = epochToIso(row.pushed_at)
   const createdAtIso = epochToIso(row.repo_created_at)
@@ -380,10 +404,11 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     frontmatter: rendered.frontmatter,
     raw: rendered.raw,
     assets: selectedAssets.files,
-    assetCount: selectedAssets.total,
+    assetCount: Math.max(row.references_count ?? 0, selectedAssets.total),
     curators,
     description,
     license,
+    licenseSource,
     stars: row.stars ?? 0,
     forks: row.forks ?? 0,
     pushedAt: pushedAtIso,
@@ -402,7 +427,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
         createdAt: createdAtIso,
         stars: row.stars ?? 0,
         forks: row.forks ?? 0,
-        defaultBranch: branch,
+        defaultBranch: row.default_branch || 'main',
       },
       source: {
         resolved: sourceResolved,
@@ -585,7 +610,7 @@ async function renderLive(
   for (const path of candidates) {
     const raw = await readRaw(path, 'skill-detail-candidate-fetch')
     if (raw) {
-      const skillDir = path.replace(/\/SKILL\.md$/, '')
+      const skillDir = path.replace(/(?:^|\/)SKILL\.md$/i, '')
       const parsed = await parseSkillMd(raw, {
         owner: sourceOwner,
         repo: sourceRepo,
@@ -631,7 +656,7 @@ async function renderLive(
   if (match) {
     const raw = await readRaw(match.path, 'skill-detail-matched-fetch')
     if (raw) {
-      const skillDir = match.path.replace(/\/SKILL\.md$/, '')
+      const skillDir = match.path.replace(/(?:^|\/)SKILL\.md$/i, '')
       const parsed = await parseSkillMd(raw, {
         owner: sourceOwner,
         repo: sourceRepo,

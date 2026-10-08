@@ -20,6 +20,7 @@ beforeEach(() => {
     `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved)
      VALUES ('owner', 'repo', 'skill', 'owner/repo/skill', 'Skill', 1)`,
   ).run()
+  fixture.raw.prepare('UPDATE skills SET rendered_status = \'ok\', rendered_skill_path = \'SKILL.md\', rendered_commit_sha = ?').run('c'.repeat(40))
   cache = {
     getItem: vi.fn().mockResolvedValue(null),
     setItem: vi.fn().mockResolvedValue(undefined),
@@ -41,9 +42,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('skill-asset tree outage', () => {
+describe('skill-asset source outage', () => {
   it('returns a retryable error without caching the asset as missing', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(new Error('tree unavailable')))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 400 })))
 
     const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
 
@@ -68,17 +69,32 @@ describe('skill-asset source gone', () => {
     expect(cache.setItem).not.toHaveBeenCalled()
   })
 
-  it('classifies an upstream 404 tree as gone rather than an outage', async () => {
-    // ungh answers 404 for a deleted repository. A 503 with retry-after tells
-    // an agent to retry a permanent condition, which is what raised SKILLD-11.
-    const error = Object.assign(new Error('404 Not Found'), { status: 404, statusCode: 404 })
-    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(error))
-
+  it('reports a missing reference without claiming that the Skill is gone', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })))
     const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
-
-    await expect(handler(event())).rejects.toMatchObject({ statusCode: 410 })
-
+    await expect(handler(event())).rejects.toMatchObject({ statusCode: 404 })
     expect(responseHeaders.has('retry-after')).toBe(false)
+  })
+
+  it('opens a root reference at its recorded commit without a tree request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('Pinned reference'))
+    vi.stubGlobal('fetch', fetchMock)
+    const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
+    const body = await handler(event()) as { raw: string, branch: string }
+    expect(body.raw).toBe('Pinned reference')
+    expect(body.branch).toBe('c'.repeat(40))
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`https://raw.githubusercontent.com/owner/repo/${'c'.repeat(40)}/references/guide.md`)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps an unknown commit retryable without reading a mutable branch', async () => {
+    fixture.raw.prepare('UPDATE skills SET rendered_commit_sha = NULL').run()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
+    await expect(handler(event())).rejects.toMatchObject({ statusCode: 503 })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(cache.setItem).not.toHaveBeenCalled()
   })
 })
 

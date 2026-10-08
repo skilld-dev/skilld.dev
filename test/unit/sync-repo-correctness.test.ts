@@ -168,27 +168,6 @@ describe('syncRepo content acknowledgement', () => {
     expect(sqlite.prepare(`SELECT name FROM skills`).pluck().get()).toBe('skills')
   })
 
-  it('gives a root skill no assets rather than the whole repository', async () => {
-    // `dirPath` is empty for a root skill. Were assets resolved by prefix
-    // against that, every file in the repository would become an asset of it.
-    github.getTree.mockResolvedValue(tree([
-      { path: 'SKILL.md', sha: 'root-sha' },
-      { path: 'src/index.ts', sha: 'code-sha' },
-      { path: 'docs/guide.md', sha: 'doc-sha' },
-    ]))
-    github.getBlobsBatch.mockResolvedValue({
-      status: 200,
-      data: new Map([['SKILL.md', rawSkill('Sounds Human')]]),
-      unreadable: new Set(),
-      rateLimit: null,
-      notModified: false,
-    })
-
-    await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
-
-    expect(sqlite.prepare(`SELECT assets FROM skills`).pluck().get()).toBe('[]')
-  })
-
   it('never reports a zero-upsert trust rejection as indexed or ok', async () => {
     github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-new' }]))
     github.getBlobsBatch.mockResolvedValue({
@@ -728,7 +707,7 @@ function createDatabase(): Database.Database {
       seo_index_reasons TEXT NOT NULL DEFAULT '[]', seo_index_synced_at INTEGER,
       trust_tier TEXT NOT NULL DEFAULT 'untrusted', trust_source TEXT NOT NULL DEFAULT 'computed',
       trust_score INTEGER NOT NULL DEFAULT 0, trust_reasons TEXT NOT NULL DEFAULT '[]', trust_synced_at INTEGER,
-      rendered_skill_path TEXT, rendered_status TEXT, rendered_raw TEXT, rendered_raw_sha256 TEXT, rendered_frontmatter TEXT,
+      rendered_skill_path TEXT, rendered_commit_sha TEXT, rendered_status TEXT, rendered_raw TEXT, rendered_raw_sha256 TEXT, rendered_frontmatter TEXT,
       rendered_html TEXT, rendered_at INTEGER, owner_verified INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (owner, repo, name)
     );
