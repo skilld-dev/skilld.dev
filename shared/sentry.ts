@@ -123,6 +123,12 @@ export function isMcpAcceptProbeError(error: unknown): boolean {
   return typeof message === 'string' && message.startsWith('Not Acceptable: Client must accept')
 }
 
+/** MCP answers unsupported protocol probes with 400 before running a tool (SKILLD-3H). */
+export function isMcpProtocolProbeError(error: unknown): boolean {
+  const message = sentryExceptionMessage(error)
+  return typeof message === 'string' && message.startsWith('Bad Request: Unsupported protocol version:')
+}
+
 /**
  * A URL without its query string or fragment. Query strings carry OAuth codes,
  * signed tokens, and search terms, so no URL reaches Sentry with one.

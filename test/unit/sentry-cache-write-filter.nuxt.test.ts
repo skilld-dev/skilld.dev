@@ -196,4 +196,15 @@ describe('sentry beforeSend cache-write filter', () => {
     }
     expect(beforeSend(page406Event, {})).toBe(page406Event)
   })
+
+  it.each([true, false])('drops rejected MCP protocol probes with original exception: %s', (original) => {
+    const message = 'Bad Request: Unsupported protocol version: 2026-07-28 (supported versions: 2025-11-25, 2025-06-18)'
+    const event: SentryEventFixture = { exception: { values: [{ type: 'Error', value: message }] } }
+    expect(beforeSend(event, original ? { originalException: new Error(message) } : {})).toBeNull()
+  })
+
+  it('keeps other protocol errors', () => {
+    const event: SentryEventFixture = { exception: { values: [{ type: 'Error', value: 'Unsupported protocol version in database connection' }] } }
+    expect(beforeSend(event, {})).toBe(event)
+  })
 })
