@@ -26,6 +26,19 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-10-08 The quality gate excludes `browser-use/plugins/browser-use` from the active recovery baseline.
+  Production D1 retained its month-board admission from 2026-09-30, but recorded `seo_indexable=0` and `no_primary_trust_signal`.
+  Its score record was 4, dated 2026-10-06 03:00:35 UTC. The source resolved and the Repository was healthy.
+  Curator reasons, approved social posts, owner verification, and trust overrides were absent.
+  The official Repository list names `browser-use/browser-use`, not `browser-use/plugins`.
+  GitHub returned [the source](https://github.com/browser-use/plugins/blob/main/grok/skills/browser-use/SKILL.md) at D1's blob SHA, `0acbe30cb641795319aab5b3885dc0415266b375`.
+  HTML returned noindex with a self-canonical URL. The Skills sitemap omitted it.
+  [The quality rule](../../layers/registry/server/utils/skill-indexability.ts) requires a primary trust signal.
+  [Trending admission](../../layers/registry/server/utils/trending-admission.ts) preserves admission, but does not waive that rule.
+  Move the URL to `quality_excluded`; keep all 41 original URLs and the dated baseline evidence.
+  The active trending sample has 19 URLs. No replacement receives the excluded URL's history.
+  These reads do not establish when the URL first became noindex.
+
 - 2026-10-05 Harlan approved experiment F for `/compare/humanize-writing-skills` at the existing 11 November gate.
   One comparison joins the panel, taking it from 40 to 41 URLs. Existing groups remain unchanged.
   The target query estimate is 30 US searches per month. This is a named experiment exception to the volume bar.
@@ -208,7 +221,8 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 
 | Group | URLs | Treatment | Expect |
 | --- | ---: | --- | --- |
-| `trending_sample` | 20 | None. No template change | Baseline for admitted trending pages |
+| `trending_sample` | 19 | None. No template change | Baseline for admitted trending pages |
+| `quality_excluded` | 1 | Quality gate excludes the page | Observe coverage separately; omit from active recovery decisions |
 | `d_probe` | 2 | One linked page and one unlinked page (experiment D) | The linked page is crawled within 14 days; the unlinked page is the comparison |
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
 | `admitted_other` | 10 | Trending set only | Trending-only baseline |
@@ -225,6 +239,9 @@ Baseline: the Pages report of 2026-09-30. The curated URLs sit in "Discovered, c
 Every Monday from 2026-10-12, about 10 minutes. The first read waits for the spam update to end. Log one line per week in the Log above.
 
 1. Read each panel URL's coverage state with `nuxtseo search indexing urls` or `nuxtseo search inspect`. Record the rung: unknown, discovered, crawled, indexed.
+   Report `quality_excluded` separately. Exclude it from active recovery totals and experiment scale or kill decisions.
+   Recheck its quality eligibility each week. If eligibility changes, record the date before changing its group.
+   Keep its earlier observations in their original group. Never treat an intentional noindex as failed recovery.
 2. Read Search Console crawl stats in the UI. This is the leading signal.
 
    | Signal | Baseline |
@@ -305,6 +322,8 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 ## Gate table, 2026-11-11
 
 The gate falls about 3 months after the last large removal.
+
+Apply this table to active experiment URLs. The `quality_excluded` group cannot establish a content or domain verdict.
 
 | Panel result | Read | Decision |
 | --- | --- | --- |

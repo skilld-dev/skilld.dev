@@ -30,9 +30,16 @@
         "https://skilld.dev/gh/antfu/skills/nitro",
         "https://skilld.dev/gh/addyosmani/web-quality-skills/accessibility",
         "https://skilld.dev/gh/getsentry/skills/prompt-optimizer",
-        "https://skilld.dev/gh/browser-use/plugins/browser-use",
         "https://skilld.dev/gh/prisma/skills/prisma-database-setup"
       ]
+    },
+    "quality_excluded": {
+      "pr": "skilld.dev#322",
+      "expect": "observe coverage separately; exclude from active recovery totals and scale or kill decisions while the quality gate rejects it",
+      "observed_at": "2026-10-08",
+      "previous_group": "trending_sample",
+      "reason": "Production D1: trending admission retained; source resolved; seo_indexable=0, score=4, no_primary_trust_signal. No curator reason, approved social post, owner verification, official Repository entry, or trust override. HTML is noindex and the Skills sitemap omits it.",
+      "urls": ["https://skilld.dev/gh/browser-use/plugins/browser-use"]
     },
     "d_probe": {
       "pr": "gscdump#149",
