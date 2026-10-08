@@ -6,6 +6,7 @@ const D1_TERMINAL_METHODS = new Set<PropertyKey>(['first', 'run', 'all', 'raw'])
 const RETRYABLE_D1_READ_MESSAGES = [
   'currently processing a long-running import',
   'currently processing a long-running export',
+  'currently processing an import job',
   'd1 db is overloaded',
 ]
 
