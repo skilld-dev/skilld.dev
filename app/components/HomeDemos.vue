@@ -1,19 +1,17 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
-import { HOME_DEMOS_MAX, HOME_DEMOS_MIN } from '~/utils/home-demos'
+import { HOME_DEMOS_MIN } from '~/utils/home-demos'
 import DemoIndex from './DemoIndex.vue'
 
 /**
  * The homepage teaser for demos: the first few, pinned films first, and a
  * link to every demo on `/skills/demos`. The page fetches
- * `/api/skill-demos` and passes the items.
+ * `/api/skill-demos` and passes the teaser items and full count.
  */
-const { demos: items } = defineProps<{ demos: HomeDemoItem[] }>()
+const { demos, total } = defineProps<{ demos: HomeDemoItem[], total: number }>()
 
 const headingId = useId()
-const demos = computed(() => items.slice(0, HOME_DEMOS_MAX))
-const show = computed(() => demos.value.length >= HOME_DEMOS_MIN)
-const more = computed(() => items.length)
+const show = computed(() => demos.length >= HOME_DEMOS_MIN)
 </script>
 
 <template>
@@ -31,7 +29,7 @@ const more = computed(() => items.length)
 
       <UButton
         to="/skills/demos"
-        :label="`All ${more} demos`"
+        :label="`All ${total} demos`"
         color="neutral"
         variant="ghost"
         size="sm"

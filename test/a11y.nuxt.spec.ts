@@ -637,7 +637,7 @@ describe('accessibility: components', () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('HomeDemos'),
-      { attachTo: container, props: { demos } },
+      { attachTo: container, props: { demos, total: 42 } },
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
@@ -652,7 +652,7 @@ describe('accessibility: components', () => {
     await new Promise(done => setTimeout(done, 400))
     expect(picks[1]?.getAttribute('aria-pressed')).toBe('true')
     expect(stage()).toBe('/skills/demos/anthropics/skills/two')
-    expect(container.querySelector('a[href="/skills/demos"]')?.textContent).toContain('All 3 demos')
+    expect(container.querySelector('a[href="/skills/demos"]')?.textContent).toContain('All 42 demos')
     wrapper.unmount()
   })
 
@@ -694,7 +694,7 @@ describe('accessibility: components', () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
       await loadComponent('HomeDemos'),
-      { attachTo: container, props: { demos: [] } },
+      { attachTo: container, props: { demos: [], total: 0 } },
     )
     expect(container.querySelector('#demos')).toBeNull()
     wrapper.unmount()

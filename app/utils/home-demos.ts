@@ -1,5 +1,6 @@
 import type { DemoMakes } from '#shared/demo-groups'
 import type { SkillCardSkill } from '~/types/skill-card'
+import { DEMO_GROUPS } from '#shared/demo-groups'
 import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
 
 /**
@@ -50,6 +51,24 @@ export interface HomeDemoShot {
 /** Fewer than this reads as a broken feature, as with trending. */
 export const HOME_DEMOS_MIN = 3
 export const HOME_DEMOS_MAX = 6
+
+/** Compare up to three recordings in one group. Landing pages lead when available. */
+export function demoPreviews(demos: readonly HomeDemoItem[]) {
+  const groups = DEMO_GROUPS
+    .map(group => ({ group, items: demos.filter(demo => demo.makes === group.makes) }))
+    .filter(entry => entry.items.length >= 2)
+  const entry = groups.find(candidate => candidate.group.makes === 'landing-page') ?? groups[0]
+  return entry ? { label: entry.group.label, items: entry.items.slice(0, 3) } : null
+}
+
+/** Keep only rendered demos in the homepage payload, plus the full feed count. */
+export function homeDemoFeed(feed: { items: HomeDemoItem[] }) {
+  return {
+    items: feed.items.slice(0, HOME_DEMOS_MAX),
+    previews: demoPreviews(feed.items)?.items ?? [],
+    total: feed.items.length,
+  }
+}
 
 /**
  * Below this width a demo shows its phone shot, when it has one. Stylesheets

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
-import { DEMO_GROUPS } from '#shared/demo-groups'
-import { demoHref, demoRecording } from '~/utils/home-demos'
+import { demoHref, demoPreviews, demoRecording } from '~/utils/home-demos'
 import WhyPanel from './_WhyPanel.vue'
 
 /**
@@ -16,18 +15,7 @@ const { demos } = defineProps<{
   demos: readonly HomeDemoItem[]
 }>()
 
-/** Stills in the row. Three compare; more shrink past reading. */
-const SHOWN = 3
-
-const PREFERRED_GROUP = 'landing-page'
-
-const picked = computed(() => {
-  const groups = DEMO_GROUPS
-    .map(group => ({ group, items: demos.filter(demo => demo.makes === group.makes) }))
-    .filter(entry => entry.items.length >= 2)
-  const entry = groups.find(candidate => candidate.group.makes === PREFERRED_GROUP) ?? groups[0]
-  return entry ? { label: entry.group.label, items: entry.items.slice(0, SHOWN) } : null
-})
+const picked = computed(() => demoPreviews(demos))
 
 function still(demo: HomeDemoItem) {
   if (demo.video)
