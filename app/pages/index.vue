@@ -3,7 +3,6 @@ import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishe
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import type { RecentPullRequestsResponse } from '#shared/open-source-pull-requests'
-import type { HomeDemoItem } from '../utils/home-demos'
 import { agentSetupPrompt } from '#shared/agent-setup'
 import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
 import { avatarProxyUrl } from '#shared/image-proxy'
@@ -11,6 +10,7 @@ import { feedBoardRows, trendingRangeMeta } from '#shared/trending-range'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { AGENT_LOGOS } from '../utils/agent-logos'
 import { MORE_AGENT_COUNT } from '../utils/agent-reach'
+import { homeDemoFeed } from '../utils/home-demos'
 
 const setupPrompt = agentSetupPrompt()
 const heroAgentsLabel = `Works with ${AGENT_LOGOS.map(agent => agent.label).join(', ')}, and ${MORE_AGENT_COUNT} more Agents`
@@ -107,7 +107,10 @@ if (import.meta.server) {
 }
 
 // Lazy: the section sits under the hero, and its images load lazily anyway.
-const { data: demosData } = useLazyFetch<{ items: HomeDemoItem[] }>('/api/skill-demos', { key: 'home-skill-demos' })
+const { data: demosData } = useLazyFetch('/api/skill-demos', {
+  key: 'home-skill-demos-v2',
+  transform: homeDemoFeed,
+})
 
 // Lazy too: the Why band sits below the fold, and the feed is cached for a day.
 const { data: pullsData } = useLazyFetch<RecentPullRequestsResponse>('/api/feed/recent-pull-requests', { key: 'home-recent-pull-requests' })
@@ -288,7 +291,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       waits on.
     -->
     <!-- The first content section: what Skills make, before any list of them. -->
-    <LazyHomeDemos hydrate-on-visible :demos="demosData?.items ?? []" />
+    <LazyHomeDemos hydrate-on-visible :demos="demosData?.items ?? []" :total="demosData?.total ?? 0" />
 
     <section
       v-if="showTrending || trendingStatus === 'pending'"
@@ -328,7 +331,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       </div>
     </section>
 
-    <LazyHomeWhy hydrate-on-visible :trending-row="whyTrendingRow" :demos="demosData?.items ?? []" :pulls="pullsData?.items ?? []" />
+    <LazyHomeWhy hydrate-on-visible :trending-row="whyTrendingRow" :demos="demosData?.previews ?? []" :pulls="pullsData?.items ?? []" />
 
     <LazyHomeAgents hydrate-on-visible />
 
