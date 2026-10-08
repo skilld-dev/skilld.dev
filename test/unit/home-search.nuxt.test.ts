@@ -124,10 +124,12 @@ describe('homepage search interactions', () => {
     stateOverride.value = { _tag: 'loading', rows: [] }
     const wrapper = await mountSearch()
     await press(wrapper, 'Enter')
-    if (action === 'edit')
+    if (action === 'edit') {
       await wrapper.get('input').setValue('vue')
-    else if (action === 'Escape')
+    }
+    else if (action === 'Escape') {
       await press(wrapper, 'Escape')
+    }
     else {
       stateOverride.value = { _tag: 'error', error: new Error('offline') }
       await flushPromises()
