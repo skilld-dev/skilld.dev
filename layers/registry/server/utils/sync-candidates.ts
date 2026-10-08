@@ -17,8 +17,8 @@ interface HistoricalDiscoveryStageOptions extends RepoSyncPriorityOptions {
 /**
  * Subscribed repos get the short freshness window supplied by the caller.
  * Grouping collapses multiple subscribers watching the same repo. Repos with
- * a recorded too-large tree verdict stay out: GitHub will truncate their tree
- * response on every attempt, so re-picking them only burns rate limit.
+ * a recorded too-large tree verdict use the slower general refresh pool.
+ * Their bounded subtree fallback costs more reads than a normal tree fetch.
  */
 export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
   SELECT r.owner, r.repo, r.repo_meta_synced_at AS ls,
@@ -47,8 +47,9 @@ export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
  * forever. EXISTS keeps empty/retired repo rows out without grouping skills.
  * A repo whose every row is `path_missing` has no Skills left: its tree was
  * readable but held none, so it is not broken and not refreshed either.
- * Repos with a recorded too-large tree verdict stay out for the same reason
- * as the subscribed sweep above.
+ * Truncated repositories retry on this slower clock. The tree reader now
+ * resolves truncated responses through bounded immutable subtree reads.
+ * Public references without a source commit lead this pool until repaired.
  */
 export const GENERAL_SYNC_CANDIDATES_SQL = `
   SELECT r.owner, r.repo, r.repo_meta_synced_at AS ls,
@@ -57,14 +58,19 @@ export const GENERAL_SYNC_CANDIDATES_SQL = `
   LEFT JOIN discovery_candidates dc
     ON dc.owner = r.owner AND dc.repo = r.repo
   WHERE r.broken_since IS NULL
-    AND r.tree_truncated_at IS NULL
     AND (r.repo_meta_synced_at IS NULL OR r.repo_meta_synced_at < ?1)
     AND EXISTS (
       SELECT 1 FROM skills s
       WHERE s.owner = r.owner AND s.repo = r.repo
         AND COALESCE(s.sync_status, '') != 'path_missing'
     )
-  ORDER BY r.repo_meta_synced_at IS NULL DESC, r.repo_meta_synced_at ASC
+  ORDER BY EXISTS (
+    SELECT 1 FROM skills s
+    WHERE s.owner = r.owner AND s.repo = r.repo
+      AND s.seo_indexable = 1 AND s.references_count > 0
+      AND s.rendered_commit_sha IS NULL
+      AND COALESCE(s.sync_status, '') != 'path_missing'
+  ) DESC, r.repo_meta_synced_at IS NULL DESC, r.repo_meta_synced_at ASC
   LIMIT ?2`
 
 /**

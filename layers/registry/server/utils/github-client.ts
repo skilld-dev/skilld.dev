@@ -175,6 +175,7 @@ export interface TreeEntry {
   path: string
   type: 'blob' | 'tree' | 'commit'
   sha: string
+  size?: number
 }
 
 export interface TreeResponse {
@@ -529,13 +530,59 @@ export async function getTree(
   repo: string,
   ref: string,
   bindings: GithubBindings,
-  options?: GithubReadOptions,
+  options?: GithubReadOptions & { expandTruncated?: boolean },
 ): Promise<FetchOutcome<TreeResponse>> {
-  return ghRequest<TreeResponse>(
+  // A page deadline covers the entire fallback, including credential reads.
+  const init = readInit(options)
+  const initial = await ghRequest<TreeResponse>(
     `${API_BASE}/repos/${owner}/${repo}/git/trees/${ref}?recursive=1`,
     bindings,
-    readInit(options),
+    init,
   )
+  if (!initial.data?.truncated || options?.expandTruncated !== true)
+    return initial
+
+  // GitHub caps recursive trees at 100,000 entries or 7 MB. Resolve each
+  // truncated subtree from its immutable SHA. Never merge a partial response
+  // into the inventory: sync uses absent paths to retire Skills.
+  const rootSha = initial.data.sha
+  const incomplete: TreeResponse = { sha: rootSha, tree: [], truncated: true }
+  const pending = [{ sha: rootSha, prefix: '', recursive: false }]
+  const entries: TreeEntry[] = []
+  let rateLimit = initial.rateLimit
+  let requests = 1
+  while (pending.length > 0) {
+    // Bound quota and isolate memory. Larger trees retain their verdict and
+    // retry on the general refresh clock instead of yielding a false snapshot.
+    if (requests >= 64)
+      return { ...initial, data: incomplete, rateLimit, notModified: false }
+    const next = pending.pop()!
+    requests++
+    const result = await ghRequest<TreeResponse>(
+      `${API_BASE}/repos/${owner}/${repo}/git/trees/${next.sha}${next.recursive ? '?recursive=1' : ''}`,
+      bindings,
+      init,
+    )
+    if (!result.data)
+      return result
+    if (result.rateLimit && (!rateLimit || result.rateLimit.remaining < rateLimit.remaining))
+      rateLimit = result.rateLimit
+    if (result.data.truncated) {
+      if (!next.recursive)
+        return { ...result, data: incomplete, rateLimit, notModified: false }
+      pending.push({ ...next, recursive: false })
+      continue
+    }
+    if (entries.length + result.data.tree.length > 250_000)
+      return { ...result, data: incomplete, rateLimit, notModified: false }
+    for (const entry of result.data.tree) {
+      const path = next.prefix ? `${next.prefix}/${entry.path}` : entry.path
+      entries.push({ path, type: entry.type, sha: entry.sha, size: entry.size })
+      if (!next.recursive && entry.type === 'tree')
+        pending.push({ sha: entry.sha, prefix: path, recursive: true })
+    }
+  }
+  return { ...initial, data: { sha: rootSha, tree: entries, truncated: false }, rateLimit, notModified: false }
 }
 
 export interface GetCommitsOpts {

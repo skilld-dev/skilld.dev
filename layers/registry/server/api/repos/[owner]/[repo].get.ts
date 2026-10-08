@@ -143,7 +143,11 @@ export default defineCachedEventHandler(async (event) => {
   if (cachedScan)
     return profileFrom(meta, cachedScan) satisfies RepoSourceProfile
 
-  const treeRes = await getTree(meta.owner.login, meta.name, treeSha ?? meta.default_branch, bindings, { timeoutMs: GITHUB_PAGE_READ_TIMEOUT_MS })
+  const treeRes = await getTree(meta.owner.login, meta.name, treeSha ?? meta.default_branch, bindings, {
+    timeoutMs: GITHUB_PAGE_READ_TIMEOUT_MS,
+    // Repository pages can show a partial listing. Durable sync owns expansion.
+    expandTruncated: false,
+  })
     .catch((error: unknown) => githubReadFailed('repo-source-profile-tree', error))
   const scan = treeRes.data ? scanTree(treeRes.data) : null
   if (scan && treeSha)
