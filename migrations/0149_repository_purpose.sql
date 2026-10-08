@@ -15,3 +15,8 @@ CREATE TABLE repository_purpose (
   PRIMARY KEY (owner,repo)
 );
 CREATE INDEX repository_purpose_due_idx ON repository_purpose(evaluated_at);
+
+-- Filter job states before reading payloads. The candidate query materializes this set once.
+CREATE INDEX repository_purpose_job_state_idx ON jobs (
+  completed_at,failed_at
+) WHERE job_type='registry/repository-purpose';

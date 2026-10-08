@@ -15,15 +15,17 @@ export interface RepositoryIdentity { owner: string, repo: string }
 
 export async function listRepositoryPurposeCandidates(db: D1Database, now: number): Promise<RepositoryIdentity[]> {
   const result = await db.prepare(`
+    WITH blocked AS MATERIALIZED (
+      SELECT json_extract(payload,'$.owner') AS owner,json_extract(payload,'$.repo') AS repo
+      FROM jobs WHERE job_type='registry/repository-purpose'
+        AND ((completed_at IS NULL AND failed_at IS NULL) OR failed_at>?3)
+    )
     SELECT r.owner,r.repo FROM repos r
     LEFT JOIN repository_purpose p ON p.owner=r.owner AND p.repo=r.repo
+    LEFT JOIN blocked b ON b.owner=r.owner AND b.repo=r.repo
     WHERE r.broken_since IS NULL AND r.repo_skill_count>0
       AND (p.owner IS NULL OR p.prompt_version!=?1 OR p.model_id!=?4 OR p.evaluated_at<?2 OR r.pushed_at>p.evaluated_at)
-      AND NOT EXISTS (
-        SELECT 1 FROM jobs j WHERE j.job_type='registry/repository-purpose'
-          AND json_extract(j.payload,'$.owner')=r.owner AND json_extract(j.payload,'$.repo')=r.repo
-          AND ((j.completed_at IS NULL AND j.failed_at IS NULL) OR j.failed_at>?3)
-      )
+      AND b.owner IS NULL
     ORDER BY r.tree_truncated_at IS NOT NULL DESC, r.repo_skill_count>100 DESC,
       EXISTS(SELECT 1 FROM skills s WHERE s.owner=r.owner AND s.repo=r.repo) DESC,
       COALESCE(p.evaluated_at,0),r.owner,r.repo LIMIT 25
