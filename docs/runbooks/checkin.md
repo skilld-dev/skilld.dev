@@ -77,6 +77,26 @@ On other days it adds nothing.
 It reads `docs/work/EXECUTE-seo-recovery.md` and `docs/work/seo-recovery-panel.json`.
 It uses the `nuxtseo` CLI for reads only. It needs `nuxtseo` on the PATH and a token from `NUXTSEO_TOKEN` or `nuxtseo login`.
 If either is missing, the section is one blocked line.
+Use CLI 0.5.8 or newer and its matching Skill.
+Read `search watches`, `sitemaps submission`, and both exact Sitemaps with `sitemaps inspect` separately.
+CLI 0.5.8 `pull` omits those reads.
+The recovery brief records the exact Sitemap URLs and the dated setup evidence.
+
+The 07:40 daily run precedes the expected Monday inspections. Label its SEO section provisional.
+Read again after 09:00 Australia/Sydney, which matches Melbourne during this measurement window.
+This prompt does not schedule that later read or change the daily schedule.
+Run `pnpm checkin --save` after 09:00 on Monday, then follow the returned SEO prompt item.
+Same-day reruns preserve the morning baseline.
+Select each watch's latest Checkpoint by `checkedAt` and report its date with `dueAt`.
+Separate Monday Checkpoints from older verdicts. Older or missing Checkpoints leave the weekly measurement incomplete.
+A due time never proves completion. The comparison can remain on its Thursday cadence.
+Report missing watches and missing Checkpoints separately from Google's unknown-to-Google verdict.
+Keep active, quality-excluded, and retired groups separate. Preserve noindex and other exclusion states.
+
+Google Sitemap inspection reads live. Bing Sitemap inspection returns a dated stored capture.
+Site-level submission state does not prove an exact Sitemap is listed.
+Neither listing nor watch enrollment proves Page indexing.
 It never writes to NuxtSEO, gscdump, or Search Console.
+Never request fresh inspections or start paid research reads during this report.
 Crawl stats and the Pages report are not in any API, so Harlan supplies those screenshots.
 On 2026-11-09 and 2026-11-16 the section adds the gate decision table.

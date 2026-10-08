@@ -2,7 +2,7 @@
 
 Status: open · 2026-10-03 · recovery implementation included in deployed `1ccf98ec`; gate 2026-11-11
 
-**Next move:** Ready. Verify panel loading and sitemap submission evidence. Harlan submits any missing sitemaps. Run the first weekly measurement on 2026-10-12.
+**Next move:** Run the first weekly measurement on 2026-10-12 after 09:00 Melbourne time. Check each Checkpoint date before comparison.
 
 Done means: the gate table below has a decision for 2026-11-11, and every panel URL in [seo-recovery-panel.json](seo-recovery-panel.json) has a coverage state read on that date.
 
@@ -11,8 +11,8 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 ## Ledger
 
 - [x] Sprint 0 implementation and the fixed panel included in deployed `1ccf98ec`
-- [ ] Verify Bing submission of `sitemap_index.xml` and Search Console submission of `retired.xml`
-- [ ] Load the panel with `gscdump indexing watch add`
+- [x] Verify Bing `sitemap_index.xml` and Google's exact retired child, `__sitemap__/retired-0.xml`, on 2026-10-08
+- [x] Match all 41 panel URLs to Watched URLs on 2026-10-08
 - [ ] Add a `b_linked` group of 10 Skill URLs to the panel before experiment B starts
 - [ ] Add a NuxtSEO annotation on the day gscdump.com #557 goes live
 - [ ] Weekly measurements 1 to 5 logged in the Log below, from 2026-10-12 to 2026-11-09
@@ -25,6 +25,18 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 - [ ] Move this brief to `shipped/` once the gate decision is recorded
 
 ## Log
+
+- 2026-10-08 NuxtSEO CLI 0.5.8 read all 41 panel watches, including the writing comparison's first Checkpoint.
+  Its Checkpoint at `2026-10-08T08:34:39Z` reported `unknown_to_google`; its next due time was `2026-10-15T08:34:39Z`.
+  The other 40 watches were due on 12 October between 08:09:39 and 08:10:41 Melbourne time.
+  Those due times describe scheduling, not completed inspections.
+  Google's live exact-Sitemap read at `2026-10-08T12:45:57.177Z` listed `https://skilld.dev/__sitemap__/retired-0.xml`.
+  Google reported submission at `2026-09-30T16:21:54.774Z` and download at `2026-10-06T18:23:45.479Z`.
+  It reported 9,846 URLs, zero errors, one warning, and `isPending: false`.
+  Bing's stored capture at `2026-10-08T08:32:22Z` listed `https://skilld.dev/sitemap_index.xml` with status `Success`.
+  Bing reported submission at `2026-10-02T08:30:31.349Z` and crawling at `2026-10-06T17:32:56Z`, covering 9,853 URLs.
+  These provider records prove dated listing, not Page indexing. No Sitemap submission ran during these reads.
+  Reproduce with the read-only commands in Weekly measurement below.
 
 - 2026-10-08 The quality gate excludes `browser-use/plugins/browser-use` from the active recovery baseline.
   Production D1 retained its month-board admission from 2026-09-30, but recorded `seo_indexable=0` and `no_primary_trust_signal`.
@@ -236,9 +248,31 @@ Baseline: the Pages report of 2026-09-30. The curated URLs sit in "Discovered, c
 
 ## Weekly measurement
 
-Every Monday from 2026-10-12, about 10 minutes. The first read waits for the spam update to end. Log one line per week in the Log above.
+Every Monday from 2026-10-12, read after 09:00 Melbourne time, allowing about 10 minutes.
+The 07:40 daily check-in precedes the expected inspections; its SEO section is provisional.
+Follow the [check-in runbook](../runbooks/checkin.md#seo-recovery-measurement) for the later read. It is not separately scheduled.
+The first read waits for the spam update to end. Log one line per week in the Log above.
 
-1. Read each panel URL's coverage state with `nuxtseo search indexing urls` or `nuxtseo search inspect`. Record the rung: unknown, discovered, crawled, indexed.
+Use NuxtSEO CLI 0.5.8 or newer with its matching Skill. Pass `--site s_08aae654 --json` on each command:
+
+```sh
+nuxtseo search watches --site s_08aae654 --json
+nuxtseo sitemaps submission --site s_08aae654 --json
+nuxtseo sitemaps inspect https://skilld.dev/__sitemap__/retired-0.xml --engine google --site s_08aae654 --json
+nuxtseo sitemaps inspect https://skilld.dev/sitemap_index.xml --engine bing --site s_08aae654 --json
+```
+
+CLI 0.5.8 `pull` omits these reads. Google reads live; Bing returns a dated stored capture.
+Record exact listing separately from Site-level submission state. Neither proves Page indexing.
+Report unavailable evidence separately from a missing Sitemap. Do not submit or delete Sitemaps during measurement.
+
+1. Match exact panel URLs to `search watches`. Report missing watches, extra watches, and empty Checkpoint lists separately.
+   Select each URL's latest Checkpoint by `checkedAt`. Retain its provider state, last crawl time, and `dueAt`.
+   Separate Monday Checkpoints from older verdicts, even after 09:00. Report older verdicts as last known, with dates.
+   A missing or older Checkpoint leaves that URL's weekly measurement incomplete. Never infer completion from `dueAt`.
+   Keep the comparison's Thursday cadence. Never request fresh inspections to align the panel.
+   Record the rung: unknown, discovered, crawled, indexed. Preserve noindex and other exclusion states separately.
+   Missing evidence is unavailable, not unknown to Google. Keep retained summary totals separate from panel counts.
    Report `quality_excluded` separately. Exclude it from active recovery totals and experiment scale or kill decisions.
    Recheck its quality eligibility each week. If eligibility changes, record the date before changing its group.
    Keep its earlier observations in their original group. Never treat an intentional noindex as failed recovery.
@@ -251,7 +285,8 @@ Every Monday from 2026-10-12, about 10 minutes. The first read waits for the spa
    | Share of 404, 410 and 301 responses | 21% |
 
 3. Read impressions and clicks over 7 days, and impressions for the brand query `skilld`.
-4. Read clean referring domains (`nuxtseo backlinks referring-domains`) and GitHub and Bing referral sessions.
+4. Read clean referring domains from separately dated retained evidence, and GitHub and Bing referral sessions.
+   If backlink evidence is unavailable, say so. Do not start paid research to discover whether a result is cached.
 5. Read the Pages report totals: "Crawled, currently not indexed" (baseline 51,962) and "Discovered, currently not indexed" (baseline 1,433).
 
 Read no result before the September 2026 spam update ends, about 2026-10-08. The first read is 2026-10-12.
