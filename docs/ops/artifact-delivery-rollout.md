@@ -292,13 +292,8 @@ If any private check fails, set the flag to `false` and redeploy.
 
 ## 11. Rotate keys
 
-Rotate an Ed25519 signing key with an overlap window:
-
-1. Add the new root-signed public key with `overlapping` status.
-2. Deploy the updated trusted root to the public Worker.
-3. Deploy the signer with the new private key and key ID.
-4. Confirm new Artifacts use the new key.
-5. Mark the old key `retired` after its overlap window.
+Rotate the Ed25519 Artifact signing key with [the signing key rotation runbook](../runbooks/signing-key-rotation.md).
+It overlaps the old and new keys in two signer slots, so no build fails during the change.
 
 Start private key rotation only in v3.1.
 

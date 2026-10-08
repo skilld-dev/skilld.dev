@@ -1,2 +1,4 @@
-# Binding name only. Use a base64url PKCS8 Ed25519 private key in .dev.vars.
+# Binding names only. Each value is a base64url PKCS8 Ed25519 private key in .dev.vars.
 ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8=
+# The secondary slot. It signs nothing until wrangler.jsonc names its key ID.
+ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8=

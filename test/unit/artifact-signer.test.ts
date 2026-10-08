@@ -258,7 +258,111 @@ describe('artifact signing Worker', () => {
   })
 })
 
+describe('artifact signing key slots', () => {
+  const DAY = 86_400
+
+  it('signs with the newest key whose window holds the statement and now', async () => {
+    const fixture = await createSignerFixture({
+      notBefore: NOW - 30 * DAY,
+      secondary: { notBefore: NOW - 120, notAfter: NOW + 90 * DAY },
+    })
+
+    const signature = await readSuccess(await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW))
+    const payload = await createAttestationSignaturePayload(new TextEncoder().encode(fixture.statement))
+
+    expect(signature.keyId).toBe('skilld-production-2026-11')
+    expect(await crypto.subtle.verify('Ed25519', fixture.secondaryPublicKey, decodeBase64Url(signature.value), payload)).toBe(true)
+    fixture.close()
+  })
+
+  // The skilld CLI refuses a statement created before its key window opened.
+  it('keeps the old key for a statement created before the new key window opened', async () => {
+    const fixture = await createSignerFixture({
+      notBefore: NOW - 30 * DAY,
+      createdAt: NOW - 60,
+      secondary: { notBefore: NOW - 30, notAfter: NOW + 90 * DAY },
+    })
+
+    const signature = await readSuccess(await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW))
+
+    expect(signature.keyId).toBe('skilld-production-2026-08')
+    fixture.close()
+  })
+
+  it('signs with the new key once the old key window closes', async () => {
+    const fixture = await createSignerFixture({
+      notBefore: NOW - 30 * DAY,
+      notAfter: NOW - 1,
+      secondary: { notBefore: NOW - DAY, notAfter: NOW + 90 * DAY },
+    })
+
+    const signature = await readSuccess(await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW))
+
+    expect(signature.keyId).toBe('skilld-production-2026-11')
+    fixture.close()
+  })
+
+  it('signs with the secondary slot alone once the primary slot is emptied', async () => {
+    const fixture = await createSignerFixture({
+      primary: false,
+      secondary: { notBefore: NOW - DAY, notAfter: NOW + 90 * DAY },
+    })
+
+    const signature = await readSuccess(await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW))
+
+    expect(signature.keyId).toBe('skilld-production-2026-11')
+    fixture.close()
+  })
+
+  it('signs nothing with a staged secret that no vars name', async () => {
+    const fixture = await createSignerFixture({
+      secondary: { notBefore: NOW - DAY, notAfter: NOW + 90 * DAY, vars: false },
+    })
+
+    const signature = await readSuccess(await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW))
+
+    expect(signature.keyId).toBe('skilld-production-2026-08')
+    fixture.close()
+  })
+
+  it.each([
+    ['a named slot has no secret', { notBefore: NOW - DAY, notAfter: NOW + 90 * DAY, secret: false }],
+    ['both slots name one key ID', { keyId: 'skilld-production-2026-08', notBefore: NOW - DAY, notAfter: NOW + 90 * DAY }],
+    ['a slot window ends before it starts', { notBefore: NOW + DAY, notAfter: NOW - DAY }],
+  ] as const)('refuses to sign when %s', async (_name, secondary) => {
+    const fixture = await createSignerFixture({ secondary })
+
+    const response = await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW)
+
+    expect(await readCode(response)).toBe('SIGNING_KEY_INVALID')
+    fixture.close()
+  })
+
+  it('refuses to sign when no slot names a key', async () => {
+    const fixture = await createSignerFixture({ primary: false })
+
+    const response = await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW)
+
+    expect(await readCode(response)).toBe('SIGNING_KEY_INVALID')
+    fixture.close()
+  })
+})
+
+interface SecondarySlotOptions {
+  keyId?: string
+  notBefore: number
+  notAfter: number
+  /** False leaves the slot's secret unset. */
+  secret?: boolean
+  /** False leaves the slot's vars unset, so only its secret is staged. */
+  vars?: boolean
+}
+
 interface SignerFixtureOptions {
+  createdAt?: number
+  /** False leaves the primary slot empty. */
+  primary?: boolean
+  secondary?: SecondarySlotOptions
   changeStateAfterObjectRead?: boolean
   checkOutcome?: 'pass' | 'fail' | 'error'
   privateKey?: string
@@ -306,7 +410,7 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
   const statement = encodeAttestationStatement({
     ...createAttestationStatement({
       artifactId,
-      createdAt: new Date((NOW - 60) * 1000).toISOString(),
+      createdAt: new Date((options.createdAt ?? NOW - 60) * 1000).toISOString(),
       source: options.privateArtifact ? { ...source, visibility: 'private' } : source,
       contentSha256,
       contentBytes: artifactBytes.byteLength,
@@ -345,7 +449,7 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
     r2Key,
     JSON.stringify(checks),
     statement,
-    NOW - 60,
+    options.createdAt ?? NOW - 60,
     options.updatedAt ?? NOW,
     options.privateArtifact ? 'private' : 'public',
     options.privateArtifact ? 1 : null,
@@ -389,22 +493,39 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
       body: new Blob([Uint8Array.from(body)]).stream(),
     } as R2ObjectBody
   })
-  const bindings = {
+  const secondaryKeyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
+  const secondary = options.secondary
+  const bindings: ArtifactSignerBindings = {
     DB: sqlite.db,
     PUBLIC_ARTIFACTS: { get: getObject } as R2Bucket,
     PRIVATE_ARTIFACTS: { get: getObject } as R2Bucket,
-    ARTIFACT_SIGNING_KEY_ID: 'skilld-production-2026-08',
-    ARTIFACT_SIGNING_KEY_NOT_BEFORE: new Date((options.notBefore ?? NOW - 60) * 1000).toISOString(),
-    ARTIFACT_SIGNING_KEY_NOT_AFTER: new Date((options.notAfter ?? NOW + 3600) * 1000).toISOString(),
     ARTIFACT_SIGNING_MAX_AGE_SECONDS: '300',
     ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8: privateKey,
-  } satisfies ArtifactSignerBindings
+    ...(options.primary === false
+      ? {}
+      : {
+          ARTIFACT_SIGNING_KEY_ID: 'skilld-production-2026-08',
+          ARTIFACT_SIGNING_KEY_NOT_BEFORE: new Date((options.notBefore ?? NOW - 60) * 1000).toISOString(),
+          ARTIFACT_SIGNING_KEY_NOT_AFTER: new Date((options.notAfter ?? NOW + 3600) * 1000).toISOString(),
+        }),
+    ...(secondary && secondary.secret !== false
+      ? { ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8: bytesToBase64Url(new Uint8Array(await crypto.subtle.exportKey('pkcs8', secondaryKeyPair.privateKey))) }
+      : {}),
+    ...(secondary && secondary.vars !== false
+      ? {
+          ARTIFACT_SIGNING_SECONDARY_KEY_ID: secondary.keyId ?? 'skilld-production-2026-11',
+          ARTIFACT_SIGNING_SECONDARY_KEY_NOT_BEFORE: new Date(secondary.notBefore * 1000).toISOString(),
+          ARTIFACT_SIGNING_SECONDARY_KEY_NOT_AFTER: new Date(secondary.notAfter * 1000).toISOString(),
+        }
+      : {}),
+  }
   return {
     artifactId,
     bindings,
     close: sqlite.close,
     getObject,
     publicKey: keyPair.publicKey,
+    secondaryPublicKey: secondaryKeyPair.publicKey,
     raw: sqlite.raw,
     statement,
   }

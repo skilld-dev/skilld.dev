@@ -77,8 +77,18 @@ export async function createAttestationSignaturePayload(statementBytes: Uint8Arr
   return payload
 }
 
-export async function verifyAttestationSignature(
+/**
+ * A trusted key verifies a statement only while its window is open now, and
+ * only for a statement created inside that window.
+ *
+ * The skilld CLI applies the second rule and never the first. Without the
+ * second, the site stored and served a statement every CLI refuses. The first
+ * is the site's own: once a key's window closes, a reuse misses and the next
+ * request builds and signs again under the current key.
+ */
+async function verifyAttestationSignature(
   statementBytes: Uint8Array,
+  createdAt: string,
   signature: z.infer<typeof attestationSignatureSchema>,
   trustedRoot: TrustedRoot,
   now: number,
@@ -86,7 +96,10 @@ export async function verifyAttestationSignature(
   const trustedKey = trustedRoot.keys.find(key => key.keyId === signature.keyId)
   if (!trustedKey || trustedKey.status === 'retired' || trustedKey.status === 'revoked')
     return false
-  if (now < Date.parse(trustedKey.notBefore) / 1000 || now >= Date.parse(trustedKey.notAfter) / 1000)
+  const notBefore = Date.parse(trustedKey.notBefore) / 1000
+  const notAfter = Date.parse(trustedKey.notAfter) / 1000
+  const created = Date.parse(createdAt) / 1000
+  if (now < notBefore || now >= notAfter || !(created >= notBefore && created <= notAfter))
     return false
   const publicKeyBytes = decodeCanonicalBase64Url(trustedKey.publicKey)
   const signatureBytes = decodeCanonicalBase64Url(signature.value)
@@ -130,7 +143,7 @@ export async function verifyArtifactAttestation(
   const { statement: _statement, signature, ...outerStatement } = attestation
   if (canonicalJson(parsed.data) !== canonicalJson(outerStatement))
     return false
-  return await verifyAttestationSignature(statementBytes, signature, trustedRoot, now)
+  return await verifyAttestationSignature(statementBytes, parsed.data.createdAt, signature, trustedRoot, now)
 }
 
 /**

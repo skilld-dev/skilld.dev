@@ -1,7 +1,7 @@
 import type { ExternalOptions } from '@harlan-zw/nuxt-checkin/external'
 
 export const externalCheckin = {
-  required: ['skilld.baseline', 'skilld.git', 'skilld.deploy', 'skilld.ci', 'skilld.home', 'skilld.skills', 'skilld.database', 'skilld.workers', 'skilld.analytics', 'skilld.report', 'sentry.skilld', 'skilld.sentry-details'],
+  required: ['skilld.baseline', 'skilld.git', 'skilld.deploy', 'skilld.ci', 'skilld.home', 'skilld.skills', 'skilld.database', 'skilld.workers', 'skilld.analytics', 'skilld.report', 'sentry.skilld', 'skilld.sentry-details', 'skilld.signing-key'],
   prompts: [
     {
       id: 'skilld.operations',
@@ -18,6 +18,7 @@ Interpret this site evidence:
    - Use failed-job \`first_failed_at\` and \`last_failed_at\`, plus \`d1.recentJobBatches\` and \`d1.registryMaintenance\`, to distinguish an active incident from a recovered burst. Do not call a window clean because the latest batch passed, or active because an older batch failed.
    - \`d1.inventory.broken_repos\` is known cumulative inventory. Review \`d1.pipeline.newly_broken_repos_total\`, but gate health on \`d1.pipeline.newly_broken_repos_impacted\`. A source removal is impacting when it still backs a skill or appears in a star, subscription, or collection.
    - \`skilld.analytics\` holds command copies from Analytics Engine, which is the activation signal. Report \`commandCopies.run\` and \`commandCopies.install\` apart: a run copy reads a Skill once, an install copy keeps it. Analytics Engine samples, so treat a small day as a range, not an exact count.
+   - \`skilld.signing-key\` Warn or Fail means Artifact signing ends soon. Quote \`signingEndsAt\` and \`daysLeft\`, and point to \`docs/runbooks/signing-key-rotation.md\`. After that date every \`skilld run\` fails.
    - AI cost is only the recorded batch estimate. Unmeasured services are unknown, not $0.`,
     },
     {
