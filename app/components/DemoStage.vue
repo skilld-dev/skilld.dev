@@ -180,16 +180,25 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
   }
 }
 
-/* Selected demo pages leave room for the author and actions below the output. */
+/* Give interactive pages most of the screen, while keeping their actions in reach. */
 .demo-stage--compact .demo-stage__window {
-  block-size: clamp(14rem, 40svh, 26rem);
+  block-size: clamp(24rem, 68svh, 52rem);
   aspect-ratio: auto;
 }
 
 .demo-stage--compact .demo-stage__window[data-film] {
   block-size: auto;
   aspect-ratio: var(--video-w) / var(--video-h);
-  inline-size: min(100%, calc(40svh * var(--video-w) / var(--video-h)));
+  inline-size: min(100%, calc(68svh * var(--video-w) / var(--video-h)));
+}
+
+.demo-stage--compact .demo-stage__id {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  border-block-start: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+  padding-block-end: env(safe-area-inset-bottom, 0px);
 }
 
 .demo-stage__task {
