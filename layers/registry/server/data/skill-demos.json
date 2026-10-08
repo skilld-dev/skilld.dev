@@ -650,6 +650,46 @@
       ]
     },
     {
+      "owner": "kaankiziltug",
+      "repo": "logo-design-skill",
+      "name": "logo-design",
+      "makes": "ui-component",
+      "authorName": null,
+      "sourceUrl": "https://github.com/kaankiziltug/logo-design-skill/blob/main/skills/logo-design/SKILL.md",
+      "prompt": "Design six distinct, original logo concepts for Morrow, a fictional neighbourhood bicycle repair shop for everyday riders. Brand traits: warm, practical, dependable, quietly playful. Use six different ideas across several mark types, not six variations of one symbol. Avoid generic bicycle clip art and stock-font initials. Deliver a polished responsive comparison page named index.html with six inline SVG logos. Each card shows a large logo, concept name, short rationale, true 16px and 32px symbol tests, one-colour and reversed versions. Draw logo lettering as SVG paths. Use two colours and warm paper. Briefly recommend one concept. This is the concept checkpoint only. Do not build a full brand kit or ask questions. Keep everything self-contained with no external images, fonts, or dependencies. Read the logo-design Skill and its SVG construction reference using the pinned revision. Render and inspect the page before finishing. Save index.html.",
+      "agent": "Codex",
+      "agentVersion": "0.161.0",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "8bbd506736e971894345b6387c651e18fdd9d712",
+      "recordedAt": "2026-10-08",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-a21b4f957a.jpg",
+          "width": 1440,
+          "height": 1804,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Design six distinct, original logo concepts for Morrow, a fictional neighbourhood bicycle repair shop for everyday rider",
+          "poster": {
+            "file": "desktop-poster-1dfa400317.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-ca7d9d4447.jpg",
+          "width": 390,
+          "height": 4124,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Design six distinct, original logo concepts for Morrow, a fictional neighbourhood bicycle repair shop for everyday rider",
+          "poster": {
+            "file": "mobile-poster-49a4fd6916.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
       "owner": "larashero3-dotcom",
       "repo": "lieflat-charts",
       "name": "lieflat-charts",
