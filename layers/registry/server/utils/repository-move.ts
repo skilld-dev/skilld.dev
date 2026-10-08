@@ -150,6 +150,7 @@ const REPOSITORY_TABLES: KeyedTable[] = [
   { table: 'repo_trust_overrides' },
   { table: 'skill_repo_eligibility' },
   { table: 'skill_repo_focus' },
+  { table: 'repository_purpose' },
   { table: 'skill_repo_review_sync_outbox' },
   { table: 'supported_repos' },
   { table: 'skillgen_repositories' },

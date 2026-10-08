@@ -11,6 +11,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | Skill | GitHub Repository, `layers/registry` | Repository 1—N Skill | "skill" |
 | Agent | the user's tool | Agent 1—N Agent target | "your agent" |
 | Repository | GitHub | Repository 1—N Skill | "repository" |
+| repository purpose | `repository_purpose`, `layers/registry` | Repository 1—1 current machine finding, enforced by primary key | not shown |
 | Artifact | skilld.dev API | Skill commit 1—1 Artifact | not shown |
 | linked file | Artifact attestation | Artifact 1—N linked file | not shown |
 | symbolic link | Skill folder, `symbolic-links` check result | Skill folder 1—N symbolic link | not shown |
@@ -67,6 +68,19 @@ Collisions
 **Is:** a GitHub repository that contains one or more Skills. The source of truth.
 
 **Never:** package host, registry entry. `repo` stays in identifiers and existing UI labels.
+
+### repository purpose
+
+**Is:** a model's reading of what a Repository primarily publishes, with source evidence at one commit.
+
+**Values:** `skill-pack`, `software`, `directory`, `mirror`, `uncertain`. File counts do not decide these values.
+
+**Use for:** recorded machine evidence and holding new directory or mirror admissions for human review.
+It grants no trust or search indexing. Existing Skills retain source refresh.
+
+**Never:** indexing repository, indexing report, repository quality, admission decision.
+
+**Casing:** lowercase in prose. Internal identifiers use `repositoryPurpose` or `repository_purpose`.
 
 ### Artifact
 

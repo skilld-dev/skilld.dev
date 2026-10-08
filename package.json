@@ -56,6 +56,7 @@
   "dependencies": {
     "@comark/nuxt": "catalog:",
     "@harlan-zw/comark-content": "catalog:",
+    "@harlan-zw/jev": "catalog:",
     "@harlan-zw/nuxt-cf-jobs": "catalog:",
     "@harlan-zw/nuxt-checkin": "catalog:",
     "@harlan-zw/nuxt-use-query": "catalog:",
@@ -101,7 +102,6 @@
   "devDependencies": {
     "@antfu/eslint-config": "catalog:",
     "@cloudflare/workers-types": "catalog:",
-    "@harlan-zw/jev": "catalog:",
     "@harlan-zw/nuxt-cloudflare": "catalog:",
     "@harlan-zw/nuxt-dx": "catalog:",
     "@harlan-zw/nuxt-sentry": "catalog:",

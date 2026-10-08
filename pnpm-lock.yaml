@@ -401,6 +401,9 @@ importers:
       '@harlan-zw/comark-content':
         specifier: 'catalog:'
         version: 0.2.0(@nuxt/schema@4.6.0)(confbox@0.3.1)(dotenv@17.4.2)(giget@3.3.1)(jiti@2.7.0)(magic-string@1.2.3)(mlly@1.8.2)(nuxt@4.6.0(4e2b9b3b32f3bd83160e11d3f6093f13))(oxc-parser@0.143.0)(rolldown@1.2.12)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.12)(rollup@4.62.4)(vite@8.3.2(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1)))(vue@3.5.43(typescript@6.0.3))
+      '@harlan-zw/jev':
+        specifier: 'catalog:'
+        version: 0.3.0
       '@harlan-zw/nuxt-cf-jobs':
         specifier: 'catalog:'
         version: 0.3.0(b76f86f78b73439970b00defeb11a3a3)
@@ -531,9 +534,6 @@ importers:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 5.20260901.1
-      '@harlan-zw/jev':
-        specifier: 'catalog:'
-        version: 0.3.0
       '@harlan-zw/nuxt-cloudflare':
         specifier: 'catalog:'
         version: 0.5.1(f64572241c3447e9740d2cfd0b791090)

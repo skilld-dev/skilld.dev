@@ -788,16 +788,49 @@ export async function getRawFile(
   ref: string,
   path: string,
   bindings: GithubBindings,
+  options?: { maxBytes: number, timeoutMs?: number },
 ): Promise<string | null> {
   const headers = new Headers()
   headers.set('User-Agent', 'skilld.dev')
   const credential = await credentialOf(bindings).current()
   if (credential.token)
     headers.set('Authorization', `Bearer ${credential.token}`)
-  const res = await fetch(`${RAW_BASE}/${owner}/${repo}/${ref}/${path}`, { headers })
+  const res = await fetch(`${RAW_BASE}/${owner}/${repo}/${ref}/${path}`, {
+    headers,
+    signal: options?.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined,
+  })
   if (!res.ok)
     return null
-  return res.text()
+  if (!options)
+    return res.text()
+  if (!Number.isSafeInteger(options.maxBytes) || options.maxBytes <= 0)
+    throw new Error('The file prefix limit must be a positive integer.')
+  if (!res.body)
+    return ''
+  const reader = res.body.getReader()
+  const parts: Uint8Array[] = []
+  let remaining = options.maxBytes
+  try {
+    while (remaining > 0) {
+      const chunk = await reader.read()
+      if (chunk.done)
+        break
+      const part = chunk.value.subarray(0, remaining)
+      parts.push(part)
+      remaining -= part.length
+    }
+  }
+  finally {
+    await reader.cancel()
+  }
+  const bytes = new Uint8Array(options.maxBytes - remaining)
+  let offset = 0
+  for (const part of parts) {
+    bytes.set(part, offset)
+    offset += part.length
+  }
+  // A prefix can end inside a UTF-8 character. Leave that character out.
+  return new TextDecoder().decode(bytes, { stream: remaining === 0 })
 }
 
 export function logRateLimit(label: string, info: RateLimitInfo | null): void {
