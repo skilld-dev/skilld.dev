@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TERMINAL_DISCOVERY_REJECTION_REASONS } from '../../layers/registry/server/utils/discovery-candidates'
 
 const syncRepo = vi.fn<(...args: unknown[]) => Promise<SyncRepoStats>>()
+const purposeAdmission = vi.fn()
+
+vi.mock('../../layers/registry/server/utils/repository-purpose-effect', () => ({
+  checkRepositoryPurposeAdmission: (...args: unknown[]) => purposeAdmission(...args),
+  readRepositoryPurposeEvidence: vi.fn(),
+  refreshRepositoryPurpose: vi.fn(),
+}))
 
 vi.mock('../../layers/registry/server/utils/sync-repo', async () => {
   const actual = await vi.importActual<typeof import('../../layers/registry/server/utils/sync-repo')>(
@@ -108,6 +115,7 @@ describe('repo sync continuation', () => {
 
   beforeEach(() => {
     syncRepo.mockReset()
+    purposeAdmission.mockReset()
     sqlite = new Database(':memory:')
     sqlite.exec(`
       CREATE TABLE repo_sync_progress (
@@ -126,6 +134,15 @@ describe('repo sync continuation', () => {
     ownerVerified: false,
     claimDiscovery: false,
   } as const
+
+  it('holds a new submission before syncing and releases its progress claim', async () => {
+    purposeAdmission.mockResolvedValue({ _tag: 'held', reason: 'repository_purpose_review_required' })
+    const { ctx, control } = jobContext(db)
+    await handleRegistryRepoJob({ operation: 'submit', owner: 'acme', repo: 'directory' }, ctx as never)
+    expect(control).toMatchObject({ action: 'failed', error: 'repository_purpose_review_required' })
+    expect(syncRepo).not.toHaveBeenCalled()
+    expect(sqlite.prepare('SELECT * FROM repo_sync_progress').all()).toEqual([])
+  })
 
   it('keeps a repository moving while it is under the indexable ceiling', async () => {
     syncRepo.mockResolvedValue(continuingAt(250))

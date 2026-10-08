@@ -286,6 +286,8 @@ export const TERMINAL_DISCOVERY_REJECTION_REASONS = [
   'no_supported_skill_paths',
   'root_skill_unsupported',
   'trust_inputs_insufficient',
+  // A named human decision must clear this hold. Queue retries cannot approve it.
+  'repository_purpose_review_required',
   // Permanent sync failures: retrying a repository upstream reports as gone
   // (or one whose tree exceeds the API's limits) burns the full attempt budget
   // to learn nothing new, then trips the exhausted-retries alarm.

@@ -13,6 +13,8 @@ import {
   githubSyncPermit,
   pauseGithubSync,
 } from '../../../layers/registry/server/utils/github-sync-control'
+import { REPOSITORY_PURPOSE_MODEL, repositoryPurposeQuestions } from '../../../layers/registry/server/utils/repository-purpose'
+import { checkRepositoryPurposeAdmission, readRepositoryPurposeEvidence, refreshRepositoryPurpose } from '../../../layers/registry/server/utils/repository-purpose-effect'
 import {
   refreshRepoAssets,
   SKILL_SLICE_SIZE,
@@ -295,6 +297,38 @@ export async function handleRegistryRepoJob(
     }
     discoveryClaimed = true
     ownerVerified = claim.ownerVerified
+  }
+
+  // Existing rows and named admission decisions retain source recovery.
+  // Only new submissions and discovery claims need this purpose gate.
+  if (!progress.row.tree_sha && (payload.operation === 'submit' || discoveryClaimed)) {
+    const purpose = await checkRepositoryPurposeAdmission(ctx.db, {
+      owner: payload.owner,
+      repo: payload.repo,
+      ownerVerified,
+    }, () => {
+      if (!ctx.env.AI)
+        throw new Error('Repository purpose AI binding is missing.')
+      return refreshRepositoryPurpose({
+        db: ctx.db,
+        readEvidence: input => readRepositoryPurposeEvidence(input, bindings),
+        judge: state => ctx.env.AI.run(REPOSITORY_PURPOSE_MODEL, { state, questions: repositoryPurposeQuestions }),
+      }, payload, now)
+    })
+    if (purpose._tag === 'held') {
+      if (discoveryClaimed) {
+        await finishDiscoveryCandidateAttempt(ctx.db, {
+          owner: payload.owner,
+          repo: payload.repo,
+          token: ctx.jobId,
+          now,
+          outcome: { _tag: 'rejected', reason: purpose.reason },
+        })
+      }
+      await clearRepoProgress(ctx.db, { owner: payload.owner, repo: payload.repo, jobId: ctx.jobId })
+      await ctx.fail(purpose.reason)
+      return
+    }
   }
 
   const continuation = progress.row.tree_sha

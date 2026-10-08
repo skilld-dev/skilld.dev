@@ -2,7 +2,7 @@
 
 Generated from literal `defineScheduledTask` declarations. Run `pnpm cron:docs` after schedule changes.
 
-Tasks: 23. Unique Cloudflare triggers: 15.
+Tasks: 24. Unique Cloudflare triggers: 15.
 
 | Task | Cron | Source |
 | --- | --- | --- |
@@ -11,6 +11,7 @@ Tasks: 23. Unique Cloudflare triggers: 15.
 | `ai-generate-submit` | `15 * * * *` | `layers/registry/server/tasks/ai-generate-submit.ts` |
 | `ai-ready:cron` | `*/5 * * * *` | `server/tasks/ai-ready-cron.ts` |
 | `backfill-skill-assets` | `*/5 * * * *` | `layers/registry/server/tasks/backfill-skill-assets.ts` |
+| `classify-repository-purpose` | `0 * * * *` | `layers/registry/server/tasks/classify-repository-purpose.ts` |
 | `cleanup-auto-index-rate-limits` | `0 * * * *` | `layers/registry/server/tasks/cleanup-auto-index-rate-limits.ts` |
 | `detect-star-surges` | `30 4 * * *` | `layers/registry/server/tasks/detect-star-surges.ts` |
 | `drain-skill-dirty` | `*/5 * * * *` | `layers/registry/server/tasks/drain-skill-dirty.ts` |

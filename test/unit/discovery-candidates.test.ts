@@ -277,6 +277,7 @@ describe('durable discovery candidates', () => {
     'no_supported_skill_paths',
     'root_skill_unsupported',
     'trust_inputs_insufficient',
+    'repository_purpose_review_required',
     'repo fetch 404',
     'repo fetch 410',
     'tree_truncated',
