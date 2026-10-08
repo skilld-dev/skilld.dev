@@ -22,6 +22,7 @@ function repository(owner: string, name: string, tree: string) {
     createdAt: '2025-01-01T00:00:00Z',
     isArchived: false,
     isFork: false,
+    isPrivate: false,
     defaultBranchRef: { name: 'main', target: { oid: 'c'.repeat(40), tree: { oid: tree } } },
   }
 }
@@ -54,6 +55,15 @@ afterEach(() => {
 })
 
 describe('getRepoSummariesBatch', () => {
+  it('omits a readable private repository while preserving the public neighbor', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ data: {
+      r0: { ...repository('acme', 'private', 'private-tree'), isPrivate: true },
+      r1: repository('acme', 'public', 'public-tree'),
+    } })))
+    const result = await getRepoSummariesBatch([{ owner: 'acme', repo: 'private' }, { owner: 'acme', repo: 'public' }], bindings)
+    expect(result).toMatchObject({ _tag: 'read', summaries: [null, { meta: { full_name: 'acme/public' } }] })
+  })
+
   it('reads 230 repositories in three queries, in request order', async () => {
     const fetchMock = vi.fn(graphqlAnswer)
     vi.stubGlobal('fetch', fetchMock)

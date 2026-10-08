@@ -47,6 +47,7 @@ function summaryResponse() {
           createdAt: '2026-01-01T00:00:00Z',
           isArchived: false,
           isFork: false,
+          isPrivate: false,
           defaultBranchRef: { name: 'main', target: { oid: 'commit', tree: { oid: 'tree-sha' } } },
         },
       },
