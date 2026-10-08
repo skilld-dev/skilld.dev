@@ -30,6 +30,9 @@ describe('github sync candidate selection', () => {
         repo TEXT NOT NULL,
         name TEXT NOT NULL,
         sync_status TEXT,
+        seo_indexable INTEGER DEFAULT 0,
+        references_count INTEGER DEFAULT 0,
+        rendered_commit_sha TEXT,
         PRIMARY KEY (owner, repo, name)
       );
       CREATE TABLE skill_subscriptions (
@@ -120,7 +123,7 @@ describe('github sync candidate selection', () => {
       .prepare(GENERAL_SYNC_CANDIDATES_SQL)
       .all({ 1: 1_000_000 - 36 * 3600, 2: 250 }) as Array<{ owner: string, repo: string }>
 
-    expect(rows.map(row => row.repo)).toEqual(['never-checked', 'general-due'])
+    expect(rows.map(row => row.repo)).toEqual(['never-checked', 'general-due', 'too-large'])
     expect(rows.map(row => row.repo)).not.toContain('general-recent')
     expect(rows.map(row => row.repo)).not.toContain('broken')
     expect(rows.map(row => row.repo)).not.toContain('empty-retired')
@@ -143,10 +146,10 @@ describe('github sync candidate selection', () => {
       .all({ 1: 1_000_000 - 36 * 3600, 2: 250 }) as Array<{ repo: string }>
 
     expect(subscribed.map(row => row.repo)).not.toContain('all-retired')
-    expect(general.map(row => row.repo)).toEqual(['never-checked', 'general-due'])
+    expect(general.map(row => row.repo)).toEqual(['never-checked', 'general-due', 'too-large'])
   })
 
-  it('excludes repos with a recorded too-large verdict from both sweeps', () => {
+  it('retries truncated repositories on the general refresh clock', () => {
     const subscribed = sqlite
       .prepare(SUBSCRIBED_SYNC_CANDIDATES_SQL)
       .all({ 1: 1_000_000 - 3600, 2: 250 }) as Array<{ repo: string }>
@@ -154,9 +157,24 @@ describe('github sync candidate selection', () => {
       .prepare(GENERAL_SYNC_CANDIDATES_SQL)
       .all({ 1: 1_000_000 - 36 * 3600, 2: 250 }) as Array<{ repo: string }>
 
-    // acme/too-large is due on both clocks, so only the verdict keeps it out.
     expect(subscribed.map(row => row.repo)).not.toContain('too-large')
-    expect(general.map(row => row.repo)).not.toContain('too-large')
+    expect(general.map(row => row.repo)).toContain('too-large')
+    sqlite.exec('UPDATE repos SET repo_meta_synced_at = 999000 WHERE repo = \'too-large\'')
+    const rechecked = sqlite.prepare(GENERAL_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 36 * 3600, 2: 250 }) as Array<{ repo: string }>
+    expect(rechecked.map(row => row.repo)).not.toContain('too-large')
+  })
+
+  it('prioritizes public references without a source commit over older ordinary work', () => {
+    sqlite.exec(`
+      UPDATE skills SET seo_indexable = 1, references_count = 2 WHERE repo = 'too-large';
+      UPDATE skills SET seo_indexable = 1, references_count = 2, rendered_commit_sha = 'known' WHERE repo = 'general-due';
+      INSERT INTO skills (owner, repo, name, seo_indexable, references_count, sync_status)
+        VALUES ('acme', 'never-checked', 'retired', 1, 2, 'path_missing');
+    `)
+    const rows = sqlite.prepare(GENERAL_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 36 * 3600, 2: 1 }) as Array<{ repo: string }>
+    expect(rows.map(row => row.repo)).toEqual(['too-large'])
   })
 
   it('walks the due-work partial index', () => {

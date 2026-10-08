@@ -1,0 +1,65 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getTree } from '../../layers/registry/server/utils/github-client'
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('getTree', () => {
+  it('reconstructs truncated trees from immutable subtree SHAs', async () => {
+    const answers = new Map([
+      ['root?recursive=1', { sha: 'root', truncated: true, tree: [{ path: 'partial', type: 'blob', sha: 'discard' }] }],
+      ['root', { sha: 'root', tree: [{ path: 'skills', type: 'tree', sha: 'skills-tree' }] }],
+      ['skills-tree?recursive=1', { sha: 'skills-tree', truncated: true, tree: [] }],
+      ['skills-tree', { sha: 'skills-tree', tree: [{ path: 'one', type: 'tree', sha: 'one-tree' }] }],
+      ['one-tree?recursive=1', { sha: 'one-tree', tree: [{ path: 'SKILL.md', type: 'blob', sha: 'skill' }, { path: 'references/a.md', type: 'blob', sha: 'reference' }] }],
+    ])
+    const reads: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const key = url.split('/git/trees/')[1]!
+      reads.push(key)
+      const answer = answers.get(key)
+      if (!answer)
+        throw new Error(`Unexpected tree read: ${key}`)
+      return Response.json(answer)
+    }))
+
+    const result = await getTree('acme', 'large', 'root', {})
+
+    expect(result.data).toEqual({ sha: 'root', truncated: false, tree: [
+      { path: 'skills', type: 'tree', sha: 'skills-tree' },
+      { path: 'skills/one', type: 'tree', sha: 'one-tree' },
+      { path: 'skills/one/SKILL.md', type: 'blob', sha: 'skill' },
+      { path: 'skills/one/references/a.md', type: 'blob', sha: 'reference' },
+    ] })
+    expect(reads).toEqual([...answers.keys()])
+  })
+
+  it('propagates a subtree read failure without presenting a partial tree', async () => {
+    let reads = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      reads++
+      return reads === 1
+        ? Response.json({ sha: 'root', truncated: true, tree: [] })
+        : new Response('', { status: 429 })
+    }))
+
+    const result = await getTree('acme', 'large', 'root', {})
+
+    expect(result.status).toBe(429)
+    expect(result.data).toBeNull()
+  })
+
+  it('stops bounded traversal without accepting an incomplete inventory', async () => {
+    const fetchMock = vi.fn(async (url: string) => Response.json({
+      sha: url.split('/git/trees/')[1]!.split('?')[0],
+      truncated: url.includes('?'),
+      tree: url.includes('?') ? [] : [{ path: 'nested', type: 'tree', sha: 'next' }],
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await getTree('acme', 'large', 'root', {})
+
+    expect(result.data?.truncated).toBe(true)
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(64)
+  })
+})
