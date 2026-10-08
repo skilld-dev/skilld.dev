@@ -128,7 +128,7 @@ else {
 </script>
 
 <template>
-  <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false">
+  <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false" :content-first="!!pageDemo">
     <template #header>
       <h1 id="demos-heading" class="text-3xl font-semibold tracking-tight text-balance">
         {{ pageDemo ? `What /${pageDemo.name} made` : 'See what skills make' }}
@@ -175,7 +175,7 @@ else {
 
     <div id="demos-stage" ref="stage" class="demos-stage scroll-mt-24">
       <Transition name="demos-swap" mode="out-in">
-        <DemoStage v-if="current" :key="currentKey" :demo="current" show-prompt live eager opens="skill-page" surface="demos-page" />
+        <DemoStage v-if="current" :key="currentKey" :demo="current" :presentation="pageDemo ? 'compact' : 'full'" show-prompt live eager opens="skill-page" surface="demos-page" />
       </Transition>
       <p v-if="!current" class="text-sm text-muted">
         No demos are published yet.

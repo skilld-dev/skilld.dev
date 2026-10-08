@@ -114,3 +114,20 @@ describe('demoSocialPicture', () => {
     expect(demoSocialPicture(demo({ shots: [{ src: '/m.jpg', width: 390, height: 844, alt: 'Phone', viewport: 'mobile', poster: null }] }))).toBeUndefined()
   })
 })
+
+describe('recorded run details', () => {
+  it('includes recorded effort in the model label and accessible sentence', () => {
+    const result = demoRecording({ ...demo(), effort: 'medium' as const })
+    expect(result.model).toBe('Opus 5.5, medium effort')
+    expect(result.sentence).toBe('Recorded with Claude Code, Opus 5.5, medium effort')
+  })
+})
+
+describe('token usage display', () => {
+  it('counts input and output once and preserves exact cache counts in the breakdown', () => {
+    expect(demoRecording({ ...demo(), tokenUsage: { inputTokens: 1043345, cachedInputTokens: 982528, outputTokens: 14970 } }).usage).toEqual({
+      label: '1.06M tokens',
+      sentence: 'Input: 1,043,345; cached input: 982,528; output: 14,970',
+    })
+  })
+})

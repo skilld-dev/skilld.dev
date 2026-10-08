@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
 import { demoPagePath } from '#shared/demo-pages'
-import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio } from '~/utils/home-demos'
+import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio, demoRecording } from '~/utils/home-demos'
+import DemoActions from './_DemoActions.vue'
 import DemoMedia from './home-demos/_DemoMedia.vue'
 import DemoRecording from './home-demos/_DemoRecording.vue'
 import SkillCard from './SkillCard.vue'
@@ -16,8 +17,9 @@ import SkillCard from './SkillCard.vue'
  * "Open the demo" goes: the demo's own page, or, on that page, the Skill
  * page's Demo panel.
  */
-const { demo, surface = 'demos', eager = false, showPrompt = false, live = false, opens = 'demo-page' } = defineProps<{
+const { demo, surface = 'demos', eager = false, showPrompt = false, live = false, opens = 'demo-page', presentation = 'full' } = defineProps<{
   demo: HomeDemoItem
+  presentation?: 'full' | 'hero' | 'compact'
   /** The analytics surface for the run chip, such as `home-demos`. */
   surface?: string
   eager?: boolean
@@ -27,23 +29,39 @@ const { demo, surface = 'demos', eager = false, showPrompt = false, live = false
 }>()
 
 /** The output page itself, when this stage shows it live. A film always plays as video. */
+const stage = useTemplateRef<HTMLElement>('stage')
+const { record } = useDemoEngagement(() => `${demo.owner}/${demo.repo}/${demo.name}`, surface, stage)
+const recording = computed(() => demoRecording(demo))
 const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 </script>
 
 <template>
-  <div class="demo-stage">
-    <div class="demo-stage__head">
-      <DemoRecording :demo />
+  <div class="demo-stage" :class="{ 'demo-stage--compact': presentation === 'compact' }">
+    <div v-if="presentation !== 'hero'" class="demo-stage__head">
+      <details v-if="showPrompt && presentation === 'compact'" class="demo-stage__task">
+        <summary class="data-label">
+          <span>Prompt</span>
+          <DemoRecording :demo />
+        </summary>
+        <p v-if="recording.usage" class="data-label demo-stage__usage">
+          {{ recording.usage.sentence }}
+        </p>
+        <p class="demo-stage__prompt">
+          {{ demo.prompt }}
+        </p>
+      </details>
+      <DemoRecording v-else :demo />
       <NuxtLink :to="opens === 'skill-page' ? demoHref(demo) : demoPagePath(demo)" class="demo-stage__open">
         Open the demo<span class="sr-only"> of /{{ demo.name }}</span>
         <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
       </NuxtLink>
     </div>
-    <p v-if="showPrompt" class="demo-stage__prompt">
+    <p v-if="showPrompt && presentation === 'full'" class="demo-stage__prompt">
       <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
     <div
+      ref="stage"
       class="demo-stage__window"
       :data-phone="demoHasPhoneFrame(demo) ? '' : undefined"
       :style="demo.video
@@ -71,9 +89,14 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
         layout="row"
         metric="none"
         :description="false"
-        :actions="['run']"
+        :actions="[]"
         :surface
       />
+      <NuxtLink v-if="presentation === 'hero'" :to="demoPagePath(demo)" class="demo-stage__open" :aria-label="`Open the demo of /${demo.name}`">
+        Open the demo
+        <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
+      </NuxtLink>
+      <DemoActions v-else :demo :surface @action="record" />
     </div>
   </div>
 </template>
@@ -152,6 +175,80 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
     block-size: auto;
     aspect-ratio: var(--phone-ratio, 4 / 5);
   }
+
+  .demo-stage__id :deep(.skill-card--row) {
+    padding-block: 0.5rem;
+  }
+
+  .demo-stage__id :deep(.skill-card__row-end) {
+    display: none;
+  }
+}
+
+/* Give interactive pages most of the screen, while keeping their actions in reach. */
+.demo-stage--compact .demo-stage__window {
+  block-size: clamp(24rem, 68svh, 52rem);
+  aspect-ratio: auto;
+}
+
+.demo-stage--compact .demo-stage__window[data-film] {
+  block-size: auto;
+  aspect-ratio: var(--video-w) / var(--video-h);
+  inline-size: min(100%, calc(68svh * var(--video-w) / var(--video-h)));
+}
+
+.demo-stage--compact .demo-stage__id {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  border-block-start: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+  padding-block-end: env(safe-area-inset-bottom, 0px);
+}
+
+.demo-stage--compact .demo-stage__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.demo-stage--compact .demo-stage__open {
+  grid-area: 1 / 2;
+}
+
+.demo-stage__task {
+  grid-area: 1 / 1 / auto / -1;
+}
+
+.demo-stage__task summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding-inline-end: 8rem;
+  min-block-size: 2.75rem;
+  padding-block: 0.75rem;
+  cursor: pointer;
+}
+
+.demo-stage__usage {
+  margin-block: 0.5rem;
+}
+
+.demo-stage__task summary::before {
+  content: '▸';
+}
+
+.demo-stage__task[open] summary::before {
+  content: '▾';
+}
+
+.demo-stage__task :deep(.demo-recording__part) {
+  white-space: normal;
+}
+
+.demo-stage__task summary:focus-visible {
+  outline: 2px solid var(--ui-border-accented);
+  outline-offset: 2px;
 }
 
 /* The live page scrolls inside its own frame. */
@@ -174,6 +271,10 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 
 /* The Skill row's hover fill follows the rounded corners of everything around it. */
 .demo-stage__id {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
   margin-block-start: 0.25rem;
   overflow: hidden;
   border-radius: var(--ui-radius);

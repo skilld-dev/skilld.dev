@@ -11,6 +11,8 @@ import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { AGENT_LOGOS } from '../utils/agent-logos'
 import { MORE_AGENT_COUNT } from '../utils/agent-reach'
 import { homeDemoFeed } from '../utils/home-demos'
+import { shuffled } from '../utils/random-order'
+import HomeDemoCarousel from './_HomeDemoCarousel.vue'
 
 const setupPrompt = agentSetupPrompt()
 const heroAgentsLabel = `Works with ${AGENT_LOGOS.map(agent => agent.label).join(', ')}, and ${MORE_AGENT_COUNT} more Agents`
@@ -106,10 +108,16 @@ if (import.meta.server) {
   serverTimingHeader.value = homeDataTimings.join(', ')
 }
 
-// Lazy: the section sits under the hero, and its images load lazily anyway.
-const { data: demosData } = useLazyFetch('/api/skill-demos', {
-  key: 'home-skill-demos-v2',
-  transform: homeDemoFeed,
+// The lead demo belongs in the server-rendered opening screen.
+const { data: demosData } = await useFetch('/api/skill-demos', {
+  key: 'home-skill-demos-v3',
+  transform: (feed) => {
+    const home = homeDemoFeed(feed)
+    const hero = feed.items.find(demo => demo.owner === 'vojtaholik' && demo.repo === 'good-css' && demo.name === 'good-css') ?? null
+    const candidates = feed.items.filter(demo => demo.makes === 'ui-component' || demo.makes === 'landing-page')
+    const heroDemos = hero ? [hero, ...candidates.filter(demo => demo !== hero)].slice(0, 6) : candidates.slice(0, 6)
+    return { ...home, heroDemos, items: home.items.filter(demo => demo !== hero) }
+  },
 })
 
 // Lazy too: the Why band sits below the fold, and the feed is cached for a day.
@@ -126,6 +134,17 @@ function onAvatarError(owner: string) {
 const trendingBoard = computed(() =>
   (trendingData.value?.board ?? []).filter(row => !missingAvatars.value.has(row.owner)),
 )
+const trendingOrder = ref<string[]>([])
+onMounted(() => {
+  trendingOrder.value = shuffled(trendingBoard.value.map(row => row.key), Math.random)
+})
+const homeTrendingRows = computed(() => {
+  const rows = (trendingData.value?.board ?? [])
+    .map((row, index) => ({ row, rank: index + 1 }))
+    .filter(({ row }) => !missingAvatars.value.has(row.owner))
+  const positions = new Map(trendingOrder.value.map((key, index) => [key, index]))
+  return rows.toSorted((a, b) => (positions.get(a.row.key) ?? a.rank) - (positions.get(b.row.key) ?? b.rank))
+})
 
 /**
  * The section is hidden entirely when the board comes up short. A trending
@@ -223,7 +242,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
 
 <template>
   <div class="home-page overflow-clip">
-    <section class="home-hero" aria-labelledby="hero-heading">
+    <section class="home-hero" :class="{ 'home-hero--demo': demosData?.heroDemos.length }" aria-labelledby="hero-heading">
       <!-- The signature, at low strength. Stone only: the H1 full stop is the
            band's one rose dot, so the texture's pick draws in stone. The mask
            keeps a clear column behind the copy. -->
@@ -231,55 +250,66 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
         <TextureBrailleNames :names="heroTextureNames" />
       </div>
 
-      <div class="home-hero__content mx-auto max-w-4xl px-4 text-center sm:px-6">
-        <!-- The rose dot is the full stop. Screen readers get a typed one. -->
-        <h1 id="hero-heading" class="home-hero-title font-semibold tracking-[-0.045em] text-highlighted text-balance">
-          Agent skills for you<br class="hidden sm:inline">
-          and your agent<span class="sr-only">.</span><span class="home-hero-dot" aria-hidden="true" />
-        </h1>
-        <!-- What sets skilld apart, so the caption assumes the reader knows
+      <div
+        class="home-hero__content mx-auto px-4 text-center sm:px-6"
+        :class="demosData?.heroDemos.length ? 'home-hero__content--demo max-w-6xl' : 'max-w-4xl'"
+      >
+        <div class="home-hero__intro">
+          <!-- The rose dot is the full stop. Screen readers get a typed one. -->
+          <h1 id="hero-heading" class="home-hero-title font-semibold tracking-[-0.045em] text-highlighted text-balance">
+            Agent skills for you<br class="hidden sm:inline">
+            and your agent<span class="sr-only">.</span><span class="home-hero-dot" aria-hidden="true" />
+          </h1>
+          <!-- What sets skilld apart, so the caption assumes the reader knows
              what a Skill is. Run comes before install, and the skilld Skill
              behind the promo below lets the agent search on its own. The
              lifecycle band under the hero maps the CLI's verbs. -->
-        <p class="home-hero__caption mx-auto mt-5 text-base leading-relaxed text-muted text-balance">
-          Try any skill before you install it. Your agent can search for its own.
-        </p>
+          <p class="home-hero__caption mx-auto mt-5 text-base leading-relaxed text-muted text-balance">
+            Try any skill before you install it. Your agent can search for its own.
+          </p>
 
-        <HomeSearch class="mx-auto mt-7 max-w-xl text-left" />
+          <HomeSearch class="mx-auto mt-7 max-w-xl text-left" />
+        </div>
 
-        <ul class="home-hero__claims home-hero-claims data-label mx-auto mt-5 list-none p-0" aria-label="About skilld">
-          <li>
-            <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI, no telemetry</a>
-          </li>
-          <li>
-            <NuxtLink to="/vs/skills-sh">
-              A skills.sh alternative
-            </NuxtLink>
-          </li>
-          <li>
-            <UPopover :content="{ side: 'bottom', align: 'center', sideOffset: 8 }">
-              <button type="button" class="home-hero__promo">
-                Teach your agent skilld
-                <UIcon name="i-lucide-chevron-down" class="size-3 shrink-0" aria-hidden="true" />
-              </button>
-              <template #content>
-                <div class="home-hero__promo-panel space-y-3 p-3">
-                  <SkilldInstallChip surface="home-hero-promo" />
-                  <p class="text-xs leading-relaxed text-muted">
-                    No terminal? Paste this into your agent.
-                  </p>
-                  <CopyText :text="setupPrompt" label="setup prompt" />
-                </div>
-              </template>
-            </UPopover>
-          </li>
-        </ul>
+        <div v-if="demosData?.heroDemos.length" class="home-hero__demo text-left">
+          <HomeDemoCarousel :demos="demosData.heroDemos" />
+        </div>
 
-        <!-- Quiet proof under the claims line. The section it links to names each Agent and the way in. -->
-        <NuxtLink to="#agents" class="home-hero__agents mx-auto mt-5" :aria-label="heroAgentsLabel">
-          <UIcon v-for="agent in AGENT_LOGOS" :key="agent.id" :name="agent.icon" class="size-4 shrink-0" aria-hidden="true" />
-          <span class="data-label" aria-hidden="true">+{{ MORE_AGENT_COUNT }}</span>
-        </NuxtLink>
+        <div class="home-hero__support">
+          <ul class="home-hero__claims home-hero-claims data-label mx-auto mt-5 list-none p-0" aria-label="About skilld">
+            <li>
+              <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI, no telemetry</a>
+            </li>
+            <li>
+              <NuxtLink to="/vs/skills-sh">
+                A skills.sh alternative
+              </NuxtLink>
+            </li>
+            <li>
+              <UPopover :content="{ side: 'bottom', align: 'center', sideOffset: 8 }">
+                <button type="button" class="home-hero__promo">
+                  Teach your agent skilld
+                  <UIcon name="i-lucide-chevron-down" class="size-3 shrink-0" aria-hidden="true" />
+                </button>
+                <template #content>
+                  <div class="home-hero__promo-panel space-y-3 p-3">
+                    <SkilldInstallChip surface="home-hero-promo" />
+                    <p class="text-xs leading-relaxed text-muted">
+                      No terminal? Paste this into your agent.
+                    </p>
+                    <CopyText :text="setupPrompt" label="setup prompt" />
+                  </div>
+                </template>
+              </UPopover>
+            </li>
+          </ul>
+
+          <!-- Quiet proof under the claims line. The section it links to names each Agent and the way in. -->
+          <NuxtLink to="#agents" class="home-hero__agents mx-auto mt-5" :aria-label="heroAgentsLabel">
+            <UIcon v-for="agent in AGENT_LOGOS" :key="agent.id" :name="agent.icon" class="size-4 shrink-0" aria-hidden="true" />
+            <span class="data-label" aria-hidden="true">+{{ MORE_AGENT_COUNT }}</span>
+          </NuxtLink>
+        </div>
       </div>
     </section>
 
@@ -290,9 +320,6 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       scroll into view, so their code stays out of the scripts the first paint
       waits on.
     -->
-    <!-- The first content section: what Skills make, before any list of them. -->
-    <LazyHomeDemos hydrate-on-visible :demos="demosData?.items ?? []" :total="demosData?.total ?? 0" />
-
     <section
       v-if="showTrending || trendingStatus === 'pending'"
       id="trending"
@@ -316,7 +343,11 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
 
         <template v-else>
           <div class="mt-8">
-            <LazyBoardRankedList hydrate-on-visible :rows="trendingBoard" surface="home-trending-row" @avatar-error="onAvatarError" />
+            <ol class="editorial-ledger list-none p-0">
+              <li v-for="{ row, rank } in homeTrendingRows" :key="row.key">
+                <LazyTrendingBoardItem hydrate-on-visible :row :rank surface="home-trending-row" @avatar-error="onAvatarError" />
+              </li>
+            </ol>
           </div>
           <UButton
             :to="weekBoardPath"
@@ -330,6 +361,8 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
         </template>
       </div>
     </section>
+
+    <LazyHomeDemos hydrate-on-visible :demos="demosData?.items ?? []" :total="demosData?.total ?? 0" />
 
     <LazyHomeWhy hydrate-on-visible :trending-row="whyTrendingRow" :demos="demosData?.previews ?? []" :pulls="pullsData?.items ?? []" />
 
@@ -732,6 +765,27 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   padding-bottom: 4.5rem;
 }
 
+.home-hero__content--demo {
+  display: grid;
+  grid-template-areas: 'intro' 'demo' 'support';
+  gap: 1.5rem;
+}
+
+.home-hero__intro {
+  grid-area: intro;
+  min-inline-size: 0;
+}
+
+.home-hero__demo {
+  grid-area: demo;
+  min-inline-size: 0;
+}
+
+.home-hero__support {
+  grid-area: support;
+  min-inline-size: 0;
+}
+
 /* Phones and tablets: a strip under the copy, clear of every line of text. */
 .home-hero__texture {
   --brand-dot: var(--ui-text-muted);
@@ -769,6 +823,49 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       ),
       linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
     mask-composite: intersect;
+  }
+
+  .home-hero__content--demo {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: 1fr min-content min-content 1fr;
+    grid-template-areas: '. demo' 'intro demo' 'support demo' '. demo';
+    gap: 1rem 4rem;
+    padding-block: 3rem;
+    align-items: start;
+    text-align: start;
+  }
+
+  .home-hero--demo .home-hero__texture {
+    mask-image:
+      linear-gradient(
+        to right,
+        #000 0,
+        #000 calc(50% - 40rem),
+        transparent calc(50% - 36rem),
+        transparent calc(50% + 36rem),
+        #000 calc(50% + 40rem),
+        #000 100%
+      ),
+      linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+  }
+
+  .home-hero__content--demo .home-hero-title {
+    font-size: clamp(2.75rem, 4vw, 3.5rem);
+  }
+
+  .home-hero__content--demo .home-hero__caption,
+  .home-hero__content--demo .home-hero__agents {
+    margin-inline: 0;
+  }
+
+  .home-hero__demo :deep(.skill-card--row) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'id end';
+    column-gap: 1rem;
+  }
+
+  .home-hero__demo :deep(.skill-card__row-end) {
+    margin-block-start: 0;
   }
 }
 
@@ -815,6 +912,17 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
     content: '·';
     padding-inline: 0.6em;
     color: var(--ui-text-dimmed);
+  }
+
+  .home-hero__content--demo .home-hero__claims {
+    flex-wrap: wrap;
+    justify-content: start;
+    gap: 0.25rem 1rem;
+    margin-top: 0;
+  }
+
+  .home-hero__content--demo .home-hero__claims > li + li::before {
+    content: none;
   }
 }
 
