@@ -73,6 +73,12 @@ describe('ai generation work', () => {
 
   afterEach(() => sqlite.close())
 
+  it.each(['', ' \t\n\r', '\u00A0\u2003\uFEFF'])('keeps empty source out of runtime generation work: %j', async (source) => {
+    sqlite.prepare('UPDATE skills SET rendered_raw = ?').run(source)
+    expect(await selectMissingGeneratedSkills(db, 'abstractness', 50)).toEqual([])
+    expect(await selectMissingGeneratedSkills(db, 'embedding', 50)).toEqual([])
+  })
+
   it('does not select current runtime kinds because paused batch kinds are missing', async () => {
     const embeddings = await selectMissingGeneratedSkills(db, 'embedding', 50)
     const abstractness = await selectMissingGeneratedSkills(db, 'abstractness', 50)
