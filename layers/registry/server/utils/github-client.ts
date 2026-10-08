@@ -539,7 +539,7 @@ export async function getTree(
     bindings,
     init,
   )
-  if (!initial.data?.truncated || options?.expandTruncated === false)
+  if (!initial.data?.truncated || options?.expandTruncated !== true)
     return initial
 
   // GitHub caps recursive trees at 100,000 entries or 7 MB. Resolve each

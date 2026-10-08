@@ -373,7 +373,7 @@ export async function refreshRepoAssets(
     SET source_owner = ?, source_repo = ?
     WHERE owner = ? AND repo = ?
   `).bind(sourceOwner, sourceRepo, owner, repo).run()
-  const treeRes = await getTree(sourceOwner, sourceRepo, repoRes.data.headTreeSha ?? branch, bindings)
+  const treeRes = await getTree(sourceOwner, sourceRepo, repoRes.data.headTreeSha ?? branch, bindings, { expandTruncated: true })
   logRateLimit(`asset-backfill tree ${owner}/${repo}`, treeRes.rateLimit)
   const rateLimitRemaining = Math.min(
     rate.rateLimitRemaining ?? Number.POSITIVE_INFINITY,
@@ -895,7 +895,7 @@ export async function syncRepo(
   // The head tree SHA names the exact tree the summary saw. A branch name
   // can move between the two reads, and a SHA URL is immutable, so its ETag
   // cache entry answers 304 for as long as the tree stands.
-  const treeRes = await getTree(sourceOwner, sourceRepo, headTreeSha ?? branch, bindings)
+  const treeRes = await getTree(sourceOwner, sourceRepo, headTreeSha ?? branch, bindings, { expandTruncated: true })
   logRateLimit(`tree ${owner}/${repo}`, treeRes.rateLimit)
   trackRateLimit(treeRes.rateLimit)
 

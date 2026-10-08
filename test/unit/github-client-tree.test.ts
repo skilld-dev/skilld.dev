@@ -22,7 +22,7 @@ describe('getTree', () => {
       return Response.json(answer)
     }))
 
-    const result = await getTree('acme', 'large', 'root', {})
+    const result = await getTree('acme', 'large', 'root', {}, { expandTruncated: true })
 
     expect(result.data).toEqual({ sha: 'root', truncated: false, tree: [
       { path: 'skills', type: 'tree', sha: 'skills-tree' },
@@ -33,12 +33,12 @@ describe('getTree', () => {
     expect(reads).toEqual([...answers.keys()])
   })
 
-  it('returns a partial tree without expansion for a page read', async () => {
+  it('returns a partial tree with one request unless durable refresh opts in', async () => {
     const tree = { sha: 'root', truncated: true, tree: [{ path: 'SKILL.md', type: 'blob', sha: 'skill', size: 120 }] }
     const fetchMock = vi.fn(async () => Response.json(tree))
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await getTree('acme', 'large', 'root', {}, { expandTruncated: false })
+    const result = await getTree('acme', 'large', 'root', {})
 
     expect(result.data).toEqual(tree)
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -53,7 +53,7 @@ describe('getTree', () => {
         : new Response('', { status: 429 })
     }))
 
-    const result = await getTree('acme', 'large', 'root', {})
+    const result = await getTree('acme', 'large', 'root', {}, { expandTruncated: true })
 
     expect(result.status).toBe(429)
     expect(result.data).toBeNull()
@@ -67,7 +67,7 @@ describe('getTree', () => {
     }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await getTree('acme', 'large', 'root', {})
+    const result = await getTree('acme', 'large', 'root', {}, { expandTruncated: true })
 
     expect(result.data?.truncated).toBe(true)
     expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
