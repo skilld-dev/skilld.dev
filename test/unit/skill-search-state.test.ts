@@ -125,7 +125,7 @@ describe('search results belong to the current query', () => {
     expect(search.rows.value).toMatchObject([{ _tag: 'skill', skill: { name: 'shipreel' } }])
   })
 
-  it('offers the index action for a Repository the registry does not hold', async () => {
+  it.each(['someone/new-skills', 'https://github.com/someone/new-skills'])('offers the index action for an unlisted repository entered as %s', async (query) => {
     fetchMock.mockResolvedValue({
       kind: 'repository',
       repository: { _tag: 'not-indexed', owner: 'someone', repo: 'new-skills', url: 'https://github.com/someone/new-skills' },
@@ -135,7 +135,7 @@ describe('search results belong to the current query', () => {
       total: 0,
       mode: null,
     })
-    await type('https://github.com/someone/new-skills')
+    await type(query)
     await debounce()
     expect(search.state.value).toMatchObject({ _tag: 'repository', status: { _tag: 'idle' } })
     expect(search.rows.value).toEqual([{ _tag: 'index', repository: { _tag: 'repository', owner: 'someone', repo: 'new-skills', url: 'https://github.com/someone/new-skills' } }])

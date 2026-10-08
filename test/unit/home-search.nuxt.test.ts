@@ -92,6 +92,54 @@ afterEach(() => {
 })
 
 describe('homepage search interactions', () => {
+  it.each(['vojtaholik/good-css', 'https://github.com/vojtaholik/good-css'])('waits for repository lookup before submitting %s', async (term) => {
+    const repository = { _tag: 'repository' as const, owner: 'vojtaholik', repo: 'good-css', url: 'https://github.com/vojtaholik/good-css' }
+    query.value = term
+    rows.value = []
+    stateOverride.value = { _tag: 'loading', rows: [] }
+    const wrapper = await mountSearch()
+    await press(wrapper, 'Enter', 'Enter')
+    expect(navigate).not.toHaveBeenCalled()
+    expect(submitRepository).not.toHaveBeenCalled()
+
+    stateOverride.value = { _tag: 'repository', repository, status: { _tag: 'idle' }, rows: [{ _tag: 'index', repository }] }
+    await flushPromises()
+    expect(submitRepository).toHaveBeenCalledExactlyOnceWith(repository)
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('opens an indexed repository after a pending submission resolves', async () => {
+    query.value = 'vercel-labs/agent-skills'
+    stateOverride.value = { _tag: 'loading', rows: [] }
+    const wrapper = await mountSearch()
+    await press(wrapper, 'Enter')
+    expect(navigate).not.toHaveBeenCalled()
+    stateOverride.value = { _tag: 'ready', rows: [repositoryRow], total: 7, repository: repositoryRow.repository }
+    await flushPromises()
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('/gh/vercel-labs/agent-skills')
+  })
+
+  it.each(['edit', 'Escape', 'error'])('cancels pending repository submission on %s', async (action) => {
+    query.value = 'vercel-labs/agent-skills'
+    stateOverride.value = { _tag: 'loading', rows: [] }
+    const wrapper = await mountSearch()
+    await press(wrapper, 'Enter')
+    if (action === 'edit') {
+      await wrapper.get('input').setValue('vue')
+    }
+    else if (action === 'Escape') {
+      await press(wrapper, 'Escape')
+    }
+    else {
+      stateOverride.value = { _tag: 'error', error: new Error('offline') }
+      await flushPromises()
+    }
+    stateOverride.value = { _tag: 'ready', rows: [repositoryRow], total: 7, repository: repositoryRow.repository }
+    await flushPromises()
+    expect(navigate).not.toHaveBeenCalled()
+    expect(submitRepository).not.toHaveBeenCalled()
+  })
+
   it('submits a name to the results page on Enter when nothing was selected', async () => {
     const wrapper = await mountSearch()
     await press(wrapper, 'Enter')

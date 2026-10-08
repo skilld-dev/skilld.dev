@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Margin, a fictional independent design journal. A reading list for curious minds.">
+<title>Margin · The reading list</title>
+<style>
+@layer reset, base, layout, art, states;
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; min-inline-size: 0; }
+  :root { scrollbar-gutter: stable; text-wrap: pretty; overflow-wrap: break-word; font-synthesis: none; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; }
+  body { margin: 0; min-block-size: 100svh; }
+  h1, h2, h3, p { margin: 0; }
+  h1, h2, h3 { text-wrap: balance; }
+  button, input { font: inherit; }
+  button, a { touch-action: manipulation; }
+  button { cursor: pointer; user-select: none; }
+  svg { display: block; max-inline-size: 100%; block-size: auto; }
+  [hidden] { display: none !important; }
+}
+@layer base {
+  :root {
+    color-scheme: light;
+    --paper: light-dark(oklch(96.5% .013 85), oklch(20.5% .012 75));
+    --ink: light-dark(oklch(24% .015 65), oklch(92% .018 85));
+    --muted: light-dark(oklch(47% .018 65), oklch(71% .02 85));
+    --line: color-mix(in oklch, var(--ink) 21%, var(--paper));
+    --accent: light-dark(oklch(53% .19 32), oklch(73% .16 38));
+    --wash: color-mix(in oklch, var(--ink) 4%, var(--paper));
+    --serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+    --sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    --gutter: clamp(1.25rem, .4rem + 3vw, 3.25rem);
+    --hero-size: clamp(2.6rem, 1.5rem + 3.2vw, 5rem);
+    --section-space: clamp(2rem, 1rem + 2.5vw, 3.5rem);
+    --card-title: clamp(1.4rem, 1.22rem + .4cqi, 1.65rem);
+    --list-title: clamp(1.65rem, 1.3rem + 1.2cqi, 2.2rem);
+  }
+  [data-theme="light"] { color-scheme: light; }
+  [data-theme="dark"] { color-scheme: dark; }
+  body { background: var(--paper); color: var(--ink); font: 1rem/1.5 var(--sans); }
+  button { color: inherit; border: 0; background: transparent; padding: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  .eyebrow { font: .67rem/1.5 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+  .icon { inline-size: 1.25em; block-size: 1.25em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+}
+@layer layout {
+  .page { display: grid; grid-template-columns: [full-start] var(--gutter) [content-start] minmax(0, 75rem) [content-end] var(--gutter) [full-end]; justify-content: center; }
+  .page > * { grid-column: content; }
+  .masthead { container: masthead / inline-size; display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; padding-block: 1.5rem; border-block-end: 1px solid var(--ink); }
+  .wordmark { font: 3.1rem/.9 var(--serif); letter-spacing: -.075em; }
+  .wordmark span { color: var(--accent); }
+  .journal-label { max-inline-size: 12rem; margin-inline-start: .8rem; color: var(--muted); }
+  .theme { display: inline-flex; gap: .6rem; align-items: center; margin-inline-start: auto; min-block-size: 44px; padding-inline: .8rem; border: 1px solid var(--line); border-radius: 2rem; font-size: .75rem; }
+  .intro { display: flex; flex-wrap: wrap; align-items: end; gap: 1.5rem 3rem; padding-block: var(--section-space); }
+  .intro-title { flex: 2 1 25rem; display: flex; flex-direction: column; gap: 1rem; }
+  .intro-title .eyebrow { color: var(--accent); }
+  h1 { font: var(--hero-size)/1.04 var(--serif); letter-spacing: -.05em; max-inline-size: 10em; }
+  h1 em { font-weight: normal; }
+  .intro-note { flex: 1 1 15rem; max-inline-size: 23rem; color: var(--muted); font-size: .9rem; display: flex; flex-direction: column; gap: 1.2rem; padding-block-end: .25rem; }
+  .intro-note .eyebrow { color: var(--ink); }
+  .experiment { display: flex; flex-wrap: wrap; gap: .5rem 2rem; align-items: center; padding-block: .6rem; padding-inline: 1rem; border: 1px solid var(--line); background: var(--wash); }
+  .experiment-label { display: flex; align-items: center; gap: .6rem; font-size: .75rem; }
+  .experiment-label .icon { color: var(--accent); }
+  .width-controls { flex: 1 1 19rem; display: flex; gap: .75rem; align-items: center; justify-content: end; }
+  .width-controls label { flex: none; white-space: nowrap; font: .63rem var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  input[type="range"] { inline-size: min(100%, 11rem); min-inline-size: 4rem; min-block-size: 44px; accent-color: var(--accent); cursor: ew-resize; }
+  input[type="range"]:active { accent-color: var(--ink); }
+  .width-value { min-inline-size: 4.2rem; font: .7rem var(--mono); font-variant-numeric: tabular-nums; text-align: end; }
+  .preview { inline-size: min(100%, var(--preview-width, 1200px)); justify-self: center; container: reading / inline-size; padding-block-start: 2.3rem; }
+  .reading-head { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem 1.5rem; padding-block-end: 1.2rem; }
+  h2 { font: var(--list-title)/1.2 var(--serif); letter-spacing: -.025em; }
+  .reading-title-dot { color: var(--accent); }
+  .saved-filter { margin-inline-start: auto; min-block-size: 44px; display: inline-flex; gap: .6rem; align-items: center; font-size: .75rem; padding-inline: .75rem; border-radius: 2rem; border: 1px solid var(--line); }
+  #saved-count { display: inline-grid; place-items: center; min-inline-size: 1.5rem; block-size: 1.5rem; background: var(--wash); border-radius: 50%; font: .7rem var(--mono); font-variant-numeric: tabular-nums; }
+  .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1rem; border-block: 1px solid var(--line); padding-block: .5rem; }
+  .filters { display: flex; flex-wrap: wrap; gap: .2rem; }
+  .filter { min-block-size: 44px; padding-inline: .9rem; font-size: .75rem; border-radius: 2rem; }
+  .result-count { margin-inline-start: auto; font: .66rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; padding-inline: .3rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 2.1rem 1.65rem; padding-block: 1.75rem 2.5rem; }
+  .card { display: flex; flex-direction: column; gap: .8rem; border-block-end: 1px solid var(--line); padding-block-end: .65rem; }
+  .cover { inline-size: 100%; contain: size; aspect-ratio: 1.65; overflow: clip; position: relative; display: grid; isolation: isolate; }
+  .card-copy { display: flex; flex-direction: column; gap: .55rem; }
+  .category { color: var(--accent); font: .63rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  h3 { font: var(--card-title)/1.13 var(--serif); letter-spacing: -.025em; }
+  .excerpt { color: var(--muted); font-size: .8rem; line-height: 1.65; }
+  .card-foot { margin-block-start: auto; display: flex; gap: 1rem; align-items: center; }
+  .meta { font: .65rem var(--mono); color: var(--muted); }
+  .bookmark { display: grid; place-items: center; margin-inline-start: auto; inline-size: 44px; block-size: 44px; border-radius: 50%; }
+  .bookmark .icon { inline-size: 1.15rem; block-size: 1.15rem; }
+  .empty { padding-block: 3rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: .8rem; }
+  .empty h3 { font-size: 1.8rem; }
+  .empty p { max-inline-size: 26rem; color: var(--muted); font-size: .85rem; }
+  .reset { min-block-size: 44px; padding-inline: 1.2rem; border: 1px solid var(--line); border-radius: 2rem; font-size: .8rem; }
+  .list-end { display: flex; align-items: center; gap: 1rem; padding-block: .7rem 2.5rem; color: var(--muted); font-size: .72rem; }
+  .list-end::before, .list-end::after { content: ''; flex: 1; block-size: 1px; background: var(--line); }
+  .list-end span { color: var(--accent); }
+  .footer { border-block-start: 1px solid var(--ink); padding-block: 1.2rem 1.8rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 2rem; color: var(--muted); font: .62rem var(--mono); }
+  .footer strong { color: var(--ink); font-weight: normal; }
+  .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: clip; clip-path: inset(50%); white-space: nowrap; }
+  @supports (grid-template-rows: subgrid) {
+    .card { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: .8rem; }
+  }
+  @container masthead (inline-size < 30rem) {
+    .journal-label { order: 3; flex-basis: 100%; max-inline-size: none; margin-inline-start: 0; font-size: .6rem; }
+    .journal-label br { display: none; }
+  }
+  @container reading (inline-size < 36rem) {
+    .reading-head { padding-block-end: .8rem; }
+    .filter-bar { gap: .5rem; }
+    .filter { padding-inline: .65rem; }
+    .result-count { margin-inline-start: .65rem; padding-block-end: .35rem; }
+    .cards { gap: 1.25rem; }
+    .card { display: grid; grid-row: auto; grid-template-rows: auto auto; grid-template-columns: minmax(5rem, 28%) 1fr; column-gap: .9rem; row-gap: .3rem; padding-block-end: .8rem; }
+    .cover { grid-row: span 2; aspect-ratio: .8; align-self: start; }
+    .card-copy { gap: .4rem; }
+    h3 { font-size: 1.3rem; }
+    .excerpt { display: none; }
+    .card-foot { grid-column: 2; margin-block-start: 0; }
+  }
+}
+@layer art {
+  /* CSS-only editorial covers. Grid layers preserve each cover's proportions. */
+  .cover > * { grid-area: 1 / 1; }
+  .art-label { align-self: start; z-index: 2; padding-block: .75rem; padding-inline: .9rem; display: flex; justify-content: space-between; gap: .3rem; font: .5rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .art-caption { align-self: end; padding-block: .75rem; padding-inline: .9rem; z-index: 2; font: .5rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .art-one { background: oklch(86% .07 52); color: oklch(32% .04 45); }
+  .art-one .circle { inline-size: 53%; aspect-ratio: 1; border-radius: 50%; place-self: center; }
+  .art-one .circle:first-of-type { background: oklch(57% .21 31); translate: -26% 8%; }
+  .art-one .circle:nth-of-type(2) { background: oklch(76% .16 58); translate: 26% -8%; mix-blend-mode: multiply; }
+  .art-one .axis { block-size: 1px; inline-size: 85%; background: oklch(32% .04 45 / .4); place-self: center; rotate: -34deg; }
+  .art-two { background: oklch(76% .047 123); color: oklch(28% .025 125); }
+  .art-two::before { content: ''; position: absolute; inset-block: 0; inset-inline: 0; background-image: linear-gradient(oklch(28% .025 125 / .13) 1px, transparent 1px), linear-gradient(90deg, oklch(28% .025 125 / .13) 1px, transparent 1px); background-size: 12.5% 20%; }
+  .type-letter { place-self: center; font: italic 8.5rem/.8 var(--serif); letter-spacing: -.08em; z-index: 1; translate: -.07em -.025em; }
+  .art-three { background: oklch(26% .008 80); color: oklch(92% .023 85); }
+  .poster-type { place-self: center; font: 900 2.7rem/.9 var(--sans); letter-spacing: -.06em; rotate: -7deg; }
+  .poster-type span { color: oklch(69% .2 33); }
+  .poster-bottom { place-self: end center; padding-block-end: .6rem; font: .45rem var(--mono); letter-spacing: .12em; }
+  .art-four { background: oklch(83% .035 231); color: oklch(32% .055 239); }
+  .stairs { inline-size: 60%; block-size: 57%; place-self: center; background: oklch(51% .085 239); clip-path: polygon(0 100%,0 75%,25% 75%,25% 50%,50% 50%,50% 25%,75% 25%,75% 0,100% 0,100% 100%); }
+  .stairs::after { content: ''; display: block; inline-size: 100%; block-size: 100%; background: oklch(68% .065 237); clip-path: polygon(8% 100%,8% 80%,33% 80%,33% 55%,58% 55%,58% 30%,83% 30%,83% 5%,100% 5%,100% 100%); }
+  .art-four .sun { inline-size: 19%; aspect-ratio: 1; background: oklch(94% .028 85); border-radius: 50%; place-self: start; margin-block-start: 18%; margin-inline-start: 19%; }
+  .art-five { background: oklch(79% .042 343); color: oklch(38% .074 341); }
+  .rings { place-self: center; inline-size: 62%; aspect-ratio: 1; border-radius: 50%; border: 1px solid currentColor; display: grid; place-items: center; }
+  .rings::before, .rings::after { content: ''; grid-area: 1 / 1; border: 1px solid currentColor; border-radius: 50%; aspect-ratio: 1; inline-size: 77%; }
+  .rings::after { inline-size: 52%; box-shadow: 0 0 0 .7rem oklch(79% .042 343), 0 0 0 calc(.7rem + 1px) currentColor; }
+  .rings .center { inline-size: 26%; aspect-ratio: 1; border-radius: 50%; background: currentColor; grid-area: 1 / 1; }
+  .art-six { background: oklch(88% .11 94); color: oklch(40% .07 70); }
+  .orbit { place-self: center; inline-size: 80%; block-size: 44%; border: 1px solid currentColor; border-radius: 50%; rotate: -27deg; }
+  .orbit.second { rotate: 27deg; }
+  .planet { place-self: center; inline-size: 27%; aspect-ratio: 1; border-radius: 50%; background: oklch(59% .2 32); }
+  .satellite { inline-size: 7%; aspect-ratio: 1; border-radius: 50%; place-self: center; translate: 320% -220%; background: currentColor; }
+}
+@layer states {
+  @container reading (inline-size < 36rem) {
+    .cover .art-label, .cover .art-caption, .cover .poster-bottom { display: none; }
+    .cover .type-letter { font-size: 4rem; }
+    .cover .poster-type { font-size: 1.35rem; }
+  }
+  .filter[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .bookmark[aria-pressed="true"] { color: var(--accent); background: color-mix(in oklch, var(--accent) 9%, var(--paper)); }
+  .bookmark[aria-pressed="true"] .icon { fill: currentColor; }
+  .saved-filter[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in oklch, var(--accent) 7%, var(--paper)); }
+  .card:has(.bookmark[aria-pressed="true"]) { border-block-end-color: color-mix(in oklch, var(--accent) 50%, var(--line)); }
+  button:active { background: color-mix(in oklch, var(--accent) 15%, var(--paper)); }
+  .filter[aria-pressed="true"]:active { background: var(--accent); }
+  @media (hover: hover) and (pointer: fine) {
+    .theme:hover, .saved-filter:hover, .bookmark:hover, .reset:hover { background: color-mix(in oklch, var(--accent) 9%, var(--paper)); color: var(--accent); }
+    .filter:hover { background: var(--wash); }
+    .filter[aria-pressed="true"]:hover { background: var(--accent); color: var(--paper); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    button { transition: background-color 150ms ease-out, color 150ms ease-out; }
+  }
+  @media (forced-colors: active) {
+    button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; }
+    .cover { border: 1px solid CanvasText; }
+  }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <div class="wordmark" aria-label="Margin">Margin<span>↗</span></div>
+    <p class="journal-label eyebrow">An independent journal<br> of design &amp; culture</p>
+    <button class="theme" id="theme" type="button" aria-label="Switch to dark theme" aria-pressed="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.4A8.5 8.5 0 0 1 8.6 4 8.5 8.5 0 1 0 20 15.4Z"/></svg><span id="theme-label">Dark</span></button>
+  </header>
+  <section class="intro" aria-labelledby="intro-title">
+    <div class="intro-title"><p class="eyebrow">For the curious, by the curious</p><h1 id="intro-title">Ideas worth<br>making <em>room for.</em></h1></div>
+    <div class="intro-note"><p>On the things we make, the spaces we inhabit, and the ideas that stay with us.</p><p class="eyebrow">Read slowly. Think widely.</p></div>
+  </section>
+  <aside class="experiment" aria-label="Reading list width control">
+    <p class="experiment-label"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M10 5v14"/></svg>Same reading list. A different margin.</p>
+    <div class="width-controls"><label for="width">Narrow</label><input id="width" type="range" min="320" max="1200" step="10" value="1200" aria-label="Reading list width" aria-describedby="width-help"><label for="width">Wide</label><output class="width-value" id="width-value" for="width">1200 px</output></div>
+    <p class="sr-only" id="width-help">Use arrow keys to change the reading list width. The list stays within the available space.</p>
+  </aside>
+  <main class="preview" id="reading-list" aria-labelledby="reading-title">
+    <div class="reading-head"><h2 id="reading-title">The reading list<span class="reading-title-dot" aria-hidden="true">.</span></h2><button type="button" class="saved-filter" id="saved-filter" aria-pressed="false" aria-label="Show saved articles"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg><span>Saved</span><span id="saved-count">0</span></button></div>
+    <div class="filter-bar"><div class="filters" role="group" aria-label="Filter by category"><button type="button" class="filter" data-category="all" aria-pressed="true">All articles</button><button type="button" class="filter" data-category="Design" aria-pressed="false">Design</button><button type="button" class="filter" data-category="Typography" aria-pressed="false">Typography</button><button type="button" class="filter" data-category="Culture" aria-pressed="false">Culture</button><button type="button" class="filter" data-category="Spaces" aria-pressed="false">Spaces</button></div><p class="result-count" id="result-count" role="status" aria-live="polite" aria-atomic="true">06 articles</p></div>
+    <div class="cards" id="cards">
+      <article class="card" data-category="Design">
+        <div class="cover art-one" aria-hidden="true"><div class="circle"></div><div class="circle"></div><div class="axis"></div><div class="art-label"><span>Form &amp; feeling</span><span>01 / M</span></div><span class="art-caption">A study in balance</span></div>
+        <div class="card-copy"><p class="category">Design</p><h3>The quiet power of doing less</h3><p class="excerpt">What happens when we stop adding, and start paying attention?</p></div>
+        <div class="card-foot"><p class="meta">6 min read <span aria-hidden="true">·</span> Essay</p><button class="bookmark" type="button" aria-pressed="false" aria-label="Save The quiet power of doing less"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg></button></div>
+      </article>
+      <article class="card" data-category="Typography">
+        <div class="cover art-two" aria-hidden="true"><div class="art-label"><span>Letter by letter</span><span>02 / M</span></div><span class="type-letter">Aa</span><span class="art-caption">Beyond the baseline</span></div>
+        <div class="card-copy"><p class="category">Typography</p><h3>A typeface is a voice before a word is read</h3><p class="excerpt">The subtle ways letterforms shape what we hear on the page.</p></div>
+        <div class="card-foot"><p class="meta">8 min read <span aria-hidden="true">·</span> Perspective</p><button class="bookmark" type="button" aria-pressed="false" aria-label="Save A typeface is a voice before a word is read"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg></button></div>
+      </article>
+      <article class="card" data-category="Culture">
+        <div class="cover art-three" aria-hidden="true"><div class="art-label"><span>Against the noise</span><span>03 / M</span></div><div class="poster-type">LESS,<br>BUT<br><span>BETTER.</span></div><span class="poster-bottom">An invitation to pay attention</span></div>
+        <div class="card-copy"><p class="category">Culture</p><h3>In praise of the ordinary</h3><p class="excerpt">Finding something remarkable in the things we walk past every day.</p></div>
+        <div class="card-foot"><p class="meta">4 min read <span aria-hidden="true">·</span> Observation</p><button class="bookmark" type="button" aria-pressed="false" aria-label="Save In praise of the ordinary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg></button></div>
+      </article>
+      <article class="card" data-category="Spaces">
+        <div class="cover art-four" aria-hidden="true"><div class="sun"></div><div class="stairs"></div><div class="art-label"><span>Space to pause</span><span>04 / M</span></div><span class="art-caption">Light, shape, silence</span></div>
+        <div class="card-copy"><p class="category">Spaces</p><h3>Rooms for thinking</h3><p class="excerpt">A window, a chair, a little daylight. The architecture of a good idea.</p></div>
+        <div class="card-foot"><p class="meta">5 min read <span aria-hidden="true">·</span> Field notes</p><button class="bookmark" type="button" aria-pressed="false" aria-label="Save Rooms for thinking"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg></button></div>
+      </article>
+      <article class="card" data-category="Design">
+        <div class="cover art-five" aria-hidden="true"><div class="rings"><div class="center"></div></div><div class="art-label"><span>Circles of influence</span><span>05 / M</span></div><span class="art-caption">Nothing is made alone</span></div>
+        <div class="card-copy"><p class="category">Design</p><h3>The things we make, and the things that make us</h3><p class="excerpt">Tracing the invisible connections between our lives and our work.</p></div>
+        <div class="card-foot"><p class="meta">11 min read <span aria-hidden="true">·</span> Long read</p><button class="bookmark" type="button" aria-pressed="false" aria-label="Save The things we make, and the things that make us"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg></button></div>
+      </article>
+      <article class="card" data-category="Culture">
+        <div class="cover art-six" aria-hidden="true"><div class="orbit"></div><div class="orbit second"></div><div class="planet"></div><div class="satellite"></div><div class="art-label"><span>A different orbit</span><span>06 / M</span></div><span class="art-caption">Follow your curiosity</span></div>
+        <div class="card-copy"><p class="category">Culture</p><h3>Stay curious.</h3><p class="excerpt">An open mind is a practice. Here is a place to begin.</p></div>
+        <div class="card-foot"><p class="meta">3 min read <span aria-hidden="true">·</span> Short thought</p><button class="bookmark" type="button" aria-pressed="false" aria-label="Save Stay curious."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg></button></div>
+      </article>
+    </div>
+    <div class="empty" id="empty" hidden><h3 id="empty-title">A little space for later.</h3><p id="empty-description">Save an article with its bookmark button. You’ll find it here during this visit.</p><button type="button" class="reset" id="reset">Show all articles</button></div>
+    <div class="list-end">A good place to pause <span aria-hidden="true">✳</span></div>
+  </main>
+  <footer class="footer"><p><strong>Margin</strong> &nbsp; An independent point of view.</p><p>A fictional journal. A real moment to slow down.</p></footer>
+</div>
+<p class="sr-only" id="announcement" role="status" aria-live="polite" aria-atomic="true"></p>
+<script>
+(() => {
+  const cards = [...document.querySelectorAll('.card')];
+  const categoryButtons = [...document.querySelectorAll('.filter')];
+  const savedButton = document.getElementById('saved-filter');
+  const savedCount = document.getElementById('saved-count');
+  const resultCount = document.getElementById('result-count');
+  const empty = document.getElementById('empty');
+  const announcement = document.getElementById('announcement');
+  let category = 'all';
+  let savedOnly = false;
+  const render = () => {
+    let visible = 0;
+    const saved = cards.filter(card => card.querySelector('.bookmark').getAttribute('aria-pressed') === 'true').length;
+    cards.forEach(card => {
+      const matchesCategory = category === 'all' || card.dataset.category === category;
+      const isSaved = card.querySelector('.bookmark').getAttribute('aria-pressed') === 'true';
+      card.hidden = !matchesCategory || (savedOnly && !isSaved);
+      if (!card.hidden) visible++;
+    });
+    savedCount.textContent = String(saved);
+    savedButton.setAttribute('aria-pressed', String(savedOnly));
+    savedButton.setAttribute('aria-label', `${savedOnly ? 'Show all' : 'Show saved'} articles, ${saved} saved`);
+    resultCount.textContent = `${String(visible).padStart(2, '0')} ${savedOnly ? 'saved ' : ''}${visible === 1 ? 'article' : 'articles'}`;
+    empty.hidden = visible !== 0;
+    document.getElementById('empty-title').textContent = saved === 0 ? 'A little space for later.' : 'Nothing saved in this category.';
+    document.getElementById('empty-description').textContent = saved === 0 ? 'Save an article with its bookmark button. You’ll find it here during this visit.' : 'Try another category, or show all articles to find something to save.';
+    categoryButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.category === category)));
+  };
+  categoryButtons.forEach(button => button.addEventListener('click', () => { category = button.dataset.category; render(); }));
+  savedButton.addEventListener('click', () => { savedOnly = !savedOnly; render(); });
+  cards.forEach(card => {
+    const button = card.querySelector('.bookmark');
+    const title = card.querySelector('h3').textContent;
+    button.addEventListener('click', () => {
+      const isSaved = button.getAttribute('aria-pressed') !== 'true';
+      button.setAttribute('aria-pressed', String(isSaved));
+      button.setAttribute('aria-label', `${isSaved ? 'Unsave' : 'Save'} ${title}`);
+      announcement.textContent = `${isSaved ? 'Saved' : 'Removed'}: ${title}.`;
+      if (savedOnly && !isSaved) {
+        const other = cards.find(item => item !== card && !item.hidden);
+        (other ? other.querySelector('.bookmark') : savedButton).focus();
+      }
+      render();
+    });
+  });
+  document.getElementById('reset').addEventListener('click', () => {
+    category = 'all'; savedOnly = false; render(); categoryButtons[0].focus();
+  });
+  const theme = document.getElementById('theme');
+  theme.addEventListener('click', () => {
+    const isDark = document.documentElement.dataset.theme !== 'dark';
+    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+    theme.setAttribute('aria-pressed', String(isDark));
+    theme.setAttribute('aria-label', `Switch to ${isDark ? 'light' : 'dark'} theme`);
+    document.getElementById('theme-label').textContent = isDark ? 'Light' : 'Dark';
+  });
+  const width = document.getElementById('width');
+  const preview = document.getElementById('reading-list');
+  const widthValue = document.getElementById('width-value');
+  const updateWidthLabel = () => {
+    const actual = Math.round(preview.getBoundingClientRect().width);
+    widthValue.textContent = `${actual} px`;
+    width.setAttribute('aria-valuetext', `${actual} pixels available, ${width.value} pixels requested`);
+  };
+  width.addEventListener('input', () => {
+    preview.style.setProperty('--preview-width', `${width.value}px`);
+    updateWidthLabel();
+  });
+  new ResizeObserver(updateWidthLabel).observe(preview);
+  render(); updateWidthLabel();
+})();
+</script>
+</body>
+</html>

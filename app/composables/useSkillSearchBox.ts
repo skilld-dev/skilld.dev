@@ -1,4 +1,5 @@
 import type { SearchRow } from './useSkillSearch'
+import { classifySearchQuery } from '#shared/skill-search-query'
 import { searchCellId, searchResultsRoute } from './useSkillSearch'
 
 /** The id the panel's grid takes, so every input points at the same element. */
@@ -35,6 +36,20 @@ export function useSkillSearchBox(options: { inputs: () => (HTMLInputElement | n
   } = search
 
   const keyboardSelection = ref(false)
+  const pendingRepositoryQuery = ref<string | null>(null)
+
+  watch([trimmedQuery, open], ([term, visible]) => {
+    if (!visible || term !== pendingRepositoryQuery.value)
+      pendingRepositoryQuery.value = null
+  }, { flush: 'sync' })
+
+  watch(state, (current) => {
+    if (pendingRepositoryQuery.value === null || current._tag === 'loading')
+      return
+    pendingRepositoryQuery.value = null
+    if (current._tag !== 'error')
+      submitQuery()
+  })
 
   function clearSelection(): void {
     keyboardSelection.value = false
@@ -91,6 +106,12 @@ export function useSkillSearchBox(options: { inputs: () => (HTMLInputElement | n
 
   function submitQuery(): void {
     const current = state.value
+    // Enter can beat the debounced lookup. Keep repository intent until it answers.
+    if (current._tag === 'loading' && classifySearchQuery(trimmedQuery.value)._tag === 'repository') {
+      openPanel()
+      pendingRepositoryQuery.value = trimmedQuery.value
+      return
+    }
     if (current._tag === 'repository') {
       if (current.status._tag === 'idle')
         void submitRepository(current.repository)
