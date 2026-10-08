@@ -363,6 +363,7 @@ interface RepoSummaryGql {
   createdAt: string
   isArchived: boolean
   isFork: boolean
+  isPrivate: boolean
   defaultBranchRef: {
     name: string
     target: { oid: string, tree: { oid: string } } | null
@@ -370,7 +371,7 @@ interface RepoSummaryGql {
 }
 
 const REPO_SUMMARY_FIELDS = `databaseId name nameWithOwner url owner{login}
-      description stargazerCount forkCount pushedAt createdAt isArchived isFork
+      description stargazerCount forkCount pushedAt createdAt isArchived isFork isPrivate
       defaultBranchRef{name target{... on Commit{oid tree{oid}}}}`
 
 export interface RepoSummary {
@@ -385,12 +386,11 @@ export interface RepoSummary {
 }
 
 /**
- * Parse one GraphQL Repository into a summary, or null without a Repository
- * ID. The schema allows a null ID, and a Repository without one cannot be
- * followed across a move.
+ * Parse one public GraphQL Repository. Reject missing IDs or visibility.
+ * Its numeric ID confirms identity across moves.
  */
 function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary | null {
-  if (typeof r.databaseId !== 'number')
+  if (typeof r.databaseId !== 'number' || typeof r.isPrivate !== 'boolean' || r.isPrivate)
     return null
   const branch = r.defaultBranchRef?.name || 'main'
   const meta: RepoMeta = {
@@ -398,6 +398,7 @@ function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary | null {
     full_name: r.nameWithOwner,
     html_url: r.url,
     owner: { login: r.owner.login },
+    private: false,
     default_branch: branch,
     description: r.description,
     stargazers_count: r.stargazerCount,
@@ -443,7 +444,7 @@ export async function getRepoSummary(
     return { status: notFound ? 404 : 502, data: null, rateLimit: out.rateLimit, notModified: false }
   }
   const r = out.data?.repository
-  if (!r)
+  if (!r || r.isPrivate === true)
     return { status: 404, data: null, rateLimit: out.rateLimit, notModified: false }
   // A Repository without an ID fails like any other malformed answer.
   const summary = repoSummaryFromGql(r)

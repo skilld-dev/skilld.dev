@@ -584,6 +584,7 @@ async function stubGithub(options: StubOptions) {
         createdAt: '2026-01-01T00:00:00Z',
         isArchived: false,
         isFork: false,
+        isPrivate: false,
         defaultBranchRef: { name: 'main', target: { oid: 'a'.repeat(40), tree: { oid: 'b'.repeat(40) } } },
       })
       if ('owner' in body.variables) {

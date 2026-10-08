@@ -43,6 +43,7 @@ function graphqlAnswer(_input: unknown, init?: RequestInit): Response {
       createdAt: '2025-01-01T00:00:00Z',
       isArchived: false,
       isFork: false,
+      isPrivate: false,
       defaultBranchRef: { name: 'main', target: { oid: 'c'.repeat(40), tree: { oid: tree } } },
     }
   }
