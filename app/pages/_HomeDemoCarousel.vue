@@ -22,7 +22,7 @@ function move(direction: -1 | 1): void {
 <template>
   <div v-if="current" class="home-demo-carousel">
     <div :id="stageId">
-      <DemoStage :demo="current" eager show-prompt surface="home-hero-demo" />
+      <DemoStage :demo="current" eager presentation="hero" surface="home-hero-demo" />
     </div>
     <div v-if="order.length > 1" class="home-demo-carousel__controls">
       <UButton

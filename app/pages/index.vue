@@ -781,17 +781,6 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   min-inline-size: 0;
 }
 
-.home-hero__demo :deep(.demo-stage__prompt) {
-  display: -webkit-box;
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
 .home-hero__support {
   grid-area: support;
   min-inline-size: 0;
@@ -840,7 +829,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-rows: 1fr min-content min-content 1fr;
     grid-template-areas: '. demo' 'intro demo' 'support demo' '. demo';
-    gap: 1rem 3rem;
+    gap: 1rem 4rem;
     padding-block: 3rem;
     align-items: start;
     text-align: start;

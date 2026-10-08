@@ -17,8 +17,9 @@ import SkillCard from './SkillCard.vue'
  * "Open the demo" goes: the demo's own page, or, on that page, the Skill
  * page's Demo panel.
  */
-const { demo, surface = 'demos', eager = false, showPrompt = false, live = false, opens = 'demo-page' } = defineProps<{
+const { demo, surface = 'demos', eager = false, showPrompt = false, live = false, opens = 'demo-page', presentation = 'full' } = defineProps<{
   demo: HomeDemoItem
+  presentation?: 'full' | 'hero' | 'compact'
   /** The analytics surface for the run chip, such as `home-demos`. */
   surface?: string
   eager?: boolean
@@ -34,15 +35,23 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 </script>
 
 <template>
-  <div class="demo-stage">
-    <div class="demo-stage__head">
+  <div class="demo-stage" :class="{ 'demo-stage--compact': presentation === 'compact' }">
+    <div v-if="presentation !== 'hero'" class="demo-stage__head">
       <DemoRecording :demo />
       <NuxtLink :to="opens === 'skill-page' ? demoHref(demo) : demoPagePath(demo)" class="demo-stage__open">
         Open the demo<span class="sr-only"> of /{{ demo.name }}</span>
         <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
       </NuxtLink>
     </div>
-    <p v-if="showPrompt" class="demo-stage__prompt">
+    <details v-if="showPrompt && presentation === 'compact'" class="demo-stage__task">
+      <summary class="data-label">
+        Prompt
+      </summary>
+      <p class="demo-stage__prompt">
+        {{ demo.prompt }}
+      </p>
+    </details>
+    <p v-else-if="showPrompt && presentation !== 'hero'" class="demo-stage__prompt">
       <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
@@ -78,7 +87,11 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
         :actions="[]"
         :surface
       />
-      <DemoActions :demo :surface @action="record" />
+      <NuxtLink v-if="presentation === 'hero'" :to="demoPagePath(demo)" class="demo-stage__open" :aria-label="`Open the demo of /${demo.name}`">
+        Open the demo
+        <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
+      </NuxtLink>
+      <DemoActions v-else :demo :surface @action="record" />
     </div>
   </div>
 </template>
@@ -165,6 +178,34 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
   .demo-stage__id :deep(.skill-card__row-end) {
     display: none;
   }
+}
+
+/* Selected demo pages leave room for the author and actions below the output. */
+.demo-stage--compact .demo-stage__window {
+  block-size: clamp(14rem, 40svh, 26rem);
+  aspect-ratio: auto;
+}
+
+.demo-stage--compact .demo-stage__window[data-film] {
+  block-size: auto;
+  aspect-ratio: var(--video-w) / var(--video-h);
+  inline-size: min(100%, calc(40svh * var(--video-w) / var(--video-h)));
+}
+
+.demo-stage__task {
+  margin-block-end: 0.75rem;
+}
+
+.demo-stage__task summary {
+  display: list-item;
+  min-block-size: 2.75rem;
+  padding-block: 0.75rem;
+  cursor: pointer;
+}
+
+.demo-stage__task summary:focus-visible {
+  outline: 2px solid var(--ui-border-accented);
+  outline-offset: 2px;
 }
 
 /* The live page scrolls inside its own frame. */
