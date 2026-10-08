@@ -3,6 +3,7 @@
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { RepositoryMovePlan, RepositoryName } from './repository-move'
 import type { SkillTrustTier } from './skill-trust'
+import { selectSkillFiles } from '#shared/skill-files'
 import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
@@ -53,6 +54,7 @@ interface ExistingSkill {
   last_synced_at: number | null
   references_count: number
   rendered_skill_path: string | null
+  rendered_commit_sha: string | null
   rendered_status: string | null
   owner_verified: number
 }
@@ -253,7 +255,7 @@ function classifyAsset(path: string): SkillAsset['type'] {
   return 'other'
 }
 
-const ASSET_IGNORE = /(?:^|\/)(?:LICENSE(?:\.[^/]+)?|\.DS_Store|\.gitignore|\.gitattributes)$/i
+const ASSET_IGNORE = /(?:^|\/)(?:\.DS_Store|\.gitignore|\.gitattributes)$/i
 
 /**
  * Bucket a repo's blobs by the skill directories that own them, in one pass.
@@ -277,6 +279,9 @@ function collectAssetsByDir(
   for (const e of tree) {
     if (e.type !== 'blob')
       continue
+    const root = byDir.get('')
+    if (root && e.path !== 'SKILL.md' && !ASSET_IGNORE.test(e.path))
+      root.push({ path: e.path, size: e.size ?? 0, type: classifyAsset(e.path) })
     // An asset belongs to every skill directory above it, which keeps the
     // prefix semantics intact when skills nest inside one another.
     for (let slash = e.path.indexOf('/'); slash !== -1; slash = e.path.indexOf('/', slash + 1)) {
@@ -302,7 +307,7 @@ export async function loadExistingSkillSummaries(
   const res = await db
     .prepare(
       `SELECT name, current_sha, modified_at, first_seen_at, last_synced_at,
-              references_count, rendered_skill_path, rendered_status,
+              references_count, rendered_skill_path, rendered_commit_sha, rendered_status,
               owner_verified
        FROM skills WHERE owner = ? AND repo = ?`,
     )
@@ -405,10 +410,10 @@ export async function refreshRepoAssets(
   }
 
   const existing = [...(await loadExistingSkillSummaries(db, owner, repo)).values()]
-  const skillPaths = new Set(
+  const skillPaths = new Map(
     treeRes.data.tree
       .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
-      .map(entry => entry.path),
+      .map(entry => [entry.path, entry.sha]),
   )
   let skillsChanged = 0
   let pathsMissing = 0
@@ -421,7 +426,7 @@ export async function refreshRepoAssets(
     )
     const withPath = slice.flatMap((skill) => {
       const path = skill.rendered_skill_path
-      if (!path || !skillPaths.has(path)) {
+      if (!path || skillPaths.get(path) !== skill.current_sha) {
         pathsMissing += 1
         return []
       }
@@ -431,15 +436,15 @@ export async function refreshRepoAssets(
     const writes: D1PreparedStatement[] = []
     for (const { skill, dirPath } of withPath) {
       const assets = assetsByDir.get(dirPath) ?? []
-      const assetsJson = JSON.stringify(assets)
-      if (skill.references_count === assets.length && existingAssets.get(skill.name) === assetsJson)
+      const assetsJson = JSON.stringify(selectSkillFiles(assets).files)
+      if (skill.references_count === assets.length && existingAssets.get(skill.name) === assetsJson && skill.rendered_commit_sha === repoRes.data.headCommitSha)
         continue
       skillsChanged += 1
       writes.push(db.prepare(
         `UPDATE skills
-         SET references_count = ?, assets = ?
+         SET references_count = ?, assets = ?, rendered_commit_sha = ?
          WHERE owner = ? AND repo = ? AND name = ?`,
-      ).bind(assets.length, assetsJson, owner, repo, skill.name))
+      ).bind(assets.length, assetsJson, repoRes.data.headCommitSha ?? null, owner, repo, skill.name))
       writes.push(db.prepare(
         `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
          VALUES (?, ?, ?, 'references_changed', ?, 0)
@@ -847,6 +852,7 @@ export async function syncRepo(
   const sourceOwner = meta.owner.login
   const sourceRepo = meta.name
   const headTreeSha = repoRes.data.headTreeSha
+  const sourceCommit = repoRes.data.headCommitSha ?? null
   const branch = meta.default_branch || 'main'
   const repoPushedAt = epoch(meta.pushed_at)
   const checkedAt = opts.continuation?.checkedAt ?? nowSec()
@@ -937,10 +943,8 @@ export async function syncRepo(
     // Naming follows the convention `skill-mention-verify.ts` already uses for
     // the same case: the repository name is the skill name.
     //
-    // `dirPath` is deliberately empty. `collectAssetsByDir` only ever looks up
-    // paths that contain a slash, so a root skill collects no assets rather
-    // than claiming every file in the repository as its own, which is the
-    // failure this would otherwise invite on a large repo.
+    // The root Skill owns its folder, just as Artifact delivery does.
+    // Supporting files must reach the file viewer and Agent Markdown too.
     if (entry.path === 'SKILL.md') {
       skillFiles.push({
         path: entry.path,
@@ -1104,7 +1108,7 @@ export async function syncRepo(
 
       const assets = assetsByDir.get(file.dirPath) ?? []
       const refsCount = assets.length
-      const assetsJson = JSON.stringify(assets)
+      const assetsJson = JSON.stringify(selectSkillFiles(assets).files)
       const referencesChanged = prev.references_count !== refsCount || existingAssets.get(prev.name) !== assetsJson
       const ownerVerificationChanged = opts.ownerVerified === true && prev.owner_verified !== 1
 
@@ -1114,6 +1118,7 @@ export async function syncRepo(
         `UPDATE skills
          SET references_count = ?,
              assets = ?,
+             rendered_commit_sha = ?,
              last_synced_at = ?,
              sync_status = 'ok',
              source_resolved = 1,
@@ -1122,6 +1127,7 @@ export async function syncRepo(
         [
           refsCount,
           assetsJson,
+          sourceCommit,
           now,
           opts.ownerVerified ? 1 : 0,
           owner,
@@ -1158,7 +1164,7 @@ export async function syncRepo(
     const blobs = new Map<string, string>()
     const unreadablePaths = new Set<string>()
     if (contentFiles.length > 0) {
-      const blobsRes = await getBlobsBatch(sourceOwner, sourceRepo, branch, contentFiles.map(file => file.path), bindings)
+      const blobsRes = await getBlobsBatch(sourceOwner, sourceRepo, sourceCommit ?? branch, contentFiles.map(file => file.path), bindings)
       logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
       trackRateLimit(blobsRes.rateLimit)
       if (!blobsRes.data) {
@@ -1334,12 +1340,12 @@ export async function syncRepo(
         indexability,
       } = file
       const firstSeenAt = prev?.first_seen_at ?? now
-      const skillDir = file.path.replace(/\/SKILL\.md$/, '')
+      const skillDir = file.path.replace(/(?:^|\/)SKILL\.md$/i, '')
       const rendered = await parseSkillMd(raw, {
         owner: sourceOwner,
         repo: sourceRepo,
         name: parsed.name,
-        branch,
+        branch: sourceCommit ?? branch,
         skillDir,
         filePath: '',
       })
@@ -1375,12 +1381,12 @@ export async function syncRepo(
              is_official, source_resolved, seo_index_score, seo_indexable,
              seo_index_reasons, seo_index_synced_at,
              trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-             rendered_skill_path, rendered_status, rendered_raw, rendered_raw_sha256, rendered_frontmatter, rendered_html, rendered_at,
+             rendered_skill_path, rendered_commit_sha, rendered_status, rendered_raw, rendered_raw_sha256, rendered_frontmatter, rendered_html, rendered_at,
              owner_verified
            ) VALUES (
              ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok',
              ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-             'ok', ?, ?, ?, ?, ?, ?
+             ?, 'ok', ?, ?, ?, ?, ?, ?
            )
            ON CONFLICT(owner, repo, name) DO UPDATE SET
              display_name = excluded.display_name,
@@ -1404,6 +1410,7 @@ export async function syncRepo(
              trust_reasons = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_reasons ELSE skills.trust_reasons END,
              trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
              rendered_skill_path = excluded.rendered_skill_path,
+             rendered_commit_sha = excluded.rendered_commit_sha,
              rendered_status = excluded.rendered_status,
              rendered_raw = excluded.rendered_raw,
              rendered_raw_sha256 = excluded.rendered_raw_sha256,
@@ -1422,7 +1429,7 @@ export async function syncRepo(
           modifiedAt,
           firstSeenAt,
           refsCount,
-          JSON.stringify(assets),
+          JSON.stringify(selectSkillFiles(assets).files),
           now,
           isOfficial ? 1 : 0,
           indexability.score,
@@ -1435,6 +1442,7 @@ export async function syncRepo(
           JSON.stringify(trust.reasons),
           now,
           file.path,
+          sourceCommit,
           raw,
           renderedRawSha256,
           JSON.stringify(rendered.frontmatter),

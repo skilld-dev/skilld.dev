@@ -11,7 +11,7 @@ describe('skillPageBehaviors', () => {
       source,
     })
 
-    expect(behaviors.map(behavior => [behavior.id, behavior.tier, behavior.locations])).toEqual([
+    expect(behaviors?.map(behavior => [behavior.id, behavior.tier, behavior.locations])).toEqual([
       ['privilege', 'ask', [{ path: 'SKILL.md', line: 7, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md?plain=1#L7' }]],
       ['shell', 'show', [{ path: 'SKILL.md', line: 6, url: 'https://github.com/acme/skills/blob/main/skills/setup/SKILL.md?plain=1#L6' }]],
       ['scripts', 'show', [{ path: 'scripts/install.sh', line: null, url: 'https://github.com/acme/skills/blob/main/skills/setup/scripts/install.sh' }]],
@@ -20,13 +20,13 @@ describe('skillPageBehaviors', () => {
   })
 
   it('links a Skill at the Repository root without a directory prefix', () => {
-    const [scripts] = skillPageBehaviors({
+    const result = skillPageBehaviors({
       raw: null,
       assetPaths: ['run.py'],
       source: { ...source, skillPath: 'SKILL.md' },
     })
 
-    expect(scripts?.locations[0]?.url).toBe('https://github.com/acme/skills/blob/main/run.py')
+    expect(result?.[0]?.locations[0]?.url).toBe('https://github.com/acme/skills/blob/main/run.py')
   })
 
   it('leaves locations unlinked when the SKILL.md path is unknown', () => {
@@ -36,11 +36,11 @@ describe('skillPageBehaviors', () => {
   })
 
   // 2026-10-05: the bundled rules failed their own parse, and every Skill page answered 503.
-  it('returns no behaviors, and keeps the page up, when the rules fail', () => {
+  it('reports unavailable, and keeps the page up, when the rules fail', () => {
     const failing = () => {
       throw new Error('patterns are lowercase')
     }
 
-    expect(skillPageBehaviors({ raw: '---\nname: setup\n---\n', assetPaths: ['run.py'], source }, failing)).toEqual([])
+    expect(skillPageBehaviors({ raw: '---\nname: setup\n---\n', assetPaths: ['run.py'], source }, failing)).toBeNull()
   })
 })

@@ -122,7 +122,7 @@ interface SourceFacts {
     capabilityScopes: ('read' | 'write' | 'exec' | 'net')[]
     mcpServers: string[]
   }
-  behaviors: SkillBehavior[]
+  behaviors: SkillBehavior[] | null
 }
 
 interface NeighborSkill {
@@ -191,6 +191,7 @@ const skillFetch = useFetch(
   githubUrl: string
   description: string | null
   license: string | null
+  licenseSource: 'skill' | 'repository' | null
   stars: number
   forks: number
   pushedAt: string | null
@@ -446,8 +447,7 @@ const { data: skillFiles } = useFetch(
   total: number
 } | null>>
 
-// Prefer the live ungh-walked file list when available (catches markdown
-// siblings the sync job hasn't registered yet); fall back to data.assets.
+// Prefer the stored file inventory endpoint; fall back to detail metadata.
 const treeAssets = computed(() => {
   if (data.value?.sourceGone)
     return []
@@ -1655,7 +1655,7 @@ useHead(computed(() => ({
                 v-if="licenseFile"
                 type="button"
                 class="skill-chip skill-chip-link"
-                :title="`License: ${data.license}. Opens ${licenseFile}.`"
+                :title="`${data.licenseSource === 'repository' ? 'Repository license' : 'License'}: ${data.license}. Opens ${licenseFile}.`"
                 @click="() => { void resolveAndOpen(licenseFile!) }"
               >
                 <UIcon name="i-lucide-scale" class="size-3.5" aria-hidden="true" />
@@ -1664,7 +1664,7 @@ useHead(computed(() => ({
               <span
                 v-else
                 class="skill-chip"
-                :title="`License: ${data.license}`"
+                :title="`${data.licenseSource === 'repository' ? 'Repository license' : 'License'}: ${data.license}`"
               >
                 <UIcon name="i-lucide-scale" class="size-3.5" aria-hidden="true" />
                 {{ licenseLabel }}
@@ -2335,7 +2335,7 @@ useHead(computed(() => ({
           >
             <SkillBehaviors
               v-if="data.raw || behaviors.length"
-              :behaviors="behaviors"
+              :behaviors="data.sourceFacts.behaviors"
               :readings="behaviorReadings"
             />
             <SkillThirdPartyChecks

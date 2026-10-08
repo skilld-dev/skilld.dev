@@ -25,7 +25,7 @@ export interface SkillBehavior {
 }
 
 const { behaviors, readings = [] } = defineProps<{
-  behaviors: SkillBehavior[]
+  behaviors: SkillBehavior[] | null
   readings?: BehaviorReading[]
 }>()
 
@@ -45,7 +45,7 @@ function locationRows(behavior: SkillBehavior): Array<{ location: SkillBehaviorL
   return behavior.locations.map(location => ({ location, reading: readingFor(behavior, location) }))
 }
 
-const anyReading = computed(() => behaviors.some(hasReadings))
+const anyReading = computed(() => behaviors?.some(hasReadings) ?? false)
 
 function locationLabel(location: SkillBehaviorLocation): string {
   return location.line === null ? location.path : `${location.path}:${location.line}`
@@ -67,7 +67,7 @@ function locationLabel(location: SkillBehaviorLocation): string {
 
     <div class="rounded-lg border border-default">
       <ul
-        v-if="behaviors.length"
+        v-if="behaviors?.length"
         role="list"
         class="divide-y divide-default"
       >
@@ -153,7 +153,7 @@ function locationLabel(location: SkillBehaviorLocation): string {
         v-else
         class="px-4 py-3 font-mono text-xs text-muted"
       >
-        No rule matched.
+        {{ behaviors === null ? 'Skill behaviors are unavailable. Run skilld run to check every file.' : 'No rule matched.' }}
       </p>
       <div class="space-y-1 border-t border-default bg-muted/20 px-4 py-3 text-xs text-muted leading-snug">
         <p>skilld matched fixed text patterns in SKILL.md and file names. Patterns miss obfuscated code.</p>

@@ -23,6 +23,7 @@ function seed(fields: { raw?: string | null, status?: string, path?: string | nu
     fields.path === undefined ? 'skills/skill/SKILL.md' : fields.path,
     JSON.stringify(fields.assets ?? []),
   )
+  fixture.raw.prepare('UPDATE skills SET rendered_commit_sha = ?').run('c'.repeat(40))
 }
 
 beforeEach(() => {
@@ -42,7 +43,7 @@ describe('stored SKILL.md', () => {
     expect(readStoredSkillMd(skill, row!)).toEqual({
       _tag: 'ok',
       body: '# Stored body',
-      source: 'owner/repo@trunk/skills/skill/SKILL.md',
+      source: `owner/repo@${'c'.repeat(40)}/skills/skill/SKILL.md`,
     })
   })
 
@@ -78,7 +79,7 @@ describe('stored file list', () => {
       _tag: 'ok',
       payload: {
         skillPath: 'skills/skill/SKILL.md',
-        branch: 'trunk',
+        branch: 'c'.repeat(40),
         files: [
           { path: 'references/a.md', size: 10, type: 'markdown' },
           { path: 'run.py', size: 5, type: 'code' },
@@ -88,13 +89,13 @@ describe('stored file list', () => {
     })
   })
 
-  it('lists no files for a root SKILL.md, because the sync stores none', async () => {
+  it('returns an empty inventory for a root Skill with no supporting files', async () => {
     seed({ path: 'SKILL.md', assets: [] })
     const row = await loadStoredSkillRow(fixture.db, skill)
 
     expect(readStoredSkillFiles(row!)).toEqual({
       _tag: 'ok',
-      payload: { skillPath: 'SKILL.md', branch: 'trunk', files: [], total: 0 },
+      payload: { skillPath: 'SKILL.md', branch: 'c'.repeat(40), files: [], total: 0 },
     })
   })
 
@@ -104,7 +105,7 @@ describe('stored file list', () => {
 
     expect(readStoredSkillFiles(row!)).toEqual({
       _tag: 'ok',
-      payload: { skillPath: null, branch: 'trunk', files: [], total: 0 },
+      payload: { skillPath: null, branch: 'c'.repeat(40), files: [], total: 0 },
     })
   })
 
@@ -126,7 +127,7 @@ describe('referenced file', () => {
     const target = resolveReferencedFileTarget(skill, row!, 'references/a.md')
     expect(target).toMatchObject({
       _tag: 'ok',
-      url: 'https://raw.githubusercontent.com/owner/repo/trunk/skills/skill/references/a.md',
+      url: `https://raw.githubusercontent.com/owner/repo/${'c'.repeat(40)}/skills/skill/references/a.md`,
     })
 
     const fetchText = vi.fn().mockResolvedValue({ _tag: 'ok', body: '# A' })
@@ -134,12 +135,13 @@ describe('referenced file', () => {
     expect(fetchText).toHaveBeenCalledTimes(1)
   })
 
-  it('resolves a root Skill file at the repository root', async () => {
+  it('pins a root Skill reference to the stored commit, even when the default branch moves', async () => {
     seed({ path: 'SKILL.md' })
+    fixture.raw.prepare('UPDATE skills SET rendered_commit_sha = ?').run('c'.repeat(40))
     const row = await loadStoredSkillRow(fixture.db, skill)
 
     expect(resolveReferencedFileTarget(skill, row!, 'a.md')).toMatchObject({
-      url: 'https://raw.githubusercontent.com/owner/repo/trunk/a.md',
+      url: `https://raw.githubusercontent.com/owner/repo/${'c'.repeat(40)}/a.md`,
     })
   })
 

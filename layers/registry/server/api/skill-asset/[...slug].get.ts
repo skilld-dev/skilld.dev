@@ -4,9 +4,9 @@ import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
+import { loadStoredSkillRow, parseStoredAssets, resolveReferencedFileTarget } from '../../utils/skill-stored-source'
 import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
-import { fetchUpstreamTree } from '../../utils/upstream-tree'
 
 const ASSET_CACHE_TTL = 60 * 60 * 24 * 7
 const ASSET_MISSING_TTL = 60 * 60
@@ -20,14 +20,6 @@ interface AssetCache {
   type: 'markdown' | 'code' | 'image' | 'data' | 'other'
   branch: string
   skillPath: string | null
-}
-
-interface SkillAssetRow {
-  default_branch: string | null
-  assets: string | null
-  source_owner: string | null
-  source_repo: string | null
-  source_resolved: number | null
 }
 
 interface RepoSkillNameRow {
@@ -79,12 +71,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
     const [row, repoSkillRows] = await Promise.all([
-      platform.db
-        .prepare(`SELECT r.default_branch, r.source_owner, r.source_repo, s.assets, s.source_resolved
-                  FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-                  WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
-        .bind(skill.owner, skill.repo, skill.name)
-        .first<SkillAssetRow>(),
+      loadStoredSkillRow(platform.db, skill),
       platform.db
         .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
         .bind(skill.owner, skill.repo)
@@ -101,21 +88,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
-    let registered: RegisteredAsset[] = []
-    if (row.assets) {
-      try {
-        const parsed = JSON.parse(row.assets) as unknown
-        if (Array.isArray(parsed)) {
-          registered = parsed.filter((a): a is RegisteredAsset =>
-            Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string',
-          )
-        }
-      }
-      catch {
-      // Treat as empty list.
-      }
-    }
-
+    const registered = parseStoredAssets(row.assets)
     // Any file inside the resolved skillDir is fair game — the path is
     // already constrained below so this stays scoped to the skill folder.
     // Registration is used only to pick up the recorded size/type when
@@ -124,8 +97,17 @@ export default defineApiHandler({
     const asset: RegisteredAsset = registeredAsset
       ?? { path: filePath, size: 0, type: classifyAsset(filePath) }
 
-    const branch = row.default_branch || 'main'
-    const cacheKey = `skills:asset:v4:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
+    const target = resolveReferencedFileTarget(skill, row, filePath)
+    if (target._tag === 'missing')
+      throw createError({ statusCode: 404, message: 'Skill source not found' })
+    if (target._tag === 'unavailable') {
+      setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
+      throw createError({ statusCode: 503, message: 'Skill source commit is unavailable. Try again after the next sync.' })
+    }
+    const branch = row.rendered_commit_sha!
+    const skillMdPath = row.rendered_skill_path!
+    const skillDir = skillMdPath.replace(/(?:^|\/)SKILL\.md$/i, '')
+    const cacheKey = `skills:asset:v5:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
     const cached = await readCache<AssetCache>(useStorage('edge-cache'), cacheKey)
     if (cached) {
       if (cached.status === 'missing')
@@ -133,47 +115,7 @@ export default defineApiHandler({
       return cached
     }
 
-    // Resolve the skill directory by re-finding the SKILL.md path.
-    const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-asset-tree-fetch' })
-
-    if (treeResult._tag === 'gone') {
-      // The registry has not recorded this deletion yet. The next sync flips
-      // `source_resolved` and short-circuits earlier.
-      throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
-    }
-
-    const treeUnavailable = treeResult._tag === 'unavailable'
-    const treeFiles = treeResult._tag === 'available' ? treeResult.files : []
-    const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    const skillMdPath = treeFiles.find(f =>
-      f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
-      || f.path.toLowerCase() === `${slugifiedName}/skill.md`
-      || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
-    )?.path
-
-    if (!skillMdPath) {
-      // A tree-listing outage must not leave a "missing" marker behind, or the
-      // asset reads as deleted for the rest of the cache window.
-      if (treeUnavailable) {
-        setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
-        throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
-      }
-      await writeCache(useStorage('edge-cache'), cacheKey, {
-        status: 'missing',
-        raw: null,
-        html: null,
-        size: asset.size,
-        type: asset.type,
-        branch,
-        skillPath: null,
-      } satisfies AssetCache, { ttl: ASSET_MISSING_TTL })
-      throw createError({ statusCode: 404, message: 'Skill source not found' })
-    }
-
-    const skillDir = skillMdPath.replace(/\/SKILL\.md$/, '')
-    const fullPath = `${skillDir}/${filePath}`
-    const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${fullPath}`
-    const upstream = await fetchUpstreamText(rawUrl)
+    const upstream = await fetchUpstreamText(target.url)
 
     if (upstream._tag === 'missing') {
       emitOperationalEvent(createWideEvent({ 'operation': 'skill-asset-fetch', 'outcome': 'missing', 'upstream.status': upstream.status }))

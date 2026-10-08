@@ -69,6 +69,7 @@ function seed(options: { maximumQueries?: number, renderedAt?: number | null, re
       status ? renderedAt : null,
     )
   }
+  raw.prepare('UPDATE skills SET rendered_commit_sha = ?').run('c'.repeat(40))
   raw.prepare(`INSERT INTO skill_revisions (owner, repo, name, sha, modified_at) VALUES (?, ?, 'alpha', 'old', 1), (?, ?, 'alpha', 'newest', 2)`)
     .run(OWNER, REPO, OWNER, REPO)
   const generated = raw.prepare(`INSERT INTO skill_generated (owner, repo, name, kind, sha, payload, generated_at) VALUES (?, ?, 'alpha', ?, 'sha', ?, '2026-09-01')`)
@@ -115,7 +116,7 @@ describe('uncached skill detail render', () => {
       faqs: [{ question: 'Why?', answer: 'Because.' }],
       summary: { text: 'A summary.' },
       keywords: ['scandinavian'],
-      provenance: { sourceCommitSha: 'newest' },
+      provenance: { sourceCommitSha: 'c'.repeat(40) },
     })
     expect(body.tags.map((tag: { slug: string }) => tag.slug)).toEqual(['frontend'])
     expect(body.dependencies).toEqual([])

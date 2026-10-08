@@ -23,6 +23,7 @@ function repoSummary() {
     data: {
       repositoryId: 1,
       headTreeSha: 'new-tree',
+      headCommitSha: 'c'.repeat(40),
       meta: {
         name: 'skills',
         full_name: 'acme/skills',
@@ -225,8 +226,71 @@ describe('syncRepo bounded working set', () => {
       references_count: number
       assets: string
     }
-    expect(row.references_count).toBe(2)
-    expect(JSON.parse(row.assets).map((a: { path: string }) => a.path)).toEqual(['reference.md', 'run.py'])
+    expect(row.references_count).toBe(3)
+    expect(JSON.parse(row.assets).map((a: { path: string }) => a.path)).toEqual(['LICENSE', 'reference.md', 'run.py'])
+  })
+
+  it('includes root Skill references and records the commit used for their bytes', async () => {
+    insertRepo(sqlite, 'old-tree')
+    github.getTree.mockResolvedValue({
+      status: 200,
+      data: { sha: 'new-tree', tree: [
+        { path: 'SKILL.md', sha: 'root', type: 'blob' },
+        { path: 'onboarding.md', sha: 'ref', type: 'blob', size: 12 },
+        { path: 'references/deeper.md', sha: 'deep', type: 'blob', size: 34 },
+        { path: 'LICENSE', sha: 'lic', type: 'blob', size: 5 },
+        { path: '.gitignore', sha: 'ignore', type: 'blob', size: 1 },
+      ] },
+      rateLimit: null,
+    })
+    github.getBlobsBatch.mockResolvedValue({ status: 200, data: new Map([['SKILL.md', rawSkill('skills')]]), unreadable: new Set() })
+
+    await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    const row = sqlite.prepare('SELECT assets FROM skills').get() as { assets: string }
+    expect(JSON.parse(row.assets).map((file: { path: string }) => file.path)).toEqual(['LICENSE', 'onboarding.md', 'references/deeper.md'])
+    expect(github.getBlobsBatch.mock.calls[0]?.[2]).toBe('c'.repeat(40))
+  })
+
+  it('advances the snapshot commit when only a supporting file changes', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'skills', 'root')
+    sqlite.prepare('UPDATE skills SET rendered_status = \'ok\', rendered_skill_path = \'SKILL.md\', rendered_commit_sha = ?').run('b'.repeat(40))
+    github.getTree.mockResolvedValue({
+      status: 200,
+      data: { sha: 'new-tree', tree: [
+        { path: 'SKILL.md', sha: 'root', type: 'blob' },
+        { path: 'onboarding.md', sha: 'changed-reference', type: 'blob', size: 42 },
+      ] },
+      rateLimit: null,
+    })
+
+    await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    expect(sqlite.prepare('SELECT rendered_commit_sha FROM skills').pluck().get()).toBe('c'.repeat(40))
+    expect(github.getBlobsBatch).not.toHaveBeenCalled()
+  })
+
+  it('bounds stored root metadata and keeps the full supporting file count', async () => {
+    insertRepo(sqlite, 'old-tree')
+    github.getTree.mockResolvedValue({
+      status: 200,
+      data: { sha: 'new-tree', tree: [
+        { path: 'SKILL.md', sha: 'root', type: 'blob' },
+        ...Array.from({ length: 300 }, (_, i) => ({ path: `references/${i}.md`, sha: `ref-${i}`, type: 'blob', size: 12 })),
+        { path: 'onboarding.md', sha: 'top', type: 'blob', size: 12 },
+      ] },
+      rateLimit: null,
+    })
+    github.getBlobsBatch.mockResolvedValue({ status: 200, data: new Map([['SKILL.md', rawSkill('skills')]]), unreadable: new Set() })
+
+    await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    const row = sqlite.prepare('SELECT references_count, assets FROM skills').get() as { references_count: number, assets: string }
+    const files = JSON.parse(row.assets) as { path: string }[]
+    expect(row.references_count).toBe(301)
+    expect(files).toHaveLength(250)
+    expect(files.some(file => file.path === 'onboarding.md')).toBe(true)
   })
 
   // Same root cause, opposite symptom: a bare name can match an unrelated
@@ -297,7 +361,7 @@ function createDatabase(): Database.Database {
       seo_index_reasons TEXT NOT NULL DEFAULT '[]', seo_index_synced_at INTEGER,
       trust_tier TEXT NOT NULL DEFAULT 'untrusted', trust_source TEXT NOT NULL DEFAULT 'computed',
       trust_score INTEGER NOT NULL DEFAULT 0, trust_reasons TEXT NOT NULL DEFAULT '[]', trust_synced_at INTEGER,
-      rendered_skill_path TEXT, rendered_status TEXT, rendered_raw TEXT, rendered_raw_sha256 TEXT, rendered_frontmatter TEXT,
+      rendered_skill_path TEXT, rendered_commit_sha TEXT, rendered_status TEXT, rendered_raw TEXT, rendered_raw_sha256 TEXT, rendered_frontmatter TEXT,
       rendered_html TEXT, rendered_at INTEGER, owner_verified INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (owner, repo, name)
     );

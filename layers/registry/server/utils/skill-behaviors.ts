@@ -13,7 +13,7 @@ export type SkillPageBehavior = Omit<Behavior, 'locations'> & {
  * file content, so only those inputs reach the shared rules. `skilld run`
  * applies the same rules to every file.
  *
- * The panel is optional, so a rules failure returns no behaviors and reports
+ * The panel is optional, so a rules failure returns unavailable and reports
  * itself. On 2026-10-05 the bundled rules failed their own parse, and the
  * throw took every Skill page down with a 503.
  */
@@ -21,7 +21,7 @@ export function skillPageBehaviors(input: {
   raw: string | null
   assetPaths: readonly string[]
   source: { owner: string, repo: string, branch: string | null, skillPath: string | null }
-}, detect: typeof detectBehaviors = detectBehaviors): SkillPageBehavior[] {
+}, detect: typeof detectBehaviors = detectBehaviors): SkillPageBehavior[] | null {
   const files = [
     ...(input.raw === null ? [] : [{ path: 'SKILL.md', text: input.raw }]),
     ...input.assetPaths.map(path => ({ path })),
@@ -51,7 +51,7 @@ export function skillPageBehaviors(input: {
       outcome: 'failed',
       reason: error instanceof Error ? error.message : String(error),
     }))
-    return []
+    return null
   }
   return detected.map(behavior => ({
     ...behavior,

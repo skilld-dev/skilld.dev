@@ -30,7 +30,7 @@ const emit = defineEmits<{
 
 const nodes = computed(() => buildSkillFileTree(props.assets, props.skillMdSize ?? 0))
 
-const skillDir = computed(() => props.skillPath?.replace(/\/SKILL\.md$/, '') ?? '')
+const skillDir = computed(() => props.skillPath?.replace(/(?:^|\/)SKILL\.md$/i, '') ?? '')
 
 /**
  * The skill page renders this tree twice, once floating and once inline, so a

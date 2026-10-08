@@ -45,6 +45,9 @@ const detail: LegacySkillDetail = {
 }
 
 describe('presentSkillDetail', () => {
+  it('refuses an unavailable behavior check instead of reporting no matches', () => {
+    expect(() => presentSkillDetail({ ...detail, sourceFacts: { ...detail.sourceFacts, behaviors: null } })).toThrow('Skill behaviors are unavailable.')
+  })
   it('returns each behavior with its path and line, without the page links', () => {
     expect(presentSkillDetail(detail).behaviors).toEqual([
       { id: 'remote-code', tier: 'ask', label: 'Runs code downloaded from the network', locations: [{ path: 'SKILL.md', line: 7 }], total: 1 },

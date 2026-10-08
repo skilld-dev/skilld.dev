@@ -380,6 +380,7 @@ export interface RepoSummary {
    */
   repositoryId: number
   headTreeSha: string | null
+  headCommitSha: string | null
 }
 
 /**
@@ -405,7 +406,7 @@ function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary | null {
     archived: r.isArchived,
     fork: r.isFork,
   }
-  return { meta, repositoryId: r.databaseId, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null }
+  return { meta, repositoryId: r.databaseId, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null, headCommitSha: r.defaultBranchRef?.target?.oid ?? null }
 }
 
 /**

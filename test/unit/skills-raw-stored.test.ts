@@ -14,6 +14,7 @@ function seed(resolved: number, raw: string | null) {
     `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved, rendered_status, rendered_raw, rendered_skill_path, assets)
      VALUES ('owner', 'repo', 'skill', 'owner/repo/skill', 'Skill', ?, 'ok', ?, 'skills/skill/SKILL.md', '[{"path":"references/a.md","size":3,"type":"markdown"}]')`,
   ).run(resolved, raw)
+  fixture.raw.prepare('UPDATE skills SET rendered_commit_sha = ?').run('c'.repeat(40))
 }
 
 function event(): H3Event {
@@ -53,7 +54,7 @@ describe('skills-raw handler', () => {
     expect(await handler(event())).toBe('# Stored')
     expect(headers.get('content-type')).toBe('text/markdown; charset=utf-8')
     expect(headers.get('cache-control')).toBe('public, max-age=300')
-    expect(headers.get('x-skilld-source')).toBe('owner/repo@main/skills/skill/SKILL.md')
+    expect(headers.get('x-skilld-source')).toBe(`owner/repo@${'c'.repeat(40)}/skills/skill/SKILL.md`)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -81,7 +82,7 @@ describe('skill-files handler', () => {
 
     expect(await handler(event())).toEqual({
       skillPath: 'skills/skill/SKILL.md',
-      branch: 'main',
+      branch: 'c'.repeat(40),
       files: [{ path: 'references/a.md', size: 3, type: 'markdown' }],
       total: 1,
     })

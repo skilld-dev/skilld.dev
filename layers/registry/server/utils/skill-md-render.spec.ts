@@ -5,6 +5,18 @@ import { importImageProxyKey, signImageProxyUrl } from '#server/utils/image-prox
 import { parseSkillMd } from './skill-md-render'
 
 describe('parseSkillMd', () => {
+  it('opens a reference beside a root SKILL.md without dropping its first character', async () => {
+    const { html } = await parseSkillMd('[Onboarding](onboarding.md)', {
+      owner: 'acme',
+      repo: 'playbook',
+      name: 'playbook',
+      branch: 'c'.repeat(40),
+      skillDir: '',
+      filePath: '',
+    })
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    expect(doc.querySelector('a')?.getAttribute('href')).toBe('/gh/acme/playbook/playbook/-/onboarding.md')
+  })
   it('keeps archived text without links to removed supporting files', async () => {
     const parsed = await parseSkillMd('[**Guide**](references/guide.md) and [site](https://example.com).', {
       owner: 'acme',

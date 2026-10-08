@@ -86,10 +86,10 @@ function rewriteHref(href: string, kind: 'link' | 'image', ctx?: SkillRenderCont
     ? joinPath(ctx.skillDir, ctx.filePath.split('/').slice(0, -1).join('/'))
     : ctx.skillDir
   const resolved = joinPath(baseDir, path)
-  const isInsideSkillDir = resolved === ctx.skillDir || resolved.startsWith(`${ctx.skillDir}/`)
+  const isInsideSkillDir = ctx.skillDir === '' || resolved === ctx.skillDir || resolved.startsWith(`${ctx.skillDir}/`)
   const isMarkdown = /\.(?:md|markdown)$/i.test(resolved)
   if (kind === 'link' && isInsideSkillDir && isMarkdown) {
-    const rel = resolved.slice(ctx.skillDir.length + 1)
+    const rel = ctx.skillDir ? resolved.slice(ctx.skillDir.length + 1) : resolved
     if (!rel)
       return `/gh/${ctx.owner}/${ctx.repo}/${ctx.name}${suffix}`
     return `/gh/${ctx.owner}/${ctx.repo}/${ctx.name}/-/${rel}${suffix}`

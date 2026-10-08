@@ -33,6 +33,13 @@ const reading: BehaviorReading = {
 }
 
 describe('skill behaviors panel', () => {
+  it('does not report no match when the rules are unavailable', async () => {
+    const wrapper = await mountSuspended(SkillBehaviors, { props: { behaviors: null } })
+    expect(wrapper.text()).toContain('Skill behaviors are unavailable.')
+    expect(wrapper.text()).not.toContain('No rule matched.')
+    wrapper.unmount()
+  })
+
   it('shows a model reading under the match it reads, and says a language model wrote it', async () => {
     const wrapper = await mountSuspended(SkillBehaviors, { props: { behaviors, readings: [reading] } })
     const text = wrapper.text().replace(/\s+/g, ' ')
