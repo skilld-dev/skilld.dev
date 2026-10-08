@@ -15,6 +15,43 @@ function judge() {
 }
 
 describe('purpose records', () => {
+  it.each(['official', 'trusted-author', 'trusted-curator'])('retains a named %s decision for an organization', async (tier) => {
+    const sqlite = createSqliteD1(allMigrations())
+    const classify = vi.fn()
+    try {
+      sqlite.raw.prepare(`INSERT INTO repo_trust_overrides(owner,repo,tier,source,reason,reviewed_by,reviewed_at)
+        VALUES ('org','directory',?,'manual','Reviewed original Skills within this directory','human',1000)`).run(tier)
+      expect(await checkRepositoryPurposeAdmission(sqlite.db, { ...evidence, ownerVerified: false }, classify))
+        .toEqual({ _tag: 'continue' })
+      expect(classify).not.toHaveBeenCalled()
+    }
+    finally { sqlite.close() }
+  })
+
+  it.each([
+    ['candidate', 'human', 'Reviewed source'],
+    ['untrusted', 'human', 'Reviewed source'],
+    ['quarantined', 'human', 'Reviewed source'],
+    ['trusted-curator', ' ', 'Reviewed source'],
+    ['trusted-curator', 'human', ' '],
+  ])('keeps %s decisions with reviewer %s and reason %s held', async (tier, reviewer, reason) => {
+    const sqlite = createSqliteD1(allMigrations())
+    const classify = vi.fn(async () => {
+      const finding = await classifyRepositoryPurpose(evidence, judge)
+      if (finding._tag !== 'classified')
+        throw new Error('Unexpected invalid fixture')
+      return finding
+    })
+    try {
+      sqlite.raw.prepare(`INSERT INTO repo_trust_overrides(owner,repo,tier,source,reason,reviewed_by,reviewed_at)
+        VALUES ('org','directory',?,'manual',?,?,1000)`).run(tier, reason, reviewer)
+      expect(await checkRepositoryPurposeAdmission(sqlite.db, { ...evidence, ownerVerified: false }, classify))
+        .toEqual({ _tag: 'held', reason: 'repository_purpose_review_required' })
+      expect(classify).toHaveBeenCalledTimes(1)
+    }
+    finally { sqlite.close() }
+  })
+
   it('checks large inventories first and avoids active or recently failed jobs', async () => {
     const sqlite = createSqliteD1(allMigrations())
     try {

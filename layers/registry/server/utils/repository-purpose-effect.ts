@@ -110,9 +110,12 @@ export async function checkRepositoryPurposeAdmission(
 ) {
   const row = await db.prepare(`
     SELECT EXISTS(SELECT 1 FROM skills WHERE owner=?1 AND repo=?2) AS stored,
-      EXISTS(SELECT 1 FROM skill_repo_eligibility WHERE owner=?1 AND repo=?2 AND status='eligible') AS eligible
-  `).bind(input.owner, input.repo).first<{ stored: number, eligible: number }>()
-  if (row?.stored || row?.eligible || input.ownerVerified)
+      EXISTS(SELECT 1 FROM skill_repo_eligibility WHERE owner=?1 AND repo=?2 AND status='eligible') AS eligible,
+      EXISTS(SELECT 1 FROM repo_trust_overrides WHERE owner=?1 AND repo=?2
+        AND tier IN ('official','trusted-author','trusted-curator')
+        AND length(trim(reviewed_by))>0 AND length(trim(reason))>0) AS reviewed
+  `).bind(input.owner, input.repo).first<{ stored: number, eligible: number, reviewed: number }>()
+  if (row?.stored || row?.eligible || row?.reviewed || input.ownerVerified)
     return { _tag: 'continue' as const }
   const finding = await classify()
   return decideRepositoryPurposeAdmission({ purpose: finding.purpose, hasStoredSkills: false, humanEligible: false, ownerVerified: false })

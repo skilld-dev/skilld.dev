@@ -20,9 +20,31 @@ The reason comes from the selected criterion or an explicit uncertainty rule. Je
 ## Admission
 
 New directory, mirror, and uncertain findings require human review before the ingestion reads all Skill contents.
-Existing Skills, eligible human decisions, and verified Owners retain the existing admission path.
+Existing Skills, eligible human decisions, named positive trust overrides, and verified Owners retain the existing admission path.
 Software and Skill-pack findings continue through the existing rules. They earn no new trust or SEO indexing.
-Use the existing repository review surface to admit a held repository. Do not edit the machine finding as approval.
+The leaderboard review surface covers individual Owners with discovered inventory.
+Use the query below for held findings outside that surface, including organizations and new submissions.
+Do not edit a machine finding as approval.
+
+```sql
+SELECT p.owner,p.repo,p.purpose,p.reason,p.evidence,p.source_commit
+FROM repository_purpose p
+WHERE p.purpose IN ('directory','mirror','uncertain')
+  AND NOT EXISTS(SELECT 1 FROM skills s WHERE s.owner=p.owner AND s.repo=p.repo)
+  AND NOT EXISTS(SELECT 1 FROM skill_repo_eligibility e
+    WHERE e.owner=p.owner AND e.repo=p.repo AND e.status='eligible')
+  AND NOT EXISTS(SELECT 1 FROM repo_trust_overrides t
+    WHERE t.owner=p.owner AND t.repo=p.repo
+      AND t.tier IN ('official','trusted-author','trusted-curator')
+      AND length(trim(t.reviewed_by))>0 AND length(trim(t.reason))>0)
+ORDER BY p.evaluated_at;
+```
+
+If a human approves source admission, record an existing positive `repo_trust_overrides` decision through a reviewed migration.
+Set the actual reviewer, reason, source, and review time. This decision permits source admission for the whole Repository.
+Use `trusted-curator` only when the human approves that trust level. Keep rejected findings held.
+After the migration deploys, submit the Repository again through the search box or `POST /api/repos/index`.
+The new job checks the human decision before calling Jev. The decision never changes the machine finding.
 
 The default Skills directory retains its separate `skill_repo_focus` screen.
 Repository purpose does not replace that screen or the `repo_kind` field.
