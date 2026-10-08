@@ -14,20 +14,31 @@ export type RepositoryPurposeJudge = (state: RepositoryPurposeEvidence) => Promi
 export interface RepositoryIdentity { owner: string, repo: string }
 
 export async function listRepositoryPurposeCandidates(db: D1Database, now: number): Promise<RepositoryIdentity[]> {
+  // Completed jobs are retained in `jobs` forever, so a correlated read over
+  // that table walks every finished classification for every candidate. Active
+  // jobs are bounded by in-flight work and reachable through the partial
+  // idx_jobs_active index, and terminal failures are moved to `failed_jobs`,
+  // where the one day retry wait is a failed_at index seek.
+  const blocking = await db.prepare(`
+    SELECT json_extract(payload,'$.owner') AS owner, json_extract(payload,'$.repo') AS repo
+    FROM jobs INDEXED BY idx_jobs_active
+    WHERE job_type='registry/repository-purpose' AND completed_at IS NULL AND failed_at IS NULL
+    UNION ALL
+    SELECT json_extract(payload,'$.owner') AS owner, json_extract(payload,'$.repo') AS repo
+    FROM failed_jobs INDEXED BY idx_failed_jobs_failed_at
+    WHERE job_type='registry/repository-purpose' AND failed_at>?1
+  `).bind(now - 86400).all<RepositoryIdentity>()
+  const blocked = JSON.stringify([...new Set(blocking.results.map(row => `${row.owner}/${row.repo}`))])
   const result = await db.prepare(`
     SELECT r.owner,r.repo FROM repos r
     LEFT JOIN repository_purpose p ON p.owner=r.owner AND p.repo=r.repo
     WHERE r.broken_since IS NULL AND r.repo_skill_count>0
-      AND (p.owner IS NULL OR p.prompt_version!=?1 OR p.model_id!=?4 OR p.evaluated_at<?2 OR r.pushed_at>p.evaluated_at)
-      AND NOT EXISTS (
-        SELECT 1 FROM jobs j WHERE j.job_type='registry/repository-purpose'
-          AND json_extract(j.payload,'$.owner')=r.owner AND json_extract(j.payload,'$.repo')=r.repo
-          AND ((j.completed_at IS NULL AND j.failed_at IS NULL) OR j.failed_at>?3)
-      )
+      AND (p.owner IS NULL OR p.prompt_version!=?1 OR p.model_id!=?3 OR p.evaluated_at<?2 OR r.pushed_at>p.evaluated_at)
+      AND NOT EXISTS (SELECT 1 FROM json_each(?4) AS b WHERE b.value=r.owner||'/'||r.repo)
     ORDER BY r.tree_truncated_at IS NOT NULL DESC, r.repo_skill_count>100 DESC,
       EXISTS(SELECT 1 FROM skills s WHERE s.owner=r.owner AND s.repo=r.repo) DESC,
       COALESCE(p.evaluated_at,0),r.owner,r.repo LIMIT 25
-  `).bind(REPOSITORY_PURPOSE_PROMPT_VERSION, now - REPOSITORY_PURPOSE_REFRESH_SECONDS, now - 86400, REPOSITORY_PURPOSE_MODEL).all<RepositoryIdentity>()
+  `).bind(REPOSITORY_PURPOSE_PROMPT_VERSION, now - REPOSITORY_PURPOSE_REFRESH_SECONDS, REPOSITORY_PURPOSE_MODEL, blocked).all<RepositoryIdentity>()
   return result.results
 }
 
