@@ -1,14 +1,14 @@
 ---
 title: Privacy
 description: What skilld.dev stores, why it needs the data, how long it keeps it, and how you delete your account.
-label: Last updated 7 October 2026
-updatedAt: 2026-10-07
+label: Last updated 8 October 2026
+updatedAt: 2026-10-08
 ---
 
 ## In short
 
 - You can browse skilld.dev and run Skills without an account.
-- skilld.dev counts page views and command copies. The counts hold no name, IP address, or cookie. It loads no advertising scripts.
+- skilld.dev counts page views, demo views, command copies, and demo link copies. The counts hold no name, IP address, or cookie. It loads no advertising scripts.
 - An account is optional. You sign in with [GitHub](https://github.com) to like Skills, watch Repositories, get email, or connect the skilld CLI.
 - You can delete your account from your dashboard at any time.
 - The skilld CLI sends no telemetry.
@@ -45,6 +45,8 @@ When you copy a printed command, your browser tells skilld.dev. skilld stores on
 - Your country.
 
 That count goes to [Cloudflare Analytics Engine](https://developers.cloudflare.com/analytics/analytics-engine/), which keeps it for 90 days. It holds no IP address, no cookie, and no account ID, so a count cannot be traced to you or joined to your account. skilld keeps no record of an individual copy.
+
+Demo counts also record the displayed demo, the surface, and whether you copied an Agent prompt, a terminal command, or a demo link. A view counts when at least half the output frame is visible. Each demo counts once per stage during that page visit. Copy counts include a coarse time bucket since the frame first became visible, and one of three fixed campaign labels when the page link supplies it. They hold no task text, full query string, visitor identifier, or exact elapsed time. These counts use the same 90-day Analytics Engine storage.
 
 The skilld CLI sends no telemetry. skilld.dev accepts an anonymous run count from a CLI at the same address, under the same rules, and drops any account ID the request carries.
 

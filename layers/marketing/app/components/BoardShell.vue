@@ -12,7 +12,7 @@ import TrendingWeeklyCta from './TrendingWeeklyCta.vue'
  * invitation, and the install chip under it. The board places the narrow
  * screen's copy of the invitation itself; see `BoardRankedList`.
  */
-const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
+const { headingId, surface, showWeeklyCta, ctaPending, contentFirst = false } = defineProps<{
   /** The page's `<h1>` id, which names the header and the board. */
   headingId: string
   /** Analytics prefix for the install chip, such as `trending`. */
@@ -21,6 +21,8 @@ const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
   showWeeklyCta: boolean
   /** The session has not loaded, so the invitation holds its space unseen. */
   ctaPending: boolean
+  /** Lead with a selected result before navigation on narrow screens. */
+  contentFirst?: boolean
 }>()
 </script>
 
@@ -30,7 +32,7 @@ const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
       <header :aria-labelledby="headingId" class="mx-auto mb-7 max-w-7xl lg:ml-56 lg:mr-0">
         <slot name="header" />
         <!-- Narrow screens have no sidebar, so the install sits under the heading. -->
-        <div class="mt-5 lg:hidden">
+        <div v-if="!contentFirst" class="mt-5 lg:hidden">
           <div class="board-teach">
             <p class="font-mono text-xs text-muted">
               Teach your agent skilld
@@ -41,7 +43,11 @@ const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
       </header>
 
       <div class="board-layout relative grid items-start gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
-        <div class="board-sidebar">
+        <section v-if="contentFirst" class="min-w-0 lg:col-start-2 lg:row-start-1 lg:pt-6" :aria-labelledby="headingId">
+          <slot />
+        </section>
+
+        <div class="board-sidebar lg:col-start-1 lg:row-start-1">
           <slot name="sidebar" />
 
           <!--
@@ -52,7 +58,7 @@ const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
             so it carries no `aria-hidden`, which HTML validation rejects over
             a link.
           -->
-          <div class="board-sidebar__foot">
+          <div class="board-sidebar__foot" :class="{ 'board-sidebar__foot--visible': contentFirst }">
             <div v-if="showWeeklyCta" :class="{ invisible: ctaPending }">
               <TrendingWeeklyCta variant="rail" />
             </div>
@@ -72,7 +78,7 @@ const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
           <slot name="sidebar-end" />
         </div>
 
-        <section class="min-w-0 lg:pt-6" :aria-labelledby="headingId">
+        <section v-if="!contentFirst" class="min-w-0 lg:pt-6" :aria-labelledby="headingId">
           <slot />
         </section>
       </div>
@@ -100,6 +106,13 @@ const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
 
 .board-sidebar__foot {
   display: none;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-block-start: 2rem;
+}
+
+.board-sidebar__foot--visible {
+  display: grid;
 }
 
 .board-teach {
@@ -128,9 +141,6 @@ const { headingId, surface, showWeeklyCta, ctaPending } = defineProps<{
 
   .board-sidebar__foot {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.5rem;
-    margin-block-start: 2rem;
   }
 }
 </style>

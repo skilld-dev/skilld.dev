@@ -128,7 +128,7 @@ else {
 </script>
 
 <template>
-  <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false">
+  <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false" :content-first="!!pageDemo">
     <template #header>
       <h1 id="demos-heading" class="text-3xl font-semibold tracking-tight text-balance">
         {{ pageDemo ? `What /${pageDemo.name} made` : 'See what skills make' }}

@@ -653,6 +653,14 @@ describe('accessibility: components', () => {
     expect(picks[1]?.getAttribute('aria-pressed')).toBe('true')
     expect(stage()).toBe('/skills/demos/anthropics/skills/two')
     expect(container.querySelector('a[href="/skills/demos"]')?.textContent).toContain('All 42 demos')
+    const run = container.querySelector<HTMLButtonElement>('.demo-actions__run')!
+    run.click()
+    await nextTick()
+    await new Promise(done => setTimeout(done, 400))
+    const panel = document.querySelector<HTMLElement>('.demo-actions__panel')!
+    expect(panel).not.toBeNull()
+    const panelResults = await runAxe(panel)
+    expect(panelResults.violations, formatViolations(panelResults)).toHaveLength(0)
     wrapper.unmount()
   })
 
@@ -993,6 +1001,7 @@ describe('accessibility: component coverage', () => {
     'StatsLeaderboard', // Tested at page level
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
     '_ChipSwitch', // The switch above RunChip and CliInstallChip, axe-scanned and clicked through both
+    '_DemoActions', // DemoStage actions, scanned inside HomeDemos and DemoIndex; the open popover is checked in the browser
     'DemoStage', // The stage DemoIndex and /skills/demos render, scanned inside the HomeDemos and DemoIndex tests
     'home-demos/_DemoMedia', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoPicture', // A part of HomeDemos, scanned inside the HomeDemos tests

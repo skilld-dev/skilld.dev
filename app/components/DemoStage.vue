@@ -2,6 +2,7 @@
 import type { HomeDemoItem } from '~/utils/home-demos'
 import { demoPagePath } from '#shared/demo-pages'
 import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio } from '~/utils/home-demos'
+import DemoActions from './_DemoActions.vue'
 import DemoMedia from './home-demos/_DemoMedia.vue'
 import DemoRecording from './home-demos/_DemoRecording.vue'
 import SkillCard from './SkillCard.vue'
@@ -27,6 +28,8 @@ const { demo, surface = 'demos', eager = false, showPrompt = false, live = false
 }>()
 
 /** The output page itself, when this stage shows it live. A film always plays as video. */
+const stage = useTemplateRef<HTMLElement>('stage')
+const { record } = useDemoEngagement(() => `${demo.owner}/${demo.repo}/${demo.name}`, surface, stage)
 const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 </script>
 
@@ -44,6 +47,7 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
     </p>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
     <div
+      ref="stage"
       class="demo-stage__window"
       :data-phone="demoHasPhoneFrame(demo) ? '' : undefined"
       :style="demo.video
@@ -71,9 +75,10 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
         layout="row"
         metric="none"
         :description="false"
-        :actions="['run']"
+        :actions="[]"
         :surface
       />
+      <DemoActions :demo :surface @action="record" />
     </div>
   </div>
 </template>
@@ -152,6 +157,14 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
     block-size: auto;
     aspect-ratio: var(--phone-ratio, 4 / 5);
   }
+
+  .demo-stage__id :deep(.skill-card--row) {
+    padding-block: 0.5rem;
+  }
+
+  .demo-stage__id :deep(.skill-card__row-end) {
+    display: none;
+  }
 }
 
 /* The live page scrolls inside its own frame. */
@@ -174,6 +187,10 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 
 /* The Skill row's hover fill follows the rounded corners of everything around it. */
 .demo-stage__id {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
   margin-block-start: 0.25rem;
   overflow: hidden;
   border-radius: var(--ui-radius);
