@@ -4,7 +4,7 @@ import { createReusableTemplate, useMediaQuery } from '@vueuse/core'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { trendingSkillKey, trendingSkillKeySet } from '#shared/trending-keys'
 import DirectoryCta from '../../components/skills/_DirectoryCta.vue'
-import { isInputFocused, repositorySearchFallback, resolveRegistryViewState } from '../../utils/registry-view-state'
+import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
 // "Find skills for your AI agent" matched no query anyone types. The demand is
 // on `claude skills directory` (260/mo), `agent skills directory` (90), and the
@@ -179,15 +179,6 @@ const totalPages = computed(() =>
   registryView.value._tag === 'ready' ? registryView.value.data.pages : 1,
 )
 const isLoading = computed(() => registryView.value._tag === 'loading')
-const { submitRepository, repositoryTask } = useSkillSearch()
-const repositoryFallback = computed(() => search.value.trim() === searchQuery.value.trim()
-  ? repositorySearchFallback(searchQuery.value, registryStatus.value, registryData.value?.total)
-  : null)
-
-function indexSearchRepository(): void {
-  if (repositoryFallback.value)
-    void submitRepository(repositoryFallback.value)
-}
 
 const searchInput = ref<{ inputRef?: HTMLInputElement } | null>(null)
 const activeElement = useActiveElement()
@@ -505,16 +496,6 @@ function selectOwner(next: string) {
               <p class="mt-1 text-base text-muted">
                 Remove a tag or try a broader search.
               </p>
-              <UButton
-                v-if="repositoryFallback"
-                class="me-2 mt-4 min-h-11"
-                size="sm"
-                color="neutral"
-                variant="outline"
-                :label="`Index ${repositoryFallback.owner}/${repositoryFallback.repo}`"
-                :loading="repositoryTask._tag === 'indexing'"
-                @click="indexSearchRepository"
-              />
               <UButton
                 class="mt-4 min-h-11"
                 size="sm"

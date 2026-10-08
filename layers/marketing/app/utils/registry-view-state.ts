@@ -1,15 +1,4 @@
-import type { GitHubRepository } from '#shared/github-repository'
-import { classifySearchQuery } from '#shared/skill-search-query'
-
 export type RegistryFetchStatus = 'idle' | 'pending' | 'success' | 'error'
-
-/** An empty repository search offers the same index flow as the search box. */
-export function repositorySearchFallback(query: string, status: RegistryFetchStatus, total: number | undefined): GitHubRepository | null {
-  if (status !== 'success' || total !== 0)
-    return null
-  const classified = classifySearchQuery(query)
-  return classified._tag === 'repository' ? classified.repository : null
-}
 
 export type RegistryViewState<T extends { items: readonly unknown[] }>
   = | { _tag: 'loading' }
