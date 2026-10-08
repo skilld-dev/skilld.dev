@@ -1390,6 +1390,46 @@
       ]
     },
     {
+      "owner": "vojtaholik",
+      "repo": "good-css",
+      "name": "good-css",
+      "makes": "ui-component",
+      "authorName": null,
+      "sourceUrl": "https://github.com/vojtaholik/good-css/blob/main/skills/good-css/SKILL.md",
+      "prompt": "Build a polished responsive reading-list component for a fictional independent design journal called Margin. Show six article cards with different title lengths, categories, reading times, and CSS-drawn editorial cover art. Include working category filters, a light/dark theme switch, and bookmark toggles with an in-page saved count. Use the modern CSS techniques taught by this Skill to make the same component work in a narrow sidebar and a wide main column. Add a simple width control so visitors can see it adapt. Keep the reading list the main visual focus. Use warm paper, strong editorial typography, and restrained vermilion accents. No invented testimonials or statistics. Save one self-contained index.html with inline CSS and runtime JavaScript. No external assets or dependencies. Use TypeScript for any tooling. The demo runs in an opaque iframe with sandbox allow-scripts only: no storage, form submissions, popups, or downloads. Every control must work by keyboard. Support reduced motion and widths from 390px to 1440px. Do not ask questions.",
+      "agent": "Codex",
+      "agentVersion": "0.161.0",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "skillCommit": "e777d97100d184cc78ffea6c5603f409610d5ea4",
+      "recordedAt": "2026-10-08",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop-90180cd258.jpg",
+          "width": 1440,
+          "height": 1672,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a polished responsive reading-list component for a fictional independent design journal called Margin. Show six ar",
+          "poster": {
+            "file": "desktop-poster-4f0dd2b501.jpg",
+            "height": 900
+          }
+        },
+        {
+          "file": "mobile-e7b77d8d88.jpg",
+          "width": 390,
+          "height": 1839,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a polished responsive reading-list component for a fictional independent design journal called Margin. Show six ar",
+          "poster": {
+            "file": "mobile-poster-ae31c943c8.jpg",
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
       "owner": "yfe404",
       "repo": "tech-visualizer",
       "name": "tech-visualizer",
