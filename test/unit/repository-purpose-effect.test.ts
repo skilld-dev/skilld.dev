@@ -1,3 +1,4 @@
+import type { SqliteD1 } from './helpers/d1-sqlite'
 import { describe, expect, it, vi } from 'vitest'
 import { classifyRepositoryPurpose, REPOSITORY_PURPOSE_REFRESH_SECONDS } from '../../layers/registry/server/utils/repository-purpose'
 import { checkRepositoryPurposeAdmission, listRepositoryPurposeCandidates, persistRepositoryPurpose, refreshRepositoryPurpose } from '../../layers/registry/server/utils/repository-purpose-effect'
@@ -52,22 +53,55 @@ describe('purpose records', () => {
     finally { sqlite.close() }
   })
 
+  /**
+   * The runtime holds active jobs in `jobs` and moves terminal failures to
+   * `failed_jobs`, deleting them from `jobs`. A dead-lettered classification
+   * leaves no `jobs` row at all, so the one day retry wait has to read
+   * `failed_jobs` or it never applies to a real failure.
+   */
   it('checks large inventories first and avoids active or recently failed jobs', async () => {
     const sqlite = createSqliteD1(allMigrations())
     try {
       sqlite.raw.exec(`
-        INSERT INTO repos(owner,repo,repo_skill_count) VALUES ('org','small',3),('org','large',400),('org','busy',200);
-        INSERT INTO jobs(id,queue,job_type,payload,available_at,failed_at)
-          VALUES ('busy','repo-review-sync','registry/repository-purpose','{"owner":"org","repo":"busy"}',0,NULL);
+        INSERT INTO repos(owner,repo,repo_skill_count) VALUES ('org','small',3),('org','large',400),('org','busy',200),('org','retry',100);
+        INSERT INTO jobs(id,queue,job_type,payload,available_at)
+          VALUES ('busy','repo-review-sync','registry/repository-purpose','{"owner":"org","repo":"busy"}',0);
+        INSERT INTO failed_jobs(id,queue,job_type,payload,exception,attempts,max_attempts,failed_at)
+          VALUES ('retry','repo-review-sync','registry/repository-purpose','{"owner":"org","repo":"retry"}','AI binding unavailable',5,5,99999);
       `)
       expect(await listRepositoryPurposeCandidates(sqlite.db, 100000))
         .toEqual([{ owner: 'org', repo: 'large' }, { owner: 'org', repo: 'small' }])
-      sqlite.raw.exec('UPDATE jobs SET failed_at=99999 WHERE id=\'busy\'')
+      sqlite.raw.exec('UPDATE failed_jobs SET failed_at=1 WHERE id=\'retry\'')
       expect(await listRepositoryPurposeCandidates(sqlite.db, 100000))
-        .toEqual([{ owner: 'org', repo: 'large' }, { owner: 'org', repo: 'small' }])
-      sqlite.raw.exec('UPDATE jobs SET failed_at=1 WHERE id=\'busy\'')
-      expect(await listRepositoryPurposeCandidates(sqlite.db, 100000))
-        .toEqual([{ owner: 'org', repo: 'busy' }, { owner: 'org', repo: 'large' }, { owner: 'org', repo: 'small' }])
+        .toEqual([{ owner: 'org', repo: 'large' }, { owner: 'org', repo: 'retry' }, { owner: 'org', repo: 'small' }])
+    }
+    finally { sqlite.close() }
+  })
+
+  /**
+   * Completed classification jobs stay in `jobs` forever, so a candidate read
+   * that ranges over that table walks every finished job for every outer row.
+   * Blocking reads must reach `jobs` only through the partial active index and
+   * `failed_jobs` only through the failed_at window.
+   */
+  it('never ranges over retained job history when blocking candidates', async () => {
+    const sqlite = createSqliteD1(allMigrations())
+    try {
+      sqlite.raw.exec(`
+        INSERT INTO repos(owner,repo,repo_skill_count) VALUES ('org','small',3);
+        INSERT INTO jobs(id,queue,job_type,payload,available_at,completed_at) VALUES
+          ('done-1','repo-review-sync','registry/repository-purpose','{"owner":"other","repo":"past"}',0,5000),
+          ('done-2','repo-review-sync','registry/repository-purpose','{"owner":"other","repo":"older"}',0,4000);
+      `)
+      const { db, statements } = recordingDb(sqlite)
+      await listRepositoryPurposeCandidates(db, 100000)
+      expect(statements.length).toBeGreaterThan(0)
+      const details = statements.flatMap(({ sql, values }) => planDetails(sqlite, sql, values))
+      const text = details.join('\n')
+      expect(text).not.toContain('idx_jobs_type')
+      expect(details.some(detail => detail.includes('idx_jobs_active'))).toBe(true)
+      expect(details.some(detail => detail.includes('idx_failed_jobs_failed_at'))).toBe(true)
+      expect(details.filter(detail => /^SCAN jobs(?! USING)/.test(detail))).toEqual([])
     }
     finally { sqlite.close() }
   })
@@ -137,3 +171,32 @@ describe('purpose records', () => {
     finally { sqlite.close() }
   })
 })
+
+/** Wraps the D1 facade so every bound statement can be explained after the call. */
+function recordingDb(sqlite: SqliteD1): { db: D1Database, statements: Array<{ sql: string, values: unknown[] }> } {
+  const statements: Array<{ sql: string, values: unknown[] }> = []
+  const prepare = sqlite.db.prepare.bind(sqlite.db)
+  const db = {
+    prepare(sql: string) {
+      const statement = prepare(sql)
+      return {
+        ...statement,
+        bind: (...values: unknown[]) => {
+          statements.push({ sql, values })
+          return statement.bind(...values)
+        },
+      }
+    },
+  } as unknown as D1Database
+  return { db, statements }
+}
+
+function planDetails(sqlite: SqliteD1, sql: string, values: unknown[]): string[] {
+  const expanded: unknown[] = []
+  const normalized = sql.replace(/\?(\d+)/g, (_, raw: string) => {
+    expanded.push(values[Number(raw) - 1])
+    return '?'
+  })
+  return (sqlite.raw.prepare(`EXPLAIN QUERY PLAN ${normalized}`).all(...expanded) as Array<{ detail: string }>)
+    .map(row => row.detail)
+}
