@@ -10,7 +10,7 @@ describe('getTree', () => {
       ['root', { sha: 'root', tree: [{ path: 'skills', type: 'tree', sha: 'skills-tree' }] }],
       ['skills-tree?recursive=1', { sha: 'skills-tree', truncated: true, tree: [] }],
       ['skills-tree', { sha: 'skills-tree', tree: [{ path: 'one', type: 'tree', sha: 'one-tree' }] }],
-      ['one-tree?recursive=1', { sha: 'one-tree', tree: [{ path: 'SKILL.md', type: 'blob', sha: 'skill' }, { path: 'references/a.md', type: 'blob', sha: 'reference' }] }],
+      ['one-tree?recursive=1', { sha: 'one-tree', tree: [{ path: 'SKILL.md', type: 'blob', sha: 'skill', size: 120 }, { path: 'references/a.md', type: 'blob', sha: 'reference', size: 42 }] }],
     ])
     const reads: string[] = []
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -27,10 +27,21 @@ describe('getTree', () => {
     expect(result.data).toEqual({ sha: 'root', truncated: false, tree: [
       { path: 'skills', type: 'tree', sha: 'skills-tree' },
       { path: 'skills/one', type: 'tree', sha: 'one-tree' },
-      { path: 'skills/one/SKILL.md', type: 'blob', sha: 'skill' },
-      { path: 'skills/one/references/a.md', type: 'blob', sha: 'reference' },
+      { path: 'skills/one/SKILL.md', type: 'blob', sha: 'skill', size: 120 },
+      { path: 'skills/one/references/a.md', type: 'blob', sha: 'reference', size: 42 },
     ] })
     expect(reads).toEqual([...answers.keys()])
+  })
+
+  it('returns a partial tree without expansion for a page read', async () => {
+    const tree = { sha: 'root', truncated: true, tree: [{ path: 'SKILL.md', type: 'blob', sha: 'skill', size: 120 }] }
+    const fetchMock = vi.fn(async () => Response.json(tree))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await getTree('acme', 'large', 'root', {}, { expandTruncated: false })
+
+    expect(result.data).toEqual(tree)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('propagates a subtree read failure without presenting a partial tree', async () => {

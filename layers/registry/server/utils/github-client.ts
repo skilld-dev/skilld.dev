@@ -175,6 +175,7 @@ export interface TreeEntry {
   path: string
   type: 'blob' | 'tree' | 'commit'
   sha: string
+  size?: number
 }
 
 export interface TreeResponse {
@@ -529,7 +530,7 @@ export async function getTree(
   repo: string,
   ref: string,
   bindings: GithubBindings,
-  options?: GithubReadOptions,
+  options?: GithubReadOptions & { expandTruncated?: boolean },
 ): Promise<FetchOutcome<TreeResponse>> {
   // A page deadline covers the entire fallback, including credential reads.
   const init = readInit(options)
@@ -538,7 +539,7 @@ export async function getTree(
     bindings,
     init,
   )
-  if (!initial.data?.truncated)
+  if (!initial.data?.truncated || options?.expandTruncated === false)
     return initial
 
   // GitHub caps recursive trees at 100,000 entries or 7 MB. Resolve each
@@ -576,7 +577,7 @@ export async function getTree(
       return { ...result, data: incomplete, rateLimit, notModified: false }
     for (const entry of result.data.tree) {
       const path = next.prefix ? `${next.prefix}/${entry.path}` : entry.path
-      entries.push({ path, type: entry.type, sha: entry.sha })
+      entries.push({ path, type: entry.type, sha: entry.sha, size: entry.size })
       if (!next.recursive && entry.type === 'tree')
         pending.push({ sha: entry.sha, prefix: path, recursive: true })
     }
