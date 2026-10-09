@@ -83,7 +83,7 @@ export function homeDemoFeed(feed: { items: HomeDemoItem[] }) {
  */
 export const DEMO_PHONE_MEDIA = '(max-width: 39.99rem)'
 
-export function demoKey(demo: HomeDemoItem): string {
+export function demoKey(demo: Pick<HomeDemoItem, 'owner' | 'repo' | 'name'>): string {
   return `${demo.owner}/${demo.repo}/${demo.name}`
 }
 

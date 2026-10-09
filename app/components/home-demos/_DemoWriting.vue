@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { WritingDemo } from '#shared/writing-demo'
+import { highlightToHtml } from '#shared/highlight'
 import { renderWritingMarkdown } from '#shared/writing-markdown'
 
 const { writing, outputLabel } = defineProps<{ writing: WritingDemo, outputLabel: string }>()
@@ -8,6 +9,7 @@ const version = ref<'original' | 'baseline' | 'output'>('output')
 const document = computed(() => writing.documents.find(item => item.id === documentId.value) ?? writing.documents[0])
 const markdown = computed(() => document.value?.[version.value] ?? '')
 const html = computed(() => renderWritingMarkdown(markdown.value))
+const sourceHtml = computed(() => highlightToHtml(markdown.value, 'md'))
 const documentSelectId = useId()
 const versionSelectId = useId()
 </script>
@@ -41,11 +43,17 @@ const versionSelectId = useId()
     >
       <!-- The renderer strips raw HTML, images, and unsafe links. It never evaluates components. -->
       <!-- eslint-disable-next-line vue/no-v-html -->
-      <article class="writing-demo__document prose prose-stone dark:prose-invert" v-html="html" />
+      <article
+        class="writing-demo__document skill-prose"
+        :class="document?.format === 'article' ? 'writing-demo__article' : 'writing-demo__github'"
+        v-html="html"
+      />
     </div>
     <details class="writing-demo__markdown">
       <summary>Markdown</summary>
-      <pre tabindex="0" aria-label="Markdown source">{{ markdown }}</pre>
+      <!-- Highlighted source uses the same escaped rangi renderer as Skill pages. -->
+      <!-- eslint-disable-next-line vue/no-v-html -->
+      <div class="skill-markdown" role="region" aria-label="Markdown source" v-html="sourceHtml" />
     </details>
   </div>
 </template>
@@ -168,6 +176,41 @@ const versionSelectId = useId()
   overflow-x: auto;
 }
 
+/* GitHub document typography, using the existing Markdown and rangi infrastructure. */
+.writing-demo__github {
+  max-inline-size: none;
+  padding: clamp(1rem, 4vw, 2rem);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+.writing-demo__github :deep(h1),
+.writing-demo__github :deep(h2) {
+  padding-block-end: 0.3em;
+  border-block-end: 1px solid var(--ui-border);
+  margin-block: 1.5rem 1rem;
+  line-height: 1.25;
+}
+
+.writing-demo__github :deep(h1) { font-size: 2rem; }
+.writing-demo__github :deep(h2) { font-size: 1.5rem; }
+.writing-demo__github :deep(h3) { font-size: 1.25rem; }
+.writing-demo__github :deep(:first-child) { margin-block-start: 0; }
+.writing-demo__github :deep(li) { margin-block: 0.25em; }
+.writing-demo__github :deep(code) { font-size: 85%; }
+.writing-demo__github :deep(code:not(pre code)) { border: 0; }
+.writing-demo__github :deep(pre) {
+  border: 0;
+  font-size: 85%;
+  line-height: 1.45;
+}
+.writing-demo__github :deep(pre code) { font-size: inherit; }
+.writing-demo__github :deep(a) { color: light-dark(#0969da, #58a6ff); text-decoration: none; }
+.writing-demo__github :deep(a:hover) { text-decoration: underline; }
+.writing-demo__document :deep(a[target="_blank"]::after) { content: none; }
+.writing-demo__github :deep(blockquote) { border-inline-start-width: 0.25em; font-style: normal; }
+.writing-demo__github :deep(input[type="checkbox"]) { margin-inline-end: 0.5em; }
+
 .writing-demo__markdown {
   margin-block-start: 0.25rem;
 }
@@ -182,7 +225,7 @@ const versionSelectId = useId()
   cursor: pointer;
 }
 
-.writing-demo__markdown pre {
+.writing-demo__markdown :deep(pre) {
   max-block-size: 24rem;
   overflow: auto;
   padding: 1rem;

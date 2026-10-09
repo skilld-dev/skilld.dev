@@ -7,6 +7,7 @@ export const writingDemoSchema = z.object({
   documents: z.array(z.object({
     id: z.string().regex(/^[a-z][a-z0-9-]*$/),
     label: z.string().trim().min(1),
+    format: z.enum(['article', 'readme', 'pr']),
     original: markdown,
     baseline: markdown,
     output: markdown,

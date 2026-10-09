@@ -96,8 +96,8 @@ describe('accessibility: components', () => {
         outputLabel: 'Example rewrite',
         writing: {
           documents: [
-            { id: 'article', label: 'Blog article', original: '# Original article', baseline: '# Baseline article', output: '# Edited article' },
-            { id: 'readme', label: 'Package README', original: '# Original README', baseline: '# Baseline README', output: '# Edited README' },
+            { id: 'article', format: 'article', label: 'Blog article', original: '# Original article', baseline: '# Baseline article', output: '# Edited article' },
+            { id: 'readme', format: 'readme', label: 'Package README', original: '# Original README', baseline: '# Baseline README', output: '# Edited README' },
           ],
         },
       },
@@ -107,6 +107,7 @@ describe('accessibility: components', () => {
     await documentSelect!.setValue('readme')
     await versionSelect!.setValue('original')
     expect(wrapper.find('article').text()).toBe('Original README')
+    expect(wrapper.find('article').classes()).toContain('writing-demo__github')
     wrapper.find('details').element.open = true
     await nextTick()
     expect(wrapper.find('pre').text()).toBe('# Original README')

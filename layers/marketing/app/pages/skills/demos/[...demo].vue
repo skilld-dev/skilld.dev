@@ -4,7 +4,7 @@ import { setResponseHeaders } from 'h3'
 import DemoWriting from '~~/app/components/home-demos/_DemoWriting.vue'
 import { demoKey, demoRecording, demoSocialPicture } from '~~/app/utils/home-demos'
 import { resolveAuthorName } from '~~/app/utils/skill-byline'
-import { writingDemoExample } from '~~/app/utils/writing-demo-example'
+import { writingDemoExample, writingDemoSkills } from '~~/app/utils/writing-demo-example'
 import { DEMO_GROUPS, demoNoun, groupDemos } from '#shared/demo-groups'
 import { demoPagePath, DEMOS_PATH, MIN_INDEXABLE_DEMOS, parseDemoRoute } from '#shared/demo-pages'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
@@ -45,8 +45,10 @@ const groups = computed(() => {
 
 const route = useRoute()
 const demoRoute = computed(() => parseDemoRoute(route.params.demo))
-// UI fixtures have no Skill attribution, recording metadata, run action, or sitemap entry.
+// Candidate rows share UI fixtures, without claiming a Skill produced them.
 const writingExample = computed(() => demoRoute.value._tag === 'index' && route.query.example === 'writing')
+const writingCandidates = computed(() => writingDemoSkills.filter(skill => !demos.value.some(demo => demoKey(demo) === demoKey(skill))))
+const writingCandidate = computed(() => writingCandidates.value.find(skill => demoKey(skill) === route.query.skill) ?? writingCandidates.value[0])
 
 function findDemo(key: string): HomeDemoItem | undefined {
   return demos.value.find(demo => demoKey(demo).toLowerCase() === key.toLowerCase())
@@ -180,14 +182,19 @@ else {
             </li>
           </ul>
           <NuxtLink
-            v-if="group.makes === 'writing'"
-            :to="`${DEMOS_PATH}?example=writing`"
-            class="demos-rail__pick demos-rail__pick--example"
-            :aria-current="writingExample ? 'true' : undefined"
+            v-for="skill in group.makes === 'writing' ? writingCandidates : []"
+            :key="demoKey(skill)"
+            :to="{ path: DEMOS_PATH, query: { example: 'writing', skill: demoKey(skill) } }"
+            class="demos-rail__pick"
+            :aria-current="writingExample && writingCandidate === skill ? 'true' : undefined"
             @click="revealStage"
           >
             <span class="demos-rail__dot" aria-hidden="true" />
-            <span class="demos-rail__name">Example data</span>
+            <img :src="githubAvatarProxyUrl(skill.owner, 40)" alt="" width="20" height="20" loading="lazy" decoding="async" class="demos-rail__avatar">
+            <span class="min-w-0">
+              <span class="demos-rail__name">/{{ skill.name }}</span>
+              <span class="demos-rail__by">{{ skill.owner }}</span>
+            </span>
           </NuxtLink>
         </section>
       </nav>
@@ -233,9 +240,6 @@ else {
   transition: background-color 150ms ease;
 }
 
-.demos-rail__pick--example {
-  grid-template-columns: auto minmax(0, 1fr);
-}
 
 @media (hover: hover) {
   .demos-rail__pick:hover {

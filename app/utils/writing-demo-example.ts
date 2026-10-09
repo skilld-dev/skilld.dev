@@ -1,10 +1,21 @@
 import type { WritingDemo } from '#shared/writing-demo'
 
+/** Candidates for future recordings. All rows share the same UI fixtures. */
+export const writingDemoSkills = [
+  { owner: 'blader', repo: 'humanizer', name: 'humanizer' },
+  { owner: 'hardikpandya', repo: 'stop-slop', name: 'stop-slop' },
+  { owner: 'petergyang', repo: 'no-ai-slop', name: 'no-ai-slop' },
+  { owner: 'elithrar', repo: 'dotfiles', name: 'anti-slop' },
+  { owner: 'kmaida', repo: 'deslop-skills', name: 'deslop-writing' },
+  { owner: 'harlan-zw', repo: 'brundlefly', name: 'write-human' },
+] as const
+
 /** Handwritten UI fixtures. These are not recordings or results from any Skill. */
 export const writingDemoExample: WritingDemo = {
   documents: [
     {
       id: 'article',
+      format: 'article',
       label: 'Blog article',
       original: `# Keeping a reading list that works for you
 
@@ -44,6 +55,7 @@ You don't need to finish the list. You need to find something worth reading when
     },
     {
       id: 'readme',
+      format: 'readme',
       label: 'Package README',
       original: `# Margin
 
@@ -110,6 +122,7 @@ const cssLinks = filterLinks(links, 'CSS')
     },
     {
       id: 'pr',
+      format: 'pr',
       label: 'PR description',
       original: `# Add category filtering to the reading list
 

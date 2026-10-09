@@ -1,5 +1,6 @@
 import type { Renderer } from 'marked'
 import { Marked } from 'marked'
+import { escapeHtml, highlightToHtml } from './highlight'
 
 function escapeAttribute(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -12,6 +13,7 @@ export function renderWritingMarkdown(markdown: string): string {
     gfm: true,
     renderer: {
       html: () => '',
+      code: ({ text, lang }) => highlightToHtml(text, lang) ?? `<pre tabindex="0"><code>${escapeHtml(text)}</code></pre>\n`,
       // Generated images are not part of a writing demo. Show their alt text without making a request.
       image: ({ text }) => escapeAttribute(text),
       link(this: Renderer, { href, tokens }) {

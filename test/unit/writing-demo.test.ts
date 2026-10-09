@@ -3,7 +3,7 @@ import { parseSkillDemoRecord, presentSkillDemo } from '../../layers/registry/se
 import { renderWritingMarkdown } from '../../shared/writing-markdown'
 
 const writing = {
-  documents: [{ id: 'article', label: 'Blog article', original: '# Original', baseline: '# Baseline', output: '# Rewrite' }],
+  documents: [{ id: 'article', label: 'Blog article', format: 'article', original: '# Original', baseline: '# Baseline', output: '# Rewrite' }],
 }
 
 const recording = {
@@ -43,6 +43,21 @@ describe('writing demo recordings', () => {
 })
 
 describe('renderWritingMarkdown', () => {
+  it('highlights fenced code and escapes unsupported languages', () => {
+    const html = renderWritingMarkdown('```ts\nconst total = 1\n```\n\n```unknown\n<script>alert(1)</script>\n```')
+    expect(html).toContain('class="shj-kwd"')
+    expect(html).toContain('>const</span>')
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(html).not.toContain('<script>')
+  })
+
+  it('renders GitHub tables, strikethrough, and disabled task lists', () => {
+    const html = renderWritingMarkdown('| Status |\n| --- |\n| Ready |\n\n- [x] Checked\n\n~~Removed~~')
+    expect(html).toContain('<table>')
+    expect(html).toContain('<del>Removed</del>')
+    expect(html).toContain('disabled=""')
+    expect(html).toContain('checked=""')
+  })
   it('renders headings, lists, links, and literal code', () => {
     const html = renderWritingMarkdown('# Read\n\n- Keep it short\n\n[Source](https://example.com)\n\n```ts\nconst tag = "<script>"\n```')
     expect(html).toContain('<h1>Read</h1>')
