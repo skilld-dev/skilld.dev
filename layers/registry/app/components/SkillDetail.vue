@@ -2335,7 +2335,7 @@ useHead(computed(() => ({
           >
             <SkillBehaviors
               v-if="data.raw || behaviors.length"
-              :behaviors="data.sourceFacts.behaviors"
+              :behaviors="data.sourceFacts.behaviors ?? null"
               :readings="behaviorReadings"
             />
             <SkillThirdPartyChecks
