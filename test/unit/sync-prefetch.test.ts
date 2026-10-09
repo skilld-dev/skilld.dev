@@ -116,6 +116,18 @@ describe('prefetchUnchangedRepos', () => {
       .toEqual({ repo_meta_synced_at: null })
   })
 
+  it('queues a changed tree even when the push timestamp has not advanced', async () => {
+    harness.raw.prepare(`UPDATE repos SET pushed_at = ? WHERE owner = 'acme' AND repo = 'changed'`)
+      .run(Date.parse('2026-10-01T00:00:00Z') / 1000)
+    vi.stubGlobal('fetch', vi.fn(graphqlAnswer))
+
+    const result = await prefetchUnchangedRepos({ db: harness.db, bindings, now: NOW }, [candidate('changed')])
+
+    expect(result.queue).toEqual([candidate('changed')])
+    expect(harness.raw.prepare(`SELECT repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'changed'`).get())
+      .toEqual({ repo_meta_synced_at: null })
+  })
+
   it('queues every candidate when GitHub does not answer the batch', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('bad gateway', { status: 502 })))
 

@@ -567,8 +567,10 @@ export function unchangedRepoStatus(input: {
   const { existing, hasAdmittedSkills, headTreeSha, repoPushedAt } = input
   if (!hasAdmittedSkills || !existing?.last_tree_sha)
     return null
-  if (headTreeSha && existing.last_tree_sha === headTreeSha)
-    return 'skipped-tree-sha'
+  // A known tree SHA is the content identity. Use pushed_at only when
+  // GitHub did not provide it.
+  if (headTreeSha)
+    return existing.last_tree_sha === headTreeSha ? 'skipped-tree-sha' : null
   if (existing.pushed_at != null && repoPushedAt != null && existing.pushed_at >= repoPushedAt)
     return 'skipped-pushed-at'
   return null
