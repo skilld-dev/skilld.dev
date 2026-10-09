@@ -10,7 +10,7 @@ const migration = 'migrations/0148_skill_snapshot_commit.sql'
 
 describe('skill snapshot migration', () => {
   it.each([true, false])('refreshes dormant nested Skills, recorded revision: %s', async (hasRevision) => {
-    const fixture = createSqliteD1(allMigrations().filter(path => path !== migration))
+    const fixture = createSqliteD1(allMigrations().filter(path => path < migration))
     const skill = { owner: 'acme', repo: 'skills', name: 'setup' }
     fixture.raw.exec(`
       INSERT INTO repos (owner, repo, default_branch, last_tree_sha, pushed_at, repo_meta_synced_at)

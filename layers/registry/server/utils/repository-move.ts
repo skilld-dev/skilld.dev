@@ -124,6 +124,7 @@ const skillTable = (table: string, options: Omit<KeyedTable, 'table'> = {}): Key
 const SKILL_TABLES: KeyedTable[] = [
   skillTable('skill_likes'),
   skillTable('skill_revisions'),
+  skillTable('skill_description_history'),
   skillTable('skill_generated', { keep: `kind = 'embedding'` }),
   skillTable('skill_dirty'),
   skillTable('skill_trending_admissions'),
