@@ -18,7 +18,7 @@ export default defineJob({
     const bindings = resolveGithubBindings(ctx.env)
     const result = await refreshRepositoryPurpose({
       db: ctx.db,
-      readEvidence: identity => readRepositoryPurposeEvidence(identity, bindings),
+      readEvidence: (identity, repositoryId) => readRepositoryPurposeEvidence(identity, bindings, repositoryId),
       judge: state => ctx.env.AI.run(REPOSITORY_PURPOSE_MODEL, { state, questions: repositoryPurposeQuestions }),
     }, input, Math.floor(Date.now() / 1000))
     if (result._tag === 'source_missing') {

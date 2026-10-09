@@ -106,9 +106,10 @@ describe('sync follows a moved Repository by its ID', () => {
   })
 
   it('moves the Repository and its Skills to the new name and keeps going there', async () => {
+    exec(`UPDATE repos SET repository_id = ${REACT_ID} WHERE owner = 'facebook' AND repo = 'react'`)
     const stats = await syncRepo('facebook', 'react', {}, d1.db)
 
-    expect(github.getRepoSummary).toHaveBeenCalledWith('react', 'react', {})
+    expect(github.getRepoSummary).toHaveBeenCalledWith('react', 'react', {}, REACT_ID)
     expect(stats.movedTo).toEqual({ owner: 'react', repo: 'react' })
     expect(stats.status).toBe('skipped-tree-sha')
     expect(rows(`SELECT owner, repo, repository_id, source_owner, source_repo, stars, last_tree_sha FROM repos`)).toEqual([

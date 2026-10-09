@@ -48,8 +48,9 @@ export async function listRepositoryPurposeCandidates(db: D1Database, now: numbe
 export async function readRepositoryPurposeEvidence(
   input: RepositoryIdentity,
   bindings: GithubBindings,
+  repositoryId?: number | null,
 ): Promise<RepositoryPurposeEvidence | RepositoryPurposeSourceMissing> {
-  const summary = await getRepoSummary(input.owner, input.repo, bindings)
+  const summary = await getRepoSummary(input.owner, input.repo, bindings, repositoryId)
   if (summary.status === 404 || summary.status === 410)
     return { _tag: 'source_missing', status: summary.status }
   if (!summary.data?.headCommitSha || !summary.data.headTreeSha || summary.data.meta.private)
@@ -100,10 +101,13 @@ export async function persistRepositoryPurpose(db: D1Database, finding: Reposito
 
 export async function refreshRepositoryPurpose(deps: {
   db: D1Database
-  readEvidence: (input: RepositoryIdentity) => Promise<RepositoryPurposeEvidence | RepositoryPurposeSourceMissing>
+  readEvidence: (input: RepositoryIdentity, repositoryId?: number | null) => Promise<RepositoryPurposeEvidence | RepositoryPurposeSourceMissing>
   judge: RepositoryPurposeJudge
 }, input: RepositoryIdentity, now: number): Promise<RepositoryPurposeRefresh> {
-  const evidence = await deps.readEvidence(input)
+  const existing = await deps.db.prepare('SELECT repository_id FROM repos WHERE owner=? AND repo=?')
+    .bind(input.owner, input.repo)
+    .first<{ repository_id: number | null }>()
+  const evidence = await deps.readEvidence(input, existing?.repository_id)
   if ('_tag' in evidence) {
     await markRepoMissing(deps.db, input.owner, input.repo, now)
     return evidence

@@ -6,6 +6,7 @@ import type {
   GithubCredentialReport,
   InstallationTokenCache,
 } from '#shared/server/github-app-credential'
+import { z } from 'zod'
 import {
   createGithubCredential,
   GITHUB_RATE_LIMIT_MESSAGE,
@@ -422,6 +423,44 @@ function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary | null {
  * data=null + non-200 status so callers can keep their existing branching.
  */
 export async function getRepoSummary(
+  owner: string,
+  repo: string,
+  bindings: GithubBindings,
+  repositoryId?: number | null,
+): Promise<FetchOutcome<RepoSummary>> {
+  const summary = await readRepoSummaryByName(owner, repo, bindings)
+  if (repositoryId == null || summary.data?.repositoryId === repositoryId)
+    return summary
+  if (!summary.data && summary.status !== 404 && summary.status !== 410)
+    return summary
+
+  // An old name can disappear or belong to another Repository. Resolve the
+  // stored ID before reading content or treating the original as missing.
+  const identity = await ghRequest<unknown>(`${API_BASE}/repositories/${repositoryId}`, bindings)
+  if (!identity.data)
+    return { ...identity, data: null }
+  const parsed = recoveredRepositorySchema.safeParse(identity.data)
+  if (!parsed.success || parsed.data.id !== repositoryId)
+    return { ...identity, status: 502, data: null }
+  if (parsed.data.private)
+    return { ...identity, status: 404, data: null }
+
+  const recovered = await readRepoSummaryByName(parsed.data.owner.login, parsed.data.name, bindings)
+  // A second rename or name reuse can race the lookup. Never accept a
+  // different ID, and never recurse into another recovery attempt.
+  return recovered.data && recovered.data.repositoryId !== repositoryId
+    ? { ...recovered, status: 502, data: null }
+    : recovered
+}
+
+const recoveredRepositorySchema = z.object({
+  id: z.number().int().positive(),
+  private: z.boolean(),
+  owner: z.object({ login: z.string().regex(/^[\w-]+$/) }),
+  name: z.string().regex(/^[\w.-]+$/),
+})
+
+async function readRepoSummaryByName(
   owner: string,
   repo: string,
   bindings: GithubBindings,

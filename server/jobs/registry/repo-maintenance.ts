@@ -311,7 +311,7 @@ export async function handleRegistryRepoJob(
         throw new Error('Repository purpose AI binding is missing.')
       return refreshRepositoryPurpose({
         db: ctx.db,
-        readEvidence: input => readRepositoryPurposeEvidence(input, bindings),
+        readEvidence: (input, repositoryId) => readRepositoryPurposeEvidence(input, bindings, repositoryId),
         judge: state => ctx.env.AI.run(REPOSITORY_PURPOSE_MODEL, { state, questions: repositoryPurposeQuestions }),
       }, payload, now)
     })
