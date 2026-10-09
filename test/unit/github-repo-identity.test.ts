@@ -25,8 +25,8 @@ describe('github repository identity', () => {
     }))
     vi.stubGlobal('fetch', fetch)
     await expect(readRepositoryPurposeEvidence({ owner: 'acme', repo: 'private' }, {}))
-      .rejects
-      .toThrow('Repository purpose source unavailable: 404')
+      .resolves
+      .toEqual({ _tag: 'source_missing', status: 404 })
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 

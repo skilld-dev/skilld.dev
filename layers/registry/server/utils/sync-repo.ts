@@ -654,7 +654,7 @@ async function markRepoTooLarge(db: D1Database, owner: string, repo: string, now
  * gone while the repo was healthy, and overwriting them here would let the
  * unchanged-path recovery below resurrect skills the tree itself dropped.
  */
-async function markRepoMissing(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
+export async function markRepoMissing(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
   await Promise.all([
     db
       .prepare(
