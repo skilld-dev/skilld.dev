@@ -1,16 +1,16 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { edgeCache } from '@harlan-zw/nuxt-cloudflare/cache'
-import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
-import { frozenNoindexPaths, isPageAdmitted } from './layers/marketing/app/utils/page-admissions'
-import pkg from './package.json'
-import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
-import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
-import { externalCheckin } from './shared/checkin-external'
-import { iconifyCollections } from './shared/icon-collections'
-import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
-import { SESSION_NAME } from './shared/server/session-access'
-import { CLI_INSTALL_SCRIPTS } from './shared/skill-commands'
+import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages.ts'
+import { frozenNoindexPaths, isPageAdmitted } from './layers/marketing/app/utils/page-admissions.ts'
+import pkg from './package.json' with { type: 'json' }
+import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat.ts'
+import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough.ts'
+import { externalCheckin } from './shared/checkin-external.ts'
+import { iconifyCollections } from './shared/icon-collections.ts'
+import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry.ts'
+import { SESSION_NAME } from './shared/server/session-access.ts'
+import { CLI_INSTALL_SCRIPTS } from './shared/skill-commands.ts'
 
 /** Every `/agents/*` page file, so the sitemap reads the admission decision for a page nobody listed. */
 function discoveredAgentRoutes(): string[] {
