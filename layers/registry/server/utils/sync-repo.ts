@@ -354,7 +354,7 @@ export async function refreshRepoAssets(
 ): Promise<RefreshRepoAssetsResult> {
   const existingRepo = await loadExistingRepo(db, owner, repo)
   const requestSource = resolveRepoSourceIdentityFromRow({ owner, repo }, existingRepo)
-  const repoRes = await getRepoSummary(requestSource.owner, requestSource.repo, bindings)
+  const repoRes = await getRepoSummary(requestSource.owner, requestSource.repo, bindings, existingRepo?.repository_id)
   logRateLimit(`asset-backfill repo ${owner}/${repo}`, repoRes.rateLimit)
   const rate: Pick<SyncRepoStats, 'rateLimitRemaining' | 'rateLimitResetAt'> = {
     ...(repoRes.rateLimit ? { rateLimitRemaining: repoRes.rateLimit.remaining, rateLimitResetAt: repoRes.rateLimit.reset } : {}),
@@ -834,7 +834,7 @@ export async function syncRepo(
 
   const requestedRepoRow = await loadExistingRepo(db, requestedOwner, requestedRepo)
   const requestSource = resolveRepoSourceIdentityFromRow(requested, requestedRepoRow)
-  const repoRes = await getRepoSummary(requestSource.owner, requestSource.repo, bindings)
+  const repoRes = await getRepoSummary(requestSource.owner, requestSource.repo, bindings, requestedRepoRow?.repository_id)
   logRateLimit(`repo ${requestedOwner}/${requestedRepo}`, repoRes.rateLimit)
   trackRateLimit(repoRes.rateLimit)
 
