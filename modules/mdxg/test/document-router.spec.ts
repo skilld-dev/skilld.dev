@@ -1,6 +1,8 @@
+import type { UseMdxgRouter, UseMdxgRouterOptions } from '../src/runtime/composables/useMdxgDocumentRouter'
 // @vitest-environment happy-dom
 import type { MdxgDocument, MdxgLinkResolveResult } from '../src/runtime/types'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createApp, defineComponent, h } from 'vue'
 import { useMdxgDocumentRouter } from '../src/runtime/composables/useMdxgDocumentRouter'
 
 function docOf(slug: string): MdxgDocument {
@@ -18,10 +20,29 @@ function result(docId: string, url?: string): MdxgLinkResolveResult {
   return { docId, document: docOf(docId), url }
 }
 
+// The router registers onBeforeUnmount, so it needs a live component instance.
+// Each mounted app is unmounted after the test, which removes the popstate listener.
+const unmounts: Array<() => void> = []
+
+afterEach(() => {
+  unmounts.splice(0).forEach(unmount => unmount())
+})
+
+function withSetup(opts: UseMdxgRouterOptions): UseMdxgRouter {
+  let router!: UseMdxgRouter
+  const app = createApp(defineComponent(() => {
+    router = useMdxgDocumentRouter(opts)
+    return () => h('div')
+  }))
+  app.mount(document.createElement('div'))
+  unmounts.push(() => app.unmount())
+  return router
+}
+
 describe('useMdxgDocumentRouter', () => {
   it('navigates and updates the current document', async () => {
     const resolver = vi.fn(async () => result('b', '/b'))
-    const r = useMdxgDocumentRouter({
+    const r = withSetup({
       resolver,
       initial: { docId: 'a', document: docOf('a'), url: '/a' },
     })
@@ -34,7 +55,7 @@ describe('useMdxgDocumentRouter', () => {
 
   it('extracts the anchor fragment from the href', async () => {
     const resolver = vi.fn(async () => result('b'))
-    const r = useMdxgDocumentRouter({
+    const r = withSetup({
       resolver,
       initial: { docId: 'a', document: docOf('a') },
     })
@@ -57,7 +78,7 @@ describe('useMdxgDocumentRouter', () => {
         },
       },
     })
-    const r = useMdxgDocumentRouter({
+    const r = withSetup({
       resolver: async () => null,
       initial: { docId: 'a', document: docOf('a') },
     })
@@ -67,7 +88,7 @@ describe('useMdxgDocumentRouter', () => {
   })
 
   it('surfaces errors without leaving an empty state', async () => {
-    const r = useMdxgDocumentRouter({
+    const r = withSetup({
       resolver: async () => { throw new Error('boom') },
       initial: { docId: 'a', document: docOf('a') },
     })
@@ -83,14 +104,14 @@ describe('useMdxgDocumentRouter', () => {
       await Promise.resolve()
       return result('b')
     }
-    const r = useMdxgDocumentRouter({ resolver, initial: { docId: 'a', document: docOf('a') } })
+    const r = withSetup({ resolver, initial: { docId: 'a', document: docOf('a') } })
     await Promise.all([r.navigate('./b.md'), r.navigate('./b.md'), r.prefetch('./b.md')])
     expect(calls).toBe(1)
   })
 
   it('back() pops the stack', async () => {
     const resolver = vi.fn(async input => result(input.href.replace('./', '').replace('.md', '')))
-    const r = useMdxgDocumentRouter({ resolver, initial: { docId: 'a', document: docOf('a') } })
+    const r = withSetup({ resolver, initial: { docId: 'a', document: docOf('a') } })
     await r.navigate('./b.md')
     await r.navigate('./c.md')
     expect(r.current.value.docId).toBe('c')
@@ -108,7 +129,7 @@ describe('useMdxgDocumentRouter', () => {
       calls++
       return result(input.href)
     }
-    const r = useMdxgDocumentRouter({ resolver, initial: { docId: 'a', document: docOf('a') } })
+    const r = withSetup({ resolver, initial: { docId: 'a', document: docOf('a') } })
     await r.navigate('./b.md')
     await r.navigate('./c.md')
     await r.navigate('./b.md')
