@@ -6,8 +6,9 @@ import { renderWritingMarkdown } from '#shared/writing-markdown'
 
 const { writing } = defineProps<{ writing: WritingDemo }>()
 const documentId = ref(writing.documents[0]?.id ?? '')
-const version = ref<'original' | 'updated' | 'diff'>('updated')
-const views = [{ id: 'original', label: 'Original' }, { id: 'updated', label: 'Updated' }, { id: 'diff', label: 'Diff' }] as const
+const version = ref<'original' | 'updated'>('updated')
+const showDiff = ref(false)
+const views = [{ id: 'original', label: 'Original' }, { id: 'updated', label: 'Updated' }] as const
 const document = computed(() => writing.documents.find(item => item.id === documentId.value) ?? writing.documents[0])
 const markdown = computed(() => document.value?.[version.value === 'original' ? 'original' : 'output'] ?? '')
 const html = computed(() => renderWritingMarkdown(markdown.value))
@@ -24,20 +25,26 @@ const diff = computed(() => writingDiff(document.value?.original ?? '', document
           {{ item.label }}
         </button>
       </div>
-      <div class="writing-demo__views" role="group" aria-label="View">
-        <button v-for="view in views" :key="view.id" type="button" :aria-pressed="version === view.id" @click="version = view.id">
-          {{ view.label }}
+      <div class="writing-demo__view-controls">
+        <div class="writing-demo__views" role="group" aria-label="View">
+          <button v-for="view in views" :key="view.id" type="button" :aria-pressed="version === view.id" @click="version = view.id; showDiff = false">
+            {{ view.label }}
+          </button>
+        </div>
+        <button type="button" class="writing-demo__diff-toggle" :aria-pressed="showDiff" @click="showDiff = !showDiff">
+          <UIcon name="i-lucide-git-compare-arrows" aria-hidden="true" />
+          Diff
         </button>
       </div>
     </div>
     <div
-      :key="`${document?.id}/${version}`"
+      :key="`${document?.id}/${showDiff ? 'diff' : version}`"
       class="writing-demo__window"
       tabindex="0"
       role="region"
-      :aria-label="`${document?.label ?? 'Files'}, ${views.find(view => view.id === version)?.label}`"
+      :aria-label="`${document?.label ?? 'Files'}, ${showDiff ? 'Diff' : views.find(view => view.id === version)?.label}`"
     >
-      <div v-if="version === 'diff'" class="writing-demo__diff shiki">
+      <div v-if="showDiff" class="writing-demo__diff shiki">
         <template v-for="(line, index) in diff" :key="index">
           <div class="writing-demo__diff-line" :class="`writing-demo__diff-line--${line.kind}`">
             <span class="writing-demo__line-number" aria-hidden="true">{{ line.originalLine }}</span>
@@ -60,7 +67,7 @@ const diff = computed(() => writingDiff(document.value?.original ?? '', document
         v-html="html"
       />
     </div>
-    <details v-if="version !== 'diff'" class="writing-demo__markdown">
+    <details v-if="!showDiff" class="writing-demo__markdown">
       <summary>Markdown</summary>
       <!-- Highlighted source uses the same escaped rangi renderer as Skill pages. -->
       <!-- eslint-disable-next-line vue/no-v-html -->
@@ -80,11 +87,14 @@ const diff = computed(() => writingDiff(document.value?.original ?? '', document
 }
 
 .writing-demo__files,
+.writing-demo__view-controls,
 .writing-demo__views {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
 }
+
+.writing-demo__diff-toggle { border: 1px solid var(--ui-border); }
 
 .writing-demo__controls button {
   display: inline-flex;

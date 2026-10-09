@@ -46,9 +46,12 @@ const groups = computed(() => {
 const route = useRoute()
 const demoRoute = computed(() => parseDemoRoute(route.params.demo))
 // Candidate rows share UI fixtures, without claiming a Skill produced them.
-const writingExample = computed(() => demoRoute.value._tag === 'index' && route.query.example === 'writing')
 const writingCandidates = computed(() => writingDemoSkills.filter(skill => !demos.value.some(demo => demoKey(demo) === demoKey(skill))))
-const writingCandidate = computed(() => writingCandidates.value.find(skill => demoKey(skill) === route.query.skill) ?? writingCandidates.value[0])
+const writingCandidate = computed(() => {
+  const parsed = demoRoute.value
+  return parsed._tag === 'demo' ? writingCandidates.value.find(skill => demoKey(skill).toLowerCase() === parsed.key.toLowerCase()) : undefined
+})
+const writingExample = computed(() => !!writingCandidate.value)
 
 function findDemo(key: string): HomeDemoItem | undefined {
   return demos.value.find(demo => demoKey(demo).toLowerCase() === key.toLowerCase())
@@ -63,7 +66,7 @@ if (legacyDemo)
 /** The demo this URL names; undefined on the board, and on a path that names no shown demo. */
 const pageDemo = computed(() => demoRoute.value._tag === 'demo' ? findDemo(demoRoute.value.key) : undefined)
 
-const missing = computed(() => demoRoute.value._tag === 'invalid' || (demoRoute.value._tag === 'demo' && !pageDemo.value))
+const missing = computed(() => demoRoute.value._tag === 'invalid' || (demoRoute.value._tag === 'demo' && !pageDemo.value && !writingCandidate.value))
 watch(missing, (isMissing) => {
   if (!isMissing)
     return
@@ -101,11 +104,11 @@ function clip(text: string, max: number): string {
 
 const pageTitle = computed(() => pageDemo.value
   ? `${pageDemo.value.name} skill example: ${demoNoun(pageDemo.value.makes)}`
-  : 'Claude skill examples: see what each one makes')
+  : writingCandidate.value ? `${writingCandidate.value.name} skill example: document` : 'Claude skill examples: see what each one makes')
 const pageDescription = computed(() => pageDemo.value
   ? clip(`${pageDemo.value.agent} made this ${demoNoun(pageDemo.value.makes)} with the /${pageDemo.value.name} skill from one prompt: “${pageDemo.value.prompt}”`, 160)
-  : `${demos.value.length} recorded runs of agent skills: the prompt, and the film, page, component or diagram the Agent made with the Skill. Open any of them live.`)
-const canonicalPath = computed(() => pageDemo.value ? demoPagePath(pageDemo.value) : DEMOS_PATH)
+  : writingCandidate.value ? 'Example data. No Skills were run.' : `${demos.value.length} recorded runs of agent skills: the prompt, and the film, page, component or diagram the Agent made with the Skill. Open any of them live.`)
+const canonicalPath = computed(() => pageDemo.value ? demoPagePath(pageDemo.value) : writingCandidate.value ? demoPagePath(writingCandidate.value) : DEMOS_PATH)
 
 useSeoMeta({
   title: pageTitle,
@@ -135,7 +138,9 @@ if (pageDemo.value && socialPicture) {
 else {
   defineOgImage('Page.takumi', pageDemo.value
     ? { title: `What /${pageDemo.value.name} made`, description: clip(pageDemo.value.prompt, 120) }
-    : { title: 'See what skills make', description: 'Recorded runs of agent skills: the prompt, and what the Agent made.' }, { alt: pageDemo.value ? `What /${pageDemo.value.name} made, on skilld` : 'Skill demos on skilld' })
+    : writingCandidate.value
+      ? { title: `/${writingCandidate.value.name}`, description: 'Example data. No Skills were run.' }
+      : { title: 'See what skills make', description: 'Recorded runs of agent skills: the prompt, and what the Agent made.' }, { alt: pageDemo.value ? `What /${pageDemo.value.name} made, on skilld` : 'Skill demos on skilld' })
 }
 </script>
 
@@ -143,7 +148,7 @@ else {
   <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false" :content-first="!!pageDemo || writingExample">
     <template #header>
       <h1 id="demos-heading" class="text-3xl font-semibold tracking-tight text-balance">
-        {{ pageDemo ? `What /${pageDemo.name} made` : 'See what skills make' }}
+        {{ pageDemo ? `What /${pageDemo.name} made` : writingCandidate ? `/${writingCandidate.name}` : 'See what skills make' }}
       </h1>
       <p class="mt-2 text-sm text-muted">
         {{ writingExample ? 'Example data. No Skills were run.' : pageDemo ? 'One recorded run: the prompt, and what the Agent built with the Skill.' : 'Each demo is one recorded run: the prompt, and what the Agent built with the Skill.' }}
@@ -184,9 +189,9 @@ else {
           <NuxtLink
             v-for="skill in group.makes === 'writing' ? writingCandidates : []"
             :key="demoKey(skill)"
-            :to="{ path: DEMOS_PATH, query: { example: 'writing', skill: demoKey(skill) } }"
+            :to="demoPagePath(skill)"
             class="demos-rail__pick"
-            :aria-current="writingExample && writingCandidate === skill ? 'true' : undefined"
+            :aria-current="writingCandidate === skill ? 'page' : undefined"
             @click="revealStage"
           >
             <span class="demos-rail__dot" aria-hidden="true" />
