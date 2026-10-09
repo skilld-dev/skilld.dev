@@ -65,10 +65,17 @@ interface ExistingSkillAssets {
 }
 
 export interface ExistingRepo {
+  repository_id: number | null
   last_tree_sha: string | null
   pushed_at: number | null
   source_owner: string | null
   source_repo: string | null
+}
+
+export function repositoryIdentityFailure(existing: Pick<ExistingRepo, 'repository_id'> | null, name: RepositoryName, repositoryId: number): string | null {
+  if (existing?.repository_id == null || existing.repository_id === repositoryId)
+    return null
+  return `move_refused: ${name.owner}/${name.repo} is Repository ${repositoryId} on GitHub, and the registry holds that name for Repository ${existing.repository_id}`
 }
 
 export type RefreshRepoAssetsResult
@@ -365,6 +372,11 @@ export async function refreshRepoAssets(
     }
   }
 
+  const identityFailure = repositoryIdentityFailure(existingRepo, { owner, repo }, repoRes.data.repositoryId)
+  if (identityFailure) {
+    return { _tag: 'failed', owner, repo, reason: identityFailure, retryable: false, rateLimited: false, unauthorized: false, ...rate }
+  }
+
   const branch = repoRes.data.meta.default_branch || 'main'
   const sourceOwner = repoRes.data.meta.owner.login
   const sourceRepo = repoRes.data.meta.name
@@ -489,7 +501,7 @@ async function followRepositoryMove(
 async function loadExistingRepo(db: D1Database, owner: string, repo: string): Promise<ExistingRepo | null> {
   return await db
     .prepare(`
-      SELECT last_tree_sha, pushed_at, source_owner, source_repo
+      SELECT repository_id, last_tree_sha, pushed_at, source_owner, source_repo
       FROM repos
       WHERE owner = ? AND repo = ?
     `)
@@ -559,7 +571,7 @@ async function repoHasAdmittedSkills(db: D1Database, owner: string, repo: string
  * still being discovered, so its tree must be read whatever the cursor says.
  */
 export function unchangedRepoStatus(input: {
-  existing: ExistingRepo | null
+  existing: Pick<ExistingRepo, 'last_tree_sha' | 'pushed_at'> | null
   hasAdmittedSkills: boolean
   headTreeSha: string | null
   repoPushedAt: number | null
@@ -863,6 +875,12 @@ export async function syncRepo(
   // The rows follow it there, and the sync goes on under the new name, so a
   // caller keyed by the old name still gets an outcome (ADR-0015).
   const current: RepositoryName = { owner: sourceOwner, repo: sourceRepo }
+  const identityFailure = repositoryIdentityFailure(requestedRepoRow, requested, repositoryId)
+  if (identityFailure) {
+    stats.status = 'failed'
+    stats.reason = identityFailure
+    return stats
+  }
   const movePlan = sameRepositoryName(requested, current)
     ? null
     : await followRepositoryMove(db, requested, current, repositoryId)

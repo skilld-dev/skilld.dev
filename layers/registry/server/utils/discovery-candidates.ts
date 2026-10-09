@@ -115,6 +115,7 @@ function isPermanentSyncFailure(error: string): boolean {
   return error === 'tree_truncated'
     || error === 'repo fetch 404'
     || error === 'repo fetch 410'
+    || error.startsWith('move_refused:')
 }
 
 export function discoveryOutcomeFromSyncStats(stats: SyncRepoStats): DiscoveryAttemptOutcome {

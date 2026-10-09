@@ -473,6 +473,12 @@ describe('sync failure permanence', () => {
     } as never)).toEqual({ _tag: 'rejected', reason: 'tree_truncated' })
   })
 
+  it('rejects an identity conflict without another discovery attempt', () => {
+    const reason = 'move_refused: acme/skills is Repository 1 on GitHub, and the registry holds that name for Repository 111'
+    expect(discoveryOutcomeFromSyncStats({ status: 'failed', reason } as never))
+      .toEqual({ _tag: 'rejected', reason })
+  })
+
   it('keeps retrying throttled and server-side failures', () => {
     for (const status of [403, 429, 500, 502]) {
       expect(discoveryOutcomeFromSyncStats({
