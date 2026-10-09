@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { listRepositoryPurposeCandidates } from '../../layers/registry/server/utils/repository-purpose-effect'
+import job from '../../server/jobs/registry/repository-purpose'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
-vi.stubGlobal('defineJob', <T>(definition: T) => definition)
-const { default: job } = await import('../../server/jobs/registry/repository-purpose')
+vi.hoisted(() => vi.stubGlobal('defineJob', <T>(definition: T) => definition))
 
 describe('repository purpose job', () => {
   afterEach(() => vi.unstubAllGlobals())
