@@ -1,6 +1,7 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive, ref } from 'vue'
+import SkillBehaviors from '../../layers/registry/app/components/_SkillBehaviors.vue'
 
 const route = reactive({
   path: '/gh/mirror/multi/shared-skill',
@@ -214,6 +215,18 @@ describe('skillDetail duplicate-group canonical URL', () => {
       expect(wrapper.find('a[href="/skills/tag/component-testing"]').exists()).toBe(false)
     })
 
+    wrapper.unmount()
+  })
+
+  it('passes null behaviors when a raw snapshot lacks them', async () => {
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'mirror', repo: 'multi', name: 'shared-skill' } },
+    )
+
+    const panel = wrapper.findComponent(SkillBehaviors)
+    expect(panel.exists()).toBe(true)
+    expect(panel.props('behaviors')).toBe(null)
     wrapper.unmount()
   })
 })
