@@ -16,6 +16,38 @@ function judge() {
 }
 
 describe('purpose records', () => {
+  it.each([404, 410] as const)('quarantines a missing source (%s) and stops scheduling its purpose', async (status) => {
+    const sqlite = createSqliteD1(allMigrations())
+    const missing = { _tag: 'source_missing' as const, status }
+    const judgeMock = vi.fn(judge)
+    try {
+      sqlite.raw.exec(`
+        INSERT INTO repos(owner,repo,repo_skill_count) VALUES ('org','directory',3);
+        INSERT INTO skills(owner,repo,name,slug,display_name) VALUES
+          ('org','directory','review','org/review','Review'),
+          ('org','directory','gone','org/gone','Gone');
+        UPDATE skills SET sync_status='path_missing' WHERE name='gone';
+      `)
+      expect(await refreshRepositoryPurpose({ db: sqlite.db, readEvidence: async () => missing, judge: judgeMock }, evidence, 1000)).toEqual(missing)
+      expect(judgeMock).not.toHaveBeenCalled()
+      expect(sqlite.raw.prepare('SELECT broken_since FROM repos').get()).toEqual({ broken_since: 1000 })
+      expect(sqlite.raw.prepare('SELECT sync_status,source_resolved,seo_indexable FROM skills WHERE name=\'review\'').get())
+        .toEqual({ sync_status: 'repo_missing', source_resolved: 0, seo_indexable: 0 })
+      expect(sqlite.raw.prepare('SELECT sync_status FROM skills WHERE name=\'gone\'').get()).toEqual({ sync_status: 'path_missing' })
+      expect(await listRepositoryPurposeCandidates(sqlite.db, 200000)).toEqual([])
+    }
+    finally { sqlite.close() }
+  })
+
+  it('returns a terminal admission rejection for a missing new source', async () => {
+    const sqlite = createSqliteD1(allMigrations())
+    try {
+      expect(await checkRepositoryPurposeAdmission(sqlite.db, { ...evidence, ownerVerified: false }, async () => ({ _tag: 'source_missing', status: 404 })))
+        .toEqual({ _tag: 'held', reason: 'repo fetch 404' })
+    }
+    finally { sqlite.close() }
+  })
+
   it.each(['official', 'trusted-author', 'trusted-curator'])('retains a named %s decision for an organization', async (tier) => {
     const sqlite = createSqliteD1(allMigrations())
     const classify = vi.fn()

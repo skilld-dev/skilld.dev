@@ -21,6 +21,10 @@ export default defineJob({
       readEvidence: identity => readRepositoryPurposeEvidence(identity, bindings),
       judge: state => ctx.env.AI.run(REPOSITORY_PURPOSE_MODEL, { state, questions: repositoryPurposeQuestions }),
     }, input, Math.floor(Date.now() / 1000))
+    if (result._tag === 'source_missing') {
+      await ctx.fail(`repo fetch ${result.status}`)
+      return
+    }
     emitOperationalEvent(createWideEvent({ operation: 'repository-purpose', outcome: result.purpose, repo: `${input.owner}/${input.repo}` }))
     ctx.reportStats?.({ rowsFetched: 1, rowsInserted: 1 })
   },

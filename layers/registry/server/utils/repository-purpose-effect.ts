@@ -9,9 +9,12 @@ import {
   REPOSITORY_PURPOSE_PROMPT_VERSION,
   REPOSITORY_PURPOSE_REFRESH_SECONDS,
 } from './repository-purpose'
+import { markRepoMissing } from './sync-repo'
 
 export type RepositoryPurposeJudge = (state: RepositoryPurposeEvidence) => Promise<unknown>
 export interface RepositoryIdentity { owner: string, repo: string }
+export interface RepositoryPurposeSourceMissing { _tag: 'source_missing', status: 404 | 410 }
+export type RepositoryPurposeRefresh = RepositoryPurposeFinding | RepositoryPurposeSourceMissing
 
 export async function listRepositoryPurposeCandidates(db: D1Database, now: number): Promise<RepositoryIdentity[]> {
   // Completed jobs are retained in `jobs` forever, so a correlated read over
@@ -45,8 +48,10 @@ export async function listRepositoryPurposeCandidates(db: D1Database, now: numbe
 export async function readRepositoryPurposeEvidence(
   input: RepositoryIdentity,
   bindings: GithubBindings,
-): Promise<RepositoryPurposeEvidence> {
+): Promise<RepositoryPurposeEvidence | RepositoryPurposeSourceMissing> {
   const summary = await getRepoSummary(input.owner, input.repo, bindings)
+  if (summary.status === 404 || summary.status === 410)
+    return { _tag: 'source_missing', status: summary.status }
   if (!summary.data?.headCommitSha || !summary.data.headTreeSha || summary.data.meta.private)
     throw new Error(`Repository purpose source unavailable: ${summary.status}`)
   const { meta, headCommitSha, headTreeSha } = summary.data
@@ -95,10 +100,14 @@ export async function persistRepositoryPurpose(db: D1Database, finding: Reposito
 
 export async function refreshRepositoryPurpose(deps: {
   db: D1Database
-  readEvidence: (input: RepositoryIdentity) => Promise<RepositoryPurposeEvidence>
+  readEvidence: (input: RepositoryIdentity) => Promise<RepositoryPurposeEvidence | RepositoryPurposeSourceMissing>
   judge: RepositoryPurposeJudge
-}, input: RepositoryIdentity, now: number): Promise<RepositoryPurposeFinding> {
+}, input: RepositoryIdentity, now: number): Promise<RepositoryPurposeRefresh> {
   const evidence = await deps.readEvidence(input)
+  if ('_tag' in evidence) {
+    await markRepoMissing(deps.db, input.owner, input.repo, now)
+    return evidence
+  }
   const cached = await deps.db.prepare(`
     SELECT purpose,probability,reason,model,source_commit,prompt_version,evidence,answer
     FROM repository_purpose WHERE owner=? AND repo=? AND source_commit=?
@@ -117,7 +126,7 @@ export async function refreshRepositoryPurpose(deps: {
 export async function checkRepositoryPurposeAdmission(
   db: D1Database,
   input: RepositoryIdentity & { ownerVerified: boolean },
-  classify: () => Promise<RepositoryPurposeFinding>,
+  classify: () => Promise<RepositoryPurposeRefresh>,
 ) {
   const row = await db.prepare(`
     SELECT EXISTS(SELECT 1 FROM skills WHERE owner=?1 AND repo=?2) AS stored,
@@ -129,5 +138,7 @@ export async function checkRepositoryPurposeAdmission(
   if (row?.stored || row?.eligible || row?.reviewed || input.ownerVerified)
     return { _tag: 'continue' as const }
   const finding = await classify()
+  if (finding._tag === 'source_missing')
+    return { _tag: 'held' as const, reason: `repo fetch ${finding.status}` }
   return decideRepositoryPurposeAdmission({ purpose: finding.purpose, hasStoredSkills: false, humanEligible: false, ownerVerified: false })
 }
