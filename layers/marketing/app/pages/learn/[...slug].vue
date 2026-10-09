@@ -36,6 +36,37 @@ useSeoMeta({
 useHead({
   link: [{ rel: 'canonical', href: canonicalUrl }],
 })
+
+if (slug.value === 'research/skill-md-size-study') {
+  defineOgImage('Page.takumi', {
+    title: data.value.title,
+    description: '12,141 Skills · 2,297 repositories · Original skilld research',
+  }, { alt: data.value.title })
+
+  useSchemaOrg([
+    defineArticle({
+      headline: data.value.title,
+      description: data.value.description,
+      datePublished: data.value.publishedAt,
+      dateModified: data.value.updatedAt,
+      author: { '@type': 'Organization', 'name': 'skilld', 'url': siteOrigin },
+    }),
+    {
+      '@type': 'Dataset',
+      '@id': `${canonicalUrl.value}#dataset`,
+      'name': 'Skill size and description measurements, 9 October 2026',
+      'description': 'Frozen registry measurements with aggregator exclusions, source hashes, description assessment, and weighting comparisons.',
+      'url': canonicalUrl.value,
+      'version': '2026-10-09-v1',
+      'creator': { '@type': 'Organization', 'name': 'skilld', 'url': siteOrigin },
+      'distribution': ['csv', 'json'].map(format => ({
+        '@type': 'DataDownload',
+        'encodingFormat': format === 'csv' ? 'text/csv' : 'application/json',
+        'contentUrl': `${siteOrigin}/research/skill-md-size-2026-10-09/measurements.${format}`,
+      })),
+    },
+  ])
+}
 </script>
 
 <template>

@@ -38,7 +38,7 @@ export default defineContentConfig({
       type: 'page',
       source: {
         cwd: marketingContentRoot,
-        include: 'learn/*.md',
+        include: 'learn/**/*.md',
         prefix: '/learn',
       },
       schema: articleSchema,

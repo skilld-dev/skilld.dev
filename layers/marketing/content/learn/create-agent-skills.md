@@ -9,6 +9,8 @@ updatedAt: 2026-10-05
 command: npx skilld run skilld-dev/skilld/generate-project-skill
 ---
 
+Our [study of 12,141 Skills](/learn/research/skill-md-size-study) measures descriptions, body tokens, and reference files separately.
+
 Write one `SKILL.md` with the procedure you want an Agent to follow.
 Keep its instructions independent of Agent-specific features.
 Then check discovery and behavior in each Agent you support.

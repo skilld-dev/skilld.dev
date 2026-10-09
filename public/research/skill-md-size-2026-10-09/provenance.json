@@ -1,0 +1,17 @@
+{
+  "snapshot": "2026-10-09-v1",
+  "corpusExportSha256": "62607f4d1aa2227b58f8e029e7864ffa7bd0cb18ef6e81d3fc7de90cf095e1b7",
+  "measurementsSha256": "0f8124ca1ba00bb71b12da39e9caca8d4542b0ac89e0a0f8e1eeedef77b445f7",
+  "tokenizer": "gpt-tokenizer 4.0.0, o200k_base",
+  "thresholds": {
+    "green": "<=2500 body tokens; editorial half-budget band",
+    "amber": "2501–4999 body tokens",
+    "red": ">=5000 body tokens; exceeds recommended under-5000 budget"
+  },
+  "bodyMeasuredAt": "2026-10-09T06:12:54.117Z",
+  "guidanceSource": "https://agentskills.io/specification",
+  "reviewModel": "jev-1.13.0",
+  "reviewVersion": "2026-10-09-v1",
+  "exclusions": "Existing repo_kind=aggregator flag; unknown repo_kind also excluded",
+  "source": "Frozen skilld registry export, not a skills.sh leaderboard sample"
+}

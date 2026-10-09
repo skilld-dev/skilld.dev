@@ -27,6 +27,7 @@ export interface PageAdmission {
 
 /** Pages added on or after 2026-09-04 that the audit covers. */
 export const FREEZE_AUDIT_PATHS: readonly string[] = [
+  '/learn/research/skill-md-size-study',
   '/agents',
   '/agents/claude-code',
   '/agents/codex',
@@ -59,6 +60,10 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
 ]
 
 export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
+  '/learn/research/skill-md-size-study': {
+    targetQuery: 'SKILL.md size and description length',
+    admissionBar: 'Owner-approved original research, 2026-10-09. One frozen registry study with source hashes, downloadable measurements, methods, weighting comparisons, and an authoring-guide action. Specific size queries have no DataForSEO estimate; the broader skill md seed has 720 US searches a month, KD 28. Research authority and citations are explicit goals, independent of search volume. Review indexing, relevant impressions, citations, and authoring-guide clicks at the 2026-11-11 gate. Retain useful cited research; consolidate into the authoring guide if it has no distinct use.',
+  },
   '/skills/demos': {
     targetQuery: 'claude skills examples',
     admissionBar: '720 searches a month, KD 32. NuxtSEO research keywords, 2026-10-06. Holds only demos a human approved by merging, and renders noindex below six. Covers each demo page, `/skills/demos/<owner>/<repo>/<name>`, which targets "<skill> skill example" (owner-approved 2026-10-07; volume not measured). Review at the 2026-11-11 gate.',
