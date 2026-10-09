@@ -62,8 +62,10 @@ pnpm exec wrangler d1 execute DB --remote --config wrangler.jsonc --file OUTPUT.
 Findings live in `skill_generated`, using `description-review:<rubric-version>:<raw-sha256>` kinds.
 The existing JSON payload supports these fields. No schema migration is required.
 Each rubric and source version retains a separate row. Replaying SQL preserves the earlier finding.
-Writes require matching blob SHA, raw SHA-256, identity, and successful render status.
-Changed sources are skipped. Re-export them for a later run.
+Writes require matching identity, blob SHA, raw SHA-256, and the exact author description.
+Evidence can match the successful current render or a retained source snapshot in `skill_description_history`.
+Historical findings keep their original blob SHA. Current-source queries exclude them after a source change.
+Unknown source versions are skipped. Re-export changed sources to review their new descriptions.
 
 The payload preserves description, source hashes, source commit, questions, probabilities, labels, model, and usage.
 `reviewKey` identifies the shared request for duplicate descriptions.
