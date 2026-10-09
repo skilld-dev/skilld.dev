@@ -91,7 +91,10 @@ export function descriptionReviewStatement(source: z.infer<typeof descriptionRev
     answer: review,
   }
   const kind = `description-review:${DESCRIPTION_REVIEW_VERSION}:${source.rawSha256}`
-  return `INSERT INTO skill_generated(owner,repo,name,kind,sha,payload,generated_at) SELECT owner,repo,name,${quote(kind)},current_sha,${quote(JSON.stringify(payload))},${quote(reviewedAt)} FROM skills WHERE owner=${quote(source.owner)} AND repo=${quote(source.repo)} AND name=${quote(source.name)} AND current_sha=${quote(source.sourceBlobSha)} AND rendered_raw_sha256=${quote(source.rawSha256)} AND rendered_status='ok' ON CONFLICT(owner,repo,name,kind) DO NOTHING;`
+  const identity = `owner=${quote(source.owner)} AND repo=${quote(source.repo)} AND name=${quote(source.name)}`
+  const current = `current_sha=${quote(source.sourceBlobSha)} AND rendered_raw_sha256=${quote(source.rawSha256)} AND rendered_status='ok' AND json_valid(rendered_frontmatter) AND json_extract(rendered_frontmatter,'$.description')=${quote(source.description)}`
+  const historical = `EXISTS(SELECT 1 FROM skill_description_history WHERE ${identity} AND raw_sha256=${quote(source.rawSha256)} AND source_blob_sha=${quote(source.sourceBlobSha)} AND json_extract(frontmatter,'$.description')=${quote(source.description)})`
+  return `INSERT INTO skill_generated(owner,repo,name,kind,sha,payload,generated_at) SELECT owner,repo,name,${quote(kind)},${quote(source.sourceBlobSha)},${quote(JSON.stringify(payload))},${quote(reviewedAt)} FROM skills WHERE ${identity} AND ((${current}) OR ${historical}) ON CONFLICT(owner,repo,name,kind) DO NOTHING;`
 }
 export function reviewLabel(evidence: { task: number, activation: number, scope: number, redundant: number }): 'clear' | 'needs-work' | 'uncertain' {
   if (evidence.task <= 0.2 || evidence.activation <= 0.2 || evidence.scope <= 0.2 || evidence.redundant >= 0.8)

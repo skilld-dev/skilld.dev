@@ -37,7 +37,7 @@ describe('description reviews', () => {
     if (!parsed.success)
       throw parsed.error
     try {
-      await fixture.db.prepare(`INSERT INTO skills(owner,repo,name,display_name,slug,current_sha,rendered_raw_sha256,rendered_status) VALUES ('author','skills','review','Review','author/review',?,?,'ok')`).bind(source.sourceBlobSha, source.rawSha256).run()
+      await fixture.db.prepare(`INSERT INTO skills(owner,repo,name,display_name,slug,current_sha,rendered_raw_sha256,rendered_status,rendered_frontmatter) VALUES ('author','skills','review','Review','author/review',?,?,'ok',?)`).bind(source.sourceBlobSha, source.rawSha256, JSON.stringify({ description: source.description })).run()
       const statement = descriptionReviewStatement(source, parsed.data, '2026-10-09T00:00:00Z')
       await fixture.db.prepare(statement).run()
       await fixture.db.prepare(statement).run()
@@ -46,6 +46,14 @@ describe('description reviews', () => {
       await fixture.db.prepare(`UPDATE skills SET rendered_raw_sha256=?`).bind('d'.repeat(64)).run()
       await fixture.db.prepare(descriptionReviewStatement({ ...source, rawSha256: 'd'.repeat(64) }, parsed.data, '2026-10-09T00:00:01Z')).run()
       expect((await fixture.db.prepare(`SELECT COUNT(*) AS count FROM skill_generated WHERE kind LIKE 'description-review:%'`).first())).toEqual({ count: 2 })
+      await fixture.db.prepare(`DELETE FROM skill_generated WHERE json_extract(payload,'$.rawSha256')=?`).bind(source.rawSha256).run()
+      await fixture.db.prepare(`INSERT INTO skill_description_history(owner,repo,name,raw_sha256,source_blob_sha,source_commit,frontmatter,first_observed_at,last_observed_at) VALUES ('author','skills','review',?,?,?,?,0,0)`).bind(source.rawSha256, source.sourceBlobSha, source.sourceCommit, JSON.stringify({ description: source.description })).run()
+      await fixture.db.prepare(statement).run()
+      expect((await fixture.db.prepare(`SELECT COUNT(*) AS count FROM skill_generated WHERE kind LIKE 'description-review:%'`).first())).toEqual({ count: 2 })
+      await fixture.db.prepare(`DELETE FROM skill_generated`).run()
+      await fixture.db.prepare(descriptionReviewStatement({ ...source, description: 'An altered description.' }, parsed.data, '2026-10-09T00:00:02Z')).run()
+      await fixture.db.prepare(descriptionReviewStatement({ ...source, rawSha256: 'd'.repeat(64), description: 'An altered description.' }, parsed.data, '2026-10-09T00:00:02Z')).run()
+      expect((await fixture.db.prepare(`SELECT COUNT(*) AS count FROM skill_generated`).first())).toEqual({ count: 0 })
     }
     finally {
       fixture.close()

@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
 import { setTimeout as pause } from 'node:timers/promises'
 import { parseArgs } from 'node:util'
@@ -103,7 +103,8 @@ function writeSnapshot() {
       throw new Error(`Invalid review: ${key}`)
     return descriptionReviewStatement(row, parsed.data, record.reviewedAt)
   })
-  writeFileSync(output, `${statements.join('\n')}\n`)
+  writeFileSync(`${output}.tmp`, `${statements.join('\n')}\n`)
+  renameSync(`${output}.tmp`, output)
 }
 const unique = [...new Set(sources.map(row => descriptionReviewKey(row.description)))].filter(key => completed.has(key)).map(key => parseDescriptionReview(completed.get(key)!.response)).filter(result => result.success)
 console.log(JSON.stringify({ sources: sources.length, uniqueReviews: unique.length, failed, inputTokens: unique.reduce((sum, result) => sum + result.data.usage.input_tokens, 0), inputCostUSD: unique.reduce((sum, result) => sum + result.data.usage.input_tokens * 0.042 / 1_000_000, 0), elapsedSeconds: (Date.now() - started) / 1000, sql: output }))
