@@ -229,6 +229,29 @@ describe('syncRepo freshness cursor', () => {
     expect(statements.some(sql => sql.includes('SELECT name, current_sha'))).toBe(false)
   })
 
+  it.each([1783857600, 1783857601])('reads a changed tree when the stored push timestamp is %s', async (pushedAt) => {
+    sqlite.prepare(`UPDATE repos SET pushed_at = ?`).run(pushedAt)
+    github.getRepoSummary.mockResolvedValue(repoSummary('changed-tree'))
+    github.getTree.mockResolvedValue({ status: 503, data: null, rateLimit: null, notModified: false })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({ status: 'failed', reason: 'tree_fetch_failed:503' })
+    expect(github.getTree.mock.calls[0]?.[2]).toBe('changed-tree')
+    expect(sqlite.prepare(`SELECT repo_meta_synced_at FROM repos`).pluck().get()).toBe(75)
+  })
+
+  it('uses the push timestamp when GitHub gives no head tree', async () => {
+    sqlite.prepare(`UPDATE repos SET pushed_at = 1783857600`).run()
+    github.getRepoSummary.mockResolvedValue(repoSummary(null))
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('skipped-pushed-at')
+    expect(github.getTree).not.toHaveBeenCalled()
+    expect(sqlite.prepare(`SELECT repo_meta_synced_at FROM repos`).pluck().get()).toBe(1783900800)
+  })
+
   it('clears a stale too-large verdict once the repo syncs clean', async () => {
     sqlite.prepare(`UPDATE repos SET tree_truncated_at = 123`).run()
 
