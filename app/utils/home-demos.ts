@@ -1,6 +1,7 @@
 import type { DemoMakes } from '#shared/demo-groups'
 import type { DemoEffort } from '#shared/demo-recording'
 import type { DemoTokenUsage } from '#shared/demo-usage'
+import type { WritingDemo } from '#shared/writing-demo'
 import type { SkillCardSkill } from '~/types/skill-card'
 import { DEMO_GROUPS } from '#shared/demo-groups'
 import { demoAgentIcon, demoRecordingLabel } from '#shared/demo-recording'
@@ -32,6 +33,8 @@ export interface HomeDemoItem {
   /** The sandboxed output page of a page demo; null for a film. */
   liveUrl: string | null
   video: HomeDemoVideo | null
+  /** Markdown documents, with the original and the rewrite without a Skill. */
+  writing?: WritingDemo | null
 }
 
 export interface HomeDemoVideo {

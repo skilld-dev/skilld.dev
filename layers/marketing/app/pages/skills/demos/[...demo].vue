@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~~/app/utils/home-demos'
 import { setResponseHeaders } from 'h3'
+import DemoWriting from '~~/app/components/home-demos/_DemoWriting.vue'
 import { demoKey, demoRecording, demoSocialPicture } from '~~/app/utils/home-demos'
 import { resolveAuthorName } from '~~/app/utils/skill-byline'
-import { demoNoun, groupDemos } from '#shared/demo-groups'
+import { writingDemoExample } from '~~/app/utils/writing-demo-example'
+import { DEMO_GROUPS, demoNoun, groupDemos } from '#shared/demo-groups'
 import { demoPagePath, DEMOS_PATH, MIN_INDEXABLE_DEMOS, parseDemoRoute } from '#shared/demo-pages'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { pageRobots } from '../../../utils/page-admissions'
@@ -33,10 +35,18 @@ definePageMeta({
 const { data } = await useFetch<{ items: HomeDemoItem[] }>('/api/skill-demos', { key: 'skill-demos-page' })
 
 const demos = computed(() => data.value?.items ?? [])
-const groups = computed(() => groupDemos(demos.value))
+const groups = computed(() => {
+  const entries = groupDemos(demos.value)
+  const writing = DEMO_GROUPS.find(group => group.makes === 'writing')!
+  if (!entries.some(group => group.makes === 'writing'))
+    entries.push({ ...writing, demos: [] })
+  return entries
+})
 
 const route = useRoute()
 const demoRoute = computed(() => parseDemoRoute(route.params.demo))
+// UI fixtures have no Skill attribution, recording metadata, run action, or sitemap entry.
+const writingExample = computed(() => demoRoute.value._tag === 'index' && route.query.example === 'writing')
 
 function findDemo(key: string): HomeDemoItem | undefined {
   return demos.value.find(demo => demoKey(demo).toLowerCase() === key.toLowerCase())
@@ -63,7 +73,7 @@ watch(missing, (isMissing) => {
 }, { immediate: true })
 
 // The board stages the rail's first demo.
-const current = computed(() => pageDemo.value ?? groups.value[0]?.demos[0])
+const current = computed(() => writingExample.value ? undefined : pageDemo.value ?? groups.value[0]?.demos[0])
 const currentKey = computed(() => current.value ? demoKey(current.value) : '')
 
 const stage = useTemplateRef<HTMLElement>('stage')
@@ -100,7 +110,7 @@ useSeoMeta({
   description: pageDescription,
   ogTitle: pageTitle,
   ogDescription: pageDescription,
-  robots: () => demos.value.length >= MIN_INDEXABLE_DEMOS ? pageRobots(DEMOS_PATH) : 'noindex,follow',
+  robots: () => !writingExample.value && demos.value.length >= MIN_INDEXABLE_DEMOS ? pageRobots(DEMOS_PATH) : 'noindex,follow',
 })
 
 useHead({
@@ -128,13 +138,13 @@ else {
 </script>
 
 <template>
-  <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false" :content-first="!!pageDemo">
+  <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false" :content-first="!!pageDemo || writingExample">
     <template #header>
       <h1 id="demos-heading" class="text-3xl font-semibold tracking-tight text-balance">
         {{ pageDemo ? `What /${pageDemo.name} made` : 'See what skills make' }}
       </h1>
       <p class="mt-2 text-sm text-muted">
-        {{ pageDemo ? 'One recorded run: the prompt, and what the Agent built with the Skill.' : 'Each demo is one recorded run: the prompt, and what the Agent built with the Skill.' }}
+        {{ writingExample ? 'Example data. No Skills were run.' : pageDemo ? 'One recorded run: the prompt, and what the Agent built with the Skill.' : 'Each demo is one recorded run: the prompt, and what the Agent built with the Skill.' }}
       </p>
     </template>
 
@@ -169,15 +179,26 @@ else {
               </NuxtLink>
             </li>
           </ul>
+          <NuxtLink
+            v-if="group.makes === 'writing'"
+            :to="`${DEMOS_PATH}?example=writing`"
+            class="demos-rail__pick demos-rail__pick--example"
+            :aria-current="writingExample ? 'true' : undefined"
+            @click="revealStage"
+          >
+            <span class="demos-rail__dot" aria-hidden="true" />
+            <span class="demos-rail__name">Example data</span>
+          </NuxtLink>
         </section>
       </nav>
     </template>
 
     <div id="demos-stage" ref="stage" class="demos-stage scroll-mt-24">
       <Transition name="demos-swap" mode="out-in">
-        <DemoStage v-if="current" :key="currentKey" :demo="current" :presentation="pageDemo ? 'compact' : 'full'" show-prompt live eager opens="skill-page" surface="demos-page" />
+        <DemoWriting v-if="writingExample" key="writing-example" :writing="writingDemoExample" output-label="Example rewrite" />
+        <DemoStage v-else-if="current" :key="currentKey" :demo="current" :presentation="pageDemo ? 'compact' : 'full'" show-prompt live eager opens="skill-page" surface="demos-page" />
       </Transition>
-      <p v-if="!current" class="text-sm text-muted">
+      <p v-if="!current && !writingExample" class="text-sm text-muted">
         No demos are published yet.
       </p>
     </div>
@@ -210,6 +231,10 @@ else {
   text-align: start;
   cursor: pointer;
   transition: background-color 150ms ease;
+}
+
+.demos-rail__pick--example {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 @media (hover: hover) {

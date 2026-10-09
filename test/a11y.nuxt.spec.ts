@@ -88,6 +88,33 @@ afterEach(() => {
 })
 
 describe('accessibility: components', () => {
+  it('writing demos keep selectors labelled and expose the selected Markdown', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(await loadComponent('home-demos/_DemoWriting'), {
+      attachTo: container,
+      props: {
+        outputLabel: 'Example rewrite',
+        writing: {
+          documents: [
+            { id: 'article', label: 'Blog article', original: '# Original article', baseline: '# Baseline article', output: '# Edited article' },
+            { id: 'readme', label: 'Package README', original: '# Original README', baseline: '# Baseline README', output: '# Edited README' },
+          ],
+        },
+      },
+    })
+    expect(wrapper.find('article').text()).toBe('Edited article')
+    const [documentSelect, versionSelect] = wrapper.findAll('select')
+    await documentSelect!.setValue('readme')
+    await versionSelect!.setValue('original')
+    expect(wrapper.find('article').text()).toBe('Original README')
+    wrapper.find('details').element.open = true
+    await nextTick()
+    expect(wrapper.find('pre').text()).toBe('# Original README')
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('appLogo has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(

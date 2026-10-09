@@ -118,6 +118,9 @@ It grants no trust or search indexing. Existing Skills retain source refresh.
 
 **Groups:** demos group by what the Skill makes, on `/skills/demos`: films and launch videos, landing pages, UI components, and diagrams and explainers. A group is not a track: tracks sort Skills by kind of work.
 
+**Writing:** a demo can show Markdown documents. Each document keeps its original, the rewrite without a Skill, and the Skill output.
+UI fixtures are labelled Example data. They are not recorded runs or evaluation results.
+
 ### preview
 
 **Is:** the step of watching a Skill's demo before running it. A preview never executes a Skill.

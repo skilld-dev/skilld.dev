@@ -5,6 +5,7 @@ import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio, demoRecordi
 import DemoActions from './_DemoActions.vue'
 import DemoMedia from './home-demos/_DemoMedia.vue'
 import DemoRecording from './home-demos/_DemoRecording.vue'
+import DemoWriting from './home-demos/_DemoWriting.vue'
 import SkillCard from './SkillCard.vue'
 
 /**
@@ -32,7 +33,7 @@ const { demo, surface = 'demos', eager = false, showPrompt = false, live = false
 const stage = useTemplateRef<HTMLElement>('stage')
 const { record } = useDemoEngagement(() => `${demo.owner}/${demo.repo}/${demo.name}`, surface, stage)
 const recording = computed(() => demoRecording(demo))
-const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
+const liveUrl = computed(() => live && !demo.video && !demo.writing ? demo.liveUrl : null)
 </script>
 
 <template>
@@ -59,8 +60,12 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
     <p v-if="showPrompt && presentation === 'full'" class="demo-stage__prompt">
       <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
+    <div v-if="demo.writing" ref="stage">
+      <DemoWriting :writing="demo.writing" :output-label="`/${demo.name}`" />
+    </div>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
     <div
+      v-else
       ref="stage"
       class="demo-stage__window"
       :data-phone="demoHasPhoneFrame(demo) ? '' : undefined"
