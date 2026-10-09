@@ -159,7 +159,9 @@ export function demoSocialPicture(demo: Pick<HomeDemoItem, 'video' | 'shots'>): 
 }
 
 /** The Skill as `SkillCard` reads it, so a demo names its author the way every Skill embed does. */
-export function demoCardSkill(demo: HomeDemoItem): SkillCardSkill {
+export type DemoIdentity = Pick<HomeDemoItem, 'owner' | 'repo' | 'name' | 'skillPath' | 'authorName' | 'sourceUrl' | 'prompt'>
+
+export function demoCardSkill(demo: DemoIdentity): SkillCardSkill {
   return {
     owner: demo.owner,
     repo: demo.repo,

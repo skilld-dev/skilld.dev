@@ -6,11 +6,9 @@ import { renderWritingMarkdown } from '#shared/writing-markdown'
 
 const { writing } = defineProps<{ writing: WritingDemo }>()
 const documentId = ref(writing.documents[0]?.id ?? '')
-const version = ref<'original' | 'updated'>('updated')
 const showDiff = ref(false)
-const views = [{ id: 'original', label: 'Original' }, { id: 'updated', label: 'Updated' }] as const
 const document = computed(() => writing.documents.find(item => item.id === documentId.value) ?? writing.documents[0])
-const markdown = computed(() => document.value?.[version.value === 'original' ? 'original' : 'output'] ?? '')
+const markdown = computed(() => document.value?.output ?? '')
 const html = computed(() => renderWritingMarkdown(markdown.value))
 const sourceHtml = computed(() => highlightToHtml(markdown.value, 'md'))
 const diff = computed(() => writingDiff(document.value?.original ?? '', document.value?.output ?? ''))
@@ -25,24 +23,17 @@ const diff = computed(() => writingDiff(document.value?.original ?? '', document
           {{ item.label }}
         </button>
       </div>
-      <div class="writing-demo__view-controls">
-        <div class="writing-demo__views" role="group" aria-label="View">
-          <button v-for="view in views" :key="view.id" type="button" :aria-pressed="version === view.id" @click="version = view.id; showDiff = false">
-            {{ view.label }}
-          </button>
-        </div>
-        <button type="button" class="writing-demo__diff-toggle" :aria-pressed="showDiff" @click="showDiff = !showDiff">
-          <UIcon name="i-lucide-git-compare-arrows" aria-hidden="true" />
-          Diff
-        </button>
-      </div>
+      <button type="button" class="writing-demo__diff-toggle" :aria-pressed="showDiff" @click="showDiff = !showDiff">
+        <UIcon name="i-lucide-git-compare-arrows" class="size-4 shrink-0" aria-hidden="true" />
+        Diff
+      </button>
     </div>
     <div
-      :key="`${document?.id}/${showDiff ? 'diff' : version}`"
+      :key="`${document?.id}/${showDiff ? 'diff' : 'updated'}`"
       class="writing-demo__window"
       tabindex="0"
       role="region"
-      :aria-label="`${document?.label ?? 'Files'}, ${showDiff ? 'Diff' : views.find(view => view.id === version)?.label}`"
+      :aria-label="`${document?.label ?? 'Files'}, ${showDiff ? 'Diff' : 'Updated'}`"
     >
       <div v-if="showDiff" class="writing-demo__diff shiki">
         <template v-for="(line, index) in diff" :key="index">
@@ -86,9 +77,7 @@ const diff = computed(() => writingDiff(document.value?.original ?? '', document
   margin-block-end: 0.75rem;
 }
 
-.writing-demo__files,
-.writing-demo__view-controls,
-.writing-demo__views {
+.writing-demo__files {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
@@ -107,12 +96,6 @@ const diff = computed(() => writingDiff(document.value?.original ?? '', document
   font-size: 0.75rem;
   color: var(--ui-text-muted);
   cursor: pointer;
-}
-
-.writing-demo__views {
-  padding: 0.125rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
 }
 
 .writing-demo__controls button:hover,
@@ -138,7 +121,7 @@ const diff = computed(() => writingDiff(document.value?.original ?? '', document
 .writing-demo__diff-note { display: block; padding-inline-start: 11ch; color: var(--ui-text-muted); }
 
 .writing-demo__window {
-  block-size: clamp(24rem, 68svh, 52rem);
+  max-block-size: clamp(24rem, 68svh, 52rem);
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

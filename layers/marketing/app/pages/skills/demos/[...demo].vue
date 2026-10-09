@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~~/app/utils/home-demos'
 import { setResponseHeaders } from 'h3'
+import DemoFooter from '~~/app/components/_DemoFooter.vue'
 import DemoWriting from '~~/app/components/home-demos/_DemoWriting.vue'
 import { demoKey, demoRecording, demoSocialPicture } from '~~/app/utils/home-demos'
 import { resolveAuthorName } from '~~/app/utils/skill-byline'
@@ -52,6 +53,15 @@ const writingCandidate = computed(() => {
   return parsed._tag === 'demo' ? writingCandidates.value.find(skill => demoKey(skill).toLowerCase() === parsed.key.toLowerCase()) : undefined
 })
 const writingExample = computed(() => !!writingCandidate.value)
+const writingFooter = computed(() => writingCandidate.value
+  ? {
+      ...writingCandidate.value,
+      skillPath: `/gh/${demoKey(writingCandidate.value)}`,
+      authorName: null,
+      sourceUrl: null,
+      prompt: `Rewrite these Markdown files. Preserve the facts, code, links, and document structure. Return each updated file as Markdown.\n\n${writingDemoExample.documents.map(document => `${document.label}\n\n${document.original}`).join('\n\n')}`,
+    }
+  : undefined)
 
 function findDemo(key: string): HomeDemoItem | undefined {
   return demos.value.find(demo => demoKey(demo).toLowerCase() === key.toLowerCase())
@@ -207,7 +217,10 @@ else {
 
     <div id="demos-stage" ref="stage" class="demos-stage scroll-mt-24">
       <Transition name="demos-swap" mode="out-in">
-        <DemoWriting v-if="writingExample" key="writing-example" :writing="writingDemoExample" />
+        <div v-if="writingFooter" key="writing-example">
+          <DemoWriting :writing="writingDemoExample" />
+          <DemoFooter :demo="writingFooter" surface="demos-page" presentation="compact" />
+        </div>
         <DemoStage v-else-if="current" :key="currentKey" :demo="current" :presentation="pageDemo ? 'compact' : 'full'" show-prompt live eager opens="skill-page" surface="demos-page" />
       </Transition>
       <p v-if="!current && !writingExample" class="text-sm text-muted">
