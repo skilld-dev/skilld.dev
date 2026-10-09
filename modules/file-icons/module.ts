@@ -1,9 +1,9 @@
-import type { IconifyCollection } from '../../shared/file-icons'
+import type { IconifyCollection } from '../../shared/file-icons.ts'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
-import { FILE_ICON_BASE_URL, FILE_ICON_NAMES, fileIconSvg } from '../../shared/file-icons'
+import { FILE_ICON_BASE_URL, FILE_ICON_NAMES, fileIconSvg } from '../../shared/file-icons.ts'
 
 /**
  * Write the Skill explorer's file-type icons as static SVG files.

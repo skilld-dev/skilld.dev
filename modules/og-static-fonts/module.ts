@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
-import { syncOgStaticFonts } from './sync'
+import { syncOgStaticFonts } from './sync.ts'
 
 /**
  * Fail the production build when an OG image font URL would answer 404.
