@@ -513,5 +513,6 @@ function isPermanentRepoFailure(reason: string | undefined): boolean {
     || reason === 'repo fetch 410'
     || reason === 'tree_truncated'
     || reason === 'repo_too_large_to_index'
+    || reason?.startsWith('move_refused:') === true
     || reason?.startsWith('skill_parse_rejected:') === true
 }

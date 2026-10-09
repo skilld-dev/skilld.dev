@@ -116,6 +116,17 @@ describe('prefetchUnchangedRepos', () => {
       .toEqual({ repo_meta_synced_at: null })
   })
 
+  it('queues a reused name without replacing the stored Repository ID or freshness', async () => {
+    harness.raw.exec(`UPDATE repos SET repository_id=111 WHERE owner='acme' AND repo='unchanged'`)
+    vi.stubGlobal('fetch', vi.fn(graphqlAnswer))
+
+    const result = await prefetchUnchangedRepos({ db: harness.db, bindings, now: NOW }, [candidate('unchanged')])
+
+    expect(result).toMatchObject({ _tag: 'prefetched', unchanged: 0, queue: [candidate('unchanged')] })
+    expect(harness.raw.prepare(`SELECT repository_id,stars,repo_meta_synced_at FROM repos WHERE owner='acme' AND repo='unchanged'`).get())
+      .toEqual({ repository_id: 111, stars: 1, repo_meta_synced_at: null })
+  })
+
   it('queues a changed tree even when the push timestamp has not advanced', async () => {
     harness.raw.prepare(`UPDATE repos SET pushed_at = ? WHERE owner = 'acme' AND repo = 'changed'`)
       .run(Date.parse('2026-10-01T00:00:00Z') / 1000)

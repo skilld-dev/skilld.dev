@@ -215,6 +215,19 @@ describe('permanent repository failures on the sync path', () => {
       .toMatchObject({ count: 0 })
   })
 
+  it('ends an identity conflict without retrying or retaining continuation progress', async () => {
+    const reason = 'move_refused: acme/skills is Repository 1 on GitHub, and the registry holds that name for Repository 111'
+    syncRepo.mockResolvedValue(failedWith(reason))
+    const { ctx, control } = jobContext(db)
+
+    await handleRegistryRepoJob({ ...syncPayload }, ctx as never)
+
+    expect(control.action).toBe('failed')
+    expect(control.error).toBe(reason)
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM repo_sync_progress').get())
+      .toMatchObject({ count: 0 })
+  })
+
   it('records the bare reason the health check compares against', async () => {
     syncRepo.mockResolvedValue(failedWith('repo fetch 410'))
     const { ctx, control } = jobContext(db)

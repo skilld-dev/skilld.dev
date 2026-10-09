@@ -5,7 +5,7 @@ import type { ExistingRepo } from './sync-repo'
 import { getRepoSummariesBatch } from './github-client'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
 import { sameRepositoryName } from './repository-move'
-import { repoUnchangedStatements, unchangedRepoStatus } from './sync-repo'
+import { repositoryIdentityFailure, repoUnchangedStatements, unchangedRepoStatus } from './sync-repo'
 
 /** One repository the hourly sync is about to queue. */
 export interface SyncCandidate {
@@ -85,7 +85,7 @@ export async function prefetchUnchangedRepos(
   eligible.forEach((candidate, index) => {
     const row = rows.get(repoKey(candidate))
     const summary = batch.summaries[index]
-    if (!row || !summary || row.in_progress === 1 || isMoved(candidate, summary) || !isUnchanged(row, summary))
+    if (!row || !summary || row.in_progress === 1 || repositoryIdentityFailure(row, candidate, summary.repositoryId) || isMoved(candidate, summary) || !isUnchanged(row, summary))
       return
     unchanged.add(repoKey(candidate))
     writes.push(repoUnchangedStatements(dependencies.db, {
@@ -138,7 +138,7 @@ async function loadPrefetchRows(
        SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
        FROM json_each(?1)
      )
-     SELECT r.owner, r.repo, r.last_tree_sha, r.pushed_at, r.source_owner, r.source_repo,
+     SELECT r.owner, r.repo, r.repository_id, r.last_tree_sha, r.pushed_at, r.source_owner, r.source_repo,
             EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) AS has_skills,
             EXISTS (
               SELECT 1 FROM repo_sync_progress p

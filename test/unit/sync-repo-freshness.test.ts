@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { syncRepo } from '../../layers/registry/server/utils/sync-repo'
+import { refreshRepoAssets, syncRepo } from '../../layers/registry/server/utils/sync-repo'
 
 const github = vi.hoisted(() => ({
   getBlobsBatch: vi.fn(),
@@ -123,7 +123,35 @@ describe('syncRepo freshness cursor', () => {
     sqlite.close()
   })
 
-  it('advances repo metadata freshness on the GraphQL tree-SHA skip path', async () => {
+  it.each(['skills', 'renamed'])('refuses a reused name before updating metadata or following it to %s', async (canonicalName) => {
+    sqlite.exec(`UPDATE repos SET repository_id=111 WHERE owner='acme' AND repo='skills'`)
+    const summary = repoSummary()
+    summary.data.meta.name = canonicalName
+    github.getRepoSummary.mockResolvedValue(summary)
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({ status: 'failed', reason: 'move_refused: acme/skills is Repository 1 on GitHub, and the registry holds that name for Repository 111' })
+    expect(sqlite.prepare(`SELECT repository_id,stars,repo_meta_synced_at FROM repos WHERE owner='acme' AND repo='skills'`).get())
+      .toEqual({ repository_id: 111, stars: 1, repo_meta_synced_at: 75 })
+    expect(github.getTree).not.toHaveBeenCalled()
+    expect(github.getBlobsBatch).not.toHaveBeenCalled()
+  })
+
+  it('refuses assets from a different Repository at the stored name', async () => {
+    sqlite.exec(`UPDATE repos SET repository_id=111 WHERE owner='acme' AND repo='skills'`)
+    github.getTree.mockResolvedValue({ status: 503, data: null, rateLimit: null })
+
+    const result = await refreshRepoAssets('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({ _tag: 'failed', retryable: false, rateLimited: false, unauthorized: false })
+    expect(github.getTree).not.toHaveBeenCalled()
+    expect(sqlite.prepare(`SELECT source_owner,source_repo FROM repos WHERE owner='acme' AND repo='skills'`).get())
+      .toEqual({ source_owner: null, source_repo: null })
+  })
+
+  it.each([null, 1])('advances repo metadata freshness when the stored ID is %s', async (repositoryId) => {
+    sqlite.prepare(`UPDATE repos SET repository_id=? WHERE owner='acme' AND repo='skills'`).run(repositoryId)
     const result = await syncRepo('acme', 'skills', {}, db)
     const row = sqlite.prepare(`
       SELECT default_branch, stars, forks, pushed_at, repo_created_at,
