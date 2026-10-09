@@ -240,7 +240,6 @@ else {
   transition: background-color 150ms ease;
 }
 
-
 @media (hover: hover) {
   .demos-rail__pick:hover {
     background: var(--ui-bg-elevated);
