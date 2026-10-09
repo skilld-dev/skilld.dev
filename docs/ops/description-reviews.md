@@ -48,6 +48,7 @@ Confirm [current model pricing](https://developers.cloudflare.com/ai/models/type
 The key includes the exact description, model version, rubric version, and questions.
 Identical descriptions reuse the same assessment. Changed descriptions require new assessments.
 The tool checkpoints SQL after each batch and at completion.
+Each checkpoint replaces the SQL file atomically. A failed write preserves the earlier complete checkpoint.
 Failed requests appear in `OUTPUT.sql.failures.jsonl`; the process exits with code 1.
 Keep these files outside the repository.
 
@@ -59,8 +60,8 @@ Apply a completed or copied checkpoint through the existing D1 command:
 pnpm exec wrangler d1 execute DB --remote --config wrangler.jsonc --file OUTPUT.sql
 ```
 
-Findings live in `skill_generated`, using `description-review:<rubric-version>:<raw-sha256>` kinds.
-The existing JSON payload supports these fields. No schema migration is required.
+Findings live in `skill_generated`, using `description-review:` kinds with the rubric version and raw source hash.
+The existing JSON payload stores these fields.
 Each rubric and source version retains a separate row. Replaying SQL preserves the earlier finding.
 Writes require matching identity, blob SHA, raw SHA-256, and the exact author description.
 Evidence can match the successful current render or a retained source snapshot in `skill_description_history`.
