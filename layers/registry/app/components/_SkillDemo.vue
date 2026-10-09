@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SkillDemoView } from '../../server/utils/skill-demos'
+import DemoWriting from '~~/app/components/home-demos/_DemoWriting.vue'
 import { demoPagePath } from '#shared/demo-pages'
 import { demoAgentIcon, demoRecordingLabel } from '#shared/demo-recording'
 import SkillDemoShot from './_SkillDemoShot.vue'
@@ -52,7 +53,10 @@ const DESKTOP_WINDOW_MEDIA = '(min-width: 48rem)'
       <span class="data-label mr-2">Folder</span>{{ demo.setup }}
     </p>
 
-    <div v-if="live && demo.liveUrl" class="mt-4">
+    <div v-if="demo.writing" class="mt-4">
+      <DemoWriting :writing="demo.writing" />
+    </div>
+    <div v-else-if="live && demo.liveUrl" class="mt-4">
       <iframe
         :src="demo.liveUrl"
         sandbox="allow-scripts"

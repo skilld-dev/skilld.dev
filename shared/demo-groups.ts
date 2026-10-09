@@ -49,6 +49,12 @@ export const DEMO_GROUPS = [
     label: 'Games and playables',
     line: 'Small games you can play right here.',
   },
+  {
+    makes: 'writing',
+    noun: 'document',
+    label: 'Writing',
+    line: 'Articles, READMEs, and PR descriptions.',
+  },
 ] as const
 
 export type DemoMakes = typeof DEMO_GROUPS[number]['makes']

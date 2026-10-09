@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { HomeDemoItem } from '~/utils/home-demos'
+import type { DemoIdentity } from '~/utils/home-demos'
 import { demoPagePath } from '#shared/demo-pages'
 import { skillPageUrl, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 
-const { demo, surface } = defineProps<{ demo: HomeDemoItem, surface: string }>()
+const { demo, surface } = defineProps<{ demo: DemoIdentity, surface: string }>()
 const emit = defineEmits<{ action: [action: { event: 'share' } | { event: 'copy', format: 'agent' | 'terminal' }] }>()
 const format = ref<'agent' | 'terminal'>('agent')
 const text = computed(() => format.value === 'agent'

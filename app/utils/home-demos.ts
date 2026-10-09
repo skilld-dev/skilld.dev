@@ -1,6 +1,7 @@
 import type { DemoMakes } from '#shared/demo-groups'
 import type { DemoEffort } from '#shared/demo-recording'
 import type { DemoTokenUsage } from '#shared/demo-usage'
+import type { WritingDemo } from '#shared/writing-demo'
 import type { SkillCardSkill } from '~/types/skill-card'
 import { DEMO_GROUPS } from '#shared/demo-groups'
 import { demoAgentIcon, demoRecordingLabel } from '#shared/demo-recording'
@@ -32,6 +33,8 @@ export interface HomeDemoItem {
   /** The sandboxed output page of a page demo; null for a film. */
   liveUrl: string | null
   video: HomeDemoVideo | null
+  /** Markdown documents, with the original and the rewrite without a Skill. */
+  writing?: WritingDemo | null
 }
 
 export interface HomeDemoVideo {
@@ -80,7 +83,7 @@ export function homeDemoFeed(feed: { items: HomeDemoItem[] }) {
  */
 export const DEMO_PHONE_MEDIA = '(max-width: 39.99rem)'
 
-export function demoKey(demo: HomeDemoItem): string {
+export function demoKey(demo: Pick<HomeDemoItem, 'owner' | 'repo' | 'name'>): string {
   return `${demo.owner}/${demo.repo}/${demo.name}`
 }
 
@@ -156,7 +159,9 @@ export function demoSocialPicture(demo: Pick<HomeDemoItem, 'video' | 'shots'>): 
 }
 
 /** The Skill as `SkillCard` reads it, so a demo names its author the way every Skill embed does. */
-export function demoCardSkill(demo: HomeDemoItem): SkillCardSkill {
+export type DemoIdentity = Pick<HomeDemoItem, 'owner' | 'repo' | 'name' | 'skillPath' | 'authorName' | 'sourceUrl' | 'prompt'>
+
+export function demoCardSkill(demo: DemoIdentity): SkillCardSkill {
   return {
     owner: demo.owner,
     repo: demo.repo,

@@ -8,6 +8,7 @@ import { DEMO_EFFORTS } from '#shared/demo-recording'
 import { demoTokenUsageSchema } from '#shared/demo-usage'
 import { runCheckFlagKey } from '#shared/run-check-flags'
 import { repoSkillPath } from '#shared/skill-routes'
+import { writingDemoSchema } from '#shared/writing-demo'
 import manifest from '../data/skill-demos.json'
 
 /**
@@ -87,16 +88,26 @@ const demoSchema = z.object({
   /** File name inside `server/demos/<owner>/<repo>/<name>/`, served sandboxed as the live demo. */
   outputFile: z.string().regex(/^[\w-]+\.html$/).optional(),
   video: videoSchema.optional(),
-  shots: z.array(shotSchema).min(1),
-}).refine(demo => demo.outputFile !== undefined || demo.video !== undefined, {
-  message: 'A demo needs an output page or a video.',
+  writing: writingDemoSchema.optional(),
+  shots: z.array(shotSchema),
+}).refine((demo) => {
+  if (demo.writing)
+    return demo.makes === 'writing' && !demo.outputFile && !demo.video && demo.shots.length === 0
+  return demo.makes !== 'writing' && (demo.outputFile !== undefined || demo.video !== undefined) && demo.shots.length > 0
+}, {
+  message: 'A writing demo needs documents only. A media demo needs an output and screenshots.',
 }).refine(demo => !(demo.skillPageOnly && demo.pin), {
   message: 'A Skill page only demo takes no pin: a pin orders the homepage, which leaves it out.',
 })
 
 export type SkillDemoRecord = z.infer<typeof demoSchema>
 
-const SKILL_DEMOS: readonly SkillDemoRecord[] = z.object({ demos: z.array(demoSchema) }).parse(manifest).demos
+/** Parse recorded output before it reaches any demo surface. */
+export function parseSkillDemoRecord(input: unknown): SkillDemoRecord {
+  return demoSchema.parse(input)
+}
+
+const SKILL_DEMOS: readonly SkillDemoRecord[] = manifest.demos.map(parseSkillDemoRecord)
 
 function sameSkill(demo: SkillDemoRecord, owner: string, repo: string, name: string): boolean {
   return demo.owner.toLowerCase() === owner.toLowerCase()
@@ -193,6 +204,7 @@ export interface SkillDemoView {
   /** The sandboxed output page, when the demo kept one. */
   liveUrl: string | null
   video: SkillDemoVideo | null
+  writing: SkillDemoRecord['writing'] | null
   shots: SkillDemoShot[]
 }
 
@@ -219,6 +231,7 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
     outdated: currentCommit !== null && currentCommit !== demo.skillCommit,
     skillPageOnly: demo.skillPageOnly ?? false,
     liveUrl: demo.outputFile ? `${path}/live` : null,
+    writing: demo.writing ?? null,
     video: demo.video
       ? {
           src: `${media}/${demo.video.file}`,

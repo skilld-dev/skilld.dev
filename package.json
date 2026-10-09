@@ -80,6 +80,7 @@
     "@vueuse/nuxt": "catalog:",
     "agents": "catalog:",
     "comark": "catalog:",
+    "diff": "catalog:",
     "fflate": "catalog:",
     "h3": "catalog:",
     "import-in-the-middle": "catalog:",

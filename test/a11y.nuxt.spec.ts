@@ -88,6 +88,60 @@ afterEach(() => {
 })
 
 describe('accessibility: components', () => {
+  it('writing demos select files and toggle between updated documents and highlighted diffs', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(await loadComponent('home-demos/_DemoWriting'), {
+      attachTo: container,
+      props: {
+        writing: {
+          documents: [
+            { id: 'article', format: 'article', label: 'reading-list.md', original: '# Original article', baseline: '# Baseline article', output: '# Edited article' },
+            { id: 'readme', format: 'readme', label: 'README.md', original: '# Original README', baseline: '# Baseline README', output: '# Edited README' },
+          ],
+        },
+      },
+    })
+    expect(wrapper.find('article').text()).toBe('Edited article')
+    const button = (name: string) => wrapper.findAll('button').find(item => item.text() === name)!
+    await button('README.md').trigger('click')
+    expect(wrapper.find('article').text()).toBe('Edited README')
+    expect(wrapper.find('article').classes()).toContain('writing-demo__github')
+    wrapper.find('details').element.open = true
+    await nextTick()
+    expect(wrapper.find('pre').text()).toBe('# Edited README')
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    await button('Diff').trigger('click')
+    expect(wrapper.find('article').exists()).toBe(false)
+    expect(wrapper.find('.writing-demo__diff-line--removed').text()).toContain('# Original README')
+    expect(wrapper.find('.writing-demo__diff-line--added').text()).toContain('# Edited README')
+    expect(wrapper.find('.writing-demo__diff .shj-section').exists()).toBe(true)
+    const diffResults = await runAxe(container)
+    expect(diffResults.violations, formatViolations(diffResults)).toHaveLength(0)
+    await button('Diff').trigger('click')
+    expect(wrapper.find('article').text()).toBe('Edited README')
+    expect(button('Diff').attributes('aria-pressed')).toBe('false')
+    wrapper.unmount()
+  })
+
+  it('demo footers link the Skill and expose the shared run and share actions', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(await loadComponent('_DemoFooter'), {
+      attachTo: container,
+      props: {
+        demo: { owner: 'blader', repo: 'humanizer', name: 'humanizer', skillPath: '/gh/blader/humanizer/humanizer', authorName: null, sourceUrl: null, prompt: 'Rewrite the supplied Markdown.' },
+        surface: 'demos-page',
+        presentation: 'compact',
+      },
+    })
+    expect(wrapper.find('a[href="/gh/blader/humanizer/humanizer"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Copy demo link"]').exists()).toBe(true)
+    expect(wrapper.findAll('button').some(button => button.text() === 'Run it yourself')).toBe(true)
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('appLogo has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(

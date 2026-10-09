@@ -1,6 +1,7 @@
 import type { Renderer, Tokens, TokensList } from 'marked'
 import { Marked } from 'marked'
-import { escapeHtml, highlightToHtml } from '#shared/highlight'
+import { escapeHtml } from '#shared/highlight'
+import { createMarkdownRenderer } from '#shared/markdown-renderer'
 import { createSkillReferenceTokenizer } from './skill-dependencies'
 import { parseFrontmatterDocument } from './skill-frontmatter'
 
@@ -118,85 +119,69 @@ function createSkillMd(
     const href = `/gh/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(name)}`
     return `<a href="${href}" data-skill-dependency="${escapeHtml(name)}">/${escapeHtml(name)}</a>`
   }
-  const marked = new Marked({
-    gfm: true,
-    async: false,
-    renderer: {
-      html({ text }: { text: string }) {
-        const m = text.match(SKILL_TAG_RE)
-        if (m)
-          return `<code class="skill-tag">&lt;${m[1]}${m[2]}&gt;</code>`
-        return escapeHtml(text)
-      },
-      link({ href, title, tokens }: { href: string, title?: string | null, tokens: unknown[] }) {
-        const safe = sanitizeUrl(rewriteHref(href, 'link', ctx))
-        linkDepth++
-        const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
-        linkDepth--
-        // The saved copy survives source deletion, but its files do not.
-        if (ctx?.sourceGone && href && !isAbsoluteUrl(href))
-          return text
-        const t = title ? ` title="${escapeHtml(title)}"` : ''
-        const external = /^https?:\/\//i.test(safe)
-        const extra = external ? ' target="_blank" rel="noopener noreferrer"' : ''
-        return `<a href="${escapeHtml(safe)}"${t}${extra}>${text}</a>`
-      },
-      text(this: Renderer, token: Tokens.Text | Tokens.Escape) {
-        if (token.type === 'text' && token.tokens?.length)
-          return this.parser.parseInline(token.tokens)
-        if (token.type === 'escape' || linkDepth > 0 || !ctx?.skillNames?.length)
-          return escapeHtml(token.text)
-        return tokenizeSkillReferences(token.text)
-          .map((part) => {
-            if (part._tag === 'text')
-              return escapeHtml(part.value)
-            return renderDependency(part.name)
-          })
-          .join('')
-      },
-      codespan({ text }: Tokens.Codespan) {
-        if (linkDepth > 0)
-          return `<code>${escapeHtml(text)}</code>`
-        const parts = tokenizeSkillReferences(text)
-        if (parts.length === 1 && parts[0]?._tag === 'dependency')
-          return renderDependency(parts[0].name)
+  const marked = createMarkdownRenderer({
+    html({ text }: { text: string }) {
+      const m = text.match(SKILL_TAG_RE)
+      if (m)
+        return `<code class="skill-tag">&lt;${m[1]}${m[2]}&gt;</code>`
+      return escapeHtml(text)
+    },
+    link({ href, title, tokens }: { href: string, title?: string | null, tokens: unknown[] }) {
+      const safe = sanitizeUrl(rewriteHref(href, 'link', ctx))
+      linkDepth++
+      const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
+      linkDepth--
+      // The saved copy survives source deletion, but its files do not.
+      if (ctx?.sourceGone && href && !isAbsoluteUrl(href))
+        return text
+      const t = title ? ` title="${escapeHtml(title)}"` : ''
+      const external = /^https?:\/\//i.test(safe)
+      const extra = external ? ' target="_blank" rel="noopener noreferrer"' : ''
+      return `<a href="${escapeHtml(safe)}"${t}${extra}>${text}</a>`
+    },
+    text(this: Renderer, token: Tokens.Text | Tokens.Escape) {
+      if (token.type === 'text' && token.tokens?.length)
+        return this.parser.parseInline(token.tokens)
+      if (token.type === 'escape' || linkDepth > 0 || !ctx?.skillNames?.length)
+        return escapeHtml(token.text)
+      return tokenizeSkillReferences(token.text)
+        .map((part) => {
+          if (part._tag === 'text')
+            return escapeHtml(part.value)
+          return renderDependency(part.name)
+        })
+        .join('')
+    },
+    codespan({ text }: Tokens.Codespan) {
+      if (linkDepth > 0)
         return `<code>${escapeHtml(text)}</code>`
-      },
-      image({ href, title, text }: { href: string, title?: string | null, text: string }) {
-        const safe = imageSource(href, ctx)
-        const t = title ? ` title="${escapeHtml(title)}"` : ''
-        const url = parseAbsoluteUrl(safe)
-        const inlineData = /^data:image\//i.test(safe)
-        const src = inlineData ? safe : url && proxied.get(url.href)
-        if (src)
-          return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${t} referrerpolicy="no-referrer" loading="lazy">`
+      const parts = tokenizeSkillReferences(text)
+      if (parts.length === 1 && parts[0]?._tag === 'dependency')
+        return renderDependency(parts[0].name)
+      return `<code>${escapeHtml(text)}</code>`
+    },
+    image({ href, title, text }: { href: string, title?: string | null, text: string }) {
+      const safe = imageSource(href, ctx)
+      const t = title ? ` title="${escapeHtml(title)}"` : ''
+      const url = parseAbsoluteUrl(safe)
+      const inlineData = /^data:image\//i.test(safe)
+      const src = inlineData ? safe : url && proxied.get(url.href)
+      if (src)
+        return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${t} referrerpolicy="no-referrer" loading="lazy">`
         // Never load an image straight from another host. Offer the address as
         // a link, unless the image already sits inside a link. Whitespace-only
         // alt counts as no alt: trim before falling back, so a blocked badge
         // inside a link always keeps visible text. With no alt text and no
         // parseable URL (blocked scheme, malformed href) the raw href becomes
         // the visible text, or the link renders empty.
-        if (!url || linkDepth > 0)
-          return escapeHtml(text.trim() || url?.href || href)
-        return `<a href="${escapeHtml(url.href)}"${t} target="_blank" rel="noopener noreferrer">${escapeHtml(text.trim() || url.href)}</a>`
-      },
-      heading(this: Renderer, token: Tokens.Heading) {
-        const content = this.parser.parseInline(token.tokens)
-        const level = Math.min(token.depth + 1, 6)
-        return `<h${level}>${content}</h${level}>\n`
-      },
-      tablecell(this: Renderer, token: Tokens.TableCell) {
-        const content = this.parser.parseInline(token.tokens)
-        const tag = token.header ? 'th' : 'td'
-        const scope = token.header ? ' scope="col"' : ''
-        const align = token.align ? ` align="${token.align}"` : ''
-        return `<${tag}${scope}${align}>${content}</${tag}>\n`
-      },
-      code({ text, lang }: Tokens.Code) {
-        // A fence in a language we bundle no grammar for costs one plain block,
-        // not the page render.
-        return highlightToHtml(text, lang) ?? `<pre tabindex="0"><code>${escapeHtml(text)}</code></pre>`
-      },
+      if (!url || linkDepth > 0)
+        return escapeHtml(text.trim() || url?.href || href)
+      return `<a href="${escapeHtml(url.href)}"${t} target="_blank" rel="noopener noreferrer">${escapeHtml(text.trim() || url.href)}</a>`
+    },
+    heading(this: Renderer, token: Tokens.Heading) {
+      const content = this.parser.parseInline(token.tokens)
+      const level = Math.min(token.depth + 1, 6)
+      return `<h${level}>${content}</h${level}>\n`
     },
   })
   return { marked, dependencies }

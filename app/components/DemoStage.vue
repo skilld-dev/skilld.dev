@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
 import { demoPagePath } from '#shared/demo-pages'
-import { demoCardSkill, demoHasPhoneFrame, demoHref, demoPhoneRatio, demoRecording } from '~/utils/home-demos'
-import DemoActions from './_DemoActions.vue'
+import { demoHasPhoneFrame, demoHref, demoPhoneRatio, demoRecording } from '~/utils/home-demos'
+import DemoFooter from './_DemoFooter.vue'
 import DemoMedia from './home-demos/_DemoMedia.vue'
 import DemoRecording from './home-demos/_DemoRecording.vue'
-import SkillCard from './SkillCard.vue'
+import DemoWriting from './home-demos/_DemoWriting.vue'
 
 /**
  * One demo on show: how it was recorded, the output in a window one screen
@@ -32,7 +32,7 @@ const { demo, surface = 'demos', eager = false, showPrompt = false, live = false
 const stage = useTemplateRef<HTMLElement>('stage')
 const { record } = useDemoEngagement(() => `${demo.owner}/${demo.repo}/${demo.name}`, surface, stage)
 const recording = computed(() => demoRecording(demo))
-const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
+const liveUrl = computed(() => live && !demo.video && !demo.writing ? demo.liveUrl : null)
 </script>
 
 <template>
@@ -59,8 +59,12 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
     <p v-if="showPrompt && presentation === 'full'" class="demo-stage__prompt">
       <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
+    <div v-if="demo.writing" ref="stage">
+      <DemoWriting :writing="demo.writing" />
+    </div>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
     <div
+      v-else
       ref="stage"
       class="demo-stage__window"
       :data-phone="demoHasPhoneFrame(demo) ? '' : undefined"
@@ -83,21 +87,7 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
       />
       <DemoMedia v-else :demo :eager play="visible" />
     </div>
-    <div class="demo-stage__id">
-      <SkillCard
-        :skill="demoCardSkill(demo)"
-        layout="row"
-        metric="none"
-        :description="false"
-        :actions="[]"
-        :surface
-      />
-      <NuxtLink v-if="presentation === 'hero'" :to="demoPagePath(demo)" class="demo-stage__open" :aria-label="`Open the demo of /${demo.name}`">
-        Open the demo
-        <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
-      </NuxtLink>
-      <DemoActions v-else :demo :surface @action="record" />
-    </div>
+    <DemoFooter :demo :surface :presentation @action="record" />
   </div>
 </template>
 
@@ -176,13 +166,6 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
     aspect-ratio: var(--phone-ratio, 4 / 5);
   }
 
-  .demo-stage__id :deep(.skill-card--row) {
-    padding-block: 0.5rem;
-  }
-
-  .demo-stage__id :deep(.skill-card__row-end) {
-    display: none;
-  }
 }
 
 /* Give interactive pages most of the screen, while keeping their actions in reach. */
@@ -195,15 +178,6 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
   block-size: auto;
   aspect-ratio: var(--video-w) / var(--video-h);
   inline-size: min(100%, calc(68svh * var(--video-w) / var(--video-h)));
-}
-
-.demo-stage--compact .demo-stage__id {
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 2;
-  border-block-start: 1px solid var(--ui-border);
-  background: var(--ui-bg);
-  padding-block-end: env(safe-area-inset-bottom, 0px);
 }
 
 .demo-stage--compact .demo-stage__head {
@@ -267,16 +241,5 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
 .demo-stage__window:focus-visible {
   outline: 2px solid var(--ui-border-accented);
   outline-offset: 2px;
-}
-
-/* The Skill row's hover fill follows the rounded corners of everything around it. */
-.demo-stage__id {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5rem;
-  margin-block-start: 0.25rem;
-  overflow: hidden;
-  border-radius: var(--ui-radius);
 }
 </style>
