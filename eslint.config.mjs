@@ -3,8 +3,8 @@ import harlanzw from 'eslint-plugin-harlanzw'
 
 export default antfu({
   // skilld sync writes .skills from skilld-dev/skilld. CI checks it with check:skills.
-  // Immutable research exports retain their recorded byte hashes.
-  ignores: ['.skills/**', 'public/research/**/measurements.json'],
+  // Immutable research exports and recorded evaluation documents keep their original bytes.
+  ignores: ['.skills/**', 'public/research/**/measurements.json', 'docs/evals/writing-*/*/{reading-list,README,pr}.md'],
   rules: {
     'vue/no-useless-v-bind': 'off',
     'vue/attribute-hyphenation': 'off',

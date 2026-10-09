@@ -1,0 +1,365 @@
+{
+  "model": "zai-coding-plan/glm-5.3",
+  "agent": "OpenCode",
+  "agentVersion": "1.18.32",
+  "seedChecks": [
+    {
+      "file": "reading-list.md",
+      "missing": []
+    },
+    {
+      "file": "README.md",
+      "missing": []
+    },
+    {
+      "file": "pr.md",
+      "missing": []
+    }
+  ],
+  "baselineChecks": [
+    {
+      "file": "reading-list.md",
+      "missing": []
+    },
+    {
+      "file": "README.md",
+      "missing": []
+    },
+    {
+      "file": "pr.md",
+      "missing": []
+    }
+  ],
+  "runs": [
+    {
+      "label": "seed",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:14:14.142Z",
+      "completedAt": "2026-10-09T08:15:21.554Z",
+      "promptSha256": "457e023d0b14ef9b085a884a05f6e17808d1848a4a334e15cb5559c636dc9491",
+      "eventsSha256": "1dc365aaf46608d58a36b38ff8b8793cfd7b8ea060ef4d5dab4fb5706b03ffae",
+      "eventsPath": "seed/events.jsonl"
+    },
+    {
+      "label": "baseline",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:15:21.555Z",
+      "completedAt": "2026-10-09T08:16:03.819Z",
+      "promptSha256": "a14a3a178af0aabc21714a4315e5391cb94182968bd1e7955b5d7d78660359b6",
+      "eventsSha256": "0dc48b0cf1acec348f7dcfc68f9b6480804c6a1228b5275862928bca6da6e95a",
+      "eventsPath": "baseline/events.jsonl"
+    },
+    {
+      "label": "humanizer",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:16:06.087Z",
+      "completedAt": "2026-10-09T08:18:22.985Z",
+      "promptSha256": "3bd3e8eb7baff15ce49fb4f818c8f472c1931ff304ff50f71fbb1677f7809bfc",
+      "eventsSha256": "657768673f69ef01b34d53ca27bcfd36a49993aedc5b312f2a97f00d08be5fe5",
+      "eventsPath": "humanizer/events.jsonl"
+    },
+    {
+      "label": "stop-slop",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:18:27.990Z",
+      "completedAt": "2026-10-09T08:19:28.619Z",
+      "promptSha256": "40fab1b14614ee3a068a6ac3ed38b29323a78f333cd75fe67d5546b4f20aac9c",
+      "eventsSha256": "f23c423b78b3c045ef94fe5ee9af356b648147483bcdb2ada65dac0590bb2d3e",
+      "eventsPath": "stop-slop/events.jsonl"
+    },
+    {
+      "label": "no-ai-slop",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:19:31.322Z",
+      "completedAt": "2026-10-09T08:20:25.781Z",
+      "promptSha256": "1819e2699b97fe68b21d49e43e219acce8e9d84dd1b1cb17874bf8a79927d0aa",
+      "eventsSha256": "8398d47ff552186d604784667ac70a337cfd392ed16f8c43ba6602666d07c4d7",
+      "eventsPath": "no-ai-slop/events.jsonl"
+    },
+    {
+      "label": "anti-slop",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:20:27.568Z",
+      "completedAt": "2026-10-09T08:21:37.214Z",
+      "promptSha256": "8e1531cee7e4e30f76958c4cc1e7c5c82401eb4847b1a926a8287d8e5ed617d0",
+      "eventsSha256": "249eda3083603ecb9493e0df3c3c60213247e0a479ddbf5d98ee498b87e39649",
+      "eventsPath": "anti-slop/events.jsonl"
+    },
+    {
+      "label": "deslop-writing",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:21:40.186Z",
+      "completedAt": "2026-10-09T08:22:55.266Z",
+      "promptSha256": "bea7ac8f469dbfefe3502dc9b715f792df62f1377a989525b46f21ff2cdf98f6",
+      "eventsSha256": "07b4492b4d30c49033b2a65d7dcf0efb53400030dc70b2fc6d3d58bcce3f2e32",
+      "eventsPath": "deslop-writing/events.jsonl"
+    },
+    {
+      "label": "im-not-a-fly",
+      "model": "zai-coding-plan/glm-5.3",
+      "agent": "OpenCode",
+      "agentVersion": "1.18.32",
+      "startedAt": "2026-10-09T08:23:02.192Z",
+      "completedAt": "2026-10-09T08:24:09.201Z",
+      "promptSha256": "768bbe4b05652e05679ca3e148da030c0c11e55c59c000807084e1c9fde61da3",
+      "eventsSha256": "786e8be557df966ce0268ca781b20f8bcb3bc0e319fc618fe21756a3cf421aad",
+      "eventsPath": "im-not-a-fly/events.jsonl"
+    }
+  ],
+  "skills": [
+    {
+      "owner": "blader",
+      "repo": "humanizer",
+      "name": "humanizer",
+      "source": {
+        "sourceCommit": "225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8",
+        "sourceUrl": "https://github.com/blader/humanizer/blob/225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8/SKILL.md",
+        "skillPath": "SKILL.md"
+      },
+      "sourceFiles": [
+        {
+          "path": "SKILL.md",
+          "sha256": "0612f1dfb1672b0ea9b97e139bf1f06cabe98d8b27424fe8ff01e1fb4cc99cad"
+        }
+      ],
+      "materialChecks": [
+        {
+          "file": "reading-list.md",
+          "missing": []
+        },
+        {
+          "file": "README.md",
+          "missing": []
+        },
+        {
+          "file": "pr.md",
+          "missing": []
+        }
+      ]
+    },
+    {
+      "owner": "hardikpandya",
+      "repo": "stop-slop",
+      "name": "stop-slop",
+      "source": {
+        "sourceCommit": "8da1f030185bdfe8471220585162991eaeb970e9",
+        "sourceUrl": "https://github.com/hardikpandya/stop-slop/blob/8da1f030185bdfe8471220585162991eaeb970e9/SKILL.md",
+        "skillPath": "SKILL.md"
+      },
+      "sourceFiles": [
+        {
+          "path": "SKILL.md",
+          "sha256": "7432a1d9ebdd42b27666da8458af252edf549f723fb14bcd4791425103930310"
+        },
+        {
+          "path": "references/examples.md",
+          "sha256": "49c592899eb4457f95d0767e15e3143569e2cef50f2927c3174e62432984cd3d"
+        },
+        {
+          "path": "references/phrases.md",
+          "sha256": "4ca1b7e97123b5c67eff3dc97e5e977332e0b24021265c1553888a93ec33fa93"
+        },
+        {
+          "path": "references/structures.md",
+          "sha256": "ffbf1316c7fb5aaf552de005609a64a9639b546ecd76bfb0e482864d5bbe6f58"
+        }
+      ],
+      "materialChecks": [
+        {
+          "file": "reading-list.md",
+          "missing": []
+        },
+        {
+          "file": "README.md",
+          "missing": []
+        },
+        {
+          "file": "pr.md",
+          "missing": []
+        }
+      ]
+    },
+    {
+      "owner": "petergyang",
+      "repo": "no-ai-slop",
+      "name": "no-ai-slop",
+      "source": {
+        "sourceCommit": "000650b156983f5159695b441477f4e63b25dc85",
+        "sourceUrl": "https://github.com/petergyang/no-ai-slop/blob/000650b156983f5159695b441477f4e63b25dc85/skills/no-ai-slop/SKILL.md",
+        "skillPath": "skills/no-ai-slop/SKILL.md"
+      },
+      "sourceFiles": [
+        {
+          "path": "skills/no-ai-slop/SKILL.md",
+          "sha256": "992b365f51a2f62cf4c1c5ed22049a9ee551dfea677550c1a72b371c0ceadd62"
+        },
+        {
+          "path": "skills/no-ai-slop/eval.md",
+          "sha256": "8ad8d83ed1abe7fc054ad74966bfca64fc182bc71f59d701b24b962c39d11ad7"
+        }
+      ],
+      "materialChecks": [
+        {
+          "file": "reading-list.md",
+          "missing": []
+        },
+        {
+          "file": "README.md",
+          "missing": []
+        },
+        {
+          "file": "pr.md",
+          "missing": []
+        }
+      ]
+    },
+    {
+      "owner": "elithrar",
+      "repo": "dotfiles",
+      "name": "anti-slop",
+      "source": {
+        "sourceCommit": "26e8a4b2f26f6de2a22eecb02a6463235d6adf08",
+        "sourceUrl": "https://github.com/elithrar/dotfiles/blob/26e8a4b2f26f6de2a22eecb02a6463235d6adf08/.agents/skills/anti-slop/SKILL.md",
+        "skillPath": ".agents/skills/anti-slop/SKILL.md"
+      },
+      "sourceFiles": [
+        {
+          "path": ".agents/skills/anti-slop/SKILL.md",
+          "sha256": "45f2c2e9347822f18022883672b49ab48b3d8cf221b63c2eeef19f4972e7e0ea"
+        },
+        {
+          "path": ".agents/skills/anti-slop/references/tells.md",
+          "sha256": "dc20b3f75436963b43d3179ed3f040294887b6c3f08edefc5840d73f498dc6ec"
+        }
+      ],
+      "materialChecks": [
+        {
+          "file": "reading-list.md",
+          "missing": []
+        },
+        {
+          "file": "README.md",
+          "missing": []
+        },
+        {
+          "file": "pr.md",
+          "missing": []
+        }
+      ]
+    },
+    {
+      "owner": "kmaida",
+      "repo": "deslop-skills",
+      "name": "deslop-writing",
+      "source": {
+        "sourceCommit": "70237e1ae0dfbf7bc9ab5e6e3de52c092586ca9b",
+        "sourceUrl": "https://github.com/kmaida/deslop-skills/blob/70237e1ae0dfbf7bc9ab5e6e3de52c092586ca9b/deslop-writing/SKILL.md",
+        "skillPath": "deslop-writing/SKILL.md"
+      },
+      "sourceFiles": [
+        {
+          "path": "deslop-writing/SKILL.md",
+          "sha256": "9f405867f6e17f203754f29d10e937a0aa5294f3396794ed04e17093bca4edf7"
+        },
+        {
+          "path": "deslop-writing/references/apple-style-tech-docs.md",
+          "sha256": "64e8c830582a08bb7df6321c3986e1eb787f07a27454af71be11b228a6058b04"
+        },
+        {
+          "path": "deslop-writing/references/banned-words.md",
+          "sha256": "74f915454cb4d17640ee7daf02c31d414978a8b3333141af60b483ebd4c227d9"
+        },
+        {
+          "path": "deslop-writing/tests/clean-sample.md",
+          "sha256": "578405d153552b6ee11680acce7695410dd180672e101c55d3176678e7a7fc4d"
+        },
+        {
+          "path": "deslop-writing/tests/slop-sample.md",
+          "sha256": "e15d3e47567c341367d2666d452d5bb3c4fbf410db69076fc5b7c8ca8b079fa9"
+        }
+      ],
+      "materialChecks": [
+        {
+          "file": "reading-list.md",
+          "missing": []
+        },
+        {
+          "file": "README.md",
+          "missing": []
+        },
+        {
+          "file": "pr.md",
+          "missing": []
+        }
+      ]
+    },
+    {
+      "owner": "harlan-zw",
+      "repo": "brundlefly",
+      "name": "im-not-a-fly",
+      "source": {
+        "sourceCommit": "67d1cf8e3543133a4d73b8a857ff8fc988717956",
+        "sourceUrl": "https://github.com/harlan-zw/brundlefly/blob/67d1cf8e3543133a4d73b8a857ff8fc988717956/skills/im-not-a-fly/SKILL.md",
+        "skillPath": "skills/im-not-a-fly/SKILL.md"
+      },
+      "sourceFiles": [
+        {
+          "path": "skills/im-not-a-fly/SKILL.md",
+          "sha256": "5aed63bd8b0d090b942ccc7a3d31cda8ee8f8ddcf31b6db3c7c8ca6b478bbbb6"
+        },
+        {
+          "path": "skills/im-not-a-fly/references/accessible-writing.md",
+          "sha256": "447be0e2586f752d804d1061e6b19eb717b17a1f8d251ccbde44d14a62e83a7b"
+        },
+        {
+          "path": "skills/im-not-a-fly/references/blocks/claim-fidelity.md",
+          "sha256": "0c27dca805003965a26a411a65c1a78bccaad42a046d1112e38045cb575ee69f"
+        },
+        {
+          "path": "skills/im-not-a-fly/references/blocks/clarity.md",
+          "sha256": "9051774e8dcd6da29f26fc371a416638f8b21606b089a60f971551bfd627d162"
+        },
+        {
+          "path": "skills/im-not-a-fly/references/graphite-ai-tells-2026.md",
+          "sha256": "2fc98fe7bf3b3ca472a78088fceaa0077a21932d5d158c291ebd23dbbb76f713"
+        },
+        {
+          "path": "skills/im-not-a-fly/references/storytelling.md",
+          "sha256": "242b114d5638bdd7a14d382c69919709526a7bce6445ff5bd034c028c5faf04f"
+        },
+        {
+          "path": "skills/im-not-a-fly/references/writing-well.md",
+          "sha256": "5275e6e532575cfc01d853bab223c2924e710f394256145288bef2659c63bc9b"
+        }
+      ],
+      "materialChecks": [
+        {
+          "file": "reading-list.md",
+          "missing": []
+        },
+        {
+          "file": "README.md",
+          "missing": []
+        },
+        {
+          "file": "pr.md",
+          "missing": []
+        }
+      ]
+    }
+  ]
+}
