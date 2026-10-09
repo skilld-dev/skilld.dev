@@ -9,6 +9,15 @@ import { expect, test } from './test-utils'
  */
 
 // Page-level tests: validates meta tag presence + image rendering
+test('research article shares a rendered PNG', async ({ page, baseURL }) => {
+  await page.goto(`${baseURL}/learn/research/skill-md-size-study`, { waitUntil: 'domcontentloaded' })
+  const imageUrl = await page.locator('meta[property="og:image"]').getAttribute('content')
+  const response = await page.request.get(new URL(new URL(imageUrl!).pathname, baseURL!).href)
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toContain('image/png')
+  expect([...new Uint8Array(await response.body()).slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
+})
+
 const pageCases = [
   { path: '/', label: 'home page' },
   { path: '/skills', label: 'skills index' },

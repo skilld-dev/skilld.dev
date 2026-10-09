@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OgFace } from '../utils/og-style'
+import { computed } from 'vue'
 import { OG_MUTED, ogEvenLines, ogLineStyle, ogTitleStyle } from '../utils/og-style'
 
 // Centred OG text of up to `lines` lines, broken evenly when it needs two.

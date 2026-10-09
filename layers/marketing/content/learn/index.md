@@ -4,6 +4,8 @@ description: Practical guides for finding, authoring, and shipping agent skills.
 ---
 
 ::card-grid
+- [SKILL.md size and descriptions: 12,141 Skills measured](/learn/research/skill-md-size-study)
+  Original research into context use, descriptions, and references across 2,297 repositories.
 - [Create Skills for Claude Code, Codex and Gemini CLI](/learn/create-agent-skills)
   Write one `SKILL.md`, check discovery paths, and test the same task across Agents.
 - [Browse skills](/skills)
