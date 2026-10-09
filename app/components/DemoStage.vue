@@ -61,7 +61,7 @@ const liveUrl = computed(() => live && !demo.video && !demo.writing ? demo.liveU
       <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
     </p>
     <div v-if="demo.writing" ref="stage">
-      <DemoWriting :writing="demo.writing" :output-label="`/${demo.name}`" />
+      <DemoWriting :writing="demo.writing" />
     </div>
     <!-- The whole page, in a window one screen tall. A film fills the window and plays on view. -->
     <div

@@ -88,24 +88,23 @@ afterEach(() => {
 })
 
 describe('accessibility: components', () => {
-  it('writing demos keep selectors labelled and expose the selected Markdown', async () => {
+  it('writing demos select files and switch between rendered versions and highlighted diffs', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(await loadComponent('home-demos/_DemoWriting'), {
       attachTo: container,
       props: {
-        outputLabel: 'Example rewrite',
         writing: {
           documents: [
-            { id: 'article', format: 'article', label: 'Blog article', original: '# Original article', baseline: '# Baseline article', output: '# Edited article' },
-            { id: 'readme', format: 'readme', label: 'Package README', original: '# Original README', baseline: '# Baseline README', output: '# Edited README' },
+            { id: 'article', format: 'article', label: 'reading-list.md', original: '# Original article', baseline: '# Baseline article', output: '# Edited article' },
+            { id: 'readme', format: 'readme', label: 'README.md', original: '# Original README', baseline: '# Baseline README', output: '# Edited README' },
           ],
         },
       },
     })
     expect(wrapper.find('article').text()).toBe('Edited article')
-    const [documentSelect, versionSelect] = wrapper.findAll('select')
-    await documentSelect!.setValue('readme')
-    await versionSelect!.setValue('original')
+    const button = (name: string) => wrapper.findAll('button').find(item => item.text() === name)!
+    await button('README.md').trigger('click')
+    await button('Original').trigger('click')
     expect(wrapper.find('article').text()).toBe('Original README')
     expect(wrapper.find('article').classes()).toContain('writing-demo__github')
     wrapper.find('details').element.open = true
@@ -113,6 +112,15 @@ describe('accessibility: components', () => {
     expect(wrapper.find('pre').text()).toBe('# Original README')
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
+    await button('Diff').trigger('click')
+    expect(wrapper.find('article').exists()).toBe(false)
+    expect(wrapper.find('.writing-demo__diff-line--removed').text()).toContain('# Original README')
+    expect(wrapper.find('.writing-demo__diff-line--added').text()).toContain('# Edited README')
+    expect(wrapper.find('.writing-demo__diff .shj-section').exists()).toBe(true)
+    const diffResults = await runAxe(container)
+    expect(diffResults.violations, formatViolations(diffResults)).toHaveLength(0)
+    await button('Updated').trigger('click')
+    expect(wrapper.find('article').text()).toBe('Edited README')
     wrapper.unmount()
   })
 

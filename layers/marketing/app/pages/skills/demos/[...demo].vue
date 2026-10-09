@@ -202,7 +202,7 @@ else {
 
     <div id="demos-stage" ref="stage" class="demos-stage scroll-mt-24">
       <Transition name="demos-swap" mode="out-in">
-        <DemoWriting v-if="writingExample" key="writing-example" :writing="writingDemoExample" output-label="Example rewrite" />
+        <DemoWriting v-if="writingExample" key="writing-example" :writing="writingDemoExample" />
         <DemoStage v-else-if="current" :key="currentKey" :demo="current" :presentation="pageDemo ? 'compact' : 'full'" show-prompt live eager opens="skill-page" surface="demos-page" />
       </Transition>
       <p v-if="!current && !writingExample" class="text-sm text-muted">
@@ -239,7 +239,6 @@ else {
   cursor: pointer;
   transition: background-color 150ms ease;
 }
-
 
 @media (hover: hover) {
   .demos-rail__pick:hover {

@@ -54,7 +54,7 @@ const DESKTOP_WINDOW_MEDIA = '(min-width: 48rem)'
     </p>
 
     <div v-if="demo.writing" class="mt-4">
-      <DemoWriting :writing="demo.writing" :output-label="`/${demo.name}`" />
+      <DemoWriting :writing="demo.writing" />
     </div>
     <div v-else-if="live && demo.liveUrl" class="mt-4">
       <iframe

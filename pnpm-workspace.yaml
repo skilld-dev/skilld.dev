@@ -272,6 +272,7 @@ catalog:
   axe-core: ^4.13.0
   better-sqlite3: ^13.0.3
   comark: 0.7.0
+  diff: ^9.0.0
   eslint: ^10.9.1
   eslint-plugin-harlanzw: ^0.20.0
   fflate: ^0.8.3

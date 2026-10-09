@@ -1,55 +1,66 @@
 <script setup lang="ts">
 import type { WritingDemo } from '#shared/writing-demo'
 import { highlightToHtml } from '#shared/highlight'
+import { writingDiff } from '#shared/writing-diff'
 import { renderWritingMarkdown } from '#shared/writing-markdown'
 
-const { writing, outputLabel } = defineProps<{ writing: WritingDemo, outputLabel: string }>()
+const { writing } = defineProps<{ writing: WritingDemo }>()
 const documentId = ref(writing.documents[0]?.id ?? '')
-const version = ref<'original' | 'baseline' | 'output'>('output')
+const version = ref<'original' | 'updated' | 'diff'>('updated')
+const views = [{ id: 'original', label: 'Original' }, { id: 'updated', label: 'Updated' }, { id: 'diff', label: 'Diff' }] as const
 const document = computed(() => writing.documents.find(item => item.id === documentId.value) ?? writing.documents[0])
-const markdown = computed(() => document.value?.[version.value] ?? '')
+const markdown = computed(() => document.value?.[version.value === 'original' ? 'original' : 'output'] ?? '')
 const html = computed(() => renderWritingMarkdown(markdown.value))
 const sourceHtml = computed(() => highlightToHtml(markdown.value, 'md'))
-const documentSelectId = useId()
-const versionSelectId = useId()
+const diff = computed(() => writingDiff(document.value?.original ?? '', document.value?.output ?? ''))
 </script>
 
 <template>
   <div class="writing-demo">
     <div class="writing-demo__controls">
-      <label :for="documentSelectId">
-        <span>Document</span>
-        <select :id="documentSelectId" v-model="documentId">
-          <option v-for="item in writing.documents" :key="item.id" :value="item.id">
-            {{ item.label }}
-          </option>
-        </select>
-      </label>
-      <label :for="versionSelectId">
-        <span>Version</span>
-        <select :id="versionSelectId" v-model="version">
-          <option value="original">Original</option>
-          <option value="baseline">No Skill</option>
-          <option value="output">{{ outputLabel }}</option>
-        </select>
-      </label>
+      <div class="writing-demo__files" role="group" aria-label="Files">
+        <button v-for="item in writing.documents" :key="item.id" type="button" :aria-pressed="documentId === item.id" @click="documentId = item.id">
+          <SkillFileIcon name="file-type-markdown" />
+          {{ item.label }}
+        </button>
+      </div>
+      <div class="writing-demo__views" role="group" aria-label="View">
+        <button v-for="view in views" :key="view.id" type="button" :aria-pressed="version === view.id" @click="version = view.id">
+          {{ view.label }}
+        </button>
+      </div>
     </div>
     <div
       :key="`${document?.id}/${version}`"
       class="writing-demo__window"
       tabindex="0"
       role="region"
-      :aria-label="`${document?.label ?? 'Document'}, ${version === 'output' ? outputLabel : version === 'baseline' ? 'No Skill' : 'Original'}`"
+      :aria-label="`${document?.label ?? 'Files'}, ${views.find(view => view.id === version)?.label}`"
     >
+      <div v-if="version === 'diff'" class="writing-demo__diff shiki">
+        <template v-for="(line, index) in diff" :key="index">
+          <div class="writing-demo__diff-line" :class="`writing-demo__diff-line--${line.kind}`">
+            <span class="writing-demo__line-number" aria-hidden="true">{{ line.originalLine }}</span>
+            <span class="writing-demo__line-number" aria-hidden="true">{{ line.updatedLine }}</span>
+            <span class="writing-demo__line-sign">{{ line.kind === 'added' ? '+' : line.kind === 'removed' ? '-' : ' ' }}</span>
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <code class="writing-demo__line-code" v-html="line.html" />
+          </div>
+          <div v-if="line.kind !== 'context' && !line.text.endsWith('\n')" class="writing-demo__diff-note">
+            \ No newline at end of file
+          </div>
+        </template>
+      </div>
       <!-- The renderer strips raw HTML, images, and unsafe links. It never evaluates components. -->
       <!-- eslint-disable-next-line vue/no-v-html -->
       <article
+        v-else
         class="writing-demo__document skill-prose"
         :class="document?.format === 'article' ? 'writing-demo__article' : 'writing-demo__github'"
         v-html="html"
       />
     </div>
-    <details class="writing-demo__markdown">
+    <details v-if="version !== 'diff'" class="writing-demo__markdown">
       <summary>Markdown</summary>
       <!-- Highlighted source uses the same escaped rangi renderer as Skill pages. -->
       <!-- eslint-disable-next-line vue/no-v-html -->
@@ -62,30 +73,59 @@ const versionSelectId = useId()
 .writing-demo__controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-block-end: 0.75rem;
 }
 
-.writing-demo__controls label {
-  display: grid;
+.writing-demo__files,
+.writing-demo__views {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
-  min-inline-size: 0;
-  flex: 1 1 10rem;
+}
+
+.writing-demo__controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem;
+  border-radius: var(--ui-radius);
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--ui-text-muted);
+  cursor: pointer;
 }
 
-.writing-demo__controls select {
-  inline-size: 100%;
-  min-block-size: 2.75rem;
-  padding-inline: 0.5rem;
+.writing-demo__views {
+  padding: 0.125rem;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
-  color: var(--ui-text);
-  background: var(--ui-bg);
-  font: inherit;
 }
+
+.writing-demo__controls button:hover,
+.writing-demo__controls button[aria-pressed="true"] {
+  color: var(--ui-text);
+  background: var(--ui-bg-muted);
+}
+
+.writing-demo__diff {
+  min-inline-size: fit-content;
+  padding-block: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.writing-demo__diff-line { display: flex; min-block-size: 1.7em; padding-inline: 0.5rem 1rem; }
+.writing-demo__diff-line--added { background: light-dark(#dafbe1, #12261e); }
+.writing-demo__diff-line--removed { background: light-dark(#ffebe9, #2d171b); }
+.writing-demo__line-number { flex: 0 0 3ch; text-align: end; color: var(--ui-text-muted); user-select: none; }
+.writing-demo__line-number + .writing-demo__line-number { margin-inline-start: 1ch; }
+.writing-demo__line-sign { flex: 0 0 3ch; text-align: center; }
+.writing-demo__line-code { flex: 1; white-space: pre; }
+.writing-demo__diff-note { display: block; padding-inline-start: 11ch; color: var(--ui-text-muted); }
 
 .writing-demo__window {
   block-size: clamp(24rem, 68svh, 52rem);
@@ -239,7 +279,7 @@ const versionSelectId = useId()
   overflow-wrap: anywhere;
 }
 
-.writing-demo :is(select, summary, pre, .writing-demo__window):focus-visible {
+.writing-demo :is(button, summary, pre, .writing-demo__window):focus-visible {
   outline: 2px solid var(--ui-primary);
   outline-offset: 2px;
 }

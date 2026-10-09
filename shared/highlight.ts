@@ -113,3 +113,23 @@ export function highlightCodeBody(code: string, raw: string | null | undefined):
   const lang = resolveHighlightLang(raw)
   return lang ? tokenizeToHtml(code, lang) : escapeHtml(code)
 }
+
+/** Keep whole-file token context while giving a diff one safe HTML fragment per line. */
+export function highlightCodeLines(code: string, raw: string): string[] {
+  if (!code)
+    return []
+  const lang = resolveHighlightLang(raw)
+  const tokens = lang ? tokenize(code, { lang }) : [{ text: code }]
+  const lines = ['']
+  for (const token of tokens) {
+    const parts = token.text.split('\n')
+    for (const [index, text] of parts.entries()) {
+      if (index > 0)
+        lines.push('')
+      lines[lines.length - 1] += renderToken({ ...token, text })
+    }
+  }
+  if (code.endsWith('\n'))
+    lines.pop()
+  return lines
+}

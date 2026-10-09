@@ -7,7 +7,7 @@ export const writingDemoSkills = [
   { owner: 'petergyang', repo: 'no-ai-slop', name: 'no-ai-slop' },
   { owner: 'elithrar', repo: 'dotfiles', name: 'anti-slop' },
   { owner: 'kmaida', repo: 'deslop-skills', name: 'deslop-writing' },
-  { owner: 'harlan-zw', repo: 'brundlefly', name: 'write-human' },
+  { owner: 'harlan-zw', repo: 'brundlefly', name: 'im-not-a-fly' },
 ] as const
 
 /** Handwritten UI fixtures. These are not recordings or results from any Skill. */
@@ -16,7 +16,7 @@ export const writingDemoExample: WritingDemo = {
     {
       id: 'article',
       format: 'article',
-      label: 'Blog article',
+      label: 'reading-list.md',
       original: `# Keeping a reading list that works for you
 
 In today's fast-paced digital landscape, managing a reading list has become an increasingly important part of staying informed. By leveraging a thoughtful approach, you can transform a collection of links into a valuable resource for learning and growth.
@@ -56,7 +56,7 @@ You don't need to finish the list. You need to find something worth reading when
     {
       id: 'readme',
       format: 'readme',
-      label: 'Package README',
+      label: 'README.md',
       original: `# Margin
 
 Margin is a fictional TypeScript package designed to streamline the management of reading lists. It provides a robust yet intuitive API for organizing links by category, enabling developers to create seamless reading experiences.
@@ -123,7 +123,7 @@ const cssLinks = filterLinks(links, 'CSS')
     {
       id: 'pr',
       format: 'pr',
-      label: 'PR description',
+      label: 'pr.md',
       original: `# Add category filtering to the reading list
 
 This pull request introduces a streamlined category filtering experience to our fictional reading-list app, Margin. By leveraging the existing category field, users can now navigate their saved articles with greater ease and efficiency.
