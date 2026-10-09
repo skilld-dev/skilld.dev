@@ -11,6 +11,10 @@ on:
         type: choice
         options: [site, harness-proof]
         default: site
+      rotate_registry_github_token:
+        description: Rotate the registry GitHub fallback token
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -91,6 +95,24 @@ jobs:
       - name: Apply D1 migrations
         run: pnpm db:migrations:prod
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Rotate registry GitHub fallback token
+        if: github.event_name == 'workflow_dispatch' && inputs.rotate_registry_github_token
+        run: |
+          if [ -z "$REGISTRY_GITHUB_TOKEN" ]; then
+            echo 'If the replacement token is missing, set REGISTRY_GITHUB_TOKEN.' >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $REGISTRY_GITHUB_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/user \
+            --output "$RUNNER_TEMP/registry-token-owner.json"
+          printf '%s' "$REGISTRY_GITHUB_TOKEN" | pnpm exec wrangler secret put GITHUB_TOKEN --config wrangler.jsonc
+        env:
+          REGISTRY_GITHUB_TOKEN: ${{ secrets.REGISTRY_GITHUB_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
