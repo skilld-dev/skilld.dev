@@ -131,6 +131,7 @@ export default defineScheduledTask({
         reconciledIndexed: reconciled.indexed,
         reconciledEmpty: reconciled.empty,
         reconciledRetried: reconciled.retried,
+        reconciledHeldPurpose: reconciled.heldPurpose,
         reconcileStalled: reconciled.stalled,
         announced: announcement.announced,
         ingestError: ingest.error ? describeXError(ingest.error) : null,
