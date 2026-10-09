@@ -1,19 +1,17 @@
 ---
 title: 'SKILL.md size and descriptions: 12,141 Skills measured'
-description: 'Original skilld research into Skill descriptions, instruction sizes, and reference files across 2,297 repositories. Includes source measurements and weighting comparisons.'
+description: 'We measured 12,141 Skills across 2,297 repositories. Compare description lengths, body tokens, and reference files, with source data and methods.'
 label: 'Original research · 9 October 2026'
 author: skilld
 publishedAt: '2026-10-09'
 updatedAt: '2026-10-09'
 ---
 
-**8.9% of measured Skill bodies reach or exceed 5,000 estimated tokens.** Give each repository equal weight, and that figure becomes **10.8%**. The sample and its weighting change the answer.
+**8.9% of measured Skill bodies reach or exceed 5,000 estimated tokens.** Give each repository equal weight, and that figure becomes **10.8%**.
 
 We measured **12,141 Skills across 2,297 repositories** in a frozen skilld registry snapshot. The median description contains **288 characters**. The median whole `SKILL.md` file is **7.3 kB**, while its instruction body contains **1,600 estimated tokens**.
 
-These measure different things. Descriptions help an Agent select a Skill. Instructions enter context when that Skill activates. Reference files hold material the Agent can read later. Combining their sizes into one score hides those differences.
-
-This study examines each separately. It also tests how duplicate descriptions, large collections, and repository weighting affect the findings.
+Descriptions help an Agent select a Skill. The body supplies instructions when that Skill activates. Reference files hold details it can read later. Each uses context at a different stage, so we measured them separately.
 
 ## Most Skill bodies fit within the recommended size
 
@@ -26,9 +24,9 @@ Of **12,138 source-matched bodies**, **1,078** reach or exceed 5,000 estimated t
 
 The mean body contains **2,331 tokens**, compared with a median of **1,600**. The 90th percentile is **4,748**. The 95th percentile reaches **6,828**. Larger files pull the mean above the middle of the sample.
 
-Our colour bands show context use. Green means at most 2,500 tokens, an editorial half-budget marker. Amber means 2,501 to 4,999. Red means at least 5,000. A long Skill can still be useful. A short Skill can omit necessary instructions.
+The green band stops at 2,500 tokens, half the recommended body budget. That boundary is our editorial choice. Amber covers 2,501 to 4,999 tokens; red starts at 5,000. The colours measure context use. They do not score how useful a Skill is.
 
-These counts use `o200k_base`, not every Agent's native tokenizer. They estimate relative context use rather than exact billing or truncation behaviour across models.
+We counted tokens with `o200k_base`. An Agent using a different tokenizer will count differently. These estimates cannot reproduce its exact billing or truncation behaviour.
 
 ## Task categories reveal different file sizes
 
@@ -37,17 +35,17 @@ Design Skills have the largest mean whole-file size among the recognised task ca
 ::skill-size-study{chart="topics"}
 ::
 
-The file-size column includes YAML frontmatter and the Markdown body. Its bars show bytes, so they use a neutral colour. The context bands in the first chart use body tokens.
+The file-size column includes YAML frontmatter and the Markdown body. Its neutral bars show bytes. The first chart's colour bands use body tokens.
 
-The task categories come from a model assessment of descriptions. **4,068 descriptions** do not support a confident primary task category. They stay visible as “Task category uncertain”. Removing them would conceal a third of the corpus.
+Jev assigned task categories from the descriptions. It could not confidently place **4,068** of them. We kept those rows under “Task category uncertain”, rather than dropping a third of the corpus.
 
-Reference counts include files under a `references/` directory. They exclude scripts, assets, and other supporting files. **12,091 inventories** are complete enough for this measure. Fifty remain missing. A complete inventory with no references contributes zero.
+We counted files under `references/`, excluding scripts, assets, and other supporting files. **12,091 inventories** were complete enough to count. Fifty remain missing. A complete inventory with no references contributes zero.
 
-Across the full filtered corpus, the mean reference count is **2.27**, while the median is **zero**. Most Skills do not resemble the reference-heavy tail.
+The mean reference count is **2.27**, while the median is **zero**.
 
 ## Short descriptions are not automatically clearer
 
-The specification caps a description at **1,024 characters**. It also asks authors to explain both the task and the situation where it applies. Those requirements do not establish a universal ideal length.
+The specification caps a description at **1,024 characters** and asks authors to explain the task and when it applies. It does not prescribe an ideal length within that limit.
 
 We assessed four description properties with Jev 1.13:
 
@@ -61,13 +59,13 @@ We assessed four description properties with Jev 1.13:
 
 In the group below 100 characters, **45.5%** met the model's clear-guidance threshold. In the 400 to 599 character group, **81.4%** met it.
 
-This is an association within the sample. It does not show that adding words improves a description. Task complexity, author habits, and the model rubric can all affect the result.
+This comparison does not show that adding words improves a description. Task complexity, author habits, and the rubric can also affect the result.
 
-The categories also leave room for uncertainty. Overall, **73.4%** met the clear-guidance threshold, **25.7%** remained uncertain, and **0.9%** received “Needs work”.
+Across all descriptions, **73.4%** met the clear-guidance threshold, **25.7%** remained uncertain, and **0.9%** received “Needs work”.
 
-These are exploratory model judgements. We have not calibrated them against an independent human-labelled registry sample or tested actual Agent selection accuracy. They should guide inspection rather than become a quality badge.
+We have not calibrated these model judgements against an independent human-labelled registry sample or tested actual Agent selection accuracy. Treat the labels as prompts for inspection.
 
-The median description contains **288 characters**. Its mean is **345**, and its 90th percentile is **664**. **111 descriptions** exceed 1,024 characters, a measurable specification constraint separate from semantic clarity.
+The median description contains **288 characters**. Its mean is **345**, and its 90th percentile is **664**. **111 descriptions** exceed the specification's 1,024-character cap, regardless of how clear they are.
 
 ## The sample matters as much as the average
 
@@ -75,7 +73,7 @@ The source export contains **20,510 registry rows**. Of those, **19,348** have a
 
 The main study applies skilld's existing aggregator exclusion. That removes **7,207 descriptions across 35 repositories**, leaving **12,141 Skills**. The excluded group accounts for **37.2%** of usable descriptions.
 
-Those repository flags predate this study. They are registry classifications, not an independent claim that every excluded repository mirrors another source. We expose them in the dataset so readers can choose a different population.
+The aggregator flags predate this study. We did not independently verify that every flagged repository mirrors another source. The downloadable rows include the flags, so you can compare either population.
 
 | Description population | Skills | Repositories | Mean characters | Median characters |
 | --- | ---: | ---: | ---: | ---: |
@@ -84,7 +82,7 @@ Those repository flags predate this study. They are registry classifications, no
 | Excluded aggregator group | 7,207 | 35 | 315 | 286 |
 | Unique normalised descriptions, filtered | 11,760 | 2,281 | 346 | 288 |
 
-For description deduplication, we trim leading and trailing whitespace and collapse whitespace runs. Exact text without that normalisation produces **11,764** unique descriptions.
+To find duplicate descriptions, we trim leading and trailing whitespace and collapse whitespace runs. Comparing the exact text instead gives **11,764** unique descriptions.
 
 Deduplication barely moves the mean description length. Repository weighting changes it more.
 
@@ -93,13 +91,13 @@ Deduplication barely moves the mean description length. Repository weighting cha
 | Each Skill contributes equally | 345 | 2,331 | 8.9% |
 | Each repository contributes equally | 383 | 2,593 | 10.8% |
 
-For repository weighting, we calculate each repository's mean or proportion first. We then average those repository results. A repository containing one Skill has the same weight as a repository containing hundreds.
+For repository weighting, we calculate each repository's mean or proportion, then average those results. A repository with one Skill contributes as much as one with hundreds.
 
 Body weighting covers **2,296 repositories** with at least one matched body. Description weighting covers all **2,297** filtered repositories.
 
-We also deduplicated whole source files by raw SHA-256. Among **11,983 measured unique files**, **8.9%** reach 5,000 tokens. Exact file duplicates therefore have little effect on this particular result.
+We also removed duplicate source files using their raw SHA-256 hashes. Of **11,983 measured unique files**, **8.9%** reach 5,000 tokens. The result barely changes.
 
-The averages describe a registry snapshot. They do not describe the Skills a typical developer installs. We did not weight by installs, GitHub stars, active usage, or Agent sessions.
+This is a registry snapshot. We did not weight by installs, GitHub stars, active usage, or Agent sessions. The averages cannot tell you what a typical developer has installed.
 
 ## What Skill authors put in descriptions
 
@@ -110,25 +108,25 @@ The averages describe a registry snapshot. They do not describe the Skills a typ
 
 The cloud uses English alphanumeric words, lowercase, with a minimum length of three characters. We remove a published common-word list and apply no stemming. “Review” and “reviewing” remain separate.
 
-This is a vocabulary view. It does not establish which terms improve selection or represent descriptions in every language.
+The cloud shows common vocabulary in the English tokens we extracted. It cannot tell you which words improve Skill selection or describe every language.
 
 ## What to change in your own Skill
 
 Start with selection guidance. Name the task, its input or output, and the situation where the Skill applies. Remove repeated claims before removing useful constraints.
 
-Measure the body separately. If it approaches the recommended token or line budget, inspect which details belong in focused reference files. Keep the common workflow in `SKILL.md` and link the extra material where the Agent needs it.
+If the body approaches the recommended token or line budget, look for details you can move into reference files. Keep the common workflow in `SKILL.md`. Link the extra material from the step that needs it.
 
-Moving text into references does not guarantee lower total context use. The Agent can still read those files. It gives the Agent a chance to load detail when the task needs it.
+The Agent may still read every reference file. Splitting the files lets it load details as needed, without guaranteeing lower total context use.
 
-Check format with [`skills-ref validate ./my-skill`](https://agentskills.io/specification#validation). That command checks frontmatter and naming conventions. It does not test whether the Skill solves a task. This study reports measurements and description assessments, rather than corpus-wide validator results.
+Run [`skills-ref validate ./my-skill`](https://agentskills.io/specification#validation) to check frontmatter and naming conventions. It does not test task completion. We have not run the validator across this corpus.
 
 Then test real requests, including requests where the Skill should stay inactive. [Claude's authoring guidance](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) recommends testing Skills through real usage.
 
-For a complete authoring path, use our [guide to creating Skills for Claude Code, Codex and Gemini CLI](/learn/create-agent-skills). To inspect existing source before a run, [browse Skills](/skills).
+Our [guide to creating Skills for Claude Code, Codex and Gemini CLI](/learn/create-agent-skills) covers the authoring steps. You can also [browse Skills](/skills) and read their source before a run.
 
 ## Method and downloads
 
-**Snapshot:** `2026-10-09-v1`, frozen skilld registry export. This is an original registry study, not a reproduction of the skills.sh top-installed sample.
+**Snapshot:** `2026-10-09-v1`, frozen skilld registry export. The population differs from the skills.sh top-installed sample.
 
 **Source identity:** each measurement carries repository, Skill name, source path, source commit, Git blob SHA, and raw SHA-256. Body measurements require the matching source version. Missing historical bodies remain null.
 
@@ -140,7 +138,7 @@ For a complete authoring path, use our [guide to creating Skills for Claude Code
 
 **Assessment:** Jev 1.13.0, rubric `2026-10-09-v1`, using description text only. Clear guidance requires task, activation, and scope scores of at least 0.8, with filler at most 0.2. Needs work requires a score of at most 0.2 on any required property, or filler at least 0.8. All remaining results are uncertain. These scores are model outputs, not calibrated correctness probabilities.
 
-**Task categories:** use the model's primary category only when its score reaches 0.8. Otherwise retain “Task category uncertain”. Assessment details and prompts are linked below.
+**Task categories:** use the model's primary category only when its score reaches 0.8. Otherwise retain “Task category uncertain”. The rubric link below includes the prompts.
 
 **Statistics:** arithmetic means and nearest-rank percentiles. Skill-weighted results are the default. Repository-weighted results average per-repository statistics. Description duplicates use normalised-text hashes. File duplicates use raw SHA-256. No confidence intervals are claimed for this nonrandom sample.
 
@@ -154,6 +152,6 @@ For a complete authoring path, use our [guide to creating Skills for Claude Code
 - [Shareable size infographic](/research/skill-md-size-2026-10-09/avg-skill-md-size.png)
 - [Assessment rubric and thresholds](https://github.com/skilld-dev/skilld.dev/blob/main/scripts/lib/description-review.ts)
 
-Codex prepared the analysis, charts, and article from skilld's source measurements. The model assessments are exploratory. This study does not establish Skill safety, Agent performance, or the effect of description length on task success.
+Codex prepared the analysis, charts, and article from skilld's source measurements. We measured source properties and model judgements. We did not test Skill safety, Agent performance, or how description length affects task success.
 
 When citing this study, use **skilld, “SKILL.md size and descriptions: 12,141 Skills measured”, 9 October 2026**, and include the snapshot identifier `2026-10-09-v1`.
