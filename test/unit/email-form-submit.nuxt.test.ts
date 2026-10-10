@@ -4,7 +4,7 @@ import { ref } from 'vue'
 import Account from '../../layers/identity/app/pages/me/index.vue'
 import OnboardingEmail from '../../layers/identity/app/pages/onboarding/email.vue'
 
-const mocks = vi.hoisted(() => ({ execute: vi.fn(), query: vi.fn(), navigate: vi.fn(), session: vi.fn() }))
+const mocks = vi.hoisted(() => ({ execute: vi.fn(), query: vi.fn(), navigate: vi.fn(), session: vi.fn(), signup: vi.fn() }))
 const account = ref({
   id: 1,
   login: 'email-review',
@@ -30,6 +30,7 @@ mockNuxtImport('useFetch', () => () => ({ data: ref({ items: [] }), status: ref(
 mockNuxtImport('useNuxtRpc', () => () => ({ execute: mocks.execute, query: mocks.query }))
 mockNuxtImport('useAuth', () => () => ({ fetchSession: mocks.session }))
 mockNuxtImport('navigateTo', () => mocks.navigate)
+mockNuxtImport('useSignupEvents', () => () => mocks.signup)
 mockNuxtImport('useActionFailure', () => () => Object.assign(() => vi.fn(), { clear: vi.fn() }))
 mockNuxtImport('useNuxtMutation', () => (options: { mutation: (body?: unknown) => Promise<unknown> }) => ({
   pending: ref(false),
@@ -95,6 +96,7 @@ describe.each(screens)('$name email submission', ({ component, form: selector })
       })
       if (component === OnboardingEmail)
         expect(mocks.navigate).toHaveBeenCalledWith('/me?welcome=1')
+      expect(mocks.signup).toHaveBeenCalledWith({ stage: 'email', outcome: 'saved', entry: component === Account ? 'dashboard' : 'onboarding', choice: 'none' })
     }
     finally {
       wrapper.unmount()

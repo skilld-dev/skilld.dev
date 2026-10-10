@@ -3,6 +3,8 @@ definePageMeta({ layout: 'auth', middleware: ['session'] })
 
 const route = useRoute()
 const { loggedIn } = useUserSession()
+const recordSignup = useSignupEvents()
+const signupEntry = computed(() => userCode.value ? 'device' as const : 'loopback' as const)
 
 const status = ref<'loading' | 'ready' | 'done' | 'error'>('loading')
 const error = ref('')
@@ -44,6 +46,7 @@ async function initAuthorize() {
     return
 
   try {
+    recordSignup({ stage: 'cli', outcome: 'viewed', entry: signupEntry.value })
     if (userCode.value) {
       device.value = await apiFetch(lookupUrl, {
         query: { user_code: userCode.value },
@@ -65,9 +68,11 @@ async function initAuthorize() {
         v: version.value,
       },
     })
+    recordSignup({ stage: 'cli', outcome: 'authorized', entry: 'loopback' })
     window.location.replace(response.redirect)
   }
   catch (err) {
+    recordSignup({ stage: 'cli', outcome: 'failed', entry: signupEntry.value })
     status.value = 'error'
     error.value = err instanceof Error ? err.message : 'Authorization failed'
   }
@@ -84,8 +89,10 @@ async function authorizeDevice() {
       body: { user_code: device.value.user_code },
     })
     status.value = 'done'
+    recordSignup({ stage: 'cli', outcome: 'authorized', entry: 'device' })
   }
   catch (err) {
+    recordSignup({ stage: 'cli', outcome: 'failed', entry: 'device' })
     status.value = 'error'
     error.value = err instanceof Error ? err.message : 'Device authorization failed'
   }

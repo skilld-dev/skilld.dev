@@ -259,7 +259,7 @@ export function analyticsTimestamp(iso) {
  * so a busy day does not read as a quiet one.
  */
 export function buildCopyQuery(sinceIso, nowIso) {
-  return `SELECT blob2 AS mode, blob3 AS kind, blob4 AS slug, sum(_sample_interval * double1) AS copies FROM ${COPY_DATASET} WHERE timestamp >= toDateTime('${analyticsTimestamp(sinceIso)}') AND timestamp < toDateTime('${analyticsTimestamp(nowIso)}') GROUP BY mode, kind, slug ORDER BY copies DESC LIMIT 50`
+  return `SELECT blob2 AS mode, blob3 AS kind, blob4 AS slug, sum(_sample_interval * double1) AS copies FROM ${COPY_DATASET} WHERE double1 > 0 AND timestamp >= toDateTime('${analyticsTimestamp(sinceIso)}') AND timestamp < toDateTime('${analyticsTimestamp(nowIso)}') GROUP BY mode, kind, slug ORDER BY copies DESC LIMIT 50`
 }
 
 /**
@@ -268,7 +268,7 @@ export function buildCopyQuery(sinceIso, nowIso) {
  * still reports its full count.
  */
 export function buildCopyTotalsQuery(sinceIso, nowIso) {
-  return `SELECT blob2 AS mode, sum(_sample_interval * double1) AS copies FROM ${COPY_DATASET} WHERE timestamp >= toDateTime('${analyticsTimestamp(sinceIso)}') AND timestamp < toDateTime('${analyticsTimestamp(nowIso)}') GROUP BY mode`
+  return `SELECT blob2 AS mode, sum(_sample_interval * double1) AS copies FROM ${COPY_DATASET} WHERE double1 > 0 AND timestamp >= toDateTime('${analyticsTimestamp(sinceIso)}') AND timestamp < toDateTime('${analyticsTimestamp(nowIso)}') GROUP BY mode`
 }
 
 /**

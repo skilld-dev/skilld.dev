@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
 import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildCopyTotalsQuery, buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns } from './observability.mjs'
+import { buildSignupQuery, summarizeSignupEvents } from './signup-analytics.ts'
 
 const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers', 'analytics'].map(key => [key, {}]))
 
@@ -343,10 +344,11 @@ export function collectAnalytics(context) {
         throw new Error('Analytics Engine copy evidence is unavailable.')
       return rows
     }
-    const [totalsRows, topRows] = await Promise.all([
+    const [totalsRows, topRows, signupRows] = await Promise.all([
       readRows(buildCopyTotalsQuery(context.since.toISOString(), context.now.toISOString())),
       readRows(buildCopyQuery(context.since.toISOString(), context.now.toISOString())),
+      readRows(buildSignupQuery(context.since.toISOString(), context.now.toISOString())),
     ])
-    return { commandCopies: summarizeCopies(totalsRows, topRows) }
+    return { commandCopies: summarizeCopies(totalsRows, topRows), signup: summarizeSignupEvents(signupRows) }
   })
 }

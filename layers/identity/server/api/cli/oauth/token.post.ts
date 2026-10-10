@@ -2,6 +2,7 @@ import { OauthTokenInputSchema, TokenResponseSchema } from 'skilld-protocol/wire
 import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
 import { issueSession, presentTokenResponse, sha256Base64Url } from '../../../utils/cli-tokens'
+import { emitSignupEvent } from '../../../utils/signup-analytics'
 import { getUserById } from '../../../utils/users'
 
 interface AuthCodeRow {
@@ -55,6 +56,8 @@ export default defineApiHandler({
       deviceLabel: body.device_label,
     })
 
-    return presentTokenResponse(session, user.login)
+    const response = presentTokenResponse(session, user.login)
+    emitSignupEvent(event, { stage: 'cli', outcome: 'connected', entry: 'loopback' })
+    return response
   },
 })

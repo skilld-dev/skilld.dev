@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import type { IdentityEmailPatchBody, IdentityMutationResponse } from '../../../shared/contracts/account'
+import { signupEmailChoice } from '#shared/signup-analytics'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 
 definePageMeta({ layout: 'auth', middleware: ['auth'] })
 
 const { data: me, error: accountError, status: accountStatus, refresh: retryAccount } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
 const { fetchSession } = useAuth()
+const recordSignup = useSignupEvents()
+onMounted(() => recordSignup({ stage: 'email', outcome: 'viewed', entry: 'onboarding' }))
 
 const email = ref(me.value?.digest_email || me.value?.email || '')
 // A stored address records a deliberate choice, including a previous opt-out.
@@ -51,12 +54,18 @@ async function finish() {
     email_opt_in: optIn.value,
     weekly_opt_in: weeklyOptIn.value,
   })
-  if (saved._tag === 'err')
+  if (saved._tag === 'err') {
+    recordSignup({ stage: 'email', outcome: 'failed', entry: 'onboarding' })
     return
+  }
 
   const onboarded = await finishOnboardingMutation.mutateSafe()
-  if (onboarded._tag === 'err')
+  if (onboarded._tag === 'err') {
+    recordSignup({ stage: 'email', outcome: 'completion-failed', entry: 'onboarding' })
     return
+  }
+
+  recordSignup({ stage: 'email', outcome: 'saved', entry: 'onboarding', choice: signupEmailChoice(weeklyOptIn.value, optIn.value) })
 
   await fetchSession()
   await navigateTo('/me?welcome=1')
