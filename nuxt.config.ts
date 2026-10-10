@@ -40,6 +40,8 @@ const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
 
 export default defineNuxtConfig({
   checkin: { external: externalCheckin },
+  // Private components need their parent's props and must never become pages.
+  ignore: ['**/pages/**/_*.vue'],
   extends: ['./layers/admin', './layers/artifact-delivery', './layers/identity', './layers/registry', './layers/marketing', './layers/mcp'],
 
   hooks: {
