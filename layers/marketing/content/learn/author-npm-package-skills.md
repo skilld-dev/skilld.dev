@@ -7,7 +7,7 @@ relatedPages:
   - path: /skills
     title: Browse skills
 createdAt: 2026-05-13
-updatedAt: 2026-10-05
+updatedAt: 2026-10-10
 ---
 
 ## 1. Draft your Skill
@@ -18,6 +18,8 @@ updatedAt: 2026-10-05
 Point your agent at the directory containing your package's `package.json`.
 For a monorepo, use the individual package directory.
 Ask it to save the draft in `skills/your-skill/SKILL.md`.
+Keep `skills/` beside that package's `package.json`.
+[pnpm 12.11 and newer](https://pnpm.io/agent-skills) discover Skills one level deep at `skills/<name>/SKILL.md`.
 
 Describe the tasks your package handles and the mistakes agents should avoid.
 Check public exports, TypeScript types, supported runtimes, and version limits.
@@ -52,7 +54,36 @@ See the [npm pack reference](https://docs.npmjs.com/cli/v11/commands/npm-pack).
 
 Commit the reviewed Skill and publish through your normal release process.
 Link to its repository directory from your package README.
-Installing the npm package does not automatically install the Skill into an agent.
 Keep the Skill link visible so developers can choose how to use it.
+
+Developers using pnpm 12.11 or newer can approve Skills from direct dependencies with `pnpm approve`.
+pnpm records the choice in `pnpm-workspace.yaml`:
+
+```yaml
+permissions:
+  your-package:
+    skills: true
+```
+
+Replace `your-package` with the published package name, including its scope.
+Merge this entry into existing permissions.
+Approval covers every Skill in the package and every later version.
+Ask developers to read the Skills before approving.
+
+pnpm links approved Skills into existing Agent directories at the workspace root.
+Developers can choose directories with `skills.dirs` in `pnpm-workspace.yaml`:
+
+```yaml
+skills:
+  dirs:
+    - .agents/skills
+```
+
+Merge this setting into the existing workspace file, then run `pnpm install`.
+For `your-package`, the example Skill appears at `.agents/skills/pnpm-your-package-your-skill/SKILL.md`.
+A scoped package replaces `/` with `+` in the link name.
+pnpm owns these links and removes them when the package or approval disappears.
+Global installs, `pnpm dlx`, and `pnpm deploy` do not link Skills.
+See [pnpm's approval and linking rules](https://pnpm.io/agent-skills).
 
 When your API changes, review the Skill alongside your package documentation.

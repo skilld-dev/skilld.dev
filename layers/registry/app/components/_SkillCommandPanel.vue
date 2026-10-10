@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { RunCheckFlag } from '#shared/run-check-flags'
+import type { PnpmPackage } from '../../shared/pnpm-package'
 import type { ZipState } from '../utils/skill-zip'
+import npmLogo from '~/assets/logos/npm.svg'
+import SkillPnpmPackage from './_SkillPnpmPackage.vue'
 import SkillRunFlag from './_SkillRunFlag.vue'
 import SkillRunPrompt from './_SkillRunPrompt.vue'
 
@@ -18,6 +21,7 @@ const {
   zipState = { _tag: 'idle' },
   runFlag = null,
   sourceUrl = '',
+  published = null,
 } = defineProps<{
   /** The Skill page. The Agent fetches it and receives the SKILL.md as markdown. */
   runUrl: string
@@ -34,6 +38,7 @@ const {
   runFlag?: RunCheckFlag | null
   /** The SKILL.md on GitHub, which the run flag links. */
   sourceUrl?: string
+  published?: Extract<PnpmPackage, { _tag: 'Found' }> | null
 }>()
 
 const emit = defineEmits<{
@@ -42,13 +47,17 @@ const emit = defineEmits<{
 }>()
 
 const installTarget = ref<InstallTarget>('local')
-const installTargets = [
-  { label: 'Terminal', value: 'local' },
-  { label: 'Claude', value: 'claude' },
-  { label: 'ChatGPT', value: 'chatgpt' },
-] satisfies { label: string, value: InstallTarget }[]
+const npmSelected = defineModel<boolean>('npmSelected', { default: false })
+watch(() => published, (value) => {
+  npmSelected.value = !!value
+}, { immediate: true })
+const installTargets = computed(() => [
+  { label: 'Terminal', value: 'local', icon: 'i-lucide-terminal', color: '' },
+  { label: 'Claude', value: 'claude', icon: 'i-simple-icons-claude', color: 'text-[#D97757]' },
+  { label: 'ChatGPT', value: 'chatgpt', icon: 'i-simple-icons-openai', color: 'text-[#10A37F]' },
+] satisfies { label: string, value: InstallTarget, icon: string, color: string }[])
 // Where each web app takes an uploaded Skill ZIP.
-const uploadSteps: Record<Exclude<InstallTarget, 'local'>, string> = {
+const uploadSteps: Record<'claude' | 'chatgpt', string> = {
   claude: 'Upload it in Claude under Settings › Capabilities › Skills.',
   chatgpt: 'Upload it in ChatGPT under Skills › Create › Upload from your computer.',
 }
@@ -82,258 +91,274 @@ function copyFrom(next: CommandMode) {
 </script>
 
 <template>
-  <div
-    v-if="layout === 'stacked'"
-    data-testid="skill-command-panel"
-    class="space-y-8"
-  >
-    <div class="space-y-2">
-      <div class="space-y-1">
-        <h2 class="font-mono text-sm text-default">
-          Run once off
-        </h2>
-        <p class="text-xs leading-relaxed text-muted">
-          Nothing lands on disk. Nothing to clean up.
-        </p>
-      </div>
-      <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-xs">
-        <SkillRunPrompt
-          :url="runUrl"
-          class="block min-w-0 flex-1 py-1"
-        />
-        <UButton
-          :icon="runCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          class="min-h-11 min-w-11 shrink-0"
-          :aria-label="runCopied ? 'Copied' : 'Copy Agent prompt'"
-          :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
-          @click="copyFrom('run')"
-        />
-      </div>
-      <SkillRunFlag
-        v-if="runFlag"
-        :flag="runFlag"
-        :source-url="sourceUrl"
-      />
+  <div class="space-y-3">
+    <div v-if="published" role="group" aria-label="Command type" class="flex gap-4 border-b border-default">
+      <button type="button" class="-mb-px inline-flex min-h-11 min-w-11 items-center gap-1.5 border-b font-mono text-xs" :class="npmSelected ? 'border-primary text-default' : 'border-transparent text-muted'" :aria-pressed="npmSelected" @click="npmSelected = true">
+        <img :src="npmLogo" width="34" height="11" alt="" class="h-auto w-8.5" aria-hidden="true">
+        <span class="sr-only">NPM</span>
+      </button>
+      <button v-for="item in modes" :key="item.value" type="button" class="-mb-px min-h-11 min-w-11 border-b font-mono text-xs" :class="!npmSelected && mode === item.value ? 'border-primary text-default' : 'border-transparent text-muted'" :aria-pressed="!npmSelected && mode === item.value" @click="npmSelected = false; mode = item.value">
+        {{ item.label }}
+      </button>
     </div>
-
-    <div class="space-y-2">
-      <h2 class="font-mono text-sm text-default">
-        Install as a Skill
-      </h2>
+    <SkillPnpmPackage v-if="npmSelected && published" :published="published" />
+    <template v-else>
       <div
-        role="group"
-        aria-label="Where you use it"
-        class="flex gap-4 border-b border-default"
+        v-if="layout === 'stacked'"
+        data-testid="skill-command-panel"
+        class="space-y-8"
       >
-        <button
-          v-for="item in installTargets"
-          :key="item.value"
-          type="button"
-          class="-mb-px min-h-9 border-b font-mono text-xs transition-colors"
-          :class="installTarget === item.value
-            ? 'border-primary text-default'
-            : 'border-transparent text-muted hover:text-default'"
-          :aria-pressed="installTarget === item.value"
-          :aria-controls="installPanelId"
-          @click="installTarget = item.value"
-        >
-          {{ item.label }}
-        </button>
-      </div>
-      <div
-        :id="installPanelId"
-        class="space-y-2 pt-1"
-      >
-        <template v-if="installTarget === 'local'">
-          <p class="text-xs leading-relaxed text-muted">
-            The files land in your project. The lockfile records them.
-          </p>
+        <div v-if="!published || mode === 'run'" class="space-y-2">
+          <div class="space-y-1">
+            <h2 class="font-mono text-sm text-default">
+              Run once off
+            </h2>
+            <p class="text-xs leading-relaxed text-muted">
+              Nothing lands on disk. Nothing to clean up.
+            </p>
+          </div>
           <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-xs">
-            <InstallCommand
-              :command="installCommand"
-              wrap
+            <SkillRunPrompt
+              :url="runUrl"
               class="block min-w-0 flex-1 py-1"
             />
             <UButton
-              :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+              :icon="runCopied ? 'i-lucide-check' : 'i-lucide-copy'"
               color="neutral"
               variant="ghost"
               size="sm"
               class="min-h-11 min-w-11 shrink-0"
-              :aria-label="installCopied ? 'Copied' : 'Copy install command'"
-              :aria-describedby="copyError && mode === 'install' ? copyErrorId : undefined"
-              @click="copyFrom('install')"
+              :aria-label="runCopied ? 'Copied' : 'Copy Agent prompt'"
+              :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
+              @click="copyFrom('run')"
             />
           </div>
-        </template>
-        <template v-else>
-          <p class="text-xs leading-relaxed text-muted">
-            Download the ZIP. {{ uploadSteps[installTarget] }}
-          </p>
-          <UButton
-            v-if="zipName"
-            :icon="zipState._tag === 'building' ? 'i-lucide-loader-circle' : 'i-lucide-download'"
-            :label="zipState._tag === 'building' ? `Packing ${zipState.done} of ${zipState.total} files` : `Download ${zipName}`"
-            :loading="false"
-            :disabled="zipState._tag === 'building'"
-            color="neutral"
-            variant="outline"
-            size="sm"
-            class="font-mono"
-            :ui="{ leadingIcon: zipState._tag === 'building' ? 'animate-spin' : '' }"
-            @click="emit('download')"
+          <SkillRunFlag
+            v-if="runFlag"
+            :flag="runFlag"
+            :source-url="sourceUrl"
           />
-          <p
-            v-if="zipState._tag === 'error'"
-            aria-live="polite"
-            class="text-xs leading-relaxed text-error"
+        </div>
+
+        <div v-if="!published || mode === 'install'" class="space-y-2">
+          <h2 class="font-mono text-sm text-default">
+            Install as a Skill
+          </h2>
+          <div
+            role="group"
+            aria-label="Where you use it"
+            class="flex gap-3 border-b border-default"
           >
-            {{ zipState.message }}
-          </p>
-        </template>
-      </div>
-    </div>
+            <button
+              v-for="item in installTargets"
+              :key="item.value"
+              type="button"
+              class="-mb-px inline-flex min-h-11 min-w-11 items-center gap-1.5 border-b font-mono text-xs transition-colors"
+              :class="installTarget === item.value
+                ? 'border-primary text-default'
+                : 'border-transparent text-muted hover:text-default'"
+              :aria-pressed="installTarget === item.value"
+              :aria-controls="installPanelId"
+              @click="installTarget = item.value"
+            >
+              <UIcon :name="item.icon" class="size-3.5" :class="item.color" aria-hidden="true" />
+              {{ item.label }}
+            </button>
+          </div>
+          <div
+            :id="installPanelId"
+            class="space-y-2 pt-1"
+          >
+            <template v-if="installTarget === 'local'">
+              <p class="text-xs leading-relaxed text-muted">
+                The files land in your project. The lockfile records them.
+              </p>
+              <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-xs">
+                <InstallCommand
+                  :command="installCommand"
+                  wrap
+                  class="block min-w-0 flex-1 py-1"
+                />
+                <UButton
+                  :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  class="min-h-11 min-w-11 shrink-0"
+                  :aria-label="installCopied ? 'Copied' : 'Copy install command'"
+                  :aria-describedby="copyError && mode === 'install' ? copyErrorId : undefined"
+                  @click="copyFrom('install')"
+                />
+              </div>
+            </template>
+            <template v-else>
+              <p class="text-xs leading-relaxed text-muted">
+                Download the ZIP. {{ uploadSteps[installTarget] }}
+              </p>
+              <UButton
+                v-if="zipName"
+                :icon="zipState._tag === 'building' ? 'i-lucide-loader-circle' : 'i-lucide-download'"
+                :label="zipState._tag === 'building' ? `Packing ${zipState.done} of ${zipState.total} files` : `Download ${zipName}`"
+                :loading="false"
+                :disabled="zipState._tag === 'building'"
+                color="neutral"
+                variant="outline"
+                size="sm"
+                class="font-mono"
+                :ui="{ leadingIcon: zipState._tag === 'building' ? 'animate-spin' : '' }"
+                @click="emit('download')"
+              />
+              <p
+                v-if="zipState._tag === 'error'"
+                aria-live="polite"
+                class="text-xs leading-relaxed text-error"
+              >
+                {{ zipState.message }}
+              </p>
+            </template>
+          </div>
+        </div>
 
-    <ul
-      role="list"
-      class="font-mono text-xs"
-    >
-      <li>
-        <NuxtLink
-          :to="`${runUrl}.md?action=fork`"
-          class="inline-flex min-h-9 items-center gap-2 text-default underline-offset-2 hover:underline"
-          :aria-describedby="forkNoteId"
+        <ul
+          role="list"
+          class="font-mono text-xs"
         >
-          <UIcon
-            name="i-lucide-git-fork"
-            class="size-3.5"
-            aria-hidden="true"
-          />
-          Fork this Skill
-        </NuxtLink>
+          <li>
+            <NuxtLink
+              :to="`${runUrl}.md?action=fork`"
+              class="inline-flex min-h-9 items-center gap-2 text-default underline-offset-2 hover:underline"
+              :aria-describedby="forkNoteId"
+            >
+              <UIcon
+                name="i-lucide-git-fork"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              Fork this Skill
+            </NuxtLink>
+            <p
+              :id="forkNoteId"
+              class="pb-1 pl-5.5 font-sans leading-relaxed text-muted"
+            >
+              Edit a local copy. It keeps the author and licence.
+            </p>
+          </li>
+          <li>
+            <NuxtLink
+              :to="registrySetup[installTarget].to"
+              class="inline-flex min-h-9 items-center gap-2 text-default underline-offset-2 hover:underline"
+            >
+              <UIcon
+                name="i-lucide-search"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              {{ registrySetup[installTarget].label }}
+            </NuxtLink>
+          </li>
+        </ul>
+
         <p
-          :id="forkNoteId"
-          class="pb-1 pl-5.5 font-sans leading-relaxed text-muted"
+          v-if="copyError"
+          :id="copyErrorId"
+          aria-live="polite"
+          class="text-sm leading-relaxed text-error"
         >
-          Edit a local copy. It keeps the author and licence.
+          {{ copyError }}
         </p>
-      </li>
-      <li>
-        <NuxtLink
-          :to="registrySetup[installTarget].to"
-          class="inline-flex min-h-9 items-center gap-2 text-default underline-offset-2 hover:underline"
-        >
-          <UIcon
-            name="i-lucide-search"
-            class="size-3.5"
-            aria-hidden="true"
-          />
-          {{ registrySetup[installTarget].label }}
-        </NuxtLink>
-      </li>
-    </ul>
-
-    <p
-      v-if="copyError"
-      :id="copyErrorId"
-      aria-live="polite"
-      class="text-sm leading-relaxed text-error"
-    >
-      {{ copyError }}
-    </p>
-  </div>
-  <div
-    v-else
-    data-testid="skill-command-panel"
-    class="space-y-2"
-  >
-    <div
-      role="group"
-      aria-label="Command type"
-      class="flex gap-4 border-b border-default"
-    >
-      <button
-        v-for="item in modes"
-        :key="item.value"
-        type="button"
-        class="-mb-px min-h-11 min-w-11 border-b font-mono text-xs transition-colors"
-        :class="mode === item.value
-          ? 'border-primary text-default'
-          : 'border-transparent text-muted hover:text-default'"
-        :aria-pressed="mode === item.value"
-        @click="mode = item.value"
-      >
-        {{ item.label }}
-      </button>
-    </div>
-
-    <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-sm">
-      <SkillRunPrompt
-        v-if="mode === 'run'"
-        :url="runUrl"
-        class="block min-w-0 flex-1 py-1"
-      />
-      <InstallCommand
+      </div>
+      <div
         v-else
-        :command="installCommand"
-        wrap
-        class="block min-w-0 flex-1 py-1"
-      />
-      <UButton
-        :icon="commandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        class="min-h-11 min-w-11 shrink-0"
-        :aria-label="copyLabel"
-        :aria-describedby="copyError ? copyErrorId : undefined"
-        @click="emit('copy', mode)"
-      />
-    </div>
-
-    <p
-      v-if="mode === 'run'"
-      class="text-xs leading-relaxed text-muted"
-    >
-      Nothing lands on disk. Nothing to clean up.
-    </p>
-    <SkillRunFlag
-      v-if="mode === 'run' && runFlag"
-      :flag="runFlag"
-      :source-url="sourceUrl"
-    />
-
-    <div class="text-xs">
-      <NuxtLink
-        :to="`${runUrl}.md?action=fork`"
-        class="inline-flex min-h-11 items-center gap-2 font-mono text-default underline-offset-2 hover:underline"
-        :aria-describedby="forkNoteId"
+        data-testid="skill-command-panel"
+        class="space-y-2"
       >
-        <UIcon
-          name="i-lucide-git-fork"
-          class="size-3.5"
-          aria-hidden="true"
+        <div
+          v-if="!published"
+          role="group"
+          aria-label="Command type"
+          class="flex gap-4 border-b border-default"
+        >
+          <button
+            v-for="item in modes"
+            :key="item.value"
+            type="button"
+            class="-mb-px min-h-11 min-w-11 border-b font-mono text-xs transition-colors"
+            :class="mode === item.value
+              ? 'border-primary text-default'
+              : 'border-transparent text-muted hover:text-default'"
+            :aria-pressed="mode === item.value"
+            @click="mode = item.value"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-sm">
+          <SkillRunPrompt
+            v-if="mode === 'run'"
+            :url="runUrl"
+            class="block min-w-0 flex-1 py-1"
+          />
+          <InstallCommand
+            v-else
+            :command="installCommand"
+            wrap
+            class="block min-w-0 flex-1 py-1"
+          />
+          <UButton
+            :icon="commandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            class="min-h-11 min-w-11 shrink-0"
+            :aria-label="copyLabel"
+            :aria-describedby="copyError ? copyErrorId : undefined"
+            @click="emit('copy', mode)"
+          />
+        </div>
+
+        <p
+          v-if="mode === 'run'"
+          class="text-xs leading-relaxed text-muted"
+        >
+          Nothing lands on disk. Nothing to clean up.
+        </p>
+        <SkillRunFlag
+          v-if="mode === 'run' && runFlag"
+          :flag="runFlag"
+          :source-url="sourceUrl"
         />
-        Fork this Skill
-      </NuxtLink>
-      <p
-        :id="forkNoteId"
-        class="pl-5.5 leading-relaxed text-muted"
-      >
-        Edit a local copy. It keeps the author and licence.
-      </p>
-    </div>
 
-    <p
-      v-if="copyError"
-      :id="copyErrorId"
-      aria-live="polite"
-      class="text-sm leading-relaxed text-error"
-    >
-      {{ copyError }}
-    </p>
+        <div class="text-xs">
+          <NuxtLink
+            :to="`${runUrl}.md?action=fork`"
+            class="inline-flex min-h-11 items-center gap-2 font-mono text-default underline-offset-2 hover:underline"
+            :aria-describedby="forkNoteId"
+          >
+            <UIcon
+              name="i-lucide-git-fork"
+              class="size-3.5"
+              aria-hidden="true"
+            />
+            Fork this Skill
+          </NuxtLink>
+          <p
+            :id="forkNoteId"
+            class="pl-5.5 leading-relaxed text-muted"
+          >
+            Edit a local copy. It keeps the author and licence.
+          </p>
+        </div>
+
+        <p
+          v-if="copyError"
+          :id="copyErrorId"
+          aria-live="polite"
+          class="text-sm leading-relaxed text-error"
+        >
+          {{ copyError }}
+        </p>
+      </div>
+    </template>
   </div>
 </template>

@@ -343,6 +343,15 @@ const codeClass = 'font-mono text-xs text-default'
               </dd>
             </div>
             <div>
+              <dt class="flex items-center gap-2 text-base font-medium">
+                <UIcon name="i-simple-icons-pnpm" aria-hidden="true" class="size-4" />
+                pnpm compatibility
+              </dt>
+              <dd class="mt-2 text-sm leading-relaxed text-muted">
+                CLI builds containing <a href="https://github.com/skilld-dev/skilld/pull/234" target="_blank" rel="noopener" class="underline">#234</a> recognize pnpm-managed Skills in <code :class="codeClass">doctor</code>. pnpm keeps control of their links and updates.
+              </dd>
+            </div>
+            <div>
               <dt class="text-base font-medium">
                 No telemetry
               </dt>

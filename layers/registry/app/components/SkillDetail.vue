@@ -4,6 +4,7 @@ import type { BehaviorReading, BehaviorReadingsResponse } from '#shared/behavior
 import type { RunCheckFlagsResponse } from '#shared/run-check-flags'
 import type { TrendingAward } from '#shared/trending-award'
 import type { SkillDemoView } from '../../server/utils/skill-demos'
+import type { PnpmPackage } from '../../shared/pnpm-package'
 import type { ZipState } from '../utils/skill-zip'
 import type { SkillBehavior } from './_SkillBehaviors.vue'
 import { formatTimeAgo } from '@vueuse/core'
@@ -328,6 +329,14 @@ const liveSkillFetch = useAsyncData<LiveSkill | null>(
   },
 )
 
+// Both responsive command blocks share one optional package check after hydration.
+const packageFetch = useAsyncData<PnpmPackage | null>(
+  () => `skill-package:${slug.value}`,
+  () => $fetch<PnpmPackage>(`/api/skill-package/${slug.value}`),
+  { server: false, default: () => null },
+)
+const pnpmPackage = computed(() => packageFetch.data.value?._tag === 'Found' ? packageFetch.data.value : null)
+
 // Keep complete SSR for search and link previews. Client navigation renders
 // the loading state immediately while these independent requests run together.
 // A deep link renders its file on the server, so the link shows that file
@@ -596,6 +605,7 @@ const installCmd = computed(() => {
 })
 
 const commandMode = ref<'run' | 'install'>('run')
+const npmSelected = ref(false)
 const commandCopyError = ref('')
 
 const { copy, copied } = useInstallCopy(
@@ -1779,8 +1789,10 @@ useHead(computed(() => ({
       >
         <SkillCommandPanel
           v-model="commandMode"
+          v-model:npm-selected="npmSelected"
           :run-url="runUrl"
           :install-command="installCmd"
+          :published="pnpmPackage"
           :run-copied="copied"
           :install-copied="installCopied"
           :copy-error="commandCopyError"
@@ -1801,11 +1813,13 @@ useHead(computed(() => ({
           <section v-if="!data.sourceGone" aria-label="Run or install">
             <SkillCommandPanel
               v-model="commandMode"
+              v-model:npm-selected="npmSelected"
               layout="stacked"
               :zip-name="data.skillPath ? `${data.name}.zip` : undefined"
               :zip-state="zipState"
               :run-url="runUrl"
               :install-command="installCmd"
+              :published="pnpmPackage"
               :run-copied="copied"
               :install-copied="installCopied"
               :copy-error="commandCopyError"

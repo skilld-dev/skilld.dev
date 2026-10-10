@@ -269,3 +269,16 @@ section above, then delete it from this list.
    is "Skilld is a curated registry of agent skills written by real people in the GitHub repos
    you already depend on." Both are true and they are not the same sentence. Decide which is
    canonical for a one-sentence slot, or record what each is for.
+
+### npm package Skills
+
+If the published package includes the Skill, show NPM first and select it by default.
+Run is the second tab. Install follows it. Otherwise, keep Run as the default.
+Offer pnpm and skills-npm setup within NPM. Highlight commands with rangi.
+Use npm's official wordmark for NPM and pnpm's official colour symbol beside pnpm.
+Show skills-npm as text. State each tool's minimum version and setup changes.
+Explain that pnpm approval covers all package Skills and later package versions.
+The CLI feature list links #234 as the required change until a supporting release has a version.
+Describe ownership: doctor recognizes pnpm-managed Skills; pnpm controls their links and updates.
+Selecting NPM hides the run block and unrelated setup links. Run and Install show their own content.
+Install choices use text labels with Terminal, Claude, ChatGPT, and npm icons.
