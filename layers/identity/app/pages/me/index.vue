@@ -8,6 +8,7 @@ import type {
   IdentitySubscriptionRef,
 } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
+import { signupEmailChoice } from '#shared/signup-analytics'
 import { SKILL_VALIDATION_COPY } from '#shared/skill-validation-copy'
 import { accountDeletionConfirmed } from '../../../shared/contracts/account'
 import SkillgenRepositories from '../../components/_SkillgenRepositories.vue'
@@ -15,6 +16,7 @@ import { identityAccountQueries, identityAccountQueryOptions } from '../../queri
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
 definePageMeta({ layout: 'account', middleware: ['auth'] })
+const recordSignup = useSignupEvents()
 
 interface LikedSkill {
   owner: string
@@ -147,7 +149,11 @@ const emailMissingAddress = computed(() =>
 async function saveEmail() {
   if (emailMissingAddress.value || saveEmailMutation.pending.value)
     return
-  const saved = await saveEmailMutation.mutateSafe({ ...emailForm })
+  const submitted = { ...emailForm }
+  const saved = await saveEmailMutation.mutateSafe(submitted)
+  recordSignup(saved._tag === 'ok'
+    ? { stage: 'email', outcome: 'saved', entry: 'dashboard', choice: signupEmailChoice(submitted.weekly_opt_in, submitted.email_opt_in) }
+    : { stage: 'email', outcome: 'failed', entry: 'dashboard' })
   if (saved._tag === 'ok')
     showEmail.value = false
 }
@@ -181,6 +187,12 @@ async function clearWelcomeQuery() {
   await navigateTo({ path: route.path, query: { ...route.query, welcome: undefined } }, { replace: true })
 }
 onMounted(() => {
+  if (view.value === 'email')
+    recordSignup({ stage: 'email', outcome: 'viewed', entry: 'dashboard' })
+  watch(view, (next) => {
+    if (next === 'email')
+      recordSignup({ stage: 'email', outcome: 'viewed', entry: 'dashboard' })
+  })
   if (route.query.welcome === '1') {
     toast.add({
       title: 'You\'re all set',

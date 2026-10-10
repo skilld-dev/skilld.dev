@@ -1,14 +1,14 @@
 ---
 title: Privacy
 description: What skilld.dev stores, why it needs the data, how long it keeps it, and how you delete your account.
-label: Last updated 8 October 2026
-updatedAt: 2026-10-08
+label: Last updated 11 October 2026
+updatedAt: 2026-10-11
 ---
 
 ## In short
 
 - You can browse skilld.dev and run Skills without an account.
-- skilld.dev counts page views, demo views, command copies, and demo link copies. The counts hold no name, IP address, or cookie. It loads no advertising scripts.
+- skilld.dev counts page views, demo views, command copies, demo link copies, and sign-in steps. The counts hold no name, IP address, or cookie. It loads no advertising scripts.
 - An account is optional. You sign in with [GitHub](https://github.com) to like Skills, watch Repositories, get email, or connect the skilld CLI.
 - You can delete your account from your dashboard at any time.
 - The skilld CLI sends no telemetry.
@@ -49,6 +49,8 @@ That count goes to [Cloudflare Analytics Engine](https://developers.cloudflare.c
 Demo counts also record the displayed demo, the surface, and whether you copied an Agent prompt, a terminal command, or a demo link. A view counts when at least half the output frame is visible. Each demo counts once per stage during that page visit. Copy counts include a coarse time bucket since the frame first became visible, and one of three fixed campaign labels when the page link supplies it. They hold no task text, full query string, visitor identifier, or exact elapsed time. These counts use the same 90-day Analytics Engine storage.
 
 The skilld CLI sends no telemetry. skilld.dev accepts an anonymous run count from a CLI at the same address, under the same rules, and drops any account ID the request carries.
+
+Sign-in counts record a fixed entry category, a setup step, and its outcome. Steps cover GitHub sign-in, star import, email choices, and browser authorization of the CLI. Email saves count which email types you chose, without storing your address. Counts contain no account ID, GitHub login, authorization code, return page, or query string. They use the same 90-day Analytics Engine storage. Repeat visits count again, so these counts measure attempts, not individual users. A blocked request or a closed tab can leave a count missing.
 
 ### Cookies
 

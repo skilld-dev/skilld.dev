@@ -2,9 +2,11 @@ import type { H3Event } from 'h3'
 import { useSession } from 'h3'
 import { z } from 'zod'
 import { parseReturnTo } from '#shared/return-to'
+import { signupEntry } from '#shared/signup-analytics'
 import { sendEmailWithEnv, signUnsubToken } from '../../utils/email'
 import { fetchVerifiedPrimaryEmail } from '../../utils/github-emails'
 import { ownedRepoScanWarning, scanOwnedRepos } from '../../utils/scan-owned-repos'
+import { emitSignupEvent } from '../../utils/signup-analytics'
 import { sendSkillValidationSummary } from '../../utils/skill-validation-email'
 import { upsertUserFromGithub } from '../../utils/users'
 import { handleWatchAction } from '../../utils/watch-actions'
@@ -132,6 +134,8 @@ const githubHandler = defineOAuthGitHubEventHandler({
 
     await intent.clear()
 
+    emitSignupEvent(event, { stage: 'oauth', outcome: 'succeeded', entry: signupEntry(action, returnTo) })
+
     if (returnTo)
       return sendRedirect(event, returnTo)
 
@@ -148,6 +152,7 @@ async function loginFailed(event: H3Event) {
   const intent = await loginIntentSession(event)
   const params = new URLSearchParams({ error: 'oauth' })
   const returnTo = parseReturnTo(intent.data.returnTo, '')
+  emitSignupEvent(event, { stage: 'oauth', outcome: 'failed', entry: signupEntry(intent.data.action ?? '', returnTo) })
   if (returnTo)
     params.set('return_to', returnTo)
   if (typeof intent.data.action === 'string' && intent.data.action)
@@ -174,7 +179,9 @@ export default defineEventHandler(async (event) => {
     const action = ['like-skill', 'watch-skill', 'watch-collection'].includes(String(query.action))
       ? String(query.action)
       : ''
-    await intent.update({ returnTo: parseReturnTo(query.return_to, ''), action })
+    const returnTo = parseReturnTo(query.return_to, '')
+    await intent.update({ returnTo, action })
+    emitSignupEvent(event, { stage: 'oauth', outcome: 'started', entry: signupEntry(action, returnTo) })
   }
   // Provider network failures can throw before the OAuth error callback runs.
   return githubHandler(event).catch(() => loginFailed(event))

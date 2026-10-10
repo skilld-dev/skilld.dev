@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   scan: vi.fn(),
   email: vi.fn(),
   establish: vi.fn(),
+  analytics: vi.fn(),
 }))
 vi.mock('h3', async importOriginal => ({ ...await importOriginal<typeof import('h3')>(), useSession: mocks.session }))
 vi.mock('../../layers/identity/server/utils/users', () => ({ upsertUserFromGithub: mocks.upsert }))
@@ -25,7 +26,7 @@ describe('gitHub browser login round trip', () => {
   const clearIntent = vi.fn(async () => {
     intent = {}
   })
-  const event = { context: { platform: { env: {} } } } as unknown as H3Event
+  const event = { context: { platform: { env: { SKILLD_WEB_ANALYTICS: { writeDataPoint: mocks.analytics } } } } } as unknown as H3Event
 
   beforeEach(async () => {
     vi.resetModules()
@@ -88,6 +89,10 @@ describe('gitHub browser login round trip', () => {
     expect(target.searchParams.get('action')).toBe('watch-collection')
     expect(target.searchParams.get('error')).toBe('oauth')
     expect(mocks.replay).not.toHaveBeenCalled()
+    expect(mocks.analytics.mock.calls.map(([point]) => point)).toEqual([
+      { blobs: ['oauth', '', 'signup', 'watch-collection', '', 'started', ''], doubles: [0, 0, 1], indexes: ['signup:oauth'] },
+      { blobs: ['oauth', '', 'signup', 'watch-collection', '', 'failed', ''], doubles: [0, 0, 1], indexes: ['signup:oauth'] },
+    ])
   })
 
   it('returns a retry link when the provider request throws', async () => {

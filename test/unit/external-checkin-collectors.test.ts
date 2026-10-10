@@ -132,14 +132,16 @@ it('totals command copies from an untruncated rollup, not the capped top page', 
   const topRows = Array.from({ length: 50 }, (_, index) => ({ mode: 'run', kind: 'skill', slug: `owner/skill-${index}`, copies: 1 }))
   const totalsRows = [{ mode: 'run', copies: 50 }, { mode: 'install', copies: 10 }]
   vi.stubGlobal('fetch', vi.fn(async (_url: string | URL, init?: { body?: string }) => {
-    return Response.json({ data: init?.body?.includes('LIMIT 50') ? topRows : totalsRows })
+    return Response.json({ data: init?.body?.includes('blob3 = \'signup\'')
+      ? [{ stage: 'email', outcome: 'failed', entry: 'onboarding', choice: '', events: '2' }]
+      : init?.body?.includes('LIMIT 50') ? topRows : totalsRows })
   }))
 
   const { report } = await runExternalChecks([analyticsCheck], { required: [analyticsCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })
 
   expect(report.results.find(check => check.id === 'skilld.analytics')?.result).toMatchObject({
     _tag: 'Pass',
-    evidence: { commandCopies: { total: 60, run: 50, install: 10 } },
+    evidence: { commandCopies: { total: 60, run: 50, install: 10 }, signup: { unit: 'events', stages: [{ stage: 'email', outcome: 'failed', entry: 'onboarding', choice: '', events: 2 }] } },
   })
 })
 

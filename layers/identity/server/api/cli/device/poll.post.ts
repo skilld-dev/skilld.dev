@@ -1,6 +1,7 @@
 import { DevicePollInputSchema, DevicePollResponseSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
 import { issueSession, presentTokenResponse } from '../../../utils/cli-tokens'
+import { emitSignupEvent } from '../../../utils/signup-analytics'
 import { getUserById } from '../../../utils/users'
 
 interface DeviceRow {
@@ -49,6 +50,8 @@ export default defineApiHandler({
       `UPDATE cli_device_sessions SET status = 'expired' WHERE device_code = ?1`,
     ).bind(row.device_code).run()
 
-    return { status: 'authorized' as const, tokens: presentTokenResponse(tokens, user.login) }
+    const response = { status: 'authorized' as const, tokens: presentTokenResponse(tokens, user.login) }
+    emitSignupEvent(event, { stage: 'cli', outcome: 'connected', entry: 'device' })
+    return response
   },
 })

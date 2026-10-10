@@ -5,6 +5,7 @@ import { syncStarredRepos } from '../../utils/sync-starred-repos'
 definePageMeta({ layout: 'auth', middleware: ['auth'] })
 
 const { user } = useUserSession()
+const recordSignup = useSignupEvents()
 
 interface Skill {
   name: string
@@ -61,8 +62,10 @@ async function syncStars() {
     )
     await refresh()
     preselectAll()
+    recordSignup({ stage: 'discover', outcome: 'imported', entry: 'onboarding' })
   }
   catch (e) {
+    recordSignup({ stage: 'discover', outcome: 'import-failed', entry: 'onboarding' })
     syncError.value = (e as { statusMessage?: string, message?: string }).statusMessage
       ?? (e as Error).message
       ?? 'Sync failed'
@@ -73,6 +76,7 @@ async function syncStars() {
 }
 
 onMounted(() => {
+  recordSignup({ stage: 'discover', outcome: 'viewed', entry: 'onboarding' })
   if (data.value && !data.value.syncedAt) {
     void syncStars()
     return
@@ -88,6 +92,7 @@ async function watchSelected() {
     return
   actionFailed.clear('start watching those repos')
   if (!selected.value.size) {
+    recordSignup({ stage: 'discover', outcome: 'continued', entry: 'onboarding' })
     await navigateTo('/onboarding/email')
     return
   }
@@ -101,6 +106,7 @@ async function watchSelected() {
     body: { source: 'star-import', repos },
   }).catch(actionFailed('start watching those repos'))
   submitting.value = false
+  recordSignup({ stage: 'discover', outcome: saved ? 'continued' : 'watch-failed', entry: 'onboarding' })
   if (saved)
     await navigateTo('/onboarding/email')
 }
@@ -163,7 +169,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       <template v-else>
         None of your starred repos with "skill" in the name are in the registry yet.
       </template>
-      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 items-center underline">
+      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 items-center underline" @click="recordSignup({ stage: 'discover', outcome: 'skipped', entry: 'onboarding' })">
         skip ahead
       </NuxtLink>.
     </div>
@@ -222,7 +228,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     </template>
 
     <div class="mt-8 flex items-center justify-between">
-      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 min-w-11 items-center font-mono text-sm text-muted hover:text-default underline">
+      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 min-w-11 items-center font-mono text-sm text-muted hover:text-default underline" @click="recordSignup({ stage: 'discover', outcome: 'skipped', entry: 'onboarding' })">
         Skip
       </NuxtLink>
       <UButton
