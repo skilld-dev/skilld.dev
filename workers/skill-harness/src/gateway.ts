@@ -90,9 +90,10 @@ export async function forwardSandboxRequest(
     if (!await options.consumeModelCall())
       return Response.json({ code: 'MODEL_CALL_LIMIT' }, { status: 403 })
     const standardInput = { ...input }
-    delete standardInput.speed
+    for (const field of ['speed', 'temperature', 'top_p', 'top_k'])
+      delete standardInput[field]
     const thinking = input.thinking && typeof input.thinking === 'object' && 'type' in input.thinking && input.thinking.type === 'enabled'
-      ? { type: 'enabled', budget_tokens: 2048 }
+      ? { type: 'adaptive' }
       : input.thinking
     return fetchClient('https://api.anthropic.com/v1/messages', {
       method: 'POST',
