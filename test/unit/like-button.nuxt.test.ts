@@ -6,6 +6,7 @@ import LikeButton from '../../layers/identity/app/components/LikeButton.vue'
 import { useLikes } from '../../layers/identity/app/composables/useLikes'
 
 const loggedIn = ref(true)
+const onboarded = ref(true)
 /** False while the browser is still loading the session after hydration. */
 const sessionKnown = ref(true)
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -24,7 +25,7 @@ mockNuxtImport('useAuth', () => () => ({
     if (!sessionKnown.value)
       return { _tag: 'pending' }
     return loggedIn.value
-      ? { _tag: 'signed-in', user: { login: 'harlan', onboarded: true } }
+      ? { _tag: 'signed-in', user: { login: 'harlan', onboarded: onboarded.value } }
       : { _tag: 'anonymous' }
   }),
   user: ref({ login: 'harlan', onboarded: true }),
@@ -75,6 +76,8 @@ beforeEach(() => {
   mutation = { _tag: 'ok', likeCount: 0 }
   listGate = null
   loggedIn.value = true
+  onboarded.value = true
+  sessionStorage.clear()
   sessionKnown.value = true
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (path: string, options?: { method?: string }) => {
@@ -92,6 +95,19 @@ beforeEach(() => {
 })
 
 describe('likeButton toggle semantics', () => {
+  it('offers email choices after a first like without promising an unconsented email', async () => {
+    onboarded.value = false
+    likedItems = [{ ...skill, likeCount: 1 }]
+    const wrapper = await mountSuspended(LikeButton, { props: skill })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('land in your next weekly')
+    expect(wrapper.get('a[href="/onboarding/email"]').text()).toBe('Email updates')
+    await wrapper.get('button[aria-label="Dismiss"]').trigger('click')
+    expect(wrapper.find('a[href="/onboarding/email"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('exposes pressed state and an action-specific label that follows the like', async () => {
     const wrapper = await mountSuspended(LikeButton, { props: { ...skill, count: 4 } })
     await flushPromises()

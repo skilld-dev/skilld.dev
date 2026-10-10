@@ -8,12 +8,17 @@ const { data: me, error: accountError, status: accountStatus, refresh: retryAcco
 const { fetchSession } = useAuth()
 
 const email = ref(me.value?.digest_email || me.value?.email || '')
+// A stored address records a deliberate choice, including a previous opt-out.
+const hasEmailChoices = computed(() => !!me.value?.onboarded_at || !!me.value?.digest_email)
+const optIn = ref(hasEmailChoices.value ? !!me.value?.email_opt_in : true)
+const weeklyOptIn = ref(hasEmailChoices.value ? !!me.value?.weekly_opt_in : true)
 watch(me, (account, previous) => {
-  if (account && !previous)
+  if (account && !previous) {
     email.value = account.digest_email || account.email || ''
+    optIn.value = hasEmailChoices.value ? account.email_opt_in : true
+    weeklyOptIn.value = hasEmailChoices.value ? account.weekly_opt_in : true
+  }
 })
-const optIn = ref(true)
-const weeklyOptIn = ref(true)
 
 const actionFailed = useActionFailure()
 const rpc = useNuxtRpc()
@@ -95,14 +100,14 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
       </div>
 
       <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="weeklyOptIn" type="checkbox" class="mt-0.5 size-4 accent-primary">
+        <input v-model="weeklyOptIn" type="checkbox" :disabled="submitting" class="mt-0.5 size-4 accent-primary">
         <span class="text-sm text-muted leading-relaxed">
           Send me distinct trending Skills each Monday.
         </span>
       </label>
 
       <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="optIn" type="checkbox" class="mt-0.5 size-4 accent-primary">
+        <input v-model="optIn" type="checkbox" :disabled="submitting" class="mt-0.5 size-4 accent-primary">
         <span class="text-sm text-muted leading-relaxed">
           Send me watched changes once a month.
         </span>

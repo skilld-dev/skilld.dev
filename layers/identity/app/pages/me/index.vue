@@ -36,6 +36,7 @@ const {
 
 const actionFailed = useActionFailure()
 const rpc = useNuxtRpc()
+const { fetchSession } = useAuth()
 
 async function refreshAccount() {
   me.value = await rpc.query(identityAccountQueries.me())
@@ -58,6 +59,7 @@ const removeSubscriptionMutation = useNuxtMutation<IdentitySubscriptionRef, Iden
 const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutationResponse>({
   mutation: async (body) => {
     const result = await rpc.execute(identityAccountQueries.saveEmail(), body)
+    await fetchSession()
     await refreshAccount()
     return result
   },
@@ -179,7 +181,7 @@ onMounted(() => {
   if (route.query.welcome === '1') {
     toast.add({
       title: 'You\'re all set',
-      description: 'Watched repos send a digest when they change.',
+      description: 'Your email choices are saved. You can change them in Email updates.',
       color: 'success',
       icon: 'i-lucide-check-circle',
     })
@@ -273,7 +275,7 @@ async function deleteAccount() {
                 Your skills
               </h1>
               <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-                Like a skill to keep it here. We track meaningful changes and include them in your digest.
+                Like a skill to keep it here. Email updates are optional.
               </p>
             </div>
             <div class="flex shrink-0 flex-wrap items-center gap-4">
@@ -282,6 +284,13 @@ async function deleteAccount() {
               </p>
               <UButton to="/skills" label="Find skills" icon="i-lucide-search" class="min-h-11" />
             </div>
+          </div>
+
+          <div v-if="me.onboarded_at === null" class="mt-6 flex flex-col items-start gap-3 rounded-lg border border-default p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-sm leading-relaxed text-muted">
+              Choose which emails you receive. You can change this later.
+            </p>
+            <UButton to="/onboarding/email" label="Choose email updates" color="neutral" variant="outline" class="min-h-11 shrink-0" />
           </div>
 
           <div v-if="likesLoading" class="editorial-state mt-6 flex flex-col items-start justify-center" role="status">
@@ -346,7 +355,7 @@ async function deleteAccount() {
               Add your first skill
             </h2>
             <p class="mt-2 max-w-xl text-sm leading-relaxed text-muted">
-              Like any skill to keep it here and receive useful changes in your digest.
+              Like any skill to keep it here. Turn on the monthly digest to receive its changes.
             </p>
             <UButton to="/skills" class="mt-5 min-h-11" icon="i-lucide-search" label="Browse skills" />
           </div>
