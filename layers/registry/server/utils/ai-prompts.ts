@@ -3,7 +3,7 @@
  * Anthropic's prompt caching (5-min ephemeral TTL) materially cuts cost when
  * a batch submits dozens of skills in one request.
  *
- * Three derivation kinds run through Haiku 4.5 Batch API:
+ * Three derivation kinds run through Haiku 5.5 Batch API:
  *  - `summary`   plain text, 2-3 sentences
  *  - `tags`      JSON array of 5-10 lowercase tags
  *  - `faq`       JSON array of 3-5 { question, answer } objects
