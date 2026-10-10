@@ -1,3 +1,4 @@
+import { pnpmPackageSlug } from '../../layers/registry/server/schemas/pnpm-package'
 import { detectPnpmPackage } from '../../layers/registry/server/utils/pnpm-package'
 import { tarGzFixture } from '../fixtures/tar-archive'
 
@@ -9,6 +10,16 @@ const published = {
   repository: { url: 'git+https://github.com/acme/kit.git', directory: 'packages/ui' },
   dist: { tarball: 'https://registry.npmjs.org/@acme/ui/-/ui-1.0.0.tgz' },
 }
+
+it('accepts punctuation and Unicode in a Skill name', () => {
+  expect(pnpmPackageSlug.parse('acme/kit/c++-helpers')).toBe('acme/kit/c++-helpers')
+  expect(pnpmPackageSlug.parse('acme/kit/認証')).toBe('acme/kit/認証')
+})
+
+it('rejects traversal, extra segments, and oversized Skill slugs', () => {
+  for (const slug of ['acme/kit/..', 'acme/kit/.', 'acme/kit/a/b', 'acme/kit/a\\b', `acme/kit/${'a'.repeat(513)}`])
+    expect(pnpmPackageSlug.safeParse(slug).success).toBe(false)
+})
 
 function reads(options: { manifest?: unknown, published?: unknown, path?: string, typeflag?: string, status?: number } = {}) {
   const urls: string[] = []
