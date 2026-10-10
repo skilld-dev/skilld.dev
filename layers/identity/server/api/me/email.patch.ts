@@ -2,7 +2,7 @@ import { defineApiHandler } from '#shared/server/handler'
 import { identityEmailPatchBodySchema, identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
 import { planAccountSettings, updateAccountSettings } from '../../utils/account-settings'
-import { sendEmailWithEnv } from '../../utils/email'
+import { sendEmailWithEnv, signUnsubToken } from '../../utils/email'
 import { sendSkillValidationSummary } from '../../utils/skill-validation-email'
 import { requireUserRow } from '../../utils/users'
 
@@ -29,6 +29,7 @@ export default defineApiHandler({
       db: platform.db,
       user: updated,
       now: Math.floor(Date.now() / 1000),
+      signUnsubscribe: userId => signUnsubToken(userId, config.tokenKey),
       send: input => sendEmailWithEnv(platform.env, { ...input, from: config.email.from }),
     }).then((outcome) => {
       if (outcome === 'rejected' || outcome === 'uncertain')

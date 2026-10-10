@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { useSession } from 'h3'
 import { z } from 'zod'
 import { parseReturnTo } from '#shared/return-to'
-import { sendEmailWithEnv } from '../../utils/email'
+import { sendEmailWithEnv, signUnsubToken } from '../../utils/email'
 import { fetchVerifiedPrimaryEmail } from '../../utils/github-emails'
 import { ownedRepoScanWarning, scanOwnedRepos } from '../../utils/scan-owned-repos'
 import { sendSkillValidationSummary } from '../../utils/skill-validation-email'
@@ -69,6 +69,7 @@ const githubHandler = defineOAuthGitHubEventHandler({
       db: platform.db,
       user: row,
       now: Math.floor(Date.now() / 1000),
+      signUnsubscribe: userId => signUnsubToken(userId, config.tokenKey),
       send: input => sendEmailWithEnv(platform.env, { ...input, from: config.email.from }),
     }).then((outcome) => {
       if (outcome === 'rejected' || outcome === 'uncertain')
