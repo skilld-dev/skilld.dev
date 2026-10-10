@@ -15,15 +15,15 @@ export interface AiBinding {
     messages: Array<{ role: 'user' | 'assistant', content: string }>
     max_tokens: number
     system?: string
-    thinking?: { type: 'disabled' }
+    thinking?: { type: 'between_tools' }
   }) => Promise<unknown>
 }
 
-// Anthropic Haiku 5.5 brokered through Workers AI. The binding handles auth;
+// Anthropic Sonnet 5.5 brokered through Workers AI. The binding handles auth;
 // no Anthropic key or gateway token needed. Swap to a llama/qwen if cost or
 // latency need to drop later — caller doesn't care which model produced
 // `response`.
-const MODEL = 'anthropic/claude-haiku-5.5'
+const MODEL = 'anthropic/claude-sonnet-5.5'
 
 export interface SubscriptionContext {
   owner: string
@@ -133,7 +133,7 @@ Output JSON only, no prose, with this exact shape:
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     max_tokens: 1024,
-    thinking: { type: 'disabled' },
+    thinking: { type: 'between_tools' },
   }).then(
     value => ({ _tag: 'response' as const, value }),
     error => ({
