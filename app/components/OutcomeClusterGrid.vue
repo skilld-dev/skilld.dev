@@ -1,24 +1,14 @@
 <script setup lang="ts">
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
-interface ClusterExample {
-  owner: string
-  name: string
-  repo: string
-  displayName: string
-  stars: number
-}
-
 interface ClusterCard {
   slug: string
   label: string
   icon: string
   userVoice: string
   skillCount: number
-  authorCount: number
   authors: string[]
   isNew: boolean
-  examples: ClusterExample[]
 }
 
 const { limit, rows, order } = defineProps<{
@@ -39,8 +29,21 @@ const { limit, rows, order } = defineProps<{
   order?: readonly string[]
 }>()
 
-const { data, status, error, refresh } = await useFetch<{ items: ClusterCard[] }>('/api/clusters', {
-  key: 'home-outcome-clusters-v4',
+const { data, status, error, refresh } = await useFetch('/api/clusters', {
+  key: 'home-outcome-clusters-v5',
+  // The API also serves Skill examples and author totals. This grid renders
+  // neither, so keep only its card fields in the server-rendered payload.
+  transform: (feed: { items: ClusterCard[] }) => ({
+    items: feed.items.map(cluster => ({
+      slug: cluster.slug,
+      label: cluster.label,
+      icon: cluster.icon,
+      userVoice: cluster.userVoice,
+      skillCount: cluster.skillCount,
+      authors: cluster.authors,
+      isNew: cluster.isNew,
+    })),
+  }),
 })
 const grid = useTemplateRef<HTMLElement>('grid')
 const columns = ref(0)
