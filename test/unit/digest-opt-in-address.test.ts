@@ -8,6 +8,14 @@ import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const migrationPath = resolve(process.cwd(), 'migrations/0082_digest_opt_in_requires_address.sql')
 
+vi.mock('../../layers/identity/server/utils/skill-validation-email', () => ({
+  sendSkillValidationSummary: vi.fn().mockResolvedValue('skipped'),
+}))
+vi.mock('#app/nuxt', async importOriginal => ({
+  ...await importOriginal<typeof import('#app/nuxt')>(),
+  useRuntimeConfig: () => ({ email: { from: 'agent@example.com' } }),
+}))
+
 describe('digest opt-in requires a deliverable address', () => {
   it('rejects opting in without an address', () => {
     const result = identityEmailPatchBodySchema.safeParse({ email_opt_in: true })

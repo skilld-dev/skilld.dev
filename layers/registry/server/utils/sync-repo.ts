@@ -529,6 +529,7 @@ function markRepoSummaryCheckedStatement(
        SET default_branch = ?,
            stars = ?,
            forks = ?,
+           is_fork = ?,
            description = ?,
            pushed_at = ?,
            repo_created_at = ?,
@@ -544,6 +545,7 @@ function markRepoSummaryCheckedStatement(
       meta.default_branch || 'main',
       meta.stargazers_count ?? 0,
       meta.forks_count ?? 0,
+      typeof meta.fork === 'boolean' ? Number(meta.fork) : null,
       meta.description?.trim() || null,
       pushedAt,
       epoch(meta.created_at),
@@ -1011,8 +1013,8 @@ export async function syncRepo(
     `INSERT INTO repos (
        owner, repo, default_branch, stars, forks, description, pushed_at, repo_created_at,
        repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
-       repo_skill_count, broken_since, source_owner, source_repo, repository_id
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+       repo_skill_count, broken_since, source_owner, source_repo, repository_id, is_fork
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
      ON CONFLICT(owner, repo) DO UPDATE SET
        default_branch = excluded.default_branch,
        stars = excluded.stars,
@@ -1029,7 +1031,8 @@ export async function syncRepo(
        tree_truncated_at = NULL,
        source_owner = excluded.source_owner,
        source_repo = excluded.source_repo,
-       repository_id = excluded.repository_id`,
+       repository_id = excluded.repository_id,
+       is_fork = excluded.is_fork`,
   ).bind(
     owner,
     repo,
@@ -1047,6 +1050,7 @@ export async function syncRepo(
     sourceOwner,
     sourceRepo,
     repositoryId,
+    typeof meta.fork === 'boolean' ? Number(meta.fork) : null,
   )
 
   if (skillFiles.length === 0) {

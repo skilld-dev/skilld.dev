@@ -78,6 +78,21 @@ export const identityMutationResponseSchema = z.object({
   ok: z.literal(true),
 })
 
+export const identitySkillValidationSchema = z.object({
+  checked: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  items: z.array(z.object({
+    repository: z.string(),
+    name: z.string(),
+    sourceUrl: z.string().url(),
+    issues: z.array(z.object({
+      field: z.string(),
+      severity: z.enum(['error', 'notice']),
+      message: z.string(),
+    })),
+  })),
+})
+
 /**
  * Account deletion asks for the GitHub login, typed by hand. A login that does
  * not match deletes nothing.

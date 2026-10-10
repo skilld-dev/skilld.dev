@@ -9,6 +9,7 @@ import {
   identityMutationResponseSchema,
   identityOwnedRepoScanResponseSchema,
   identityPrivacyPatchBodySchema,
+  identitySkillValidationSchema,
   identitySubscriptionsSchema,
 } from '../../shared/contracts/account'
 
@@ -26,6 +27,11 @@ export const identityAccountQueries = defineNuxtQueryGroup('identity:account', {
     key: ['identity', 'subscriptions'],
     path: '/api/me/subscriptions',
     response: identitySubscriptionsSchema,
+  }),
+  validation: () => defineNuxtRpcQuery({
+    key: ['identity', 'validation'],
+    path: '/api/me/validation',
+    response: identitySkillValidationSchema,
   }),
   saveEmail: () => defineNuxtRpcMutation({
     body: identityEmailPatchBodySchema,

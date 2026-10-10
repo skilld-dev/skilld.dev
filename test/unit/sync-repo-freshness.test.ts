@@ -86,6 +86,7 @@ describe('syncRepo freshness cursor', () => {
         source_owner TEXT,
         source_repo TEXT,
         repository_id INTEGER,
+        is_fork INTEGER,
         PRIMARY KEY (owner, repo)
       );
       INSERT INTO repos (
