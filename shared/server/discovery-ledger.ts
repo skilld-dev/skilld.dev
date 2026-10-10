@@ -14,6 +14,8 @@
  *   pending   -> gone        submitDiscoveredRepos, when GitHub no longer has it
  *   submitted -> indexed     reconcileLedger, once the repo resolved a skill
  *   submitted -> empty       reconcileLedger, once the job finished with none
+ *   submitted -> pending     reconcileLedger, parked for review when the
+ *                            purpose gate held the submission job
  *   any       -> rejected    a human, via the admin surface
  *
  * `rejected` and `gone` are terminal. Discovery updates counters on such a row
@@ -532,6 +534,11 @@ export interface ReconcileSummary {
    * indexer code that has since been deleted.
    */
   retried: number
+  /**
+   * Parked for review because the purpose gate refused the submission and
+   * only a named human decision can approve it.
+   */
+  heldPurpose: number
 }
 
 /**
@@ -644,6 +651,36 @@ export async function reconcileLedger(input: {
     )
     .run()
 
+  // `repository_purpose_review_required` is the purpose gate refusing to
+  // auto-index a repository it cannot classify, and it is a request for a
+  // person, not an answer about the repository. Neither branch above fits:
+  // emptying the row would record a verdict no one made, and retrying re-runs
+  // a job that fails the same gate. So the row parks with `held_reason`, which
+  // puts it on the review surface and out of the submit queue, and
+  // `submitted_at` is cleared so it stops reporting as stalled. Five
+  // production rows sat `submitted` and alarmed nightly before this branch
+  // existed.
+  const heldPurpose = await input.db
+    .prepare(
+      `UPDATE discovery_ledger
+       SET status = 'pending', submitted_at = NULL, held_reason = 'repository_purpose_review_required'
+       WHERE status = 'submitted'
+         AND EXISTS (
+           SELECT 1 FROM failed_jobs f
+           WHERE f.job_type = 'registry/repository-submission'
+             AND f.exception LIKE '%repository_purpose_review_required%'
+             AND LOWER(json_extract(f.payload, '$.owner')) = discovery_ledger.owner
+             AND LOWER(json_extract(f.payload, '$.repo')) = discovery_ledger.repo
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM skills s
+           WHERE s.owner = discovery_ledger.owner
+             AND s.repo = discovery_ledger.repo
+             AND s.source_resolved = 1
+         )`,
+    )
+    .run()
+
   const stalled = await input.db
     .prepare(
       `SELECT COUNT(*) AS n FROM discovery_ledger
@@ -658,6 +695,7 @@ export async function reconcileLedger(input: {
     indexed: changedRows(indexed),
     empty: changedRows(empty),
     retried: changedRows(retried),
+    heldPurpose: changedRows(heldPurpose),
     stalled: stalled?.n ?? 0,
   }
 }
