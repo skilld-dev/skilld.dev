@@ -272,11 +272,12 @@ section above, then delete it from this list.
 
 ### npm package Skills
 
-The install panel shows an NPM option only when the published package includes the Skill.
-Keep run as the default. Offer pnpm and skills-npm setup within the npm option.
-Show pnpm's logo beside its name. State each tool's minimum version and setup changes.
+If the published package includes the Skill, show NPM first and select it by default.
+Run is the second tab. Install follows it. Otherwise, keep Run as the default.
+Offer pnpm and skills-npm setup within NPM. Highlight commands with rangi.
+Use coloured tool logos beside their names. State each tool's minimum version and setup changes.
 Explain that pnpm approval covers all package Skills and later package versions.
 The CLI feature list links #234 as the required change until a supporting release has a version.
 Describe ownership: doctor recognizes pnpm-managed Skills; pnpm controls their links and updates.
-Selecting NPM hides the run block and unrelated setup links. Other install choices restore them.
+Selecting NPM hides the run block and unrelated setup links. Run and Install show their own content.
 Install choices use text labels with Terminal, Claude, ChatGPT, and npm icons.

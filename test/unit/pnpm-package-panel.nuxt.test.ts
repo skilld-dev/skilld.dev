@@ -18,7 +18,6 @@ describe('npm package install option', () => {
     const wrapper = await mountSuspended(SkillCommandPanel, { props: { ...commands, layout: 'stacked' } })
     expect(wrapper.findAll('button').some(button => button.text() === 'NPM')).toBe(false)
     await wrapper.setProps({ published })
-    await wrapper.findAll('button').find(button => button.text() === 'NPM')!.trigger('click')
     expect(wrapper.text()).toContain('pnpm add @acme/kit@1.2.3')
     expect(wrapper.text()).not.toContain('npx skilld install acme/kit/auth')
     expect(wrapper.text()).not.toContain('Run once off')
@@ -29,13 +28,16 @@ describe('npm package install option', () => {
     wrapper.unmount()
   })
 
-  it('keeps run as the mobile default and offers npm under install', async () => {
+  it('defaults to npm with Run second, then switches to Run and Install', async () => {
     const wrapper = await mountSuspended(SkillCommandPanel, { props: { ...commands, published } })
+    expect(wrapper.find('[data-testid="pnpm-package"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Command type"]').findAll('button').map(button => button.text())).toEqual(['NPM', 'Run', 'Install'])
+    await wrapper.findAll('button').find(button => button.text() === 'Run')!.trigger('click')
     expect(wrapper.find('[data-testid="pnpm-package"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Nothing lands on disk.')
+    await wrapper.findAll('button').find(button => button.text() === 'Install')!.trigger('click')
     await wrapper.setProps({ modelValue: 'install' })
-    await wrapper.findAll('button').find(button => button.text() === 'NPM')!.trigger('click')
-    expect(wrapper.text()).toContain('pnpm add @acme/kit@1.2.3')
-    await wrapper.findAll('button').find(button => button.text() === 'Terminal')!.trigger('click')
+
     expect(wrapper.text()).toContain('npx skilld install acme/kit/auth')
     expect(wrapper.find('[data-testid="pnpm-package"]').exists()).toBe(false)
     wrapper.unmount()
@@ -43,6 +45,8 @@ describe('npm package install option', () => {
 
   it('shows package approval and switches to skills-npm setup', async () => {
     const wrapper = await mountSuspended(SkillPnpmPackage, { props: { published } })
+    expect(wrapper.find('code').text()).toBe('pnpm add @acme/kit@1.2.3')
+    expect(wrapper.find('code span[style]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Approval covers every Skill and later version of the package.')
     expect(wrapper.find('a').attributes('href')).toBe('https://www.npmjs.com/package/@acme/kit/v/1.2.3')
     await wrapper.findAll('button').find(button => button.text() === 'skills-npm')!.trigger('click')

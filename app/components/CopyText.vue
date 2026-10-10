@@ -1,13 +1,17 @@
 <script setup lang="ts">
+import { highlightCodeBody } from '#shared/highlight'
 /**
  * One line of text to copy, such as a prompt or a URL, with a copy button.
  * Commands use `CommandChip` instead, which records the copy.
  */
-const { text, label } = defineProps<{
+const { text, label, language = 'text' } = defineProps<{
   text: string
+  language?: string
   /** What the button copies, read by screen readers. */
   label: string
 }>()
+
+const html = computed(() => highlightCodeBody(text, language))
 
 const { copy, copied } = useClipboard({ copiedDuring: 2000, legacy: true })
 const copyError = ref('')
@@ -30,8 +34,9 @@ async function copyText(): Promise<void> {
     <div class="flex items-start gap-2">
       <code
         ref="textRef"
-        class="min-w-0 flex-1 rounded-lg border border-default bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed text-default [overflow-wrap:anywhere] whitespace-pre-wrap"
-      >{{ text }}</code>
+        class="shiki min-w-0 flex-1 rounded-lg border border-default bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed text-default [overflow-wrap:anywhere] whitespace-pre-wrap"
+        v-html="html"
+      />
       <UButton
         type="button"
         :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"

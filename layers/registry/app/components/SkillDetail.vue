@@ -605,6 +605,7 @@ const installCmd = computed(() => {
 })
 
 const commandMode = ref<'run' | 'install'>('run')
+const npmSelected = ref(false)
 const commandCopyError = ref('')
 
 const { copy, copied } = useInstallCopy(
@@ -1788,6 +1789,7 @@ useHead(computed(() => ({
       >
         <SkillCommandPanel
           v-model="commandMode"
+          v-model:npm-selected="npmSelected"
           :run-url="runUrl"
           :install-command="installCmd"
           :published="pnpmPackage"
@@ -1811,6 +1813,7 @@ useHead(computed(() => ({
           <section v-if="!data.sourceGone" aria-label="Run or install">
             <SkillCommandPanel
               v-model="commandMode"
+              v-model:npm-selected="npmSelected"
               layout="stacked"
               :zip-name="data.skillPath ? `${data.name}.zip` : undefined"
               :zip-state="zipState"

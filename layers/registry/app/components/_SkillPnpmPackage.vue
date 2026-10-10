@@ -10,11 +10,11 @@ const method = ref<'pnpm' | 'skills-npm'>('pnpm')
     <a :href="`https://www.npmjs.com/package/${published.package}/v/${published.version}`" class="font-mono text-xs underline" target="_blank" rel="noopener noreferrer">{{ published.package }}@{{ published.version }}</a>
     <div role="group" aria-label="Package Skill setup" class="flex gap-4">
       <button type="button" class="inline-flex min-h-11 min-w-11 items-center gap-1.5 font-mono text-xs" :aria-pressed="method === 'pnpm'" :class="method === 'pnpm' ? 'text-default underline underline-offset-4' : 'text-muted'" @click="method = 'pnpm'">
-        <UIcon name="i-simple-icons-pnpm" class="size-4" aria-hidden="true" />
+        <UIcon name="i-simple-icons-pnpm" class="size-4 text-[#F69220]" aria-hidden="true" />
         pnpm
       </button>
       <button type="button" class="inline-flex min-h-11 min-w-11 items-center gap-1.5 font-mono text-xs" :aria-pressed="method === 'skills-npm'" :class="method === 'skills-npm' ? 'text-default underline underline-offset-4' : 'text-muted'" @click="method = 'skills-npm'">
-        <UIcon name="i-simple-icons-npm" class="size-4" aria-hidden="true" />
+        <UIcon name="i-simple-icons-npm" class="size-4 text-[#CB3837]" aria-hidden="true" />
         skills-npm
       </button>
     </div>
@@ -22,8 +22,8 @@ const method = ref<'pnpm' | 'skills-npm'>('pnpm')
       <p class="text-muted">
         Requires pnpm 12.11+. Add the package, then read its Skills before approval.
       </p>
-      <CopyText :text="`pnpm add ${published.package}@${published.version}`" label="pnpm package command" />
-      <CopyText text="pnpm approve" label="pnpm approval command" />
+      <CopyText language="bash" :text="`pnpm add ${published.package}@${published.version}`" label="pnpm package command" />
+      <CopyText language="bash" text="pnpm approve" label="pnpm approval command" />
       <p class="text-muted">
         Approval covers every Skill and later version of the package.
       </p>
@@ -33,9 +33,9 @@ const method = ref<'pnpm' | 'skills-npm'>('pnpm')
       <p class="text-muted">
         Requires Node.js 22.20+. Read the package's Skills before setup.
       </p>
-      <CopyText :text="`npm install ${published.package}@${published.version}`" label="npm package command" />
-      <CopyText text="npm install -D skills-npm" label="skills-npm install command" />
-      <CopyText text="npx skills-npm setup" label="skills-npm setup command" />
+      <CopyText language="bash" :text="`npm install ${published.package}@${published.version}`" label="npm package command" />
+      <CopyText language="bash" text="npm install -D skills-npm" label="skills-npm install command" />
+      <CopyText language="bash" text="npx skills-npm setup" label="skills-npm setup command" />
       <p class="text-muted">
         Setup changes your prepare script and syncs Skills from direct dependencies.
       </p>
