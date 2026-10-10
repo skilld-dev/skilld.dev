@@ -57,6 +57,7 @@ export default defineApiHandler({
 
     const siteUrl = (config.publicSiteUrl as string) || 'https://skilld.dev'
     const unsubscribeToken = await signUnsubToken(user.id, config.tokenKey as string)
+    const unsubscribeUrl = `${siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}&list=weekly`
     const rendered = renderWeekly({
       recipientName: user.name,
       windowStart,
@@ -66,7 +67,7 @@ export default defineApiHandler({
       trackedCount: 0,
       trending,
       siteUrl,
-      unsubscribeUrl: `${siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}&list=weekly`,
+      unsubscribeUrl,
       settingsUrl: `${siteUrl}/me`,
     })
 
@@ -88,6 +89,10 @@ export default defineApiHandler({
       subject: `[test] ${rendered.subject}`,
       html: rendered.html,
       text: rendered.text,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
     })
 
     return { _tag: 'accepted' as const, counts, to: body.to, delivery: result }
