@@ -8,6 +8,7 @@ import type {
   IdentitySubscriptionRef,
 } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
+import { SKILL_VALIDATION_COPY } from '#shared/skill-validation-copy'
 import { accountDeletionConfirmed } from '../../../shared/contracts/account'
 import SkillgenRepositories from '../../components/_SkillgenRepositories.vue'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
@@ -27,6 +28,8 @@ interface LikedSkill {
 
 const { data: me, error: accountError, status: accountStatus, refresh: retryAccount } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
 const { data: subs, error: subscriptionsError, status: subscriptionsStatus, refresh: retrySubscriptions } = await useNuxtRpcQuery(identityAccountQueries.subscriptions(), identityAccountQueryOptions)
+const { data: validation, error: validationError, status: validationStatus, refresh: retryValidation } = await useNuxtRpcQuery(identityAccountQueries.validation())
+const invalidSkillCount = computed(() => validation.value?.items.filter(item => item.issues.some(issue => issue.severity === 'error')).length ?? 0)
 const {
   data: likes,
   error: likesError,
@@ -260,6 +263,14 @@ async function deleteAccount() {
     </div>
   </section>
   <section v-else class="mx-auto w-full max-w-4xl py-6 sm:py-8">
+    <UAlert
+      v-if="invalidSkillCount && view !== 'repositories'"
+      color="warning"
+      variant="soft"
+      :title="SKILL_VALIDATION_COPY.summary"
+      class="mb-6"
+      :actions="[{ label: SKILL_VALIDATION_COPY.action, to: '/me?view=repositories', color: 'neutral', variant: 'outline', class: 'min-h-11' }]"
+    />
     <h1 v-if="view !== 'skills'" class="mb-8 text-2xl font-semibold tracking-tight sm:text-3xl">
       {{ viewTitle }}
     </h1>
@@ -484,6 +495,42 @@ async function deleteAccount() {
         <SkillgenRepositories v-if="view === 'skillgen'" />
 
         <section v-if="view === 'repositories'">
+          <div class="mb-6 border-b border-default pb-6">
+            <h2 class="text-lg font-semibold">
+              {{ SKILL_VALIDATION_COPY.heading }}
+            </h2>
+            <div v-if="validationError" class="mt-3" role="alert">
+              <p class="text-sm text-error">
+                Could not load Skill validation. Try again.
+              </p>
+              <UButton label="Retry" color="neutral" variant="outline" class="mt-3 min-h-11" :loading="validationStatus === 'pending'" @click="retryValidation()" />
+            </div>
+            <p v-else-if="validationStatus === 'pending' && !validation" class="mt-3 text-sm text-muted" role="status">
+              Checking your Skills
+            </p>
+            <div v-else-if="validation" class="mt-3">
+              <p class="text-sm text-muted">
+                {{ validation.checked }} {{ validation.checked === 1 ? 'Skill' : 'Skills' }} checked. GitHub forks are excluded.
+              </p>
+              <p v-if="validation.pending" class="mt-2 text-sm text-muted">
+                {{ validation.pending }} {{ validation.pending === 1 ? 'Skill awaits' : 'Skills await' }} source or GitHub metadata refresh.
+              </p>
+              <p v-if="!validation.items.length && validation.checked" class="mt-2 text-sm text-muted">
+                No frontmatter issues found in the checked Skills.
+              </p>
+              <details v-for="item in validation.items" :key="`${item.repository}/${item.name}`" class="mt-3 border-t border-default pt-3">
+                <summary class="min-h-11 cursor-pointer py-3 break-words font-mono text-sm">
+                  {{ item.repository }}/{{ item.name }}
+                </summary>
+                <ul class="mt-3 space-y-2 pl-5 text-sm">
+                  <li v-for="issue in item.issues" :key="issue.field" :class="issue.severity === 'error' ? 'text-error' : 'text-muted'">
+                    {{ issue.message }}
+                  </li>
+                </ul>
+                <a :href="item.sourceUrl" target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex min-h-11 items-center text-sm text-primary underline">{{ SKILL_VALIDATION_COPY.source }}</a>
+              </details>
+            </div>
+          </div>
           <p class="mt-2 text-sm leading-relaxed text-muted">
             {{ watchedRepositoryCount }} {{ watchedRepositoryCount === 1 ? 'repository supports' : 'repositories support' }} your skill updates.
           </p>

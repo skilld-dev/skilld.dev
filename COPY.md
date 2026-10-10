@@ -11,6 +11,11 @@ contradicts this file is a bug.
 
 ## Canonical assets
 
+Skill validation in `/me` uses "Skill validation" and "Some of your Skills have validation issues."
+The action is "View validation issues". Source links use "Open SKILL.md".
+Email summaries use the subject "Your Skills have validation issues" and link to `/me?view=repositories`.
+Missing optional fields are not issues. Claude Code extensions are portability notices.
+
 Comparison navigation uses “Compare Humanizer, Stop Slop, and No AI Slop” on the homepage, writing track, and featured Skill pages.
 The writing comparison credits “Harlan Wilton” as its author, with an agent research and drafting disclosure.
 

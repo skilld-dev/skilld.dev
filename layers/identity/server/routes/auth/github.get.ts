@@ -2,8 +2,10 @@ import type { H3Event } from 'h3'
 import { useSession } from 'h3'
 import { z } from 'zod'
 import { parseReturnTo } from '#shared/return-to'
+import { sendEmailWithEnv } from '../../utils/email'
 import { fetchVerifiedPrimaryEmail } from '../../utils/github-emails'
 import { ownedRepoScanWarning, scanOwnedRepos } from '../../utils/scan-owned-repos'
+import { sendSkillValidationSummary } from '../../utils/skill-validation-email'
 import { upsertUserFromGithub } from '../../utils/users'
 import { handleWatchAction } from '../../utils/watch-actions'
 
@@ -62,6 +64,18 @@ const githubHandler = defineOAuthGitHubEventHandler({
       clientId: platform.env.NUXT_OAUTH_GITHUB_CLIENT_ID,
       scopes,
     })
+    const config = useRuntimeConfig(event)
+    const sendValidationSummary = () => sendSkillValidationSummary({
+      db: platform.db,
+      user: row,
+      now: Math.floor(Date.now() / 1000),
+      send: input => sendEmailWithEnv(platform.env, { ...input, from: config.email.from }),
+    }).then((outcome) => {
+      if (outcome === 'rejected' || outcome === 'uncertain')
+        emitOperationalEvent(createWideEvent({ operation: 'skill-validation-email', outcome: 'failed' }))
+    }).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-validation-email', outcome: 'failed' }))
+    })
 
     // First sign-in: scan the account's public repositories for SKILL.md and
     // index what it finds. This is how the registry grows, and the files are
@@ -76,7 +90,7 @@ const githubHandler = defineOAuthGitHubEventHandler({
       }).then((result) => {
         if (ownedRepoScanWarning(result))
           emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'incomplete' }))
-      }).catch(() => {
+      }).then(sendValidationSummary).catch(() => {
         emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'failed' }))
       })
       const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
@@ -84,6 +98,16 @@ const githubHandler = defineOAuthGitHubEventHandler({
         cfCtx.waitUntil(scanPromise)
       else
         void scanPromise
+    }
+    else {
+      const summaryPromise = sendValidationSummary().catch(() => {
+        emitOperationalEvent(createWideEvent({ operation: 'skill-validation-email', outcome: 'failed' }))
+      })
+      const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
+      if (cfCtx?.waitUntil)
+        cfCtx.waitUntil(summaryPromise)
+      else
+        await summaryPromise
     }
 
     const intent = await loginIntentSession(event)
