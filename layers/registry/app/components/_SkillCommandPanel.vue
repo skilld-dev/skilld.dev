@@ -2,6 +2,7 @@
 import type { RunCheckFlag } from '#shared/run-check-flags'
 import type { PnpmPackage } from '../../shared/pnpm-package'
 import type { ZipState } from '../utils/skill-zip'
+import npmLogo from '~/assets/logos/npm.svg'
 import SkillPnpmPackage from './_SkillPnpmPackage.vue'
 import SkillRunFlag from './_SkillRunFlag.vue'
 import SkillRunPrompt from './_SkillRunPrompt.vue'
@@ -93,8 +94,8 @@ function copyFrom(next: CommandMode) {
   <div class="space-y-3">
     <div v-if="published" role="group" aria-label="Command type" class="flex gap-4 border-b border-default">
       <button type="button" class="-mb-px inline-flex min-h-11 min-w-11 items-center gap-1.5 border-b font-mono text-xs" :class="npmSelected ? 'border-primary text-default' : 'border-transparent text-muted'" :aria-pressed="npmSelected" @click="npmSelected = true">
-        <UIcon name="i-simple-icons-npm" class="size-4 text-[#CB3837]" aria-hidden="true" />
-        NPM
+        <img :src="npmLogo" width="34" height="11" alt="" class="h-auto w-8.5" aria-hidden="true">
+        <span class="sr-only">NPM</span>
       </button>
       <button v-for="item in modes" :key="item.value" type="button" class="-mb-px min-h-11 min-w-11 border-b font-mono text-xs" :class="!npmSelected && mode === item.value ? 'border-primary text-default' : 'border-transparent text-muted'" :aria-pressed="!npmSelected && mode === item.value" @click="npmSelected = false; mode = item.value">
         {{ item.label }}

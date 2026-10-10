@@ -275,7 +275,8 @@ section above, then delete it from this list.
 If the published package includes the Skill, show NPM first and select it by default.
 Run is the second tab. Install follows it. Otherwise, keep Run as the default.
 Offer pnpm and skills-npm setup within NPM. Highlight commands with rangi.
-Use coloured tool logos beside their names. State each tool's minimum version and setup changes.
+Use npm's official wordmark for NPM and pnpm's official colour symbol beside pnpm.
+Show skills-npm as text. State each tool's minimum version and setup changes.
 Explain that pnpm approval covers all package Skills and later package versions.
 The CLI feature list links #234 as the required change until a supporting release has a version.
 Describe ownership: doctor recognizes pnpm-managed Skills; pnpm controls their links and updates.

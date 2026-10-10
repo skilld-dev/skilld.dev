@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { PnpmPackage } from '../../shared/pnpm-package'
+import pnpmLightLogo from '~/assets/logos/pnpm-light.svg'
+import pnpmLogo from '~/assets/logos/pnpm.svg'
 
 const { published } = defineProps<{ published: Extract<PnpmPackage, { _tag: 'Found' }> | null }>()
 const method = ref<'pnpm' | 'skills-npm'>('pnpm')
@@ -10,11 +12,11 @@ const method = ref<'pnpm' | 'skills-npm'>('pnpm')
     <a :href="`https://www.npmjs.com/package/${published.package}/v/${published.version}`" class="font-mono text-xs underline" target="_blank" rel="noopener noreferrer">{{ published.package }}@{{ published.version }}</a>
     <div role="group" aria-label="Package Skill setup" class="flex gap-4">
       <button type="button" class="inline-flex min-h-11 min-w-11 items-center gap-1.5 font-mono text-xs" :aria-pressed="method === 'pnpm'" :class="method === 'pnpm' ? 'text-default underline underline-offset-4' : 'text-muted'" @click="method = 'pnpm'">
-        <UIcon name="i-simple-icons-pnpm" class="size-4 text-[#F69220]" aria-hidden="true" />
+        <img :src="pnpmLogo" width="20" height="20" alt="" class="size-5 dark:hidden" aria-hidden="true">
+        <img :src="pnpmLightLogo" width="20" height="20" alt="" class="hidden size-5 dark:block" aria-hidden="true">
         pnpm
       </button>
       <button type="button" class="inline-flex min-h-11 min-w-11 items-center gap-1.5 font-mono text-xs" :aria-pressed="method === 'skills-npm'" :class="method === 'skills-npm' ? 'text-default underline underline-offset-4' : 'text-muted'" @click="method = 'skills-npm'">
-        <UIcon name="i-simple-icons-npm" class="size-4 text-[#CB3837]" aria-hidden="true" />
         skills-npm
       </button>
     </div>
