@@ -38,7 +38,7 @@ const BATCH_LIMIT = 50
 // ceiling observed in production; wall time goes 7s → ~18s, still well
 // under the scheduled-handler budget.
 const AI_CONCURRENCY = 3
-const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+const HAIKU_MODEL = 'claude-haiku-5-5'
 // Kill switch: pause Anthropic Haiku batch spend while we investigate the
 // scaled-content-abuse deindexing (10k AI pages → 0.6% indexed, sitewide
 // demotion late Apr 2026). Embeddings/abstractness (Workers AI, ~free) keep
@@ -265,6 +265,7 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
           params: {
             model: HAIKU_MODEL,
             max_tokens: kind === 'faq' ? 1024 : kind === 'tags' ? 256 : 512,
+            thinking: { type: 'disabled' },
             system: [{
               type: 'text',
               text: SHARED_SYSTEM_PROMPT,

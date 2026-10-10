@@ -39,9 +39,9 @@ interface BatchResultLine {
   }
 }
 
-// Haiku 4.5 batch pricing per million tokens (50% discount off realtime).
-const HAIKU_BATCH_INPUT_USD_PER_MTOK = 0.50
-const HAIKU_BATCH_OUTPUT_USD_PER_MTOK = 2.50
+// Haiku 5.5 batch pricing per million tokens for prompts under 100k tokens.
+const HAIKU_BATCH_INPUT_USD_PER_MTOK = 0.05
+const HAIKU_BATCH_OUTPUT_USD_PER_MTOK = 0.25
 
 interface BatchStatusResponse {
   id: string

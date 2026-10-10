@@ -17,7 +17,7 @@ import { renderDigest } from '../utils/digest-template'
 import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
 
 const CRON = '0 9 1 * *'
-// Kill switch: the per-repo digest sentence runs `anthropic/claude-haiku-4.5`,
+// Kill switch: the per-repo digest sentence runs `anthropic/claude-sonnet-5.5`,
 // a partner model brokered through the Workers AI binding, so every call bills
 // against AI Gateway credits. Those credits are exhausted, so each monthly run
 // returned `provider_failure: 2021: Insufficient AI Gateway credits`, delivered

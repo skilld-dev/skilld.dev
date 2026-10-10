@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const ANTHROPIC_VERSION = '2023-06-01'
 
-export type HaikuModel = 'claude-haiku-4-5-20251001'
+export type HaikuModel = 'claude-haiku-5-5'
 
 export interface ClaudeUsage {
   input_tokens: number
@@ -61,7 +61,7 @@ export async function callHaikuApi(opts: CallHaikuOpts & { apiKey: string }): Pr
     systemPrompt,
     userPrompt,
     apiKey,
-    model = 'claude-haiku-4-5-20251001',
+    model = 'claude-haiku-5-5',
     maxTokens = 1024,
     cacheSystem = true,
   } = opts
@@ -80,6 +80,7 @@ export async function callHaikuApi(opts: CallHaikuOpts & { apiKey: string }): Pr
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
+      thinking: { type: 'disabled' },
       system,
       messages: [{ role: 'user', content: userPrompt }],
     }),
@@ -105,7 +106,7 @@ export async function callHaikuApi(opts: CallHaikuOpts & { apiKey: string }): Pr
  * so we can read structured usage info. Returns the same shape as the API call.
  */
 export async function callHaikuCli(opts: CallHaikuOpts): Promise<ClaudeTextResponse> {
-  const { systemPrompt, userPrompt, model = 'claude-haiku-4-5-20251001' } = opts
+  const { systemPrompt, userPrompt, model = 'claude-haiku-5-5' } = opts
 
   // CC wraps/injects its own framing around --system-prompt, so Haiku tends
   // to stay conversational. For batch jobs we fold the system prompt into the

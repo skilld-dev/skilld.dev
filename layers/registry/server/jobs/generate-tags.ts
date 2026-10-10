@@ -64,7 +64,7 @@ export async function generateTags(ctx: TagContext, skill: TagSkill): Promise<Ta
   if (!tags.length)
     return null
 
-  const payload: TagPayload = { tags, model: 'claude-haiku-4-5-20251001' }
+  const payload: TagPayload = { tags, model: 'claude-haiku-5-5' }
 
   await putGenerated(ctx.db, {
     owner: skill.owner,

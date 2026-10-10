@@ -132,18 +132,19 @@ describe('sandbox credential gateway', () => {
   })
 
   it('routes Anthropic with Worker credentials and enforced model limits', async () => {
-    const options = { ...fixture(), provider: 'anthropic' as const, model: 'claude-sonnet-4-6' }
+    const options = { ...fixture(), provider: 'anthropic' as const, model: 'claude-sonnet-5-5' }
     const response = await forwardSandboxRequest(new Request('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': 'container-key', 'anthropic-beta': 'untrusted-beta' },
-      body: JSON.stringify({ model: 'expensive-model', max_tokens: 32000, service_tier: 'priority', speed: 'fast', messages: [], thinking: { type: 'enabled', budget_tokens: 16000 } }),
+      body: JSON.stringify({ model: 'expensive-model', max_tokens: 32000, service_tier: 'priority', speed: 'fast', temperature: 0.3, top_p: 0.9, top_k: 20, messages: [], thinking: { type: 'enabled', budget_tokens: 16000 } }),
     }), options)
     expect(response.status).toBe(200)
     const [, forwarded] = options.fetch.mock.calls[0]!
     expect(new Headers(forwarded?.headers).get('x-api-key')).toBe('worker-only-secret')
     expect(new Headers(forwarded?.headers).get('anthropic-beta')).toBeNull()
-    expect(JSON.parse(String(forwarded?.body))).not.toHaveProperty('speed')
-    expect(JSON.parse(String(forwarded?.body))).toMatchObject({ model: 'claude-sonnet-4-6', max_tokens: 8192, service_tier: 'standard_only', thinking: { type: 'enabled', budget_tokens: 2048 } })
+    for (const field of ['speed', 'temperature', 'top_p', 'top_k'])
+      expect(JSON.parse(String(forwarded?.body))).not.toHaveProperty(field)
+    expect(JSON.parse(String(forwarded?.body))).toMatchObject({ model: 'claude-sonnet-5-5', max_tokens: 8192, service_tier: 'standard_only', thinking: { type: 'adaptive' } })
   })
 
   it.each([{ tools: [{ type: 'web_search_20250305' }] }, { mcp_servers: [{ url: 'https://external.example' }] }])('blocks Anthropic hosted execution %j', async (body) => {

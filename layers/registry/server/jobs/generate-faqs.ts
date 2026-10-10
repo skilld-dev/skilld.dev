@@ -73,7 +73,7 @@ export async function generateFaqs(ctx: FaqContext, skill: FaqSkill): Promise<Fa
   if (items.length < 3)
     return null
 
-  const payload: FaqPayload = { items: items.slice(0, 6), model: 'claude-haiku-4-5-20251001' }
+  const payload: FaqPayload = { items: items.slice(0, 6), model: 'claude-haiku-5-5' }
 
   await putGenerated(ctx.db, {
     owner: skill.owner,
