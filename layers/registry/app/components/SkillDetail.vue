@@ -4,6 +4,7 @@ import type { BehaviorReading, BehaviorReadingsResponse } from '#shared/behavior
 import type { RunCheckFlagsResponse } from '#shared/run-check-flags'
 import type { TrendingAward } from '#shared/trending-award'
 import type { SkillDemoView } from '../../server/utils/skill-demos'
+import type { PnpmPackage } from '../../shared/pnpm-package'
 import type { ZipState } from '../utils/skill-zip'
 import type { SkillBehavior } from './_SkillBehaviors.vue'
 import { formatTimeAgo } from '@vueuse/core'
@@ -27,6 +28,7 @@ import { resolveSkillZipEntries } from '../utils/skill-zip'
 import SkillBehaviors from './_SkillBehaviors.vue'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillDemo from './_SkillDemo.vue'
+import SkillPnpmPackage from './_SkillPnpmPackage.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 import SkillStarTrend from './_SkillStarTrend.vue'
 import SkillThirdPartyChecks from './_SkillThirdPartyChecks.vue'
@@ -327,6 +329,14 @@ const liveSkillFetch = useAsyncData<LiveSkill | null>(
     default: () => null,
   },
 )
+
+// Both responsive command blocks share one optional package check after hydration.
+const packageFetch = useAsyncData<PnpmPackage | null>(
+  () => `skill-package:${slug.value}`,
+  () => $fetch<PnpmPackage>(`/api/skill-package/${slug.value}`),
+  { server: false, default: () => null },
+)
+const pnpmPackage = computed(() => packageFetch.data.value?._tag === 'Found' ? packageFetch.data.value : null)
 
 // Keep complete SSR for search and link previews. Client navigation renders
 // the loading state immediately while these independent requests run together.
@@ -1788,6 +1798,7 @@ useHead(computed(() => ({
           :source-url="skillFileUrl || githubUrl"
           @copy="copySkillCommand"
         />
+        <SkillPnpmPackage :published="pnpmPackage" />
       </div>
 
       <div
@@ -1814,6 +1825,7 @@ useHead(computed(() => ({
               @download="downloadSkillZip"
               @copy="copySkillCommand"
             />
+            <SkillPnpmPackage :published="pnpmPackage" />
           </section>
 
           <section

@@ -133,6 +133,7 @@ export function packageSkillGuide(setup: PackageSkillSetup) {
       `Read ${packageSkillSource}.`,
       `Draft a Skill for ${setup.package}, published through ${config.label}, using this repository.`,
       `Read ${config.manifest}, the public API, and the current official documentation.`,
+      ...(setup.ecosystem === 'npm' ? ['Save each Skill in skills/<name>/SKILL.md beside package.json, so pnpm can discover it.', 'Include the Skill and its linked files in the published tarball. Read https://pnpm.io/agent-skills for pnpm approval and linking.'] : []),
       'Show the draft for review before replacing existing Skills.',
     ].join('\n\n'),
   }
