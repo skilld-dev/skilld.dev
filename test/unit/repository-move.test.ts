@@ -314,6 +314,8 @@ describe('the backfill SQL', () => {
         return `'catalog'`
       if (column.name === 'repo_kind_source')
         return `'override'`
+      if (column.name === 'is_fork')
+        return '1'
       return column.type === 'INTEGER' ? '7' : `'${column.name}-value'`
     }
     exec(`UPDATE repos SET ${columns.map(column => `${column.name} = ${value(column)}`).join(', ')} WHERE owner = 'facebook'`)

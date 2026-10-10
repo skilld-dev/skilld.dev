@@ -46,7 +46,6 @@ const likesStatus = ref<'idle' | 'pending' | 'success' | 'error'>('success')
 let serverAccount = accountFixture()
 let serverSubscriptions = [{ owner: 'antfu', repo: 'skills', source: 'like' }]
 let serverLikes = [likedSkillFixture()]
-let queryCall = 0
 let releaseDelete: (() => void) | undefined
 let releaseEmailSave: (() => void) | undefined
 
@@ -65,9 +64,10 @@ vi.mock('@harlan-zw/nuxt-use-query/rpc', async (importOriginal) => {
 mockNuxtImport('$fetch', () => requestFetch)
 
 mockNuxtImport('useNuxtRpcQuery', () => {
-  return () => {
-    queryCall += 1
-    if (queryCall % 2 === 1)
+  return (operation: { path: string }) => {
+    if (operation.path === '/api/me/validation')
+      return { data: ref({ checked: 0, pending: 0, items: [] }), error: ref(), status: ref('success'), refresh: vi.fn() }
+    if (operation.path === '/api/me')
       return { data: account, error: accountError, status: ref('success'), refresh: retryAccount }
     return {
       data: subscriptions,
@@ -160,7 +160,6 @@ function paragraphWithText(wrapper: Awaited<ReturnType<typeof mountPage>>, text:
 
 describe('account skill watchlist', () => {
   beforeEach(() => {
-    queryCall = 0
     accountError.value = undefined
     subscriptionsError.value = undefined
     retryAccount.mockClear()

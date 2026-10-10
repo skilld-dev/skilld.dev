@@ -165,6 +165,7 @@ const REPOS_COLUMNS = [
   'default_branch',
   'stars',
   'forks',
+  'is_fork',
   'pushed_at',
   'repo_created_at',
   'repo_meta_synced_at',
