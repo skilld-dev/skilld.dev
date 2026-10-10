@@ -28,7 +28,6 @@ import { resolveSkillZipEntries } from '../utils/skill-zip'
 import SkillBehaviors from './_SkillBehaviors.vue'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillDemo from './_SkillDemo.vue'
-import SkillPnpmPackage from './_SkillPnpmPackage.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 import SkillStarTrend from './_SkillStarTrend.vue'
 import SkillThirdPartyChecks from './_SkillThirdPartyChecks.vue'
@@ -1791,6 +1790,7 @@ useHead(computed(() => ({
           v-model="commandMode"
           :run-url="runUrl"
           :install-command="installCmd"
+          :published="pnpmPackage"
           :run-copied="copied"
           :install-copied="installCopied"
           :copy-error="commandCopyError"
@@ -1798,7 +1798,6 @@ useHead(computed(() => ({
           :source-url="skillFileUrl || githubUrl"
           @copy="copySkillCommand"
         />
-        <SkillPnpmPackage :published="pnpmPackage" />
       </div>
 
       <div
@@ -1817,6 +1816,7 @@ useHead(computed(() => ({
               :zip-state="zipState"
               :run-url="runUrl"
               :install-command="installCmd"
+              :published="pnpmPackage"
               :run-copied="copied"
               :install-copied="installCopied"
               :copy-error="commandCopyError"
@@ -1825,7 +1825,6 @@ useHead(computed(() => ({
               @download="downloadSkillZip"
               @copy="copySkillCommand"
             />
-            <SkillPnpmPackage :published="pnpmPackage" />
           </section>
 
           <section

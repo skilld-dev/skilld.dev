@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { RunCheckFlag } from '#shared/run-check-flags'
+import type { PnpmPackage } from '../../shared/pnpm-package'
 import type { ZipState } from '../utils/skill-zip'
+import SkillPnpmPackage from './_SkillPnpmPackage.vue'
 import SkillRunFlag from './_SkillRunFlag.vue'
 import SkillRunPrompt from './_SkillRunPrompt.vue'
 
 type CommandMode = 'run' | 'install'
-type InstallTarget = 'local' | 'claude' | 'chatgpt'
+type InstallTarget = 'local' | 'claude' | 'chatgpt' | 'npm'
 
 const {
   runUrl,
@@ -18,6 +20,7 @@ const {
   zipState = { _tag: 'idle' },
   runFlag = null,
   sourceUrl = '',
+  published = null,
 } = defineProps<{
   /** The Skill page. The Agent fetches it and receives the SKILL.md as markdown. */
   runUrl: string
@@ -34,6 +37,7 @@ const {
   runFlag?: RunCheckFlag | null
   /** The SKILL.md on GitHub, which the run flag links. */
   sourceUrl?: string
+  published?: Extract<PnpmPackage, { _tag: 'Found' }> | null
 }>()
 
 const emit = defineEmits<{
@@ -42,18 +46,24 @@ const emit = defineEmits<{
 }>()
 
 const installTarget = ref<InstallTarget>('local')
-const installTargets = [
+watch(() => published, (value) => {
+  if (!value && installTarget.value === 'npm')
+    installTarget.value = 'local'
+})
+const installTargets = computed(() => [
   { label: 'Terminal', value: 'local' },
   { label: 'Claude', value: 'claude' },
   { label: 'ChatGPT', value: 'chatgpt' },
-] satisfies { label: string, value: InstallTarget }[]
+  ...(published ? [{ label: 'npm', value: 'npm' as const }] : []),
+] satisfies { label: string, value: InstallTarget }[])
 // Where each web app takes an uploaded Skill ZIP.
-const uploadSteps: Record<Exclude<InstallTarget, 'local'>, string> = {
+const uploadSteps: Record<'claude' | 'chatgpt', string> = {
   claude: 'Upload it in Claude under Settings › Capabilities › Skills.',
   chatgpt: 'Upload it in ChatGPT under Skills › Create › Upload from your computer.',
 }
 // The next step past one Skill: let the same client search the whole registry.
 const registrySetup: Record<InstallTarget, { to: string, label: string }> = {
+  npm: { to: '/developers', label: 'Let your agent search the registry' },
   local: { to: '/developers', label: 'Let your agent search the registry' },
   claude: { to: '/developers?setup=mcp&app=claude', label: 'Search the registry from Claude' },
   chatgpt: { to: '/developers?setup=mcp&app=chatgpt', label: 'Search the registry from ChatGPT' },
@@ -169,6 +179,7 @@ function copyFrom(next: CommandMode) {
             />
           </div>
         </template>
+        <SkillPnpmPackage v-else-if="installTarget === 'npm'" :published="published" />
         <template v-else>
           <p class="text-xs leading-relaxed text-muted">
             Download the ZIP. {{ uploadSteps[installTarget] }}
@@ -270,7 +281,13 @@ function copyFrom(next: CommandMode) {
       </button>
     </div>
 
-    <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-sm">
+    <div v-if="mode === 'install' && published" role="group" aria-label="Install source" class="flex gap-4">
+      <button v-for="item in installTargets.filter(item => item.value === 'local' || item.value === 'npm')" :key="item.value" type="button" class="min-h-11 font-mono text-xs" :class="installTarget === item.value ? 'text-default underline underline-offset-4' : 'text-muted'" :aria-pressed="installTarget === item.value" @click="installTarget = item.value">
+        {{ item.label }}
+      </button>
+    </div>
+    <SkillPnpmPackage v-if="mode === 'install' && installTarget === 'npm' && published" :published="published" />
+    <div v-else class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-sm">
       <SkillRunPrompt
         v-if="mode === 'run'"
         :url="runUrl"
