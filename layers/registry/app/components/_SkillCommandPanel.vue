@@ -51,11 +51,11 @@ watch(() => published, (value) => {
     installTarget.value = 'local'
 })
 const installTargets = computed(() => [
-  { label: 'Terminal', value: 'local' },
-  { label: 'Claude', value: 'claude' },
-  { label: 'ChatGPT', value: 'chatgpt' },
-  ...(published ? [{ label: 'npm', value: 'npm' as const }] : []),
-] satisfies { label: string, value: InstallTarget }[])
+  { label: 'Terminal', value: 'local', icon: 'i-lucide-terminal' },
+  { label: 'Claude', value: 'claude', icon: 'i-simple-icons-claude' },
+  { label: 'ChatGPT', value: 'chatgpt', icon: 'i-simple-icons-openai' },
+  ...(published ? [{ label: 'NPM', value: 'npm' as const, icon: 'i-simple-icons-npm' }] : []),
+] satisfies { label: string, value: InstallTarget, icon: string }[])
 // Where each web app takes an uploaded Skill ZIP.
 const uploadSteps: Record<'claude' | 'chatgpt', string> = {
   claude: 'Upload it in Claude under Settings › Capabilities › Skills.',
@@ -97,7 +97,7 @@ function copyFrom(next: CommandMode) {
     data-testid="skill-command-panel"
     class="space-y-8"
   >
-    <div class="space-y-2">
+    <div v-if="installTarget !== 'npm'" class="space-y-2">
       <div class="space-y-1">
         <h2 class="font-mono text-sm text-default">
           Run once off
@@ -136,13 +136,13 @@ function copyFrom(next: CommandMode) {
       <div
         role="group"
         aria-label="Where you use it"
-        class="flex gap-4 border-b border-default"
+        class="flex gap-3 border-b border-default"
       >
         <button
           v-for="item in installTargets"
           :key="item.value"
           type="button"
-          class="-mb-px min-h-9 border-b font-mono text-xs transition-colors"
+          class="-mb-px inline-flex min-h-11 min-w-11 items-center gap-1.5 border-b font-mono text-xs transition-colors"
           :class="installTarget === item.value
             ? 'border-primary text-default'
             : 'border-transparent text-muted hover:text-default'"
@@ -150,6 +150,7 @@ function copyFrom(next: CommandMode) {
           :aria-controls="installPanelId"
           @click="installTarget = item.value"
         >
+          <UIcon :name="item.icon" class="size-3.5" aria-hidden="true" />
           {{ item.label }}
         </button>
       </div>
@@ -209,6 +210,7 @@ function copyFrom(next: CommandMode) {
     </div>
 
     <ul
+      v-if="installTarget !== 'npm'"
       role="list"
       class="font-mono text-xs"
     >
@@ -282,7 +284,8 @@ function copyFrom(next: CommandMode) {
     </div>
 
     <div v-if="mode === 'install' && published" role="group" aria-label="Install source" class="flex gap-4">
-      <button v-for="item in installTargets.filter(item => item.value === 'local' || item.value === 'npm')" :key="item.value" type="button" class="min-h-11 font-mono text-xs" :class="installTarget === item.value ? 'text-default underline underline-offset-4' : 'text-muted'" :aria-pressed="installTarget === item.value" @click="installTarget = item.value">
+      <button v-for="item in installTargets.filter(item => item.value === 'local' || item.value === 'npm')" :key="item.value" type="button" class="inline-flex min-h-11 min-w-11 items-center gap-1.5 font-mono text-xs" :class="installTarget === item.value ? 'text-default underline underline-offset-4' : 'text-muted'" :aria-pressed="installTarget === item.value" @click="installTarget = item.value">
+        <UIcon :name="item.icon" class="size-3.5" aria-hidden="true" />
         {{ item.label }}
       </button>
     </div>
@@ -323,7 +326,7 @@ function copyFrom(next: CommandMode) {
       :source-url="sourceUrl"
     />
 
-    <div class="text-xs">
+    <div v-if="mode !== 'install' || installTarget !== 'npm'" class="text-xs">
       <NuxtLink
         :to="`${runUrl}.md?action=fork`"
         class="inline-flex min-h-11 items-center gap-2 font-mono text-default underline-offset-2 hover:underline"
