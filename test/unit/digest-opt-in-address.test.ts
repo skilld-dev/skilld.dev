@@ -102,12 +102,15 @@ describe('digest opt-in requires a deliverable address', () => {
 describe('me email patch endpoint', () => {
   let sqlite: Database.Database
   let emailPatchHandler: EventHandler
+  const establishSession = vi.fn()
 
   beforeEach(async () => {
     vi.resetModules()
+    establishSession.mockReset()
     vi.stubGlobal('defineEventHandler', (handler: EventHandler) => handler)
     vi.stubGlobal('createError', (input: Record<string, unknown>) => Object.assign(new Error(String(input.message)), input))
     vi.stubGlobal('getUserSession', () => Promise.resolve({ user: { id: 1, login: 'harlan' } }))
+    vi.stubGlobal('setUserSession', establishSession)
 
     sqlite = new Database(':memory:')
     sqlite.exec(`
@@ -159,6 +162,20 @@ describe('me email patch endpoint', () => {
 
     expect(sqlite.prepare(`SELECT digest_email, email_opt_in, weekly_opt_out FROM users WHERE id = 1`).get())
       .toEqual({ digest_email: 'new@example.com', email_opt_in: 1, weekly_opt_out: 0 })
+  })
+
+  it('refreshes browser completion after an explicit email choice', async () => {
+    vi.stubGlobal('readBody', () => Promise.resolve({ email_opt_in: false, weekly_opt_in: false }))
+    await emailPatchHandler(patchEvent())
+    expect(establishSession).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      user: { id: 1, login: 'harlan', onboarded: true },
+    }))
+  })
+
+  it('does not complete browser setup for an address-only patch', async () => {
+    vi.stubGlobal('readBody', () => Promise.resolve({ digest_email: 'changed@example.com' }))
+    await emailPatchHandler(patchEvent())
+    expect(establishSession).not.toHaveBeenCalled()
   })
 
   function patchEvent(): H3Event {

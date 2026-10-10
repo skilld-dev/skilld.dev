@@ -70,6 +70,11 @@ export async function updateAccountSettings(
   if (!named.length)
     return
   const assignments = named.map((column, index) => `${column} = ?${index + 1}`)
+  // Email choices finish setup from every entry point, including /me and the
+  // CLI. A separate onboarding request must not gate an explicit digest opt-in.
+  // Keep the first completion date, which starts the digest activity window.
+  if (columns.email_opt_in !== undefined || columns.weekly_opt_out !== undefined)
+    assignments.push('onboarded_at = COALESCE(onboarded_at, unixepoch())')
   await db.prepare(`UPDATE users SET ${assignments.join(', ')} WHERE id = ?${named.length + 1}`)
     .bind(...named.map(column => columns[column]!), userId)
     .run()
