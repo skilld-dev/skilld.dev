@@ -1,3 +1,4 @@
+import type { UserSession } from '#auth-utils'
 import { defineApiHandler } from '#shared/server/handler'
 import { identityEmailPatchBodySchema, identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
@@ -10,7 +11,7 @@ export default defineApiHandler({
   schema: identityEmailPatchBodySchema,
   policy: [authenticated],
   response: identityMutationResponseSchema,
-  handler: async ({ event, body, platform }) => {
+  handler: async ({ event, body, platform, session }) => {
     const u = await requireUserRow(event)
     // The schema drops blank addresses, so an opted-in caller can never wipe
     // the stored one here. Absent means unchanged, for every field: an
@@ -42,6 +43,13 @@ export default defineApiHandler({
       context.waitUntil(summary)
     else
       await summary
+    const current = session as unknown as UserSession | null
+    if (current?.user && (body.email_opt_in !== undefined || body.weekly_opt_in !== undefined)) {
+      await setUserSession(event, {
+        ...current,
+        user: { ...current.user, onboarded: true },
+      })
+    }
     return { ok: true as const }
   },
 })

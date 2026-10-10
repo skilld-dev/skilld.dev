@@ -5,7 +5,7 @@ import type { RepoHistoryResponse } from '../../../../../server/api/repos/[owner
 import type { RepoRouteResolution } from '../../../../../server/api/repos/[owner]/[repo]/route-target.get'
 import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
-import { resolveMissingRepoRedirect } from '../../../../utils/missing-repo-recovery'
+import { repoPageProfile } from '../../../../utils/repo-profile'
 import { parseRepoSkillSort, REPO_SKILL_SORT_OPTIONS, sortRepoSkills } from '../../../../utils/repo-skill-layout'
 import RepoSkillDependencies from './_RepoSkillDependencies.vue'
 import RepoSparkline from './_RepoSparkline.vue'
@@ -37,15 +37,17 @@ const repoRouteTarget = computed(() => {
 })
 const fetchRepoDetailsOnServer = isBot.value && repoRouteTarget.value?._tag !== 'skill'
 
-const repoProfileFetch = useFetch<OrgProfile>(
+const repoProfileFetch = useFetch(
   () => `/api/orgs/${sourceHub.value.owner}`,
   {
+    key: () => `repo-page-profile:${repoKey.value}`,
     watch: false,
     lazy: !fetchRepoDetailsOnServer,
     immediate: fetchRepoDetailsOnServer,
     server: fetchRepoDetailsOnServer,
+    transform: (profile: OrgProfile) => repoPageProfile(profile, repoHub.value.repo),
   },
-) as ReturnType<typeof useFetch<OrgProfile>>
+)
 const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = repoProfileFetch
 
 const repoSourceFetch = useFetch<RepoSourceProfile>(
@@ -76,14 +78,10 @@ if (fetchRepoDetailsOnServer)
 if (fetchRepoDetailsOnServer && repoSourceError.value?.statusCode === 404) {
   // Before the tombstone, check whether the repo segment is actually a skill
   // name. `/gh/<owner>/<skill>` is what an inbound link looks like when the
-  // author drops the repository, and the owner profile above already carries
-  // every skill this owner publishes, so the recovery costs no extra request.
-  const recovery = resolveMissingRepoRedirect({
-    owner: owner.value,
-    repo: repo.value,
-    skills: repoProfile.value?.skills ?? [],
-  })
-  if (recovery._tag === 'redirect')
+  // author drops the repository. The transform decides recovery from the full
+  // Owner profile before it drops unrelated Skills from this page's payload.
+  const recovery = repoProfile.value?.missingRepoTarget
+  if (recovery?._tag === 'redirect')
     await navigateTo(recovery.location, { redirectCode: 301, replace: true })
   else
     throw createError({ statusCode: 404, statusMessage: 'Repository not found', fatal: true })

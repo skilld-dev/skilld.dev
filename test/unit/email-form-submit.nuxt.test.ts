@@ -17,7 +17,7 @@ const account = ref({
   repo_indexing: false,
   timezone: 'UTC',
   stars_synced_at: null,
-  onboarded_at: null,
+  onboarded_at: null as number | null,
 })
 
 mockNuxtImport('useNuxtRpcQuery', () => (operation: { path: string }) => ({
@@ -45,6 +45,28 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.execute.mockResolvedValue({ ok: true })
   mocks.query.mockResolvedValue({ ...account.value })
+  account.value.onboarded_at = null
+  account.value.email_opt_in = true
+  account.value.weekly_opt_in = true
+})
+
+it('keeps saved email choices when returning to completed onboarding', async () => {
+  account.value.onboarded_at = 1
+  account.value.email_opt_in = false
+  account.value.weekly_opt_in = false
+  const wrapper = await mountSuspended(OnboardingEmail, { route: '/onboarding/email' })
+  for (const checkbox of wrapper.findAll('input[type="checkbox"]'))
+    expect((checkbox.element as HTMLInputElement).checked).toBe(false)
+  wrapper.unmount()
+})
+
+it('offers unfinished accounts a path back to email choices', async () => {
+  const wrapper = await mountSuspended(Account, { route: '/me' })
+  expect(wrapper.get('a[href="/onboarding/email"]').text()).toBe('Choose email updates')
+  account.value.onboarded_at = 1
+  await flushPromises()
+  expect(wrapper.find('a[href="/onboarding/email"]').exists()).toBe(false)
+  wrapper.unmount()
 })
 
 describe.each(screens)('$name email submission', ({ component, form: selector }) => {

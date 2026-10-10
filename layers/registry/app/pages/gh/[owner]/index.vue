@@ -3,6 +3,7 @@ import type { OrgProfile } from '../../../../server/api/orgs/[owner].get'
 import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { resolveOwnerProfileHandoff } from '../../../utils/owner-profile-handoff'
+import { ownerPageProfile } from '../../../utils/repo-profile'
 
 const route = useRoute()
 const ownerParam = computed(() => (route.params.owner as string).toLowerCase())
@@ -10,12 +11,13 @@ const { state: auth, loginUrl } = useAuth()
 
 const { isBot } = useBotDetection()
 
-const orgProfile = useFetch<OrgProfile>(
+const orgProfile = useFetch(
   () => `/api/orgs/${ownerParam.value}`,
   {
     key: `org-${ownerParam.value}`,
     watch: [ownerParam],
     lazy: !isBot.value,
+    transform: (profile: OrgProfile) => ownerPageProfile(profile),
   },
 )
 const { data, status, error, refresh } = orgProfile
@@ -100,7 +102,7 @@ function ensureProtocol(url: string): string {
 const skillsByRepo = computed(() => {
   if (!data.value)
     return new Map<string, OrgProfile['skills']>()
-  const map = new Map<string, OrgProfile['skills']>()
+  const map = new Map<string, NonNullable<typeof data.value>['skills']>()
   for (const skill of data.value.skills) {
     const list = map.get(skill.repo) ?? []
     list.push(skill)
