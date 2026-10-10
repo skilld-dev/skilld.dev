@@ -348,7 +348,7 @@ const codeClass = 'font-mono text-xs text-default'
                 pnpm compatibility
               </dt>
               <dd class="mt-2 text-sm leading-relaxed text-muted">
-                CLI builds containing <a href="https://github.com/skilld-dev/skilld/pull/234" target="_blank" rel="noopener" class="underline">#234</a> recognize pnpm-managed Skills in <code :class="codeClass">doctor</code>. pnpm keeps control of their links and updates.
+                <a href="https://github.com/skilld-dev/skilld/releases/tag/v3.6.8" target="_blank" rel="noopener" class="underline">skilld 3.6.8</a> or later recognizes pnpm-managed Skills in <code :class="codeClass">doctor</code>. pnpm keeps control of their links and updates.
               </dd>
             </div>
             <div>
