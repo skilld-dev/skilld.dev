@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildScanOwners,
+  makeGithubOrgLister,
   makeOwnedRepoScanner,
   ownedRepoScanResponse,
   ownedRepoScanWarning,
@@ -61,6 +62,38 @@ describe('owned GitHub repository discovery', () => {
   })
 
   afterEach(() => sqlite.close())
+
+  it('calls the Worker fetch with its global receiver', async () => {
+    const fetchImpl = function (this: unknown): Promise<Response> {
+      if (this !== globalThis)
+        throw new TypeError('Illegal invocation')
+      return Promise.resolve(Response.json(searchBody({ total_count: 0, items: [] })))
+    }
+    const scan = makeOwnedRepoScanner({
+      fetch: fetchImpl,
+      listOrgs: noOrgs,
+      syncRepo: vi.fn(),
+      resolveGithubBindings: () => ({}),
+      now: () => 100,
+      claimToken: () => 'claim-one',
+    })
+
+    await expect(scan({ login: 'acme', userToken: 'token', db, env: {} as Cloudflare.Env }))
+      .resolves
+      .toMatchObject({ _tag: 'complete', reposFound: 0 })
+  })
+
+  it('preserves the Worker fetch receiver when listing organisations', async () => {
+    const listOrgs = makeGithubOrgLister(function (this: unknown): Promise<Response> {
+      if (this !== globalThis)
+        throw new TypeError('Illegal invocation')
+      return Promise.resolve(Response.json([{ login: 'acme-org' }]))
+    })
+
+    await expect(listOrgs({ login: 'acme', userToken: 'token' }))
+      .resolves
+      .toEqual({ _tag: 'orgs', logins: ['acme-org'], visibility: 'member' })
+  })
 
   it('persists an unknown candidate before a failed sync without creating a skill row', async () => {
     const syncRepo = vi.fn(async (owner: string, repo: string) => ({

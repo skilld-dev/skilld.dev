@@ -278,7 +278,7 @@ async function requestOrgList(
   url: string,
   userToken: string,
 ): Promise<OrgListRequestOutcome> {
-  const outcome = await fetchImpl(url, {
+  const outcome = await fetchImpl.call(globalThis, url, {
     headers: {
       'Authorization': `Bearer ${userToken}`,
       'Accept': 'application/vnd.github+json',
@@ -324,7 +324,9 @@ export function makeOwnedRepoScanner(deps: ScanOwnedReposDependencies) {
     for (const owner of owners) {
       for (let page = 1; page <= MAX_PAGES; page++) {
         const q = encodeURIComponent(`filename:SKILL.md ${owner.qualifier} is:public`)
-        const responseOutcome = await deps.fetch(
+        // Worker fetch requires the global receiver, not the dependency object.
+        const responseOutcome = await deps.fetch.call(
+          globalThis,
           `https://api.github.com/search/code?q=${q}&per_page=${PER_PAGE}&page=${page}`,
           {
             headers: {
