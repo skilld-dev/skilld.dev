@@ -43,7 +43,7 @@
     },
     "d_probe": {
       "pr": "gscdump#149",
-      "expect": "gscdump is linked from gscdump.com and its docs; nuxtjs-seo is unlinked (nuxtseo.com#1314 dropped 2026-10-01). The linked page should be crawled within 14 days, the unlinked one is the comparison",
+      "expect": "Both pages have README links. Record coverage for both, without treating nuxtjs-seo as an unlinked comparison. See experiment D's dated link evidence in EXECUTE-seo-recovery.md.",
       "urls": [
         "https://skilld.dev/gh/harlan-zw/gscdump",
         "https://skilld.dev/gh/harlan-zw/nuxt-seo/nuxtjs-seo"

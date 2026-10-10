@@ -26,6 +26,17 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-10-11 readiness read with NuxtSEO CLI 0.5.8 matched all 41 watches, with no missing or empty Checkpoint lists.
+  No Checkpoint changed from the earlier 10 October read. Latest Checkpoints span 4 to 8 October UTC.
+  This is readiness evidence, not the first weekly measurement.
+  Google's live retired-Sitemap read at `2026-10-10T12:59:13.326Z` reported 9,894 URLs, zero errors, and one warning.
+  Bing's stored capture at `2026-10-10T08:32:44Z` listed the Sitemap with status `Failed` and zero URLs.
+  A live request using Bingbot's User-Agent returned 200 for `robots.txt` and `sitemap_index.xml`. The failure cause remains unavailable.
+  GitHub code search returned 24 README files. Their current content named 20 distinct `/gh/*` destinations.
+  Live checks found 18 noindex destinations and two indexable destinations, both already in `d_probe`.
+  This search does not establish experiment B's ten-page group or cover every outside link.
+  The link evidence below removes experiment D's unlinked comparison assumption.
+
 - 2026-10-08 NuxtSEO CLI 0.5.8 read all 41 panel watches, including the writing comparison's first Checkpoint.
   Its Checkpoint at `2026-10-08T08:34:39Z` reported `unknown_to_google`; its next due time was `2026-10-15T08:34:39Z`.
   The other 40 watches were due on 12 October between 08:09:39 and 08:10:41 Melbourne time.
@@ -235,7 +246,7 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 | --- | ---: | --- | --- |
 | `trending_sample` | 19 | None. No template change | Baseline for admitted trending pages |
 | `quality_excluded` | 1 | Quality gate excludes the page | Observe coverage separately; omit from active recovery decisions |
-| `d_probe` | 2 | One linked page and one unlinked page (experiment D) | The linked page is crawled within 14 days; the unlinked page is the comparison |
+| `d_probe` | 2 | Two linked pages (experiment D) | Record coverage for both; this pair cannot isolate a link effect |
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
 | `admitted_other` | 10 | Trending set only | Trending-only baseline |
 | `retired` | 5 | Retired URLs in the retired sitemap (experiment E) | Move out of "Crawled, currently not indexed" |
@@ -326,14 +337,19 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 
 ### D. Trusted host link probe
 
-- Measures: `d_probe`. It answers "domain or content?".
+- Measures: `d_probe`. Record coverage for the two linked pages. This pair cannot isolate a link effect.
 - Setup: links beside install steps that already exist on Harlan's sites. No new posts.
   - `gh/harlan-zw/gscdump` is the linked page. gscdump.com/skill and the gscdump docs ([gscdump #149](https://github.com/harlan-zw/gscdump/pull/149)) link to it.
-  - `gh/harlan-zw/nuxt-seo/nuxtjs-seo` is the unlinked comparison. On 2026-10-01 the owner dropped the nuxtseo.com link ([nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314) is not merged).
+  - `gh/harlan-zw/nuxt-seo/nuxtjs-seo` also has a README link.
+    [Nuxt SEO commit `f7aadee`](https://github.com/harlan-zw/nuxt-seo/commit/f7aadee2263236d8ee14ef76dcd4e1a980810cd7) added its canonical Skill link on 2026-09-29.
+    The current root README retains that link, checked on 2026-10-11.
+    Dropping the separate nuxtseo.com proposal ([#1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314)) did not remove this existing README link.
 - Both pages are named exceptions to the trending-only rule, so they are indexable. Approved 2026-09-30.
 - The 14 day clock starts on 2026-09-30, when #322 went live. Both links to the gscdump page were live by then.
-- Scale rule: Google crawls the linked gscdump page within 14 days while the unlinked nuxtjs-seo page and the trending pages stay Discovered. Then a link from a trusted host can lift a page, and the domain verdict is not absolute.
-- Fallback if that read is unclear: publish 3 to 5 original write-ups on harlanzw.com that link to 2 or 3 panel URLs. This needs new posts, so it waits for content work. If Google still does not crawl the linked URLs in 14 days, the domain verdict blocks even well linked pages.
+- Scale rule: withhold the linked-versus-unlinked conclusion for this pair. Both pages had README links before the clock started.
+  Keep both URLs and their Checkpoint histories. A separate unlinked comparison needs an owner decision.
+- Fallback if that read is unclear: publish 3 to 5 original write-ups on harlanzw.com that link to 2 or 3 panel URLs. This needs new posts, so it waits for content work.
+  Record any later crawl results without claiming that this pair proves a link effect.
 
 ### E. Retired sitemap
 
