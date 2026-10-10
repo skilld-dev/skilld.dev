@@ -36,11 +36,8 @@ const nudgeDismissed = ref(true)
 /**
  * Shown once, to a signed-in user who has not finished onboarding.
  *
- * It used to invite them to "set up digest", which asked for configuration the
- * weekly does not need: the send already falls back to the GitHub address on
- * the account. So it now confirms what the like just did instead of asking for
- * anything, and only offers the email step when there is genuinely no address
- * to send to.
+ * A like saves the Skill. It does not grant email consent. The weekly carries
+ * trending Skills; changes to liked Skills belong in the monthly digest.
  */
 const showNudge = computed(() =>
   variant === 'detail'
@@ -154,10 +151,13 @@ const revealClass = computed(() => {
 
     <p
       v-if="showNudge"
-      class="flex items-start gap-2 text-xs text-muted"
+      class="flex items-start gap-2 text-sm text-muted"
     >
       <span class="flex-1">
-        Liked. Its changes land in your next weekly.
+        Liked. Email updates are optional.
+        <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 items-center underline hover:text-default">
+          Email updates
+        </NuxtLink>
       </span>
       <UButton
         icon="i-lucide-x"
@@ -165,6 +165,7 @@ const revealClass = computed(() => {
         color="neutral"
         variant="ghost"
         aria-label="Dismiss"
+        class="min-h-11 min-w-11"
         @click="dismissNudge"
       />
     </p>
