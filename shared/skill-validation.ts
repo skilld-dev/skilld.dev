@@ -1,4 +1,5 @@
 import { parseDocument } from 'yaml'
+import { slugifySkillName } from './skill-path'
 
 export interface SkillValidationIssue {
   field: string
@@ -9,6 +10,11 @@ export interface SkillValidationIssue {
 const BASE_FIELDS = new Set(['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'])
 // https://code.claude.com/docs/en/skills#frontmatter-reference
 const CLAUDE_FIELDS = new Set(['argument-hint', 'disable-model-invocation', 'user-invocable', 'model', 'context', 'agent', 'hooks', 'effort'])
+
+function isSkillName(name: string): boolean {
+  return Boolean(name) && [...name].length <= 64 && name === name.toLowerCase()
+    && /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(name)
+}
 
 /** Validate source bytes, without the registry's lenient display parser. */
 export function validateSkillFrontmatter(raw: string, path: string, repository: string): SkillValidationIssue[] {
@@ -39,13 +45,19 @@ export function validateSkillFrontmatter(raw: string, path: string, repository: 
   }
   const sourceName = mapping.get('name')
   const name = typeof sourceName === 'string' ? sourceName.normalize('NFKC') : sourceName
-  const expected = path === 'SKILL.md' ? repository : path.split('/').at(-2)
-  if (typeof name !== 'string' || !name || [...name].length > 64 || name !== name.toLowerCase()
-    || !/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(name)) {
+  // A root Skill uses the registry identity. Nested Skills have an actual
+  // parent folder, which the base specification requires name to match.
+  const expected = path === 'SKILL.md' ? slugifySkillName(repository) : path.split('/').at(-2)?.normalize('NFKC')
+  if (typeof name !== 'string' || !isSkillName(name)) {
     add('name', 'Use 1 to 64 lowercase letters, numbers, or single hyphens for name.')
   }
-  else if (name.normalize('NFKC') !== expected?.normalize('NFKC')) {
-    add('name', `Set name to the Skill folder name: ${expected}.`)
+  else if (name !== expected) {
+    if (path === 'SKILL.md')
+      add('name', `Set name to the Repository slug: ${expected}.`)
+    else if (expected && !isSkillName(expected))
+      add('name', `Rename the Skill folder ${expected} to ${name} so it matches name.`)
+    else
+      add('name', `Set name to the Skill folder name: ${expected}.`)
   }
   const description = mapping.get('description')
   if (typeof description !== 'string' || !description.trim() || [...description].length > 1024)

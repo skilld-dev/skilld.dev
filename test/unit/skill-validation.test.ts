@@ -30,6 +30,21 @@ describe('skill frontmatter validation', () => {
     expect(validateSkillFrontmatter(valid, 'skills/different/SKILL.md', 'repo')).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'name' })]))
   })
 
+  it('uses the registry slug for a root Skill in a mixed-case Repository', () => {
+    expect(validateSkillFrontmatter(valid, 'SKILL.md', 'Example')).toEqual([])
+    expect(validateSkillFrontmatter(valid.replace('name: example', 'name: example-repo'), 'SKILL.md', 'Example Repo')).toEqual([])
+  })
+
+  it('gives satisfiable guidance for an invalid nested folder name', () => {
+    expect(validateSkillFrontmatter(valid, 'skills/Example/SKILL.md', 'repo')).toEqual([
+      { field: 'name', severity: 'error', message: 'Rename the Skill folder Example to example so it matches name.' },
+    ])
+    expect(validateSkillFrontmatter(valid, 'skills/example/SKILL.md', 'repo')).toEqual([])
+    expect(validateSkillFrontmatter(valid, 'skills/different/SKILL.md', 'repo')).toEqual([
+      { field: 'name', severity: 'error', message: 'Set name to the Skill folder name: different.' },
+    ])
+  })
+
   it('keeps documented Claude Code extensions as portability notices', () => {
     const result = validateSkillFrontmatter(valid.replace('---\nInstructions', 'context: fork\nagent: Explore\nuser-invocable: false\n---\nInstructions'), 'skills/example/SKILL.md', 'repo')
     expect(result.filter(issue => issue.severity === 'error')).toEqual([])

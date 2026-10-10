@@ -523,7 +523,7 @@ async function deleteAccount() {
                   {{ item.repository }}/{{ item.name }}
                 </summary>
                 <ul class="mt-3 space-y-2 pl-5 text-sm">
-                  <li v-for="issue in item.issues" :key="issue.field" :class="issue.severity === 'error' ? 'text-error' : 'text-muted'">
+                  <li v-for="(issue, issueIndex) in item.issues" :key="`${issue.field}:${issueIndex}`" :class="issue.severity === 'error' ? 'text-error' : 'text-muted'">
                     {{ issue.message }}
                   </li>
                 </ul>
