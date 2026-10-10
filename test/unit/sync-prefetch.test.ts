@@ -94,8 +94,8 @@ describe('prefetchUnchangedRepos', () => {
       'gone/missing',
     ])
     expect(result).toMatchObject({ _tag: 'prefetched', unchanged: 1 })
-    expect(harness.raw.prepare(`SELECT stars, repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'unchanged'`).get())
-      .toEqual({ stars: 77, repo_meta_synced_at: NOW })
+    expect(harness.raw.prepare(`SELECT stars, is_fork, repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'unchanged'`).get())
+      .toEqual({ stars: 77, is_fork: 0, repo_meta_synced_at: NOW })
     expect(harness.raw.prepare(`SELECT repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'changed'`).get())
       .toEqual({ repo_meta_synced_at: null })
   })
