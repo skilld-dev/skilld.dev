@@ -283,7 +283,7 @@ Offer pnpm and skills-npm setup within NPM. Highlight commands with rangi.
 Use npm's official wordmark for NPM and pnpm's official colour symbol beside pnpm.
 Show skills-npm as text. State each tool's minimum version and setup changes.
 Explain that pnpm approval covers all package Skills and later package versions.
-The CLI feature list links #234 as the required change until a supporting release has a version.
+The CLI feature list states that pnpm compatibility requires skilld 3.6.8 or later and links that release.
 Describe ownership: doctor recognizes pnpm-managed Skills; pnpm controls their links and updates.
 Selecting NPM hides the run block and unrelated setup links. Run and Install show their own content.
 Install choices use text labels with Terminal, Claude, ChatGPT, and npm icons.
