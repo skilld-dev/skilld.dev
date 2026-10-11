@@ -109,6 +109,43 @@ it('counts only X Posts observed within the UTC day at the check time', async ()
   expect(report.results[0]?.result).toMatchObject({ evidence: { cost: { x_observed_posts_today: 1 } } })
 })
 
+it.each(['2026-10-05T09:00:00Z', '2026-10-03T10:00:00Z'])('keeps rolling X day totals independent of baseline %s', async (since) => {
+  const now = new Date('2026-10-05T10:00:00Z')
+  const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-x-day-'))
+  roots.push(root)
+  await mkdir(join(root, 'shared/server'), { recursive: true })
+  await mkdir(join(root, 'migrations'))
+  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400\nconst MIN_SEARCH_PAGE_SIZE = 10')
+  const db = new Database(':memory:')
+  db.exec(`
+    CREATE TABLE x_posts (post_id TEXT, platform TEXT, refresh_tier TEXT, first_seen_at INTEGER, posted_at INTEGER);
+    CREATE TABLE x_post_skills (verified_at INTEGER);
+    INSERT INTO x_posts VALUES
+      ('older', 'x', 'frozen', unixepoch('2026-10-04T09:59:59Z'), 0),
+      ('boundary', 'x', 'frozen', unixepoch('2026-10-04T10:00:00Z'), 0),
+      ('middle', 'x', 'frozen', unixepoch('2026-10-04T12:00:00Z'), 0),
+      ('recent', 'x', 'frozen', unixepoch('2026-10-05T09:30:00Z'), 0),
+      ('future', 'x', 'frozen', unixepoch('2026-10-05T10:00:01Z'), 0);
+    INSERT INTO x_post_skills VALUES
+      (unixepoch('2026-10-04T09:59:59Z')),
+      (unixepoch('2026-10-04T10:00:00Z')),
+      (unixepoch('2026-10-04T12:00:00Z')),
+      (unixepoch('2026-10-05T09:30:00Z')),
+      (unixepoch('2026-10-05T10:00:01Z'));
+  `)
+  boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
+    if (command === 'git')
+      return { _tag: 'Ok', stdout: args[0] === 'rev-parse' ? 'abc' : '', stderr: '' }
+    const sql = args[args.indexOf('--command') + 1]!
+    return { _tag: 'Ok', stdout: JSON.stringify([{ success: true, results: db.prepare(sql).all() }]), stderr: '' }
+  })
+
+  const { report } = await runExternalChecks([databaseCheck], { required: [databaseCheck.id] }, { rootDir: root, env: {}, clock: () => now, since: new Date(since) })
+
+  db.close()
+  expect(report.results[0]?.result).toMatchObject({ evidence: { cost: { x_posts_24h: 3, x_verified_skills_24h: 3 } } })
+})
+
 it('rejects oversized Worker analytics evidence', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data: { viewer: { accounts: [{ workersInvocationsAdaptive: [] }] } }, padding: 'x'.repeat(2_097_153) })))
   const { report } = await runExternalChecks([workersCheck], { required: [workersCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })

@@ -114,7 +114,12 @@ async function claimRepoProgress(
        next_offset = 0,
        total_skills = NULL,
        updated_at = excluded.updated_at
-     WHERE repo_sync_progress.updated_at <= ?`,
+     WHERE repo_sync_progress.updated_at <= ?
+       OR NOT EXISTS (
+         SELECT 1 FROM jobs
+         WHERE id = repo_sync_progress.job_id
+           AND completed_at IS NULL AND failed_at IS NULL
+       )`,
   ).bind(
     input.owner,
     input.repo,
