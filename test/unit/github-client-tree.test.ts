@@ -73,4 +73,23 @@ describe('getTree', () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(64)
   })
+
+  it('stops expansion when long paths exceed the retained tree budget', async () => {
+    const subtree = Array.from({ length: 20_000 }, (_, i) => ({
+      path: `${'directory/'.repeat(50)}${i}/SKILL.md`,
+      type: 'blob',
+      sha: 'a'.repeat(40),
+    }))
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(
+      url.endsWith('root?recursive=1')
+        ? { sha: 'root', truncated: true, tree: [] }
+        : url.endsWith('root')
+          ? { sha: 'root', tree: [{ path: 'vendor', type: 'tree', sha: 'subtree' }] }
+          : { sha: 'subtree', tree: subtree },
+    )))
+
+    const result = await getTree('acme', 'large', 'root', {}, { expandTruncated: true })
+
+    expect(result.data).toEqual({ sha: 'root', tree: [], truncated: true })
+  })
 })
