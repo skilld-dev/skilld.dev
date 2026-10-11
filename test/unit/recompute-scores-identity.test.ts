@@ -1,12 +1,13 @@
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { recomputeIndexabilityForSkill } from '../../layers/registry/server/utils/recompute-scores'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { recomputeAllSkillScores, recomputeIndexabilityForSkill } from '../../layers/registry/server/utils/recompute-scores'
 
 describe('score recomputation identity and source health', () => {
   let sqlite: Database.Database
   let db: D1Database
 
   beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(1791676800000)
     sqlite = new Database(':memory:')
     sqlite.exec(`
       CREATE TABLE repos (
@@ -97,6 +98,7 @@ describe('score recomputation identity and source health', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     sqlite.close()
   })
 
@@ -160,6 +162,62 @@ describe('score recomputation identity and source health', () => {
       source_resolved: 0,
       seo_indexable: 0,
     })
+  })
+
+  it('matches individual recomputes for live evidence and broken sources', async () => {
+    sqlite.exec(`
+      INSERT INTO collections_v2 (id, deleted_at) VALUES (2, 1), (3, NULL);
+      INSERT INTO collection_skills_v2 (collection_id, owner, repo, name, reason) VALUES
+        (2, 'acme', 'one', 'shared', 'Deleted collections must not contribute this reason.'),
+        (3, 'acme', 'one', 'shared', NULL),
+        (3, 'acme', 'two', 'shared', 'short');
+      INSERT INTO skill_social_posts (skill_slug, status, role) VALUES
+        ('acme/one/shared', 'approved', 'author'),
+        ('acme/one/shared', 'approved', NULL),
+        ('acme/one/shared', 'pending', 'author'),
+        ('acme/two/shared', 'approved', 'community');
+    `)
+    const keys = sqlite.prepare('SELECT owner, repo, name FROM skills').all() as Array<{ owner: string, repo: string, name: string }>
+    for (const key of keys)
+      await recomputeIndexabilityForSkill(db, key)
+    const individual = sqlite.prepare('SELECT * FROM skills ORDER BY owner, repo, name').all()
+    sqlite.exec(`UPDATE skills SET curator_count = 77, curator_reason_count = 77,
+      approved_social_count = 77, author_social_count = 77, seo_index_score = 77,
+      trust_score = 77`)
+
+    const result = await recomputeAllSkillScores(db)
+
+    expect(result).toEqual({ scanned: 5, indexabilityUpdated: 5, trustUpdated: 0 })
+    expect(sqlite.prepare('SELECT * FROM skills ORDER BY owner, repo, name').all()).toEqual(individual)
+    expect(sqlite.prepare(`SELECT curator_count, curator_reason_count, approved_social_count,
+      author_social_count FROM skills WHERE repo = 'one' AND name = 'shared'`).get()).toEqual({
+      curator_count: 2,
+      curator_reason_count: 1,
+      approved_social_count: 2,
+      author_social_count: 1,
+    })
+  })
+
+  it('limits the pass while counting every sibling skill', async () => {
+    sqlite.exec(`UPDATE repos SET stars = 2000 WHERE repo = 'one'`)
+    const insert = sqlite.prepare(`INSERT INTO skills
+      (owner, repo, name, slug, description, current_sha, sync_status)
+      VALUES ('acme', 'one', ?, ?, 'Sibling', 'sha', 'ok')`)
+    for (let index = 0; index < 300; index++) {
+      const name = `a${String(index).padStart(3, '0')}`
+      insert.run(name, `acme/one/${name}`)
+    }
+    const full = await recomputeAllSkillScores(db)
+    const first = sqlite.prepare(`SELECT * FROM skills WHERE repo = 'one' AND name = 'a000'`).get()
+    sqlite.exec('UPDATE skills SET seo_index_score = 77, trust_score = 77')
+
+    const limited = await recomputeAllSkillScores(db, { limit: 1 })
+
+    expect(full.scanned).toBe(305)
+    expect(limited).toEqual({ scanned: 1, indexabilityUpdated: 1, trustUpdated: 0 })
+    expect(sqlite.prepare(`SELECT * FROM skills WHERE repo = 'one' AND name = 'a000'`).get()).toEqual(first)
+    expect(first).toMatchObject({ trust_source: 'repo-scale' })
+    expect(sqlite.prepare('SELECT COUNT(*) AS n FROM skills WHERE seo_index_score = 77').get()).toEqual({ n: 304 })
   })
 
   function readSkill(repo: string, name: string): Record<string, unknown> {

@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import type { RegistrySkill } from '../../layers/registry/server/utils/skills-registry'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
@@ -70,7 +71,7 @@ vi.stubGlobal('getQuery', () => ({}))
 vi.stubGlobal('createError', (input: Record<string, unknown>) => Object.assign(new Error(String(input.message)), input))
 
 let harness: SqliteD1
-let handler: (event: H3Event) => Promise<{ skills: unknown[] }>
+let handler: (event: H3Event) => Promise<{ skills: RegistrySkill[] }>
 
 beforeEach(async () => {
   vi.resetModules()
@@ -86,7 +87,7 @@ beforeEach(async () => {
   harness = createSqliteD1(allMigrations())
   harness.raw.prepare(`INSERT INTO repos (owner, repo) VALUES ('acme', 'tools')`).run()
   seedSkill('frontend-lint')
-  handler = (await import('../../layers/registry/server/api/tags/[slug].get')).default as (event: H3Event) => Promise<{ skills: unknown[] }>
+  handler = (await import('../../layers/registry/server/api/tags/[slug].get')).default as typeof handler
 })
 
 afterEach(() => {
@@ -163,11 +164,69 @@ describe('tag profile cache', () => {
   })
 })
 
-function seedSkill(name: string) {
+describe('tag profile membership', () => {
+  it('merges identifier, owner, and generated matches without duplicates or excluded Skills', async () => {
+    harness.raw.prepare(`INSERT INTO repos (owner, repo, stars) VALUES ('frontend', 'kit', 100)`).run()
+    harness.raw.prepare(`INSERT INTO owners (owner, name) VALUES ('frontend', 'Frontend Authors')`).run()
+    seedSkill('frontend-alpha', 'frontend', 'kit')
+    seedSkill('beta', 'frontend', 'kit')
+    seedSkill('classified')
+    seedSkill('description-only')
+    seedSkill('frontend-unresolved')
+    harness.raw.prepare(`UPDATE skills SET source_resolved = 0 WHERE name = 'frontend-unresolved'`).run()
+    harness.raw.prepare(`UPDATE skills SET description = 'frontend' WHERE name = 'description-only'`).run()
+    for (const [owner, repo, name] of [
+      ['frontend', 'kit', 'frontend-alpha'],
+      ['acme', 'tools', 'classified'],
+      ['acme', 'tools', 'frontend-unresolved'],
+      ['missing', 'repo', 'orphan'],
+    ]) {
+      harness.raw.prepare(
+        `INSERT INTO skill_generated (owner, repo, name, kind, sha, payload, generated_at)
+         VALUES (?, ?, ?, 'tags', 'sha', '{"tags":["frontend","frontend"]}', '2026-10-01')`,
+      ).run(owner!, repo!, name!)
+    }
+    harness.raw.prepare(`INSERT INTO repos (owner, repo, stars, broken_since) VALUES ('broken', 'tools', 1000, unixepoch() - 8 * 86400)`).run()
+    seedSkill('frontend-broken', 'broken', 'tools')
+    harness.raw.prepare(`INSERT INTO repos (owner, repo, stars, broken_since) VALUES ('grace', 'tools', 50, unixepoch() - 86400)`).run()
+    seedSkill('frontend-grace', 'grace', 'tools')
+    seedSkill('frontend-lint', 'grace', 'tools')
+
+    const profile = await handler(event())
+
+    expect(profile.skills.map(skill => `${skill.owner}/${skill.repo}/${skill.name}`)).toEqual([
+      'frontend/kit/beta',
+      'frontend/kit/frontend-alpha',
+      'grace/tools/frontend-grace',
+      'grace/tools/frontend-lint',
+      'acme/tools/classified',
+      'acme/tools/frontend-lint',
+    ])
+    expect(profile.skills[0]).toMatchObject({ authorName: 'Frontend Authors', registryPath: '/gh/frontend/kit/beta' })
+  })
+
+  it('limits after excluding unresolved and broken matches, then hydrates the first 200 Skills', async () => {
+    harness.raw.prepare(`UPDATE repos SET stars = 10 WHERE owner = 'acme'`).run()
+    for (let index = 0; index < 205; index++)
+      seedSkill(`frontend-${String(index).padStart(3, '0')}`)
+    harness.raw.prepare(`INSERT INTO repos (owner, repo, stars) VALUES ('unresolved', 'tools', 1000)`).run()
+    seedSkill('frontend-excluded', 'unresolved', 'tools')
+    harness.raw.prepare(`UPDATE skills SET source_resolved = 0 WHERE owner = 'unresolved'`).run()
+
+    const profile = await handler(event())
+
+    expect(profile.skills.map(skill => skill.name)).toEqual(
+      Array.from({ length: 200 }, (_, index) => `frontend-${String(index).padStart(3, '0')}`),
+    )
+    expect(profile.skills[199]).toMatchObject({ registryPath: '/gh/acme/tools/frontend-199', stars: 10 })
+  })
+})
+
+function seedSkill(name: string, owner = 'acme', repo = 'tools') {
   harness.raw.prepare(
     `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved)
-     VALUES ('acme', 'tools', ?, ?, ?, 1)`,
-  ).run(name, `acme/tools/${name}`, name)
+     VALUES (?, ?, ?, ?, ?, 1)`,
+  ).run(owner, repo, name, `${owner}/${repo}/${name}`, name)
 }
 
 function advanceClock(seconds: number) {

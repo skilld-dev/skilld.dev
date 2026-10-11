@@ -5,6 +5,11 @@ import { querySkills } from '../../layers/registry/server/utils/skills-registry'
 describe('skills registry unique owner browse', () => {
   it('returns each owner once using their highest ranked skill', async () => {
     const sqlite = new Database(':memory:')
+    let descriptionReads = 0
+    sqlite.function('read_description', { deterministic: true }, (owner: string) => {
+      descriptionReads++
+      return `${owner} description`
+    })
     let forbidSkillBodyRead = false
     sqlite.function('forbid_skill_body_read', { deterministic: true }, (owner: string) => {
       if (forbidSkillBodyRead)
@@ -36,7 +41,7 @@ describe('skills registry unique owner browse', () => {
         display_name TEXT NOT NULL,
         slug TEXT NOT NULL,
         like_count INTEGER NOT NULL DEFAULT 0,
-        description TEXT,
+        description TEXT GENERATED ALWAYS AS (read_description(owner)) VIRTUAL,
         rendered_raw_sha256 TEXT,
         seo_index_score INTEGER NOT NULL DEFAULT 0,
         seo_indexable INTEGER NOT NULL DEFAULT 1,
@@ -67,6 +72,7 @@ describe('skills registry unique owner browse', () => {
         ('gone', 'deleted-repo', 'ghost', 'Ghost', 'gone/deleted-repo/ghost', 99, 0);
     `)
     forbidSkillBodyRead = true
+    descriptionReads = 0
 
     try {
       const result = await querySkills(eventFor(sqlite), {
@@ -77,10 +83,18 @@ describe('skills registry unique owner browse', () => {
       // `gone/ghost` has the highest like count but its source is unresolved,
       // so it must not win the antfu-free owner browse or appear at all.
       expect(result.total).toBe(2)
+      expect(descriptionReads).toBe(result.items.length)
       expect(result.items.map(skill => [skill.owner, skill.name, skill.likeCount])).toEqual([
         ['antfu', 'vite', 9],
         ['vuejs', 'vue', 5],
       ])
+      for (const sort of ['stars', 'name', 'owner', 'updated'] as const) {
+        descriptionReads = 0
+        const paged = await querySkills(eventFor(sqlite), { uniqueOwners: true, sort, limit: 1, page: 2 })
+        expect(paged.items.map(skill => [skill.owner, skill.name])).toEqual([['vuejs', 'vue']])
+        expect(paged.total).toBe(2)
+        expect(descriptionReads).toBe(1)
+      }
       const focused = await querySkills(eventFor(sqlite), { uniqueOwners: true, maintainerRepos: true } as Parameters<typeof querySkills>[1])
       expect(focused.items.map(skill => [skill.owner, skill.repo])).toEqual([['antfu', 'top-repo']])
       expect(focused.total).toBe(1)

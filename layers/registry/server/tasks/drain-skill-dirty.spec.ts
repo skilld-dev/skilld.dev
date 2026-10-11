@@ -29,7 +29,6 @@ vi.mock('#shared/schedule-policy', () => ({
 
 vi.mock('../utils/recompute-scores', () => ({
   recomputeIndexabilityForSkill: vi.fn(),
-  recomputeTrustForSkill: vi.fn(),
 }))
 
 vi.stubGlobal('defineScheduledTask', (task: unknown) => task)
@@ -55,6 +54,29 @@ describe('drain-skill-dirty task', () => {
       cron: '*/5 * * * *',
       status: 'ok',
       durationMs: expect.any(Number),
+    })
+  })
+
+  it('recomputes and removes successful queue entries', async () => {
+    const key = { owner: 'acme', repo: 'tools', name: 'review' }
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 } })
+    const all = vi.fn().mockResolvedValue({ results: [key] })
+    const bound = { all, run }
+    const bind = vi.fn(() => bound)
+    const batch = vi.fn().mockResolvedValue([])
+    const db = { prepare: vi.fn(() => ({ bind })), batch }
+    mocks.resolveCloudflareBindings.mockReturnValue({ DB: db })
+
+    const result = await task.run({ context: {} } as never)
+
+    expect(result).toEqual({ result: { drained: 1, failed: 0, scanned: 1 } })
+    expect(run).toHaveBeenCalledOnce()
+    expect(batch).toHaveBeenCalledWith([bound])
+    expect(mocks.reportJobRun).toHaveBeenCalledWith(db, 'drain-skill-dirty', {
+      cron: '*/5 * * * *',
+      status: 'ok',
+      durationMs: expect.any(Number),
+      error: null,
     })
   })
 })

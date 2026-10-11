@@ -122,34 +122,40 @@ async function buildTagProfile(event: H3Event, slug: string): Promise<TagProfile
   // FTS post-0049 indexes `repo` too, so the tuple match is precise across
   // same-(owner,name) collisions.
   //
-  // The repo Skill count is added outside the LIMIT. In the inner select list
-  // it ran for every match before the sort, reading every Skill of each
-  // match's repo: about 144K rows for `testing`.
+  // UNION collects identity candidates before reading Skills. The previous
+  // OR walked Skills and expanded generated tag JSON once per Skill.
+  // Limit narrow identities before hydrating columns, authors, and repo counts.
   const skillsRes = await db
     .prepare(
-      `SELECT tagged.*,
+      `WITH candidates AS (
+         SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?
+         UNION
+         SELECT owner, repo, name FROM skills WHERE owner = ?
+         UNION
+         SELECT sg.owner, sg.repo, sg.name
+         FROM skill_generated sg, json_each(sg.payload, '$.tags') je
+         WHERE sg.kind = 'tags' AND je.value = ?
+       ), tagged AS (
+         SELECT s.owner, s.repo, s.name, r.stars
+         FROM candidates c
+         JOIN skills s ON s.owner = c.owner AND s.repo = c.repo AND s.name = c.name
+         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+         WHERE s.source_resolved = 1 AND ${NOT_BROKEN_SQL}
+         ORDER BY r.stars DESC, s.name ASC
+         LIMIT 200
+       )
+       SELECT s.name, s.owner, s.repo, s.display_name, s.slug, tagged.stars, s.like_count,
+              s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at, s.first_seen_at,
+              s.rendered_skill_path, s.current_sha, r.default_branch, r.source_owner, r.source_repo,
+              o.name AS author_name,
               (SELECT COUNT(*) FROM skills repo_skills
                WHERE repo_skills.owner = tagged.owner
                  AND repo_skills.repo = tagged.repo
                  AND repo_skills.source_resolved = 1) AS repo_skill_count
-       FROM (
-       SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.like_count, s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at, s.first_seen_at,
-              s.rendered_skill_path, s.current_sha, r.default_branch, r.source_owner, r.source_repo,
-              (SELECT o.name FROM owners o WHERE o.owner = s.owner) AS author_name
-       FROM skills s
+       FROM tagged
+       JOIN skills s ON s.owner = tagged.owner AND s.repo = tagged.repo AND s.name = tagged.name
        JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-       WHERE s.source_resolved = 1 AND ${NOT_BROKEN_SQL} AND (
-         (s.owner, s.repo, s.name) IN (SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?)
-         OR s.owner = ?
-         OR EXISTS (
-           SELECT 1 FROM skill_generated sg, json_each(sg.payload, '$.tags') je
-           WHERE sg.owner = s.owner AND sg.repo = s.repo AND sg.name = s.name
-             AND sg.kind = 'tags' AND je.value = ?
-         )
-       )
-       ORDER BY r.stars DESC, s.name ASC
-       LIMIT 200
-       ) tagged
+       LEFT JOIN owners o ON o.owner = s.owner
        ORDER BY tagged.stars DESC, tagged.name ASC`,
     )
     .bind(ftsQuery, slug, slug)

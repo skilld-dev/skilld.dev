@@ -108,7 +108,10 @@ export type PersistAbstractnessResult
   = | { _tag: 'written' }
     | { _tag: 'source_changed' }
 
-const ELIGIBLE_SKILL_SQL = `
+// Match String.trim(), including Unicode whitespace.
+const NONEMPTY_SOURCE_SQL = `LENGTH(TRIM(s.rendered_raw, char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0`
+
+const ELIGIBLE_SKILL_BASE_SQL = `
   SELECT
     s.owner,
     s.repo,
@@ -121,11 +124,11 @@ const ELIGIBLE_SKILL_SQL = `
   WHERE r.broken_since IS NULL
     AND s.current_sha IS NOT NULL
     AND s.rendered_raw IS NOT NULL
-    -- Match String.trim(): empty content cannot produce an embedding or classification.
-    AND LENGTH(TRIM(s.rendered_raw, char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0
     AND s.rendered_status = 'ok'
     AND s.seo_indexable = 1
 `
+
+const ELIGIBLE_SKILL_SQL = `${ELIGIBLE_SKILL_BASE_SQL} AND ${NONEMPTY_SOURCE_SQL}`
 
 /**
  * Count the embedding backlog so the limit can respond to it. One extra query
@@ -133,8 +136,10 @@ const ELIGIBLE_SKILL_SQL = `
  */
 export async function countMissingEmbeddings(db: D1Database): Promise<number> {
   const row = await db.prepare(
-    `SELECT COUNT(*) AS pending FROM (${ELIGIBLE_SKILL_SQL}
-      AND NOT EXISTS (
+    // CASE evaluates the source only when its embedding needs work. Trimming
+    // every completed source cost 2.2 seconds on the live catalog.
+    `SELECT COUNT(*) AS pending FROM (${ELIGIBLE_SKILL_BASE_SQL}
+      AND CASE WHEN NOT EXISTS (
         SELECT 1
         FROM skill_generated generated
         WHERE generated.owner = s.owner
@@ -142,7 +147,7 @@ export async function countMissingEmbeddings(db: D1Database): Promise<number> {
           AND generated.name = s.name
           AND generated.kind = 'embedding'
           AND generated.sha = s.current_sha
-      )
+      ) THEN ${NONEMPTY_SOURCE_SQL} ELSE 0 END
     )`,
   ).first<{ pending: number }>()
   return Number(row?.pending ?? 0)

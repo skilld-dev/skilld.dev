@@ -1,11 +1,12 @@
 import type { AbstractnessPayload } from '../../layers/registry/server/utils/ai-generation-work'
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ABSTRACTNESS_MODEL,
   ABSTRACTNESS_PROMPT_VERSION,
   abstractnessResponseText,
   buildAbstractnessUserPrompt,
+  countMissingEmbeddings,
   parseAbstractnessPayload,
   persistAbstractness,
   runtimeGenerationLimits,
@@ -77,6 +78,24 @@ describe('ai generation work', () => {
     sqlite.prepare('UPDATE skills SET rendered_raw = ?').run(source)
     expect(await selectMissingGeneratedSkills(db, 'abstractness', 50)).toEqual([])
     expect(await selectMissingGeneratedSkills(db, 'embedding', 50)).toEqual([])
+    expect(await countMissingEmbeddings(db)).toBe(0)
+  })
+
+  it('counts only eligible sources without a current embedding', async () => {
+    expect(await countMissingEmbeddings(db)).toBe(1)
+    sqlite.prepare('UPDATE skill_generated SET sha = \'old\' WHERE name = \'paused-only\' AND kind = \'embedding\'').run()
+    expect(await countMissingEmbeddings(db)).toBe(2)
+    sqlite.prepare('UPDATE skills SET rendered_status = \'failed\' WHERE name = \'paused-only\'').run()
+    expect(await countMissingEmbeddings(db)).toBe(1)
+    sqlite.prepare('UPDATE repos SET broken_since = 1').run()
+    expect(await countMissingEmbeddings(db)).toBe(0)
+  })
+
+  it('does not trim sources whose embedding is current', async () => {
+    const trim = vi.fn((source: string) => source.trim())
+    sqlite.function('trim', { varargs: true }, trim)
+    expect(await countMissingEmbeddings(db)).toBe(1)
+    expect(trim.mock.calls.map(([source]) => source)).toEqual(['# Embed'])
   })
 
   it('does not select current runtime kinds because paused batch kinds are missing', async () => {
@@ -267,6 +286,7 @@ function wrapSqlite(sqlite: Database.Database): D1Database {
     all: async <T>() => ({
       results: sqlite.prepare(sql).all(bindings(params)) as T[],
     }),
+    first: async <T>() => (sqlite.prepare(sql).get(bindings(params)) as T | undefined) ?? null,
     run: async () => {
       const result = sqlite.prepare(sql).run(bindings(params))
       return { meta: { changes: result.changes } }
