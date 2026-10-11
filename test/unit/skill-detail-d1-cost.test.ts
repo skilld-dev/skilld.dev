@@ -33,14 +33,18 @@ vi.stubGlobal('fetch', rawFetch)
 
 let harness: SqliteD1
 let background: Promise<unknown>[]
+let handler: (event: H3Event) => Promise<Record<string, any>>
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules()
   upstreamFetch.mockClear()
   rawFetch.mockReset()
   rawFetch.mockImplementation(async () => new Response(UPSTREAM_RAW))
   background = []
   slug = `${OWNER}/${REPO}/alpha`
+  // Compile the fresh handler during setup. The request deadline should cover
+  // handler behaviour, rather than Vite's first import of its dependency tree.
+  handler = (await import('../../layers/registry/server/api/skills/[...slug].get')).default as typeof handler
 })
 
 function seed(options: { maximumQueries?: number, renderedAt?: number | null, renderedStatus?: string | null, sourceResolved?: number } = {}) {
@@ -79,7 +83,6 @@ function seed(options: { maximumQueries?: number, renderedAt?: number | null, re
 }
 
 async function render(): Promise<Record<string, any>> {
-  const handler = (await import('../../layers/registry/server/api/skills/[...slug].get')).default as (event: H3Event) => Promise<Record<string, any>>
   const body = await handler({
     context: {
       platform: { db: harness.db },

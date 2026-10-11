@@ -107,6 +107,8 @@ export function collectD1(context) {
     const root = context.rootDir
     const now = context.now
     const sinceSec = Math.floor(context.since.getTime() / 1000)
+    const nowSec = Math.floor(now.getTime() / 1000)
+    const dayAgoSec = nowSec - 24 * 60 * 60
     const utcDay = now.toISOString().slice(0, 10)
     async function d1Query(sql) {
       const output = await commandJson(context, join(root, 'node_modules/.bin/wrangler'), ['d1', 'execute', 'DB', '--remote', '--json', '--config', 'wrangler.jsonc', '--command', sql])
@@ -226,11 +228,11 @@ export function collectD1(context) {
       // Hot posts are refresh's remaining exposure: each can cost at most one
       // more read, when its window crosses midnight UTC.
       has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE refresh_tier = 'hot') AS x_hot_posts` : 'NULL AS x_hot_posts',
-      has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE first_seen_at >= ${sinceSec}) AS x_posts_24h` : 'NULL AS x_posts_24h',
+      has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE first_seen_at BETWEEN ${dayAgoSec} AND ${nowSec}) AS x_posts_24h` : 'NULL AS x_posts_24h',
       // How stale the freshest ingested post is. Climbs when discovery lags.
       has('x_posts') ? `(SELECT CAST((${Math.floor(now.getTime() / 1000)} - MAX(posted_at)) / 3600 AS INTEGER) FROM x_posts) AS x_newest_post_age_hours` : 'NULL AS x_newest_post_age_hours',
       has('x_post_skills') ? `(SELECT COUNT(*) FROM x_post_skills) AS x_verified_skills` : 'NULL AS x_verified_skills',
-      has('x_post_skills') ? `(SELECT COUNT(*) FROM x_post_skills WHERE verified_at >= ${sinceSec}) AS x_verified_skills_24h` : 'NULL AS x_verified_skills_24h',
+      has('x_post_skills') ? `(SELECT COUNT(*) FROM x_post_skills WHERE verified_at BETWEEN ${dayAgoSec} AND ${nowSec}) AS x_verified_skills_24h` : 'NULL AS x_verified_skills_24h',
       (await hasColumn('x_posts', 'skills_scanned_at')) ? `(SELECT COUNT(*) FROM x_posts WHERE skills_scanned_at IS NULL) AS x_posts_unscanned` : 'NULL AS x_posts_unscanned',
       (await hasColumn('discovery_ledger', 'held_reason')) ? `(SELECT COUNT(*) FROM discovery_ledger WHERE status = 'pending' AND held_reason IS NULL) AS x_ledger_pending` : 'NULL AS x_ledger_pending',
       (await hasColumn('discovery_ledger', 'held_reason')) ? `(SELECT COUNT(*) FROM discovery_ledger WHERE held_reason IS NOT NULL) AS x_ledger_held` : 'NULL AS x_ledger_held',

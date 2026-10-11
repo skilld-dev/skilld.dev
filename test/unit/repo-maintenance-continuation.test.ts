@@ -123,6 +123,7 @@ describe('repo sync continuation', () => {
         next_offset INTEGER, total_skills INTEGER, updated_at INTEGER,
         PRIMARY KEY (owner, repo)
       );
+      CREATE TABLE jobs (id TEXT PRIMARY KEY, completed_at INTEGER, failed_at INTEGER);
     `)
     db = wrapSqlite(sqlite)
   })
@@ -134,6 +135,35 @@ describe('repo sync continuation', () => {
     ownerVerified: false,
     claimDiscovery: false,
   } as const
+
+  it.each(['missing', 'failed', 'completed'])('reclaims progress immediately when its previous job is %s', async (state) => {
+    const now = Math.floor(Date.now() / 1000)
+    sqlite.prepare('INSERT INTO repo_sync_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('acme', 'skills', 'old-job', 'old-tree', now, 250, 500, now)
+    if (state !== 'missing') {
+      sqlite.prepare('INSERT INTO jobs VALUES (?, ?, ?)')
+        .run('old-job', state === 'completed' ? now : null, state === 'failed' ? now : null)
+    }
+    syncRepo.mockResolvedValue(failedWith('tree_truncated'))
+    const { ctx, control } = jobContext(db)
+
+    await handleRegistryRepoJob(payload, ctx as never)
+
+    expect(control).toMatchObject({ action: 'failed', error: 'tree_truncated' })
+  })
+
+  it('waits while another active job owns fresh progress', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    sqlite.prepare('INSERT INTO repo_sync_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('acme', 'skills', 'active-job', 'tree-1', now, 250, 500, now)
+    sqlite.prepare('INSERT INTO jobs VALUES (?, NULL, NULL)').run('active-job')
+    const { ctx, control } = jobContext(db)
+
+    await handleRegistryRepoJob(payload, ctx as never)
+
+    expect(control).toMatchObject({ action: 'released', delaySeconds: 60 })
+    expect(syncRepo).not.toHaveBeenCalled()
+  })
 
   it('holds a new submission before syncing and releases its progress claim', async () => {
     purposeAdmission.mockResolvedValue({ _tag: 'held', reason: 'repository_purpose_review_required' })
@@ -191,6 +221,7 @@ describe('permanent repository failures on the sync path', () => {
         next_offset INTEGER, total_skills INTEGER, updated_at INTEGER,
         PRIMARY KEY (owner, repo)
       );
+      CREATE TABLE jobs (id TEXT PRIMARY KEY, completed_at INTEGER, failed_at INTEGER);
     `)
     db = wrapSqlite(sqlite)
   })
