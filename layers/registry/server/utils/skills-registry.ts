@@ -424,26 +424,28 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     .prepare(`SELECT ${countExpression} as total ${FROM_SKILLS_JOIN_REPOS} ${where}`)
     .bind(...params)
 
-  // The repo Skill count is added after the page cut, so it runs once per row
-  // on the page instead of once per match. The outer query sorts the page
-  // again by the same key, which names result columns and binds nothing.
+  // Rank owner representatives with keys and sort columns only. Read card
+  // metadata after paging, so descriptions and author lookups never enter
+  // the window's sorter. The repo count also runs only for returned rows.
   const pageSelectRow = includeDependencies ? `${SELECT_SKILL_ROW_BASE}, s.rendered_raw` : SELECT_SKILL_ROW_BASE
   const dataStmt = db
     .prepare(uniqueOwners
       ? `WITH ranked_skills AS (
-          SELECT ${pageSelectRow},
+          SELECT s.owner, s.repo, s.name, s.like_count, s.modified_at, r.stars,
             ROW_NUMBER() OVER (PARTITION BY s.owner ORDER BY ${orderBy}) AS owner_rank
           ${FROM_SKILLS_JOIN_REPOS}
           ${where}
         )
-        SELECT paged.*, ${repoSkillCountSql('paged')}
+        SELECT ${selectSkillRow}
         FROM (
           SELECT * FROM ranked_skills
           WHERE owner_rank = 1
           ORDER BY ${rankedOrderBy}
           LIMIT ? OFFSET ?
         ) paged
-        ORDER BY ${rankedOrderBy}`
+        JOIN skills s ON s.owner = paged.owner AND s.repo = paged.repo AND s.name = paged.name
+        ${JOIN_REPOS_SQL}
+        ORDER BY ${orderBy}`
       : `SELECT paged.*, ${repoSkillCountSql('paged')}
         FROM (
           SELECT ${pageSelectRow} ${FROM_SKILLS_JOIN_REPOS} ${where}

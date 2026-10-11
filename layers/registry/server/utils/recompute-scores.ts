@@ -88,7 +88,10 @@ const BASE_SELECT = `
   s.trust_score,
   s.trust_reasons,
   o.tier AS override_tier,
-  o.reason AS override_reason,
+  o.reason AS override_reason
+`
+
+const LIVE_COUNTER_SELECT = `
   (
     SELECT COUNT(*)
     FROM collection_skills_v2 cs
@@ -133,6 +136,44 @@ const FROM_JOIN = `
   FROM skills s
   JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
   LEFT JOIN repo_trust_overrides o ON o.owner = s.owner AND o.repo = s.repo
+`
+
+// Group once for the full pass. Counting siblings for every skill makes
+// large repositories cost quadratically more reads.
+const ALL_COUNTERS_CTE = `
+  WITH curator_counts AS (
+    SELECT cs.owner, cs.repo, cs.name,
+      COUNT(*) AS curator_count,
+      SUM(CASE WHEN length(trim(COALESCE(cs.reason, ''))) >= 20 THEN 1 ELSE 0 END) AS curator_reason_count
+    FROM collection_skills_v2 cs
+    JOIN collections_v2 c ON c.id = cs.collection_id
+    WHERE c.deleted_at IS NULL
+    GROUP BY cs.owner, cs.repo, cs.name
+  ), social_counts AS (
+    SELECT skill_slug, COUNT(*) AS approved_social_count,
+      SUM(CASE WHEN role = 'author' THEN 1 ELSE 0 END) AS author_social_count
+    FROM skill_social_posts
+    WHERE status = 'approved'
+    GROUP BY skill_slug
+  ), repo_counts AS (
+    SELECT owner, repo, COUNT(*) AS repo_skill_count
+    FROM skills
+    GROUP BY owner, repo
+  )
+`
+
+const ALL_COUNTER_SELECT = `
+  COALESCE(cc.curator_count, 0) AS curator_count,
+  COALESCE(cc.curator_reason_count, 0) AS curator_reason_count,
+  COALESCE(sc.approved_social_count, 0) AS approved_social_count,
+  COALESCE(sc.author_social_count, 0) AS author_social_count,
+  CASE WHEN r.broken_since IS NULL THEN COALESCE(rc.repo_skill_count, 0) ELSE 0 END AS repo_skill_count
+`
+
+const ALL_COUNTER_JOINS = `
+  LEFT JOIN curator_counts cc ON cc.owner = s.owner AND cc.repo = s.repo AND cc.name = s.name
+  LEFT JOIN social_counts sc ON sc.skill_slug = s.slug
+  LEFT JOIN repo_counts rc ON rc.owner = s.owner AND rc.repo = s.repo
 `
 
 function computeFromRow(row: ScoreRow, now: number): {
@@ -290,7 +331,7 @@ function updateTrustStmt(
 
 async function fetchOne(db: D1Database, key: SkillKey): Promise<ScoreRow | null> {
   const row = await db
-    .prepare(`SELECT ${BASE_SELECT} ${FROM_JOIN} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name = ?3 LIMIT 1`)
+    .prepare(`SELECT ${BASE_SELECT}, ${LIVE_COUNTER_SELECT} ${FROM_JOIN} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name = ?3 LIMIT 1`)
     .bind(key.owner, key.repo, key.name)
     .first<ScoreRow>()
   return row ?? null
@@ -340,7 +381,8 @@ export async function recomputeAllSkillScores(
 
   const res = await db
     .prepare(
-      `SELECT ${BASE_SELECT} ${FROM_JOIN}
+      `${ALL_COUNTERS_CTE}
+       SELECT ${BASE_SELECT}, ${ALL_COUNTER_SELECT} ${FROM_JOIN} ${ALL_COUNTER_JOINS}
        ORDER BY r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC
        ${limitClause}`,
     )

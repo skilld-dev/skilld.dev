@@ -4,10 +4,7 @@ import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import {
-  recomputeIndexabilityForSkill,
-  recomputeTrustForSkill,
-} from '../utils/recompute-scores'
+import { recomputeIndexabilityForSkill } from '../utils/recompute-scores'
 import { SKILL_COUNTER_RECOMPUTE_SQL } from '../utils/skill-counter-recompute'
 
 const BATCH = 200
@@ -89,10 +86,8 @@ export default defineScheduledTask({
           .then(async () => {
           // Counters just moved; re-score indexability + trust for this
           // skill so seo_index_score / trust_tier track the new inputs.
-          // Indexability writes both sets of columns in one UPDATE; trust
-          // helper is a no-op when indexability already covered the change.
+          // Indexability writes both sets of columns in one UPDATE.
             await recomputeIndexabilityForSkill(db, { owner, repo, name })
-            await recomputeTrustForSkill(db, { owner, repo, name })
             updated++
             successful.push({ owner, repo, name })
           })
