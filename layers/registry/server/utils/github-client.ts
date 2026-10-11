@@ -587,8 +587,15 @@ export async function getTree(
   // into the inventory: sync uses absent paths to retire Skills.
   const rootSha = initial.data.sha
   const incomplete: TreeResponse = { sha: rootSha, tree: [], truncated: true }
+  // The discarded recursive response can hold 100,000 entries. Release it
+  // before reading subtrees, so both inventories never share the working set.
+  initial.data = incomplete
   const pending = [{ sha: rootSha, prefix: '', recursive: false }]
   const entries: TreeEntry[] = []
+  // scienceide_env exhausted Worker memory on five expansion attempts. Bound
+  // retained strings as well as objects; long paths defeat an entry-only cap.
+  const maxRetainedChars = 8 * 1024 * 1024
+  let retainedChars = 0
   let rateLimit = initial.rateLimit
   let requests = 1
   while (pending.length > 0) {
@@ -613,10 +620,13 @@ export async function getTree(
       pending.push({ ...next, recursive: false })
       continue
     }
-    if (entries.length + result.data.tree.length > 250_000)
+    if (entries.length + result.data.tree.length > 100_000)
       return { ...result, data: incomplete, rateLimit, notModified: false }
     for (const entry of result.data.tree) {
       const path = next.prefix ? `${next.prefix}/${entry.path}` : entry.path
+      retainedChars += path.length + entry.sha.length
+      if (retainedChars > maxRetainedChars)
+        return { ...result, data: incomplete, rateLimit, notModified: false }
       entries.push({ path, type: entry.type, sha: entry.sha, size: entry.size })
       if (!next.recursive && entry.type === 'tree')
         pending.push({ sha: entry.sha, prefix: path, recursive: true })
