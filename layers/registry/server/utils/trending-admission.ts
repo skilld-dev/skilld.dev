@@ -279,16 +279,40 @@ export async function listAdmittedSkills(
   opts: { board: TrendingBoardName, page: number, indexable: ReadonlyArray<{ owner: string, repo: string, name: string }> },
 ): Promise<{ rows: AdmittedSkillRow[], total: number }> {
   const indexable = new Set(opts.indexable.map(skill => `${skill.owner}/${skill.repo}/${skill.name}`))
+  // Drive the small admitted set, then look up each Skill and Repository.
+  // Reordered joins scanned every resolved Skill before checking admission.
   const result = await db.prepare(`
-    SELECT s.owner, s.repo, s.name, s.description, r.stars, a.admitted_at,
-      (SELECT COUNT(*) FROM skills c WHERE c.owner = s.owner AND c.repo = s.repo AND c.source_resolved = 1) AS repo_skill_count
+    SELECT s.owner, s.repo, s.name, s.description, r.stars, a.admitted_at
     FROM skill_trending_admissions a
-    JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
-    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+    CROSS JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
+    CROSS JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
     WHERE a.first_board = ?1 AND s.source_resolved = 1
     ORDER BY a.admitted_at DESC, s.owner, s.repo, s.name
-  `).bind(opts.board).all<AdmittedSkillRow>()
+  `).bind(opts.board).all<Omit<AdmittedSkillRow, 'repo_skill_count'>>()
   const rows = (result.results ?? []).filter(row => indexable.has(`${row.owner}/${row.repo}/${row.name}`))
   const start = (opts.page - 1) * ADMITTED_PAGE_SIZE
-  return { rows: rows.slice(start, start + ADMITTED_PAGE_SIZE), total: rows.length }
+  const page = rows.slice(start, start + ADMITTED_PAGE_SIZE)
+  if (page.length === 0)
+    return { rows: [], total: rows.length }
+
+  const repositories = [...new Map(page.map(row => [
+    `${row.owner}/${row.repo}`,
+    { owner: row.owner, repo: row.repo },
+  ])).values()]
+  // Count once per returned Repository, including unadmitted resolved siblings.
+  // One JSON binding keeps a full page inside D1's parameter limit.
+  const counts = await db.prepare(`
+    SELECT json_extract(requested.value, '$.owner') AS owner,
+      json_extract(requested.value, '$.repo') AS repo,
+      (SELECT COUNT(*) FROM skills c
+       WHERE c.owner = json_extract(requested.value, '$.owner')
+         AND c.repo = json_extract(requested.value, '$.repo')
+         AND c.source_resolved = 1) AS repo_skill_count
+    FROM json_each(?1) requested
+  `).bind(JSON.stringify(repositories)).all<Pick<AdmittedSkillRow, 'owner' | 'repo' | 'repo_skill_count'>>()
+  const countByRepository = new Map(counts.results.map(row => [`${row.owner}/${row.repo}`, row.repo_skill_count]))
+  return {
+    rows: page.map(row => ({ ...row, repo_skill_count: countByRepository.get(`${row.owner}/${row.repo}`)! })),
+    total: rows.length,
+  }
 }
