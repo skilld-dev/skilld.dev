@@ -9,7 +9,7 @@
 
 import type { TrendingAward, TrendingAwardBoard } from '#shared/trending-award'
 import type { SkillRef } from './trending-admission'
-import { loadTrendingBoard } from '#shared/server/trending-board'
+import { loadTrendingBoardSkills } from '#shared/server/trending-board'
 import { compareTrendingAwards, TRENDING_AWARD_BOARDS, trendingAwardPeriod } from '#shared/trending-award'
 import { TRENDING_BOARD_LIMIT, trendingRangeMeta } from '#shared/trending-range'
 import { admissionKey } from './trending-admission'
@@ -41,7 +41,7 @@ export async function loadAwardSightings(db: D1Database, now: number): Promise<A
     const windowHours = trendingRangeMeta(board).windowHours
     if (windowHours === null)
       continue
-    const { namedSkills } = await loadTrendingBoard({ db, now, limit: TRENDING_BOARD_LIMIT, windowHours })
+    const namedSkills = await loadTrendingBoardSkills({ db, now, limit: TRENDING_BOARD_LIMIT, windowHours })
     namedSkills.forEach((entry, index) => {
       const evidenced = entry.evidence !== null || (entry.github?.latestGain ?? null) !== null
       if (evidenced)

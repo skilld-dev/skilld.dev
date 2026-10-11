@@ -1,7 +1,8 @@
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { parseSkillTrendingAwards, planAwardWrites, recordTrendingAwards, SKILL_TRENDING_AWARDS_SQL } from '../../layers/registry/server/utils/trending-awards'
+import { loadAwardSightings, parseSkillTrendingAwards, planAwardWrites, recordTrendingAwards, SKILL_TRENDING_AWARDS_SQL } from '../../layers/registry/server/utils/trending-awards'
 import { createSkillBadgeResponse, loadSkillBadgeAward } from '../../server/utils/skill-badge'
+import { loadTrendingBoard } from '../../shared/server/trending-board'
 import { skillBadgeImagePath } from '../../shared/skill-badge'
 import {
   headlineTrendingAward,
@@ -9,6 +10,7 @@ import {
   trendingAwardLabel,
   trendingAwardPeriod,
 } from '../../shared/trending-award'
+import { TRENDING_BOARD_LIMIT, trendingRangeMeta } from '../../shared/trending-range'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 // Wednesday 1 Oct 2026, 12:00 UTC.
@@ -123,6 +125,50 @@ describe('planAwardWrites', () => {
 })
 
 describe('recordTrendingAwards', () => {
+  it('loads awards within twelve reads without loading unused Repository boards', async () => {
+    harness = createSqliteD1(allMigrations(), { maximumQueries: 12 })
+    addSkill({ owner: 'a', repo: 'one', name: 'first' })
+    mention({ owner: 'a', repo: 'one', name: 'first', handle: 'h1', at: NOW - 3600 })
+
+    expect(await loadAwardSightings(db().db, NOW)).toEqual([
+      { board: 'week', rank: 1, skill: { owner: 'a', repo: 'one', name: 'first' } },
+      { board: 'month', rank: 1, skill: { owner: 'a', repo: 'one', name: 'first' } },
+    ])
+  })
+
+  it('matches full board positions across demotion, windows, and GitHub evidence', async () => {
+    for (let i = 0; i < 20; i++)
+      addSkill({ owner: `quiet${i}`, repo: 'repo', name: 'filler', stars: 100_000 })
+    addSkill({ owner: 'known', repo: 'repo', name: 'popular', stars: 1_000_000 })
+    addSkill({ owner: 'new', repo: 'repo', name: 'discovery' })
+    addSkill({ owner: 'old', repo: 'repo', name: 'monthly' })
+    addSkill({ owner: 'surging', repo: 'repo', name: 'github' })
+    mention({ owner: 'known', repo: 'repo', name: 'popular', handle: 'h1', at: NOW - 3600 })
+    mention({ owner: 'known', repo: 'repo', name: 'popular', handle: 'h2', at: NOW - 3600 })
+    mention({ owner: 'new', repo: 'repo', name: 'discovery', handle: 'h3', at: NOW - 3600 })
+    mention({ owner: 'old', repo: 'repo', name: 'monthly', handle: 'h4', at: NOW - 8 * DAY })
+    db().raw.prepare(`INSERT INTO repo_star_surges
+      (owner, repo, observed_day, latest_gain, baseline_gain, stars, detected_at)
+      VALUES ('surging', 'repo', ?, 900, 10, 1000, ?)`).run(Math.floor((NOW - DAY) / DAY) * DAY, NOW - DAY)
+
+    const sightings = await loadAwardSightings(db().db, NOW)
+    for (const board of ['week', 'month'] as const) {
+      const { namedSkills } = await loadTrendingBoard({
+        db: db().db,
+        now: NOW,
+        limit: TRENDING_BOARD_LIMIT,
+        windowHours: trendingRangeMeta(board).windowHours!,
+      })
+      expect(sightings.filter(sighting => sighting.board === board)).toEqual(
+        namedSkills.flatMap((entry, index) => entry.evidence !== null || entry.github?.latestGain != null
+          ? [{ board, rank: index + 1, skill: { owner: entry.owner, repo: entry.repo, name: entry.slug } }]
+          : []),
+      )
+    }
+    expect(sightings.filter(s => s.board === 'week').map(s => s.skill.owner)).toEqual(['new', 'surging', 'known'])
+    expect(sightings.filter(s => s.skill.owner === 'old').map(s => s.board)).toEqual(['month'])
+  })
+
   it('awards evidenced rows by board position and keeps the award after they leave', async () => {
     addSkill({ owner: 'anthropics', repo: 'skills', name: 'frontend-design' })
     addSkill({ owner: 'emil', repo: 'skills', name: 'animate' })

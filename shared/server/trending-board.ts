@@ -45,8 +45,18 @@ export interface LoadTrendingBoardOptions {
   windowHours: number
 }
 
+/** The named rows used by both the public board and its awards. */
+export async function loadTrendingBoardSkills(
+  options: LoadTrendingBoardOptions,
+  deprioritizeRepositories?: ReadonlySet<string>,
+): Promise<TrendingSkill[]> {
+  const demoted = deprioritizeRepositories
+    ?? await loadTopStarredRepositories(options.db, DEMOTED_STARRED_REPOSITORIES)
+  return loadTrendingSkills({ ...options, deprioritizeRepositories: demoted })
+}
+
 export async function loadTrendingBoard(options: LoadTrendingBoardOptions): Promise<TrendingBoard> {
-  const { db, now, limit, windowHours } = options
+  const { db, now, limit } = options
   // The page header states this demotion, so it reads the same constant.
   const deprioritizeRepositories = await loadTopStarredRepositories(db, DEMOTED_STARRED_REPOSITORIES)
   const [entries, namedSkills] = await Promise.all([
@@ -61,7 +71,7 @@ export async function loadTrendingBoard(options: LoadTrendingBoardOptions): Prom
     }),
     // Same `limit` the repository half gets. A hardcoded 12 here once made the
     // caller's `?limit=` a lie for the collection the page renders.
-    loadTrendingSkills({ db, now, windowHours, limit, deprioritizeRepositories }),
+    loadTrendingBoardSkills(options, deprioritizeRepositories),
   ])
 
   const fallback = namedSkills.length >= MIN_BEFORE_FALLBACK
