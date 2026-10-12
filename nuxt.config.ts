@@ -290,6 +290,9 @@ export default defineNuxtConfig({
         : {
             cloudflareWebAnalytics: {
               token: 'fefd4b7eafe04d5f81621e43e5d5ef80',
+              // RUM cannot collect Worker subrequests. Send events from the browser.
+              // https://developers.cloudflare.com/web-analytics/faq/#can-i-use-real-user-monitoring-rum-with-cloudflare-workers
+              proxy: false,
               trigger: 'server',
             },
           }),
