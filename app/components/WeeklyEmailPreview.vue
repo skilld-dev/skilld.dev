@@ -36,7 +36,7 @@ const card = computed(() =>
   -->
   <div v-if="hasDemo" class="home-weekly-demo">
     <p class="data-label">
-      Example digest · real source changes
+      Example Skill updates · real commits
     </p>
     <div class="home-weekly-frame" aria-hidden="true" inert>
       <!-- eslint-disable-next-line vue/no-v-html -->

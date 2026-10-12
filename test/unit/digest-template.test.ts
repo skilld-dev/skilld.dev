@@ -23,6 +23,15 @@ function render(commitMessages = skill.commitMessages) {
 }
 
 describe('digest commit content', () => {
+  it('names the email Skill updates without changing its unsubscribe URL', () => {
+    const rendered = render()
+    expect(rendered.subject).toBe('skilld Skill updates: review was updated')
+    for (const content of [rendered.html, rendered.text]) {
+      expect(content).toContain('Skill updates')
+      expect(content).not.toMatch(/skilld digest|enabled the digest/i)
+      expect(content).toContain('https://skilld.dev/api/unsubscribe?t=example')
+    }
+  })
   it('shows author commit subjects even when delivery has a generated summary', () => {
     const rendered = render()
     for (const content of [rendered.html, rendered.text]) {

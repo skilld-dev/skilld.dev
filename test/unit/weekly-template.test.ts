@@ -317,13 +317,13 @@ describe('weekly subject and preheader', () => {
       trending: [trending()],
     }))
 
-    expect(subject).toBe('skilld digest: vitest, tdd and 1 more were updated')
+    expect(subject).toBe('skilld Skill updates: vitest, tdd and 1 more were updated')
   })
 
   it('names one changed skill without a tail', () => {
     const { subject } = renderWeekly(input({ likedChanges: [likedChange({ name: 'vitest' })] }))
 
-    expect(subject).toBe('skilld digest: vitest was updated')
+    expect(subject).toBe('skilld Skill updates: vitest was updated')
   })
 
   it('joins exactly two changed skills with and', () => {
@@ -331,7 +331,7 @@ describe('weekly subject and preheader', () => {
       likedChanges: [likedChange({ name: 'vitest' }), likedChange({ name: 'tdd' })],
     }))
 
-    expect(subject).toBe('skilld digest: vitest and tdd were updated')
+    expect(subject).toBe('skilld Skill updates: vitest and tdd were updated')
   })
 
   it('counts the overflow into the subject tail', () => {
@@ -340,7 +340,7 @@ describe('weekly subject and preheader', () => {
       likedOverflow: 4,
     }))
 
-    expect(subject).toBe('skilld digest: vitest, tdd and 4 more were updated')
+    expect(subject).toBe('skilld Skill updates: vitest, tdd and 4 more were updated')
   })
 
   it('falls back to trending names when nothing liked changed', () => {

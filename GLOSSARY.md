@@ -25,7 +25,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | curator | `layers/collections`, `/@login` | curator 1—N collection | "curator" |
 | collection | `layers/collections`, `/@login/slug` | collection N—N Skill | "collection" |
 | watch | `layers/identity` | account N—N Repository or collection | "watch" |
-| digest | `layers/identity` email | account 1—1 digest schedule | "digest" |
+| Skill updates | `layers/identity` email | account 1—1 monthly email schedule | "Skill updates" |
 | track | `/skills/<slug>`, `layers/registry`, MCP `list_tracks` and `get_track` | track 1—N Skill | "track" |
 | comparison | `/compare/<slug>`, `layers/marketing` | comparison N—N Skill | "comparison" |
 | trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
@@ -191,15 +191,19 @@ UI fixtures are labelled Example data. They are not recorded runs or evaluation 
 
 ### watch
 
-**Is:** subscribing to a Repository or collection so the digest reports its changes. The Loop 2 verb.
+**Is:** subscribing to a Repository or collection so the Skill updates email reports its changes. The Loop 2 verb.
 
 **Never:** follow, star, subscribe, sync.
 
-### digest
+### Skill updates
 
-**Is:** the monthly email that summarises changes to watched Repositories. The user can turn it off.
+**Is:** the monthly email showing commits affecting Skills in watched Repositories. The user can turn it off.
 
-**Never:** newsletter, notification, alert. "the weekly" is the separate weekly email.
+**Use for:** the email, its preview, and account email settings. Add "monthly" when stating its schedule.
+
+**Never:** digest, newsletter, notification, alert as names for this email. "The weekly" is the separate weekly email.
+
+**Identifiers:** existing `digest` routes, database fields, and API values keep their technical names. Cryptographic digests name a separate concept.
 
 ### trending
 
@@ -380,9 +384,9 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Is:** the weekly email with distinct trending Skills. New accounts choose during onboarding; both recurring email choices start unchecked.
 Existing accounts keep their saved choices.
 
-**Use for:** "the weekly", lowercase. It sits beside **digest**, which is the separate watched-Repository email. They are not the same send.
+**Use for:** "the weekly", lowercase. It sits beside **Skill updates**, which is the separate watched-Repository email. They are not the same send.
 
-**Never:** newsletter, roundup, trending digest.
+**Never:** newsletter, roundup, trending Skill updates.
 
 ### task search
 

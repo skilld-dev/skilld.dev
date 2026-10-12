@@ -55,4 +55,4 @@ export default defineCachedEventHandler(defineApiHandler({ handler: async () => 
     windowEnd,
     rowCount: changes.length,
   }
-} }), { maxAge: 3600, swr: true, name: 'public-digest-demo-v3' })
+} }), { maxAge: 3600, swr: true, name: 'public-digest-demo-v4' })

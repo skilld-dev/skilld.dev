@@ -35,7 +35,7 @@ const steps: LifecycleStep[] = [
     id: 'update',
     name: 'Keep up to date',
     to: '/cli#update',
-    text: 'Watch repos and get a digest when Skills change.',
+    text: 'Watch repos and get Skill updates when Skills change.',
   },
 ]
 </script>

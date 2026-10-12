@@ -69,13 +69,13 @@ export async function applyUnsubscribe(
     return {
       list,
       heading: 'Unsubscribed.',
-      body: 'You will not get the weekly again. Your digest setting is unchanged.',
+      body: 'You will not get the weekly again. Your Skill updates setting is unchanged.',
     }
   }
   return {
     list,
     heading: 'Unsubscribed.',
-    body: 'You will not get the digest again.',
+    body: 'You will not get Skill updates again.',
   }
 }
 
@@ -90,7 +90,7 @@ export async function applyResubscribe(
     heading: 'Email restored.',
     body: list === 'weekly'
       ? 'You will get the weekly again.'
-      : 'You will get the digest again.',
+      : 'You will get Skill updates again.',
   }
 }
 
@@ -109,7 +109,7 @@ function esc(value: string): string {
 
 export function renderUnsubscribePage(input: UnsubscribePageInput): string {
   const list = input._tag === 'invalid' ? null : input.list
-  const label = list === 'welcome' ? 'welcome' : list === 'weekly' ? 'weekly' : 'digest'
+  const label = list === 'welcome' ? 'welcome' : list === 'weekly' ? 'weekly' : 'Skill updates'
   const title = input._tag === 'confirm'
     ? `Stop ${label} emails?`
     : input._tag === 'invalid'
@@ -118,7 +118,7 @@ export function renderUnsubscribePage(input: UnsubscribePageInput): string {
         ? 'Email restored'
         : 'Email stopped'
   const body = list === 'welcome'
-    ? input._tag === 'confirm' ? 'Your weekly and digest settings will stay unchanged.' : WELCOME_EMAIL_COPY.stopped
+    ? input._tag === 'confirm' ? 'Your weekly and Skill updates settings will stay unchanged.' : WELCOME_EMAIL_COPY.stopped
     : input._tag === 'confirm'
       ? `You can restore ${label} emails after this change.`
       : input._tag === 'invalid'

@@ -30,8 +30,8 @@ const rpc = useNuxtRpc()
 const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutationResponse>({
   mutation: body => rpc.execute(identityAccountQueries.saveEmail(), body),
   invalidates: ['identity:me'],
-  onError: actionFailed('save your digest email'),
-  onMutate: () => actionFailed.clear('save your digest email'),
+  onError: actionFailed('save your email address'),
+  onMutate: () => actionFailed.clear('save your email address'),
 })
 
 const finishOnboardingMutation = useNuxtMutation<void, IdentityMutationResponse>({
@@ -87,7 +87,7 @@ const previewOpen = computed({
       preview.value = null
   },
 })
-const previewTitle = computed(() => preview.value === 'weekly' ? 'Preview the weekly' : preview.value === 'digest' ? 'Preview the digest' : 'Preview the welcome')
+const previewTitle = computed(() => preview.value === 'weekly' ? 'Preview the weekly' : preview.value === 'digest' ? 'Preview Skill updates' : 'Preview the welcome')
 const checkboxUi = { base: 'size-6', container: 'h-6', wrapper: 'ms-3', label: 'min-h-11 cursor-pointer font-normal leading-6' }
 
 useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
@@ -134,7 +134,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
 
       <div class="space-y-1">
         <UCheckbox v-model="optIn" size="xl" :disabled="submitting" :ui="checkboxUi" label="Send me watched changes once a month." />
-        <UButton label="Preview the digest" color="neutral" variant="link" class="min-h-11 px-0 ms-9" trailing-icon="i-lucide-arrow-up-right" @click="openPreview('digest')" />
+        <UButton label="Preview Skill updates" color="neutral" variant="link" class="min-h-11 px-0 ms-9" trailing-icon="i-lucide-arrow-up-right" @click="openPreview('digest')" />
       </div>
 
       <div class="border-t border-default pt-3">

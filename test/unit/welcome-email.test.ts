@@ -109,7 +109,7 @@ describe('one signup welcome email', () => {
     expect(d1.raw.prepare('SELECT email_opt_in, weekly_opt_out FROM users WHERE id = 900001').get())
       .toMatchObject({ email_opt_in: 0, weekly_opt_out: 0 })
     const html = renderUnsubscribePage({ _tag: 'complete', token: 'token', list: 'welcome', action: 'unsubscribed' })
-    expect(html).toContain('Your weekly and digest settings are unchanged.')
+    expect(html).toContain('Your weekly and Skill updates settings are unchanged.')
     expect(html).not.toContain('/api/unsubscribe/undo')
   })
 

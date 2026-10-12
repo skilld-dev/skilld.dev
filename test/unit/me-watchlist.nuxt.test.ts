@@ -324,7 +324,7 @@ describe('account skill watchlist', () => {
     releaseEmailSave = () => {}
     const wrapper = await mountPage('email')
     expect(wrapper.text()).toContain('Weekly email')
-    expect(wrapper.text()).toContain('Monthly digest')
+    expect(wrapper.text()).toContain('Monthly Skill updates')
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
     const save = buttonWithText(wrapper, 'Save email settings')
 
@@ -337,12 +337,12 @@ describe('account skill watchlist', () => {
     expect(disabledWhilePending).toBe(true)
   })
 
-  it('saves the weekly email and monthly digest as separate choices', async () => {
+  it('saves the weekly email and monthly Skill updates as separate choices', async () => {
     const wrapper = await mountPage('email')
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
     const labels = wrapper.findAll('label')
     const weekly = labels.find(label => label.text().includes('weekly email'))
-    const monthly = labels.find(label => label.text().includes('monthly digest'))
+    const monthly = labels.find(label => label.text().includes('monthly Skill updates'))
     if (!weekly || !monthly)
       throw new Error('Could not find both email choices')
 

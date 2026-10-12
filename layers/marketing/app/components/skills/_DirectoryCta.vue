@@ -2,7 +2,7 @@
 const { state: auth } = useAuth()
 const cards = computed(() => [
   ...(auth.value._tag !== 'signed-in'
-    ? [{ id: 'signup', icon: 'i-lucide-eye', title: 'Watch for changes', description: 'Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.', label: 'Sign in with GitHub', to: '/login' }]
+    ? [{ id: 'signup', icon: 'i-lucide-eye', title: 'Watch for changes', description: 'Watch a repo. Get monthly Skill updates with commits affecting its Skills. If nothing changed, we send nothing.', label: 'Sign in with GitHub', to: '/login' }]
     : []),
   ...(auth.value._tag !== 'signed-in' || !auth.value.user.onboarded
     ? [{ id: 'weekly', icon: 'i-lucide-mail', title: 'Trending skills this week', description: 'Get the latest skills devs are talking about in your inbox.', label: 'Sign in with GitHub', to: '/login' }]

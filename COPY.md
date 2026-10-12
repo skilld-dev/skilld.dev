@@ -20,18 +20,22 @@ Replies go to `harlan@harlanzw.com`.
 Its one main action is "Open your account", linking to `/me`.
 Its footer is "Stop welcome emails", linking to a signed welcome unsubscribe URL.
 Signup sends one welcome email automatically when GitHub supplies an email address.
-Onboarding has no welcome checkbox. It offers previews of the welcome, weekly, and digest emails.
-Preview labels are "Preview the welcome", "Preview the weekly", and "Preview the digest".
+Onboarding has no welcome checkbox. It offers previews of the welcome, weekly, and Skill updates emails.
+Preview labels are "Preview the welcome", "Preview the weekly", and "Preview Skill updates".
 The welcome preview footer says "Email preferences" and links to `/me`.
 Preview loading says "Loading email preview". Failure says "Could not load the email preview. Try again."
 The weekly footer says "Your account is set to receive the weekly email."
-The digest heading is "Skill updates". Its introduction is "Recent commits from repos you watch."
+The Skill updates email uses "Skill updates" in its subject prefix, branding, and plain-text heading.
+Account settings use "Monthly Skill updates" and "Send me monthly Skill updates".
+Its heading is "Skill updates". Its introduction is "Recent commits from repos you watch."
 Its changes section is "Recent commits". Show author commit subjects, never generated summaries or Skill descriptions.
 If commit details are missing, say "Commit details are unavailable." Link "View commits" to the Skill file's GitHub history.
-New accounts start with the weekly and digest choices unchecked. Saved choices stay as selected.
+New accounts start with the weekly and Skill updates choices unchecked. Saved choices stay as selected.
 Onboarding and the welcome email say "We’ll only send other emails if you’ve opted in."
 The missing-address message is "Add an email address, or turn off all email choices."
-Welcome unsubscribe says "You will not get welcome emails. Your weekly and digest settings are unchanged."
+The Skill updates footer says "You get this because you enabled Skill updates."
+Unsubscribe actions use "Stop Skill updates emails" and "Restore Skill updates emails".
+Welcome unsubscribe says "You will not get welcome emails. Your weekly and Skill updates settings are unchanged."
 
 Skill validation in `/me` uses "Skill validation" and "Some of your Skills have validation issues."
 The action is "View validation issues". Source links use "Open SKILL.md".
@@ -48,7 +52,7 @@ These exact strings. Do not paraphrase them per page.
 | Name | `skilld` lowercase by default, `Skilld` only at a sentence start, `skilld.dev` for the domain. Never SKILLD, Skill'd, Skill-d, SkillD. | guidance only (applies everywhere, not one placement) |
 | Tagline | Curated agent skills by humans. | guidance only: the five-word product summary. The homepage and its OG card use the Home H1 instead |
 | Site description | Curated agent skills by humans, written by real maintainers in their own GitHub repos | `nuxt.config.ts` site description (feeds every page's meta description) |
-| Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes. | guidance only: no page ships it yet (use it where two sentences fit) |
+| Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get Skill updates when it changes. | guidance only: no page ships it yet (use it where two sentences fit) |
 | Home H1 | Agent skills for you and your agent | index H1, index OG image alt |
 | Home caption | Try any skill before you install it. Your agent can search for its own. | guidance only: the homepage caption under the H1. It assumes the reader knows what a Skill is, so it names only what sets skilld apart. "Search for its own" is the skilld Skill behind the promo label. The homepage OG card uses it as its description |
 | Home claims line | Open-source CLI, no telemetry · A skills.sh alternative | guidance only: the homepage claims line under the search. The second item links to `/vs/skills-sh`, and the promo label closes the line |
@@ -58,7 +62,7 @@ These exact strings. Do not paraphrase them per page.
 | Hero Agent logos | The seven `AGENT_LOGOS` icons, then `+66` | guidance only: the quiet row under the homepage claims line. Links `#agents`. Its label names each Agent. 66 is `AGENT_TARGETS` minus `AGENT_LOGOS` |
 | Step 1: find | Find Skills · Curated, plus what devs talk about. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then one line. Links `/skills` |
 | Step 2: run | Run, Fork or Install · Run leaves nothing on disk. Fork or install to keep it. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default |
-| Step 3: update | Keep up to date · Watch repos and get a digest when Skills change. | guidance only: a homepage lifecycle step. Links `/cli#update` |
+| Step 3: update | Keep up to date · Watch repos and get Skill updates when Skills change. | guidance only: a homepage lifecycle step. Links `/cli#update` |
 | Pitch lines | Stay hyped. · No more skill bloat. · Keep updated. · Built to be built on. | guidance only: approved pitch lines for find, run, update and build on. The DESIGN.md motifs pair with them |
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: agents | Works with your agent. · The CLI installs into 73 Agents. ChatGPT, Claude, and other MCP apps search the registry from the chat. | guidance only: the homepage Agents section heading and line. 73 is `AGENT_TARGETS.length` |
@@ -81,7 +85,7 @@ These exact strings. Do not paraphrase them per page.
 | Demo token usage | {n} tokens · Input: {input}; cached input: {cached}; output: {output} | guidance only: recording metadata. Counts come from recorded usage. Cached input is included in input. Omit unavailable counts. |
 | Demo provenance | {Agent logo} {model}, {effort} effort | guidance only: the recording line on the Skill page panel and the homepage stage. Screen readers and the title get "Recorded with {agent}, {model}, {effort} effort". Omit effort when the recording has no evidence for it. No date and no GitHub link: the Skill page is where visitors inspect a Skill |
 | Demo outdated | Recorded on an older version of this Skill. | guidance only: under the Demo panel when the Skill moved past the recorded commit |
-| Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
+| Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and Skill updates |
 | Home section: why | What skilld does differently. | guidance only: the homepage Why band heading, after trending. No line under it: the three columns from `HOME_WHY_REASONS` follow directly, each a title, `summary`, and picture. Their skills.sh lines stay on `/vs/skills-sh` |
 | Why trust line | Built by Harlan Wilton · Compare with skills.sh | guidance only: the line that closes the homepage Why band. The avatar and name link Harlan's GitHub, and the button opens `/vs/skills-sh`. The columns carry every claim, so the line carries none |
 | Why reasons | Human first · Preview the output · Independent and open source · Open trending weights · No more skill bloat · Know what it runs · Know what it costs · No telemetry | guidance only: the reason titles. Each has a one-line `summary` for the homepage and a full `line` for the comparison. The homepage shows the first three, which Harlan chose on 2026-10-07. `WHY_REASONS` in `app/utils/why-skilld.ts` holds each title, its line, and the sourced skills.sh line, and both surfaces read it. The Preview line opens with the Demos line above. Open trending weights links the ranking code, so its weights must match `shared/trending-skill-score.ts`. Know what it runs never claims a Skill is safe |
@@ -123,16 +127,16 @@ The homepage deck has no collection section. Its old heading, "Install a collect
 
 **1 sentence:** Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on.
 
-**2 sentences:** Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes.
+**2 sentences:** Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get Skill updates when it changes.
 
-**1 paragraph:** Skilld is a curated registry of agent skills written by real people in the GitHub repos developers already depend on. Every skill stays in its author's repo with a link back to the source, so you can see who wrote it and read it before you run it. The platform tracks those skill files, surfaces what changed, and ships them through one install command that works across every agent. Sign in with GitHub to watch the repos you depend on; we send a monthly digest when their skills change so your agent stays current as the underlying packages evolve.
+**1 paragraph:** Skilld is a curated registry of agent skills written by real people in the GitHub repos developers already depend on. Every skill stays in its author's repo with a link back to the source, so you can see who wrote it and read it before you run it. The platform tracks those skill files, surfaces what changed, and ships them through one install command that works across every agent. Sign in with GitHub to watch the repos you depend on; we send monthly Skill updates when their skills change so your agent stays current as the underlying packages evolve.
 
 ### Value propositions
 
 | For... | Value |
 |--------|-------|
 | Developers picking skills | Skills written by people who know the tool, with the source one click away, and one install command across every agent |
-| Developers staying current | Watch the repos you depend on, get a monthly digest when their skills change |
+| Developers staying current | Watch the repos you depend on, get monthly Skill updates when their skills change |
 | Teams standardizing | Hand-picked collections install a stack in one command |
 
 ### Skill fork requests
@@ -148,9 +152,9 @@ Check existing files before fetching. Keep licence and provenance checks.
 
 ### Watch and weekly promotions
 
-The watch promotion says: `Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.`
+The watch promotion says: `Watch a repo. Get monthly Skill updates with commits affecting its Skills. If nothing changed, we send nothing.`
 The link to `/weekly/preview` says: `Preview the weekly`.
-The comparison table says: `Watch for changes, monthly digest`.
+The comparison table says: `Watch for changes, monthly Skill updates`.
 
 ### Ranked boards
 

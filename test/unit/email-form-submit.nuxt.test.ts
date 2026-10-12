@@ -103,7 +103,7 @@ it('offers new accounts only optional recurring emails', async () => {
 
 it.each([
   ['weekly', 'Preview the weekly'],
-  ['digest', 'Preview the digest'],
+  ['digest', 'Preview Skill updates'],
   ['welcome', 'Preview the welcome'],
 ])('opens the %s preview without changing email choices', async (kind, label) => {
   const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })

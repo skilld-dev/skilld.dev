@@ -170,7 +170,7 @@ export function comparisonRows(agentTargetCount: number): ComparisonRow[] {
     { label: 'CLI telemetry', skillsSh: 'On by default, opt out', skilld: 'None' },
     { label: 'CLI licence', skillsSh: 'MIT', skilld: 'MIT' },
     { label: 'Agents', skillsSh: '79', skilld: `${agentTargetCount}, plus MCP apps` },
-    { label: 'Staying current', skillsSh: '`skills update`', skilld: 'Watch for changes, monthly digest' },
+    { label: 'Staying current', skillsSh: '`skills update`', skilld: 'Watch for changes, monthly Skill updates' },
     { label: 'Run by', skillsSh: 'Vercel', skilld: 'Harlan Wilton, independent' },
   ]
 }
