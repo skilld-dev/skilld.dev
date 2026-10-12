@@ -1,6 +1,23 @@
 import { summarizeSignupEvents } from '../../checks/_helpers/signup-analytics'
 import { recordSignupEvent } from '../../layers/identity/server/utils/signup-analytics'
-import { SignupBrowserEvent, signupDataPoint, signupEmailChoice, signupEntry } from '../../shared/signup-analytics'
+import { SignupBrowserEvent, signupClickEvent, signupDataPoint, signupEmailChoice, signupEntry } from '../../shared/signup-analytics'
+
+it('records a GitHub sign-in click using only fixed labels', () => {
+  expect(signupClickEvent('/auth/github?return_to=%2Fgh%2Fowner%2Frepo&action=like-skill', 'https://skilld.dev')).toEqual({
+    stage: 'oauth',
+    outcome: 'clicked',
+    entry: 'like-skill',
+  })
+  expect(signupClickEvent('/auth/github?return_to=%2Fcli%2Fauthorize%3Fuser_code%3DSECRET', 'https://skilld.dev')).toEqual({
+    stage: 'oauth',
+    outcome: 'clicked',
+    entry: 'cli',
+  })
+})
+
+it.each(['/login', 'https://other.example/auth/github', 'javascript:alert(1)', '/auth/github/callback', 'http://['])('ignores links outside the sign-in action: %s', (href) => {
+  expect(signupClickEvent(href, 'https://skilld.dev')).toBeNull()
+})
 
 it('classifies CLI sign-in without storing its authorization parameters', () => {
   expect(signupEntry('', '/cli/authorize?user_code=SECRET')).toBe('cli')

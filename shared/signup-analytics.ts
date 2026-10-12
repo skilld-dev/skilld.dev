@@ -2,6 +2,7 @@ import type { AnalyticsDataPoint } from './analytics'
 import { z } from 'zod'
 
 const browserStages = [
+  z.object({ stage: z.literal('oauth'), entry: z.enum(['direct', 'return-page', 'cli', 'like-skill', 'watch-skill', 'watch-collection']), outcome: z.literal('clicked') }).strict(),
   z.object({ stage: z.literal('discover'), entry: z.literal('onboarding'), outcome: z.enum(['viewed', 'imported', 'import-failed', 'continued', 'skipped', 'watch-failed']) }).strict(),
   z.object({ stage: z.literal('email'), entry: z.enum(['onboarding', 'dashboard']), outcome: z.enum(['viewed', 'failed', 'completion-failed']) }).strict(),
   z.object({ stage: z.literal('email'), entry: z.enum(['onboarding', 'dashboard']), outcome: z.literal('saved'), choice: z.enum(['none', 'weekly', 'monthly', 'both']) }).strict(),
@@ -22,6 +23,20 @@ export function signupEntry(action: string, returnTo: string): SignupEntry {
   if (action === 'like-skill' || action === 'watch-skill' || action === 'watch-collection')
     return action
   return returnTo ? 'return-page' : 'direct'
+}
+
+/** Classify a clicked sign-in link without recording its path or parameters. */
+export function signupClickEvent(href: string, origin: string): Extract<SignupBrowserEvent, { stage: 'oauth' }> | null {
+  if (!URL.canParse(href, origin))
+    return null
+  const url = new URL(href, origin)
+  if (url.origin !== origin || url.pathname !== '/auth/github')
+    return null
+  return {
+    stage: 'oauth',
+    outcome: 'clicked',
+    entry: signupEntry(url.searchParams.get('action') ?? '', url.searchParams.get('return_to') ?? ''),
+  }
 }
 
 export function signupEmailChoice(weekly: boolean, monthly: boolean): 'none' | 'weekly' | 'monthly' | 'both' {

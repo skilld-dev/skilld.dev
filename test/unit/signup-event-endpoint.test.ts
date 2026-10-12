@@ -29,6 +29,16 @@ it('refuses counts from a signed-out request', async () => {
   expect(mocks.write).not.toHaveBeenCalled()
 })
 
+it('accepts an anonymous sign-in click without granting access to setup events', async () => {
+  await expect(request({ stage: 'oauth', entry: 'like-skill', outcome: 'clicked' }, false)).resolves.toEqual({ ok: true })
+  expect(mocks.write).toHaveBeenCalledWith({ blobs: ['oauth', '', 'signup', 'like-skill', '', 'clicked', ''], doubles: [0, 0, 1], indexes: ['signup:oauth'] })
+})
+
+it('refuses browser claims about server sign-in outcomes', async () => {
+  await expect(request({ stage: 'oauth', entry: 'direct', outcome: 'succeeded' }, false)).rejects.toMatchObject({ statusCode: 400 })
+  expect(mocks.write).not.toHaveBeenCalled()
+})
+
 it('refuses an event carrying an account identifier', async () => {
   await expect(request({ stage: 'email', entry: 'onboarding', outcome: 'saved', choice: 'none', userId: 42 }, true)).rejects.toMatchObject({ statusCode: 400 })
   expect(mocks.write).not.toHaveBeenCalled()
