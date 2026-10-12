@@ -88,6 +88,22 @@ afterEach(() => {
 })
 
 describe('accessibility: components', () => {
+  it('keeps Repository selection accessible with GitHubAvatar', async () => {
+    const Avatar = await loadComponent('GitHubAvatar')
+    const container = createIsolatedContainer()
+    const Selection = defineComponent({
+      setup: () => () => h('label', [
+        h('input', { type: 'checkbox' }),
+        h(Avatar, { owner: 'cloudflare' }),
+        h('span', 'cloudflare/security-audit-skill'),
+      ]),
+    })
+    const wrapper = await mountSuspended(Selection, { attachTo: container })
+    const results = await runAxe(container)
+    expect(formatViolations(results)).toBe('')
+    wrapper.unmount()
+  })
+
   it('writing demos select files and toggle between updated documents and highlighted diffs', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(await loadComponent('home-demos/_DemoWriting'), {

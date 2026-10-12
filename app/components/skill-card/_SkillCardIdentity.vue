@@ -23,35 +23,18 @@ const emit = defineEmits<{
   avatarError: []
 }>()
 
-const avatar = useTemplateRef<HTMLImageElement>('avatar')
-
-// An avatar can fail before this card hydrates, such as in a row that
-// hydrates only once it scrolls into view. Its error event then fired with no
-// listener, so the mount reads the image instead.
-onMounted(() => {
-  const image = avatar.value
-  if (image?.complete && image.naturalWidth === 0)
-    emit('avatarError')
-})
-
 /** The author names the owner, so the byline needs only the Repository after it. */
 const where = computed(() => view.author ? view.repo : view.source)
 </script>
 
 <template>
   <div class="skill-id" :class="[`skill-id--${size}`, wrap && 'skill-id--wrap']">
-    <img
+    <GitHubAvatar
       v-if="view.byline === 'full'"
-      ref="avatar"
-      :src="view.avatar(size)"
-      alt=""
-      :width="size"
-      :height="size"
-      class="skill-id__avatar"
-      loading="lazy"
-      decoding="async"
-      @error="emit('avatarError')"
-    >
+      :owner="view.owner"
+      :size
+      @avatar-error="emit('avatarError')"
+    />
     <div class="skill-id__text">
       <p class="skill-id__name-line">
         <NuxtLink :to="view.href" :aria-label="view.label" class="skill-id__name">
@@ -87,26 +70,8 @@ const where = computed(() => view.author ? view.repo : view.source)
   gap: 0.75rem;
 }
 
-.skill-id__avatar {
-  flex: none;
-  inline-size: var(--skill-id-size);
-  block-size: var(--skill-id-size);
-  border: 1px solid var(--ui-border);
-  border-radius: 9999px;
-  background: var(--ui-bg-muted);
-}
-
 .skill-id--28 {
-  --skill-id-size: 1.75rem;
   gap: 0.625rem;
-}
-
-.skill-id--32 {
-  --skill-id-size: 2rem;
-}
-
-.skill-id--36 {
-  --skill-id-size: 2.25rem;
 }
 
 .skill-id__text {

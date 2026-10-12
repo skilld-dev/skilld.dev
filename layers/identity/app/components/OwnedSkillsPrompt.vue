@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import type { OwnedRepoScanNotice } from '../utils/owned-repo-scan'
-import { identityAccountQueries } from '../queries/account'
+import { identityAccountQueries, identityAccountQueryOptions } from '../queries/account'
 import { ownedRepoScanFailureNotice, ownedRepoScanNotice } from '../utils/owned-repo-scan'
 
 /**
- * Tells the signed-in account that its public repositories are indexed, and
- * offers the switch that stops it.
- *
- * Sign-in already ran the scan, because SKILL.md files in a public repository
- * are already public and indexing them is how the registry grows. So this is a
- * notice with a way out, not a question.
+ * Show the saved public-repository setting, not an assumed scan outcome.
  */
 const { login } = defineProps<{ login: string }>()
 
@@ -18,9 +13,12 @@ type PromptState
     | { _tag: 'scanning' }
     | { _tag: 'finished', notice: OwnedRepoScanNotice }
     | { _tag: 'turned_off' }
+    | { _tag: 'turn_off_failed' }
 
 const state = ref<PromptState>({ _tag: 'indexing' })
 const rpc = useNuxtRpc()
+const { data: me, status: accountStatus, error: accountError, refresh: retryAccount } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
+const indexingOff = computed(() => state.value._tag === 'turned_off' || me.value?.repo_indexing === false)
 
 const scanMutation = useNuxtMutation({
   mutation: () => rpc.execute(identityAccountQueries.scanOwnedRepos()),
@@ -31,6 +29,8 @@ const privacyMutation = useNuxtMutation({
 })
 
 async function checkNow() {
+  if (!me.value || accountError.value || indexingOff.value || state.value._tag === 'scanning' || privacyMutation.pending.value)
+    return
   state.value = { _tag: 'scanning' }
   const outcome = await scanMutation.mutateSafe()
   state.value = {
@@ -40,9 +40,17 @@ async function checkNow() {
 }
 
 async function turnOff() {
+  if (!me.value || accountError.value || indexingOff.value || state.value._tag === 'scanning' || privacyMutation.pending.value)
+    return
   const outcome = await privacyMutation.mutateSafe()
-  if (outcome._tag === 'ok')
+  if (outcome._tag === 'ok') {
     state.value = { _tag: 'turned_off' }
+    // A confirmed save updates the shared static account cache for later mounts.
+    setQueryData(serializeNuxtRpcKey(identityAccountQueries.me().key), { ...me.value, repo_indexing: false })
+  }
+  else {
+    state.value = { _tag: 'turn_off_failed' }
+  }
 }
 
 const route = useRoute()
@@ -56,18 +64,30 @@ const signInPath = computed(() => loginUrl({ returnTo: route.fullPath }))
     aria-labelledby="owned-skills-prompt-heading"
   >
     <h2 id="owned-skills-prompt-heading" class="text-base font-semibold text-pretty">
-      Your public repositories are in skilld.dev
+      Your public repository settings
     </h2>
     <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
-      skilld checks your public GitHub repositories for SKILL.md files. Each Skill it finds gets a public page. If you would rather it did not, turn it off here.
+      When indexing is on, skilld checks your public GitHub repositories for SKILL.md files. Each Skill it finds gets a public page. You can turn indexing off here.
     </p>
 
-    <p v-if="state._tag === 'turned_off'" class="mt-4 flex items-start gap-2 text-sm text-muted" role="status" aria-live="polite">
+    <p v-if="accountStatus === 'pending' || accountStatus === 'idle'" class="mt-4 text-sm text-muted" role="status">
+      Loading your repository settings.
+    </p>
+    <div v-else-if="accountError || !me" class="mt-4">
+      <p role="alert" class="text-sm text-muted">
+        Could not load your repository settings. Try again.
+      </p>
+      <UButton label="Retry" color="neutral" variant="outline" class="mt-3 min-h-11" @click="retryAccount()" />
+    </div>
+    <p v-else-if="indexingOff" class="mt-4 flex items-start gap-2 text-sm text-muted" role="status" aria-live="polite">
       <UIcon name="i-lucide-circle-check" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       Indexing is off. Skills already added stay until you remove the SKILL.md file, or ask us to.
     </p>
 
     <template v-else>
+      <p v-if="state._tag === 'turn_off_failed'" class="mt-4 text-sm text-muted" role="alert">
+        Could not turn off indexing. Indexing is still on. Try again.
+      </p>
       <div v-if="state._tag === 'finished'" class="mt-4" role="status" aria-live="polite">
         <p
           class="flex items-start gap-2 text-sm"
@@ -114,6 +134,7 @@ const signInPath = computed(() => loginUrl({ returnTo: route.fullPath }))
           variant="outline"
           class="min-h-11"
           :loading="state._tag === 'scanning'"
+          :disabled="privacyMutation.pending.value"
           @click="checkNow"
         />
         <UButton
@@ -123,6 +144,7 @@ const signInPath = computed(() => loginUrl({ returnTo: route.fullPath }))
           variant="ghost"
           class="min-h-11"
           :loading="privacyMutation.pending.value"
+          :disabled="state._tag === 'scanning'"
           @click="turnOff"
         />
         <span v-if="state._tag === 'scanning'" class="text-xs text-muted" role="status" aria-live="polite">
