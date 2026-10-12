@@ -50,14 +50,14 @@ useSeoMeta({
         <UButton
           :to="href"
           external
-          label="Continue with GitHub"
           icon="i-lucide-github"
           trailing-icon="i-lucide-arrow-right"
           size="md"
           class="min-h-11"
-          :ui="{ label: 'overflow-visible whitespace-normal' }"
           block
-        />
+        >
+          Continue with GitHub
+        </UButton>
       </div>
       <p class="mt-6 flex items-start gap-2 border-t border-default pt-5 text-xs text-muted leading-relaxed">
         <UIcon name="i-lucide-lock-keyhole" class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
