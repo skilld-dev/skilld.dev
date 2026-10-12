@@ -17,6 +17,8 @@ export default defineApiHandler({
     const result = await importStarredPage({ db: platform.db, userId: u.id, githubToken, page: body.page, importId: body.importId })
     if (result._tag === 'ImportRestartRequired')
       throw createError({ statusCode: 409, message: 'Another star import started. Import your stars again.' })
+    if (result._tag === 'GithubInvalidResponse')
+      throw createError({ statusCode: 502, message: 'Could not import GitHub stars. Try again.' })
     if (result._tag === 'GithubSignInRequired')
       throw createError({ statusCode: 401, statusMessage: 'GitHub sign-in required', message: 'GitHub rejected your access. Sign in with GitHub again.' })
     if (result._tag === 'GithubFailed')

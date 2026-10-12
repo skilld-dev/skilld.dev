@@ -8,7 +8,9 @@ const star = (name: string) => ({ starred_at: '2026-10-05T00:00:00Z', repo: { na
 
 describe('star import coverage', () => {
   let d1: SqliteD1
+  let importId: string | undefined
   beforeEach(() => {
+    importId = undefined
     d1 = createSqliteD1(allMigrations())
     d1.raw.exec(`INSERT OR REPLACE INTO users (id, github_id, login, created_at, last_login_at, stars_synced_at) VALUES (1, 11, 'reader', 1, 1, 9);
       INSERT INTO repos (owner, repo) VALUES ('nuxt', 'ui');
@@ -17,7 +19,12 @@ describe('star import coverage', () => {
       INSERT INTO skill_subscriptions (user_id, owner, repo, source, created_at) VALUES (1, 'nuxt', 'ui', 'manual', 1);`)
   })
   afterEach(() => d1.close())
-  const request = (page: number, response: Response) => importStarredPage({ db: d1.db, userId: 1, githubToken: 'fixture', page, now: () => 20, fetch: async () => response })
+  const request = async (page: number, response: Response) => {
+    const result = await importStarredPage({ db: d1.db, userId: 1, githubToken: 'fixture', page, importId, now: () => 20, fetch: async () => response })
+    if (result._tag === 'Imported')
+      importId = result.importId
+    return result
+  }
 
   it('presents partial coverage without a completion date', async () => {
     expect(starredReposPresenter(await loadStarredRows(d1.db, 1), null, true)).toMatchObject({ syncedAt: null, partial: true })

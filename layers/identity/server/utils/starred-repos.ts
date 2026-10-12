@@ -64,6 +64,7 @@ export type StarsImportPage
   }
   | { _tag: 'GithubSignInRequired' }
   | { _tag: 'GithubFailed', status: number }
+  | { _tag: 'GithubInvalidResponse' }
   | { _tag: 'ImportRestartRequired' }
 
 /**
@@ -90,7 +91,7 @@ export async function importStarredPage(input: {
     : await db.prepare(
         'SELECT import_id, next_page FROM user_starred_import_state WHERE user_id = ?1',
       ).bind(userId).first<{ import_id: string, next_page: number }>()
-  if (page !== 1 && (!state || state.next_page !== page || (input.importId && input.importId !== state.import_id)))
+  if (page !== 1 && (!state || state.next_page !== page || input.importId !== state.import_id))
     return { _tag: 'ImportRestartRequired' }
   const importId = page === 1 ? crypto.randomUUID() : state!.import_id
 
@@ -103,10 +104,22 @@ export async function importStarredPage(input: {
   })
   if (!res.ok)
     return res.status === 401 ? { _tag: 'GithubSignInRequired' } : { _tag: 'GithubFailed', status: res.status }
-  const raw = githubStarredPageSchema.parse(await res.json())
+  const decoded = await res.json().then(
+    value => ({ _tag: 'Decoded' as const, value }),
+  ).catch((error: unknown) => {
+    if (typeof error === 'object' && error !== null && 'name' in error && error.name === 'SyntaxError')
+      return { _tag: 'InvalidJson' as const }
+    throw error
+  })
+  if (decoded._tag === 'InvalidJson')
+    return { _tag: 'GithubInvalidResponse' }
+  const parsed = githubStarredPageSchema.safeParse(decoded.value)
+  if (!parsed.success)
+    return { _tag: 'GithubInvalidResponse' }
+  const raw = parsed.data
   const items = raw
 
-  const guard = 'EXISTS (SELECT 1 FROM user_starred_import_state WHERE user_id = ?1 AND import_id = ?5 AND next_page = ?6)'
+  const stateGuard = 'EXISTS (SELECT 1 FROM user_starred_import_state WHERE user_id = ?1 AND import_id = ?2 AND next_page = ?3)'
   const statements: D1PreparedStatement[] = []
   if (page === 1) {
     statements.push(
@@ -115,20 +128,24 @@ export async function importStarredPage(input: {
         ON CONFLICT (user_id) DO UPDATE SET import_id = excluded.import_id, next_page = 1`).bind(userId, importId),
     )
   }
-  statements.push(...items.map((it) => {
-    const owner = it.repo.owner.login
-    const repo = it.repo.name
-    const starredAt = Math.floor(new Date(it.starred_at).getTime() / 1000)
-    return db.prepare(
-      `INSERT OR REPLACE INTO user_starred_import (user_id, owner, repo, starred_at, has_skill)
-       SELECT ?1,
-         COALESCE((SELECT owner FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?2),
-         COALESCE((SELECT repo FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?3), ?4,
-         (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
-          FROM skills WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE)
-       WHERE ${guard}`,
-    ).bind(userId, owner, repo, starredAt, importId, page)
+  // One bound JSON page keeps a complete ten-page import below D1's query budget.
+  const staged = items.map(item => ({
+    owner: item.repo.owner.login,
+    repo: item.repo.name,
+    starredAt: Math.floor(new Date(item.starred_at).getTime() / 1000),
   }))
+  statements.push(db.prepare(
+    `INSERT OR REPLACE INTO user_starred_import (user_id, owner, repo, starred_at, has_skill)
+     WITH page_stars AS (
+       SELECT json_extract(value, '$.owner') AS owner, json_extract(value, '$.repo') AS repo,
+         json_extract(value, '$.starredAt') AS starred_at FROM json_each(?4)
+     )
+     SELECT ?1, COALESCE(r.owner, star.owner), COALESCE(r.repo, star.repo), star.starred_at,
+       EXISTS (SELECT 1 FROM skills sk WHERE sk.owner = star.owner COLLATE NOCASE AND sk.repo = star.repo COLLATE NOCASE)
+     FROM page_stars star
+     LEFT JOIN repos r ON r.owner = star.owner COLLATE NOCASE AND r.repo = star.repo COLLATE NOCASE
+     WHERE ${stateGuard}`,
+  ).bind(userId, importId, page, JSON.stringify(staged)))
 
   const link = res.headers.get('link')
   const hasNextPage = link ? /rel="next"/.test(link) : raw.length === PER_PAGE
@@ -140,7 +157,6 @@ export async function importStarredPage(input: {
 
   // Every mutation and the page advance share one D1 transaction. A stale
   // request cannot insert, publish, or clear another browser's generation.
-  const stateGuard = 'EXISTS (SELECT 1 FROM user_starred_import_state WHERE user_id = ?1 AND import_id = ?2 AND next_page = ?3)'
   const countIndex = statements.length
   statements.push(db.prepare(
     'SELECT COUNT(*) AS n, SUM(has_skill) AS matched FROM user_starred_import WHERE user_id = ?1',
@@ -176,4 +192,21 @@ export async function importStarredPage(input: {
     hasMore,
     importedAt,
   }
+}
+
+/**
+ * A public request owns every bounded GitHub page. The frozen SDK cannot carry
+ * a generation, so its pagination stays inside this request.
+ */
+export async function importStarredRepositories(
+  input: Omit<Parameters<typeof importStarredPage>[0], 'page' | 'importId'>,
+): Promise<StarsImportPage> {
+  let importId: string | undefined
+  for (let page = 1; page <= MAX_STAR_PAGES; page++) {
+    const result = await importStarredPage({ ...input, page, importId })
+    if (result._tag !== 'Imported' || !result.hasMore)
+      return result
+    importId = result.importId
+  }
+  throw new Error('Star import exceeded its bounded page limit')
 }

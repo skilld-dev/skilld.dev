@@ -1,7 +1,7 @@
 import { starsV1 } from 'skilld-sdk/contract'
 import { defineApiOperation, operationFailure } from '#shared/server/operation'
 import { presentStarsImport } from '../../../../presenters/account-v1'
-import { importStarredPage } from '../../../../utils/starred-repos'
+import { importStarredRepositories } from '../../../../utils/starred-repos'
 import { requireGithubUserToken } from '../../../../utils/users'
 
 export default defineApiOperation({
@@ -9,15 +9,19 @@ export default defineApiOperation({
   handler: async ({ event, platform, input, user }) => {
     // Throws the 401 that asks for a new GitHub sign-in when no token is stored.
     const githubToken = await requireGithubUserToken(platform.db, user.id, useRuntimeConfig(event).tokenKey as string)
-    const result = await importStarredPage({ db: platform.db, userId: user.id, githubToken, page: input.body.page })
+    const result = await importStarredRepositories({ db: platform.db, userId: user.id, githubToken })
     if (result._tag === 'ImportRestartRequired')
       throw createError({ statusCode: 400, message: 'Star import pages must run in order. Restart from page one.' })
+    if (result._tag === 'GithubInvalidResponse')
+      throw createError({ statusCode: 503, message: 'Could not import GitHub stars. Try again.' })
     if (result._tag === 'GithubSignInRequired')
       return operationFailure('AUTH_REQUIRED', 'GitHub rejected skilld\'s access to your account. Sign in on skilld.dev again.')
     // SERVICE_UNAVAILABLE is implicit, so no handler returns it as a value:
     // a thrown 503 maps onto it, and the adapter logs the GitHub status.
     if (result._tag === 'GithubFailed')
       throw createError({ statusCode: 503, message: `GitHub answered ${result.status} to the star import` })
-    return presentStarsImport(result)
+    // Echo accepted legacy input. No caller-visible continuation can attach
+    // to another request's generation; this response always ends the import.
+    return presentStarsImport({ ...result, page: input.body.page })
   },
 })
