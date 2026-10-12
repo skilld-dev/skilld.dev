@@ -20,7 +20,7 @@ export default defineApiHandler({
       setHeader(event, 'content-type', 'text/html; charset=utf-8')
       return renderUnsubscribePage({ _tag: 'invalid' })
     }
-    const userId = await verifyUnsubToken(parsed.data.t, config.tokenKey as string)
+    const userId = await verifyUnsubToken(parsed.data.t, config.tokenKey as string, parsed.data.list === 'welcome' ? 'welcome' : 'recurring')
     if (!userId) {
       setResponseStatus(event, 400)
       setHeader(event, 'content-type', 'text/html; charset=utf-8')

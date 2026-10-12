@@ -118,16 +118,16 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
 }
 
-export async function signUnsubToken(userId: number, secret: string): Promise<string> {
+export async function signUnsubToken(userId: number, secret: string, scope: 'recurring' | 'welcome' = 'recurring'): Promise<string> {
   if (!secret)
     throw createError({ statusCode: 500, message: 'NUXT_TOKEN_KEY missing' })
-  const payload = b64urlEncode(enc.encode(JSON.stringify({ u: userId, exp: 0 })))
+  const payload = b64urlEncode(enc.encode(JSON.stringify({ u: userId, exp: 0, ...(scope === 'welcome' ? { scope } : {}) })))
   const key = await hmacKey(secret)
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(payload))
   return `${payload}.${b64urlEncode(sig)}`
 }
 
-export async function verifyUnsubToken(token: string, secret: string): Promise<number | null> {
+export async function verifyUnsubToken(token: string, secret: string, scope: 'recurring' | 'welcome' = 'recurring'): Promise<number | null> {
   if (!secret || !token.includes('.'))
     return null
   const [payload, sig] = token.split('.')
@@ -137,7 +137,9 @@ export async function verifyUnsubToken(token: string, secret: string): Promise<n
   const valid = await crypto.subtle.verify('HMAC', key, b64urlDecode(sig), enc.encode(payload))
   if (!valid)
     return null
-  const data = JSON.parse(dec.decode(b64urlDecode(payload))) as { u?: number, exp?: number }
+  const data = JSON.parse(dec.decode(b64urlDecode(payload))) as { u?: number, exp?: number, scope?: string }
+  if (scope === 'welcome' ? data.scope !== 'welcome' : data.scope !== undefined)
+    return null
   if (typeof data.u !== 'number')
     return null
   return data.u

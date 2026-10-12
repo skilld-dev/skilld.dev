@@ -7,6 +7,9 @@ import { identityEmailPatchBodySchema } from '../../layers/identity/shared/contr
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const migrationPath = resolve(process.cwd(), 'migrations/0082_digest_opt_in_requires_address.sql')
+const welcomeSend = vi.hoisted(() => vi.fn().mockResolvedValue('skipped'))
+
+vi.mock('../../layers/identity/server/utils/welcome-email', () => ({ sendWelcomeEmail: welcomeSend }))
 
 vi.mock('../../layers/identity/server/utils/skill-validation-email', () => ({
   sendSkillValidationSummary: vi.fn().mockResolvedValue('skipped'),
@@ -113,6 +116,7 @@ describe('me email patch endpoint', () => {
   const establishSession = vi.fn()
 
   beforeEach(async () => {
+    welcomeSend.mockClear()
     vi.resetModules()
     establishSession.mockReset()
     vi.stubGlobal('defineEventHandler', (handler: EventHandler) => handler)
@@ -161,6 +165,21 @@ describe('me email patch endpoint', () => {
 
     expect(sqlite.prepare(`SELECT digest_email, email_opt_in FROM users WHERE id = 1`).get())
       .toEqual({ digest_email: 'harlan@example.com', email_opt_in: 1 })
+  })
+
+  it('uses the address explicitly consented for welcome despite a racing account save', async () => {
+    sqlite.exec(`CREATE TRIGGER racing_address AFTER UPDATE OF digest_email ON users
+      BEGIN UPDATE users SET digest_email = 'other@example.com' WHERE id = NEW.id; END;`)
+    vi.stubGlobal('readBody', () => Promise.resolve({
+      digest_email: 'welcome@example.com',
+      welcome_email: true,
+      email_opt_in: false,
+      weekly_opt_in: false,
+    }))
+    await emailPatchHandler(patchEvent())
+    expect(welcomeSend).toHaveBeenCalledWith(expect.objectContaining({ consent: true, to: 'welcome@example.com' }))
+    expect(sqlite.prepare('SELECT email_opt_in, weekly_opt_out FROM users WHERE id = 1').get())
+      .toEqual({ email_opt_in: 0, weekly_opt_out: 1 })
   })
 
   it('still saves a real address and unchanged weekly choice', async () => {

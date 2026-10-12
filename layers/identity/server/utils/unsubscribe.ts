@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+import { WELCOME_EMAIL_COPY } from '#shared/welcome-email-copy'
 
 /**
  * Turning off one list without touching the other.
@@ -7,7 +8,7 @@
  * unsubscribe and the GET half a person clicks run identical SQL.
  */
 
-export type UnsubList = 'weekly' | 'digest'
+export type UnsubList = 'weekly' | 'digest' | 'welcome'
 
 export interface UnsubOutcome {
   list: UnsubList
@@ -34,7 +35,7 @@ function weeklySetting(db: D1Database, userId: number, restored: boolean): D1Pre
 async function writePreference(
   db: D1Database,
   userId: number,
-  list: UnsubList,
+  list: Exclude<UnsubList, 'welcome'>,
   action: EmailPreferenceAction,
 ): Promise<void> {
   const value = action === 'restored'
@@ -53,6 +54,16 @@ export async function applyUnsubscribe(
   userId: number,
   list: UnsubList,
 ): Promise<UnsubOutcome> {
+  if (list === 'welcome') {
+    // Keep the row, so clicking this link cannot make a welcome eligible again.
+    await db.prepare(`INSERT INTO welcome_email_deliveries
+      (user_id, status, attempted_at, attempt_id, unsubscribed_at)
+      VALUES (?1, 'cancelled', unixepoch(), 'unsubscribe', unixepoch())
+      ON CONFLICT(user_id) DO UPDATE SET unsubscribed_at = unixepoch()`)
+      .bind(userId)
+      .run()
+    return { list, heading: 'Unsubscribed.', body: WELCOME_EMAIL_COPY.stopped }
+  }
   await writePreference(db, userId, list, 'unsubscribed')
   if (list === 'weekly') {
     return {
@@ -71,7 +82,7 @@ export async function applyUnsubscribe(
 export async function applyResubscribe(
   db: D1Database,
   userId: number,
-  list: UnsubList,
+  list: Exclude<UnsubList, 'welcome'>,
 ): Promise<UnsubOutcome> {
   await writePreference(db, userId, list, 'restored')
   return {
@@ -98,7 +109,7 @@ function esc(value: string): string {
 
 export function renderUnsubscribePage(input: UnsubscribePageInput): string {
   const list = input._tag === 'invalid' ? null : input.list
-  const label = list === 'weekly' ? 'weekly' : 'digest'
+  const label = list === 'welcome' ? 'welcome' : list === 'weekly' ? 'weekly' : 'digest'
   const title = input._tag === 'confirm'
     ? `Stop ${label} emails?`
     : input._tag === 'invalid'
@@ -106,20 +117,22 @@ export function renderUnsubscribePage(input: UnsubscribePageInput): string {
       : input.action === 'restored'
         ? 'Email restored'
         : 'Email stopped'
-  const body = input._tag === 'confirm'
-    ? `You can restore ${label} emails after this change.`
-    : input._tag === 'invalid'
-      ? 'Open the latest email and try its unsubscribe link again.'
-      : input.action === 'restored'
-        ? `You will get ${label} emails again.`
-        : `You will not get ${label} emails.`
+  const body = list === 'welcome'
+    ? input._tag === 'confirm' ? 'Your weekly and digest settings will stay unchanged.' : WELCOME_EMAIL_COPY.stopped
+    : input._tag === 'confirm'
+      ? `You can restore ${label} emails after this change.`
+      : input._tag === 'invalid'
+        ? 'Open the latest email and try its unsubscribe link again.'
+        : input.action === 'restored'
+          ? `You will get ${label} emails again.`
+          : `You will not get ${label} emails.`
   const action = input._tag === 'confirm'
     ? `<form method="post" action="/api/unsubscribe">
         <input type="hidden" name="t" value="${esc(input.token)}">
         <input type="hidden" name="list" value="${input.list}">
         <button type="submit">Stop ${label} emails</button>
       </form>`
-    : input._tag === 'complete' && input.action === 'unsubscribed'
+    : input._tag === 'complete' && input.action === 'unsubscribed' && list !== 'welcome'
       ? `<form method="post" action="/api/unsubscribe/undo">
           <input type="hidden" name="t" value="${esc(input.token)}">
           <input type="hidden" name="list" value="${input.list}">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { IdentityEmailPatchBody, IdentityMutationResponse } from '../../../shared/contracts/account'
 import { signupEmailChoice } from '#shared/signup-analytics'
+import { WELCOME_EMAIL_COPY } from '#shared/welcome-email-copy'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 
 definePageMeta({ layout: 'auth', middleware: ['auth'] })
@@ -15,6 +16,7 @@ const email = ref(me.value?.digest_email || me.value?.email || '')
 const hasEmailChoices = computed(() => !!me.value?.onboarded_at || !!me.value?.digest_email)
 const optIn = ref(hasEmailChoices.value ? !!me.value?.email_opt_in : true)
 const weeklyOptIn = ref(hasEmailChoices.value ? !!me.value?.weekly_opt_in : true)
+const welcomeEmail = ref(false)
 watch(me, (account, previous) => {
   if (account && !previous) {
     email.value = account.digest_email || account.email || ''
@@ -42,7 +44,7 @@ const finishOnboardingMutation = useNuxtMutation<void, IdentityMutationResponse>
 
 // Opting in needs somewhere to send the digest, so the address is required
 // exactly when the box is ticked.
-const missingAddress = computed(() => (optIn.value || weeklyOptIn.value)
+const missingAddress = computed(() => (optIn.value || weeklyOptIn.value || welcomeEmail.value)
   && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(email.value.trim()))
 
 const submitting = computed(() => saveEmailMutation.pending.value || finishOnboardingMutation.pending.value)
@@ -53,6 +55,7 @@ async function finish() {
     digest_email: email.value,
     email_opt_in: optIn.value,
     weekly_opt_in: weeklyOptIn.value,
+    ...(welcomeEmail.value ? { welcome_email: true } : {}),
   })
   if (saved._tag === 'err') {
     recordSignup({ stage: 'email', outcome: 'failed', entry: 'onboarding' })
@@ -104,7 +107,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
           class="mt-2 min-h-11 w-full rounded-lg border border-default bg-default px-3 py-2 font-mono text-sm focus-visible:outline-2 focus-visible:outline-primary"
         >
         <p v-if="missingAddress" id="email-error" class="mt-1 text-xs text-error">
-          Add an email address, or turn off both emails.
+          {{ WELCOME_EMAIL_COPY.missingAddress }}
         </p>
       </div>
 
@@ -122,7 +125,14 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         </span>
       </label>
 
-      <p v-if="!optIn && !weeklyOptIn" class="rounded-lg border border-default bg-elevated/50 p-3 text-xs text-muted">
+      <label class="flex min-h-11 items-start gap-3 cursor-pointer">
+        <input v-model="welcomeEmail" type="checkbox" :disabled="submitting" class="mt-0.5 size-4 accent-primary">
+        <span class="text-sm text-muted leading-relaxed">
+          {{ WELCOME_EMAIL_COPY.consent }}
+        </span>
+      </label>
+
+      <p v-if="!optIn && !weeklyOptIn && !welcomeEmail" class="rounded-lg border border-default bg-elevated/50 p-3 text-xs text-muted">
         You won't receive any emails. You can opt in later from your dashboard.
       </p>
     </form>

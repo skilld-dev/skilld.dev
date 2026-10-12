@@ -10,5 +10,5 @@ export const UnsubQuery = z.object({
    * unsubscribe would turn off the digest instead, which is a different
    * promise from the one the reader clicked.
    */
-  list: z.enum(['weekly', 'digest']).default('digest'),
+  list: z.enum(['weekly', 'digest', 'welcome']).default('digest'),
 })

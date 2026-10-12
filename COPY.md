@@ -11,6 +11,15 @@ contradicts this file is a bug.
 
 ## Canonical assets
 
+The optional welcome email uses the subject "Your skilld account is ready".
+Its body is "Like Skills to find them again in your account." and "Watch the Repositories you use and see what changed."
+Its final line is "Your weekly and monthly email choices stay as you set them."
+Its one main action is "Open your account", linking to `/me`.
+Its footer is "Stop welcome emails", linking to a signed welcome unsubscribe URL.
+Onboarding offers an unchecked choice: "Send me one welcome email with account tips."
+The missing-address message is "Add an email address, or turn off all email choices."
+Welcome unsubscribe says "You will not get welcome emails. Your weekly and digest settings are unchanged."
+
 Skill validation in `/me` uses "Skill validation" and "Some of your Skills have validation issues."
 The action is "View validation issues". Source links use "Open SKILL.md".
 Email summaries use the subject "Your Skills have validation issues" and link to `/me?view=repositories`.
