@@ -24,12 +24,15 @@ export function renderWelcomeEmail(unsubscribeUrl: string): Pick<SendEmailInput,
 <table role="presentation" style="width:100%;max-width:560px;margin:auto;border-collapse:collapse"><tr><td style="padding:28px;background:#fff;border:1px solid #d6d3d1;border-radius:8px">
 <p style="margin:0 0 28px;font-family:monospace;font-size:20px;font-weight:bold">&gt; skilld<span style="color:#be123c">.</span></p>
 <h1 style="font-size:26px;line-height:1.25;margin:0 0 24px">${copy.subject}</h1>
-<p style="font-size:16px;line-height:1.6">${copy.skills}</p><p style="font-size:16px;line-height:1.6">${copy.watch}</p>
-<p style="font-size:14px;line-height:1.6;color:#57504b">${copy.choices}</p>
-<p style="margin:28px 0 0"><a href="${link}" style="display:inline-block;background:#be123c;color:#fff;text-decoration:none;font-weight:bold;padding:14px 20px;border-radius:8px">${copy.action}</a></p>
+<p style="font-size:16px;line-height:1.6">${copy.greeting}</p>
+<p style="font-size:16px;line-height:1.6">${copy.story}</p>
+<p style="font-size:16px;line-height:1.6">${copy.account}</p>
+<p style="margin:28px 0"><a href="${link}" style="display:inline-block;background:#be123c;color:#fff;text-decoration:none;font-weight:bold;padding:14px 20px;border-radius:8px">${copy.action}</a></p>
+<p style="font-size:16px;line-height:1.6">${copy.feedback}</p>
+<p style="font-size:16px;line-height:1.6;margin-bottom:0">${copy.signature}</p>
 </td></tr><tr><td style="padding:16px 0;font-size:12px"><a href="${safeUnsubscribeUrl}" style="color:#57504b">${copy.unsubscribe}</a></td></tr></table>
 </td></tr></table></body></html>`,
-    text: `${copy.skills}\n\n${copy.watch}\n\n${copy.choices}\n\n${copy.action}: ${link}\n\n${copy.unsubscribe}: ${unsubscribeUrl}`,
+    text: `${copy.greeting}\n\n${copy.story}\n\n${copy.account}\n\n${copy.action}: ${link}\n\n${copy.feedback}\n\n${copy.signature}\n\n${copy.unsubscribe}: ${unsubscribeUrl}`,
   }
 }
 
@@ -60,6 +63,7 @@ export async function sendWelcomeEmail(input: WelcomeEmailInput): Promise<'skipp
     return 'skipped'
   const outcome = await input.send({
     to: input.to.trim(),
+    replyTo: 'harlan@harlanzw.com',
     ...renderWelcomeEmail(unsubscribeUrl),
     headers: digestEmailHeaders(unsubscribeUrl, `skilld-welcome:${userId}`),
   }).catch((error): SendEmailResult => ({
