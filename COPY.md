@@ -25,6 +25,9 @@ Preview labels are "Preview the welcome", "Preview the weekly", and "Preview the
 The welcome preview footer says "Email preferences" and links to `/me`.
 Preview loading says "Loading email preview". Failure says "Could not load the email preview. Try again."
 The weekly footer says "Your account is set to receive the weekly email."
+The digest heading is "Skill updates". Its introduction is "Recent commits from repos you watch."
+Its changes section is "Recent commits". Show author commit subjects, never generated summaries or Skill descriptions.
+If commit details are missing, say "Commit details are unavailable." Link "View commits" to the Skill file's GitHub history.
 New accounts start with the weekly and digest choices unchecked. Saved choices stay as selected.
 Onboarding and the welcome email say "We’ll only send other emails if you’ve opted in."
 The missing-address message is "Add an email address, or turn off all email choices."

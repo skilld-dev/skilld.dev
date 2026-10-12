@@ -8,7 +8,6 @@ const updateSchema = z.discriminatedUnion('kind', [
     repo: z.string(),
     name: z.string(),
     occurredAt: z.number(),
-    changeSummary: z.string().nullable(),
   }),
   z.object({
     kind: z.literal('repo'),
@@ -27,13 +26,20 @@ export const publicDigestSkillSchema = z.object({
   sourceCommit: z.string().nullable(),
   updatedAt: z.iso.datetime().nullable(),
 })
+export const publicDigestCommitsSchema = z.object({
+  commits: z.array(z.object({
+    sha: z.string().min(1),
+    message: z.string(),
+    date: z.string(),
+    url: z.string().url(),
+  })),
+})
 
 interface PublicDigestUpdate {
   owner: string
   repo: string
   name: string
   occurredAt: number | null
-  changeSummary: string | null
 }
 
 export interface PublicDigestDependencies {
@@ -41,6 +47,7 @@ export interface PublicDigestDependencies {
   windowEnd: number
   loadUpdates: () => Promise<z.infer<typeof publicDigestUpdatesSchema>>
   loadSkill: (update: PublicDigestUpdate) => Promise<z.infer<typeof publicDigestSkillSchema>>
+  loadCommits: (skill: Pick<PublicDigestUpdate, 'owner' | 'repo' | 'name'>) => Promise<z.infer<typeof publicDigestCommitsSchema>>
 }
 
 /** Public changes only. Never read an account's watches for an anonymous example. */
@@ -59,7 +66,6 @@ export async function loadPublicDigestChanges(deps: PublicDigestDependencies): P
         // Repository cards span 90 days. Their timestamp and summary belong
         // to the latest entry, not every Skill named on the card.
         occurredAt: null,
-        changeSummary: null,
       }))).filter((item) => {
     const key = JSON.stringify([item.owner.toLowerCase(), item.repo.toLowerCase(), item.name])
     if (seen.has(key))
@@ -82,7 +88,7 @@ export async function loadPublicDigestChanges(deps: PublicDigestDependencies): P
       description: skill.description,
       changeCount: 1,
       changedAt,
-      commitMessages: item.changeSummary ? [item.changeSummary] : [],
+      commitMessages: [],
       sourceUrl: skill.sourceUrl,
       // Feed hashes identify blobs. The detail API identifies revision commits.
       changeUrl: skill.sourceCommit
@@ -90,5 +96,21 @@ export async function loadPublicDigestChanges(deps: PublicDigestDependencies): P
         : skill.sourceUrl.replace('/blob/', '/commits/'),
     }
   }))
-  return changes.filter((item): item is WeeklyLikedChange => item !== null).slice(0, 5)
+  const admitted = changes.filter((item): item is WeeklyLikedChange => item !== null).slice(0, 5)
+  return Promise.all(admitted.map(async (skill) => {
+    // Only admitted Skills fetch history. This endpoint scopes GitHub commits
+    // to the exact SKILL.md file, rather than every commit in its Repository.
+    const history = await deps.loadCommits(skill)
+    const recentCommits = history.commits.map(commit => ({ ...commit, occurredAt: Date.parse(commit.date) / 1000 }))
+      .filter(commit => Number.isFinite(commit.occurredAt)
+        && commit.occurredAt >= deps.windowStart && commit.occurredAt <= deps.windowEnd)
+      .sort((a, b) => b.occurredAt - a.occurredAt)
+    return {
+      ...skill,
+      changedAt: recentCommits[0]?.occurredAt ?? skill.changedAt,
+      changeCount: recentCommits.length || skill.changeCount,
+      commitMessages: recentCommits.map(commit => commit.message.split('\n')[0]!.trim()).filter(Boolean),
+      changeUrl: recentCommits[0]?.url ?? skill.changeUrl,
+    }
+  }))
 }
