@@ -186,6 +186,7 @@ Use `7-day social mentions · {date}` as the footer. Format the UTC date as `2 O
 | --- | --- | --- |
 | Login | Sign In with GitHub · Sign Up with GitHub · Continue with GitHub | Sign-in and sign-up share GitHub authentication. Preserve the requested action and return page when switching. |
 | Login switch | New to skilld? · Sign up · Already have an account? · Sign in | Link between the sign-in and sign-up views. Sign-up shows the account benefits. |
+| Login description | Keep your liked Skills and watched Repositories together. | Explain account value below either authentication heading. |
 | Login benefits | Your skills · Like Skills to find them again in your account. · Watch for changes · Watch the Repositories you use and see what changed. · Email updates · Choose the weekly, monthly watched changes, or neither. | Three account benefits. Running Skills remains anonymous. |
 | Login permissions | We ask for your public profile and email address. | Keep permission scope separate from account benefits. |
 | Login benefits heading | Keep updated. | Sign-up benefits panel. |

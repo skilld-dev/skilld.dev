@@ -13,7 +13,7 @@ const route = useRoute()
     </header>
     <main id="main-content" tabindex="-1" class="editorial-band flex flex-1 flex-col items-center justify-center px-4 pt-6 pb-16 sm:px-6">
       <div v-if="route.meta.authWide" class="editorial-atmosphere" data-palette="rose" data-geometry="bloom" data-intensity="ambient" aria-hidden="true" />
-      <NuxtLink to="/" aria-label="skilld, home" class="editorial-band__content mb-8 flex min-h-11 items-center rounded-lg">
+      <NuxtLink to="/" aria-label="skilld, home" class="editorial-band__content mb-10 flex min-h-11 items-center rounded-lg">
         <AppLogo :class="route.meta.authWide ? 'h-auto w-36' : undefined" />
       </NuxtLink>
       <div class="editorial-band__content w-full" :class="route.meta.authWide ? 'max-w-[51rem]' : 'max-w-2xl'">

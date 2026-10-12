@@ -53,23 +53,23 @@ useSeoMeta({
 </script>
 
 <template>
-  <section class="mx-auto w-full max-w-md lg:flex lg:max-w-[51rem] lg:items-start lg:justify-center">
-    <div class="w-full overflow-hidden rounded-lg border border-accented bg-elevated lg:max-w-md lg:shrink-0">
-      <div :key="signup ? 'signup' : 'signin'" class="auth-content-in p-6 sm:p-8">
-        <h1 class="text-3xl font-semibold leading-tight tracking-tight text-highlighted text-balance">
+  <section class="mx-auto w-full max-w-md lg:flex lg:max-w-[51rem] lg:items-stretch lg:justify-center">
+    <div class="flex w-full flex-col overflow-hidden rounded-lg border border-accented bg-elevated lg:max-w-md lg:shrink-0">
+      <div :key="signup ? 'signup' : 'signin'" class="auth-content-in flex-1 px-6 pt-7 pb-3 sm:px-8 sm:pt-8">
+        <h1 class="text-2xl font-semibold leading-tight tracking-tight text-highlighted text-balance">
           {{ signup ? 'Sign Up with GitHub' : 'Sign In with GitHub' }}
         </h1>
-        <p v-if="actionMessage" class="mt-6 text-base font-medium">
-          {{ actionMessage }}
+        <p class="mt-3 text-sm text-muted leading-relaxed">
+          {{ actionMessage || 'Keep your liked Skills and watched Repositories together.' }}
         </p>
-        <div class="mt-8">
+        <div class="mt-6">
           <UButton
             :to="href"
             external
             icon="i-lucide-github"
             trailing-icon="i-lucide-arrow-right"
-            size="md"
-            class="min-h-11"
+            size="lg"
+            class="min-h-12"
             block
           >
             Continue with GitHub
@@ -82,14 +82,14 @@ useSeoMeta({
         >
           Couldn't complete sign-in. Try again.
         </p>
-        <p class="mt-6 flex flex-wrap items-center justify-center gap-x-1 text-sm text-muted">
+        <p class="mt-3 flex flex-wrap items-center gap-x-1 text-xs text-muted">
           {{ signup ? 'Already have an account?' : 'New to skilld?' }}
-          <NuxtLink :to="switchTo" class="inline-flex min-h-11 items-center font-medium text-highlighted underline underline-offset-4 transition-colors hover:text-primary">
+          <NuxtLink :to="switchTo" class="inline-flex min-h-11 items-center font-medium text-highlighted transition-colors hover:text-primary hover:underline underline-offset-4">
             {{ signup ? 'Sign in' : 'Sign up' }}
           </NuxtLink>
         </p>
       </div>
-      <p class="flex items-start gap-2 border-t border-default px-6 py-5 text-xs text-muted leading-relaxed sm:px-8">
+      <p class="flex items-start gap-2 border-t border-default bg-muted/30 px-6 py-4 text-xs text-muted leading-relaxed sm:px-8">
         <UIcon name="i-lucide-lock-keyhole" class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
         <span>We ask for your public profile and email address.</span>
       </p>
@@ -104,9 +104,8 @@ useSeoMeta({
         :transition="{ duration: reducedMotion === 'reduce' ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }"
         class="overflow-hidden lg:shrink-0"
       >
-        <aside class="w-full rounded-lg border border-default bg-muted/60 p-6 lg:w-80" aria-labelledby="account-benefits-heading">
-          <h2 id="account-benefits-heading" class="mb-5 flex items-center gap-2.5 text-lg font-semibold tracking-tight text-highlighted">
-            <UIcon name="i-lucide-git-branch" class="size-5 shrink-0" aria-hidden="true" />
+        <aside class="h-full w-full rounded-lg border border-default bg-elevated/70 p-6 lg:w-80" aria-labelledby="account-benefits-heading">
+          <h2 id="account-benefits-heading" class="mb-5 text-lg font-semibold tracking-tight text-highlighted">
             Keep updated.
           </h2>
           <dl class="space-y-4">
@@ -115,7 +114,7 @@ useSeoMeta({
               <dt class="text-sm font-semibold text-highlighted">
                 Your skills
               </dt>
-              <dd class="mt-1 text-sm text-muted leading-relaxed">
+              <dd class="mt-1 text-sm text-muted leading-5">
                 Like Skills to find them again in your account.
               </dd>
             </div>
@@ -124,7 +123,7 @@ useSeoMeta({
               <dt class="text-sm font-semibold text-highlighted">
                 Watch for changes
               </dt>
-              <dd class="mt-1 text-sm text-muted leading-relaxed">
+              <dd class="mt-1 text-sm text-muted leading-5">
                 Watch the Repositories you use and see what changed.
               </dd>
             </div>
@@ -133,7 +132,7 @@ useSeoMeta({
               <dt class="text-sm font-semibold text-highlighted">
                 Email updates
               </dt>
-              <dd class="mt-1 text-sm text-muted leading-relaxed">
+              <dd class="mt-1 text-sm text-muted leading-5">
                 Choose the weekly, monthly watched changes, or neither.
               </dd>
             </div>
