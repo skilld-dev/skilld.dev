@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { parseReturnTo } from '#shared/return-to'
 
-definePageMeta({ layout: 'auth', middleware: ['session'] })
+definePageMeta({ layout: 'auth', middleware: ['session'], authWide: true })
 
 const route = useRoute()
 const { loginUrl } = useAuth()
@@ -35,15 +35,42 @@ useSeoMeta({
 </script>
 
 <template>
-  <section class="mx-auto w-full max-w-md">
-    <div class="rounded-lg border border-default bg-default p-6 sm:p-8">
-      <h1 class="text-2xl font-semibold tracking-tight">
+  <section class="mx-auto flex w-full max-w-md flex-col gap-5 lg:max-w-[51rem] lg:flex-row lg:items-stretch lg:justify-center">
+    <div class="w-full rounded-lg border border-default bg-default p-6 sm:p-8 lg:max-w-md lg:shrink-0">
+      <h1 class="text-3xl font-semibold leading-tight tracking-tight">
         Sign in to skilld
       </h1>
       <p class="mt-3 text-base text-muted leading-relaxed">
         Use your GitHub account. New here? The same step creates your account.
       </p>
-      <dl class="mt-6 space-y-5 border-y border-default py-6">
+      <p v-if="actionMessage" class="mt-6 text-base font-medium">
+        {{ actionMessage }}
+      </p>
+      <div class="mt-6">
+        <UButton
+          :to="href"
+          external
+          label="Continue with GitHub"
+          icon="i-lucide-github"
+          trailing-icon="i-lucide-arrow-right"
+          size="md"
+          class="min-h-11"
+          block
+        />
+      </div>
+      <p class="mt-4 text-sm text-muted">
+        We ask for your public profile and email address.
+      </p>
+      <p
+        v-if="error"
+        class="mt-4 text-sm text-error"
+        role="alert"
+      >
+        Couldn't complete sign-in. Try again.
+      </p>
+    </div>
+    <aside class="w-full rounded-lg border border-default bg-default/60 p-6 sm:p-8 lg:w-80 lg:shrink-0">
+      <dl class="space-y-5">
         <div>
           <dt class="font-semibold">
             Your skills
@@ -69,35 +96,10 @@ useSeoMeta({
           </dd>
         </div>
       </dl>
-      <NuxtLink to="/weekly/preview" external class="mt-2 inline-flex min-h-11 items-center gap-2 text-sm text-muted underline hover:text-default">
+      <NuxtLink to="/weekly/preview" external class="mt-5 inline-flex min-h-11 items-center gap-2 text-sm text-muted underline hover:text-default">
         Preview the weekly
         <UIcon name="i-lucide-arrow-right" class="size-4" aria-hidden="true" />
       </NuxtLink>
-      <p v-if="actionMessage" class="mt-3 text-base font-medium">
-        {{ actionMessage }}
-      </p>
-      <div class="mt-5">
-        <UButton
-          :to="href"
-          external
-          label="Continue with GitHub"
-          icon="i-lucide-github"
-          trailing-icon="i-lucide-arrow-right"
-          size="md"
-          class="min-h-11"
-          block
-        />
-      </div>
-      <p class="mt-4 text-sm text-muted">
-        We ask for your public profile and email address.
-      </p>
-      <p
-        v-if="error"
-        class="mt-4 text-sm text-error"
-        role="alert"
-      >
-        Couldn't complete sign-in. Try again.
-      </p>
-    </div>
+    </aside>
   </section>
 </template>

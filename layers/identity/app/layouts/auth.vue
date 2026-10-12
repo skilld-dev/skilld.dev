@@ -1,3 +1,7 @@
+<script setup lang="ts">
+const route = useRoute()
+</script>
+
 <template>
   <div class="flex min-h-dvh flex-col bg-muted/40">
     <header class="flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
@@ -11,7 +15,7 @@
       <NuxtLink to="/" aria-label="skilld, home" class="mb-8 flex min-h-11 items-center rounded-lg">
         <AppLogo />
       </NuxtLink>
-      <div class="w-full max-w-2xl">
+      <div class="w-full" :class="route.meta.authWide ? 'max-w-[51rem]' : 'max-w-2xl'">
         <slot />
       </div>
     </main>
