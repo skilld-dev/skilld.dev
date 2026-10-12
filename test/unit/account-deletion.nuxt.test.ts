@@ -91,6 +91,8 @@ function seedAccount(raw: DatabaseSync, account: Account, githubToken: string | 
   run(`INSERT INTO skill_likes (user_id, owner, repo, name, created_at) VALUES (?, 'acme', 'skills', 'diagnose', ?)`, id, NOW)
   run(`INSERT INTO skill_subscriptions (user_id, owner, repo, source, created_at) VALUES (?, 'acme', 'skills', 'like', ?)`, id, NOW)
   run(`INSERT INTO user_starred_repos (user_id, owner, repo, starred_at, has_skill) VALUES (?, 'acme', 'skills', ?, 1)`, id, NOW)
+  run(`INSERT INTO user_starred_import (user_id, owner, repo, starred_at, has_skill) VALUES (?, 'acme', 'staged-skills', ?, 1)`, id, NOW)
+  run(`INSERT INTO user_starred_import_state (user_id, import_id, next_page, active_partial) VALUES (?, ?, 2, 1)`, id, `import-${login}`)
   const collectionId = run(
     `INSERT INTO collections_v2 (author_user_id, slug, name, created_at, updated_at) VALUES (?, 'stack', 'Stack', ?, ?)`,
     id,
