@@ -108,10 +108,10 @@ skilld stores this data for your account:
 
 ## Email
 
-skilld sends email only after you turn it on, during sign-up or in your dashboard.
+skilld sends one welcome email when you sign up with an email address. Other emails require opt-in during onboarding or in your account.
 
 - **Weekly email:** new trending Skills every Monday.
-- **Monthly digest:** changes to your liked Skills and watched Repositories, on the first day of each month.
+- **Monthly Skill updates:** changes to your liked Skills and watched Repositories, on the first day of each month.
 
 skilld sends to the address you save. If you save no address, it uses the email address from your GitHub account. Cloudflare delivers each email from `noreply@mail.skilld.dev`. Every email has an unsubscribe link.
 
@@ -175,7 +175,7 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 - Email send records and unsubscribe history stay for 90 days.
 - Usage counts and request logs stay for 90 days. Email click counts are kept as daily totals with no account in them.
 
-A daily job deletes these records at 04:30 UTC. Two kinds of digest records stay longer. The newest digest record for each account stays, because the next digest starts from it. A digest that did not send successfully also stays, so a retry cannot send it twice.
+A daily job deletes these records at 04:30 UTC. Two kinds of Skill updates send records stay longer. The newest send record for each account stays, because the next email starts from it. An unsuccessful send record also stays, so a retry cannot send the email twice.
 
 Cloudflare D1 keeps a point-in-time recovery history of the database. A deleted row can stay in that history for up to 30 days, and then it expires.
 

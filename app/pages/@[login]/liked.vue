@@ -87,7 +87,7 @@ useSeoMeta({
       </h1>
       <p class="mt-4 max-w-3xl text-base leading-relaxed text-muted text-pretty">
         Every skill @{{ login }} liked. Liking one watches its repository, so these are the
-        skills whose changes reach their digest.
+        skills whose changes reach their Skill updates email.
       </p>
 
       <p

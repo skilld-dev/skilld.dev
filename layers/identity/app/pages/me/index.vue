@@ -175,7 +175,7 @@ function sourceDescription(source: string): string {
     return 'Added directly'
   if (source.startsWith('collection:'))
     return 'Added with a collection'
-  return 'Added to your digest'
+  return 'Included in your Skill updates'
 }
 
 const route = useRoute()
@@ -415,7 +415,7 @@ async function deleteAccount() {
             <div class="flex items-start justify-between gap-4 border-t border-default py-4">
               <div>
                 <p class="text-sm font-medium">
-                  Monthly digest
+                  Monthly Skill updates
                 </p>
                 <p class="mt-1 text-sm leading-relaxed text-muted">
                   Changes to liked Skills and watched Repositories on the first day of each month.
@@ -471,7 +471,7 @@ async function deleteAccount() {
                     class="mt-0.5 size-4 accent-primary"
                   >
                   <span>
-                    Send me the monthly digest
+                    Send me monthly Skill updates
                     <span class="mt-0.5 block text-sm text-muted">Liked Skills and watched Repositories that changed.</span>
                   </span>
                 </label>

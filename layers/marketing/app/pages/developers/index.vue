@@ -150,7 +150,7 @@ const uiClass = 'font-medium text-default'
               Act for your account
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
-              Sign in once, and your Agent can like and watch Skills for you. The digest then reports what changed in the Repositories you watch. A script or a CI job has no browser, so set <code class="font-mono text-xs text-default">SKILLD_TOKEN</code> to a token instead.
+              Sign in once, and your Agent can like and watch Skills for you. Your Skill updates email then reports what changed in the Repositories you watch. A script or a CI job has no browser, so set <code class="font-mono text-xs text-default">SKILLD_TOKEN</code> to a token instead.
             </p>
             <SetupSnippet class="mt-3" :code="setupSnippets.cliAccount" label="account commands" format="skilld" />
             <UButton

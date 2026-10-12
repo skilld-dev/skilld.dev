@@ -425,7 +425,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
               Keep up with <span class="home-ink">skill changes</span>.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.
+              Watch a repo. Get monthly Skill updates with commits affecting its Skills. If nothing changed, we send nothing.
             </p>
             <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
               <UButton
@@ -440,7 +440,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
                 href="/digest/preview"
                 class="inline-flex min-h-11 items-center gap-1 text-sm text-default underline underline-offset-4 hover:text-primary"
               >
-                See an example digest
+                Preview Skill updates
                 <UIcon name="i-lucide-arrow-up-right" class="size-3.5 shrink-0" aria-hidden="true" />
               </a>
             </div>

@@ -36,7 +36,7 @@ describe('email preference recovery', () => {
     })
 
     expect(html).toContain('<form method="post"')
-    expect(html).toContain('Stop digest emails')
+    expect(html).toContain('Stop Skill updates emails')
     expect(html).toContain('skilld')
     expect(html).toContain(':focus-visible')
     expect(html).toContain('color-scheme:light dark')
@@ -51,7 +51,7 @@ describe('email preference recovery', () => {
     })
 
     expect(html).toContain('/api/unsubscribe/undo')
-    expect(html).toContain('Restore digest emails')
+    expect(html).toContain('Restore Skill updates emails')
   })
 })
 

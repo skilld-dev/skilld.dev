@@ -626,11 +626,11 @@ function subjectFor(input: WeeklyRenderInput): string {
   if (input.likedChanges.length) {
     const names = nameList(input.likedChanges.map(change => change.name), input.likedOverflow)
     const verb = input.likedChanges.length + input.likedOverflow === 1 ? 'was' : 'were'
-    return `skilld ${edition}: ${names} ${verb} updated`
+    return `skilld Skill updates: ${names} ${verb} updated`
   }
   if (input.trending.length)
-    return `skilld ${edition}: ${nameList(input.trending.map(skill => skill.canonicalName), 0)}`
-  return `skilld ${edition}: a quiet week`
+    return `skilld Skill updates: ${nameList(input.trending.map(skill => skill.canonicalName), 0)}`
+  return `skilld Skill updates: a quiet week`
 }
 
 /**
@@ -803,7 +803,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
             <!-- The mark is a hosted PNG because Gmail strips SVG. The nearby
                  wordmark carries the name when images are blocked. -->
             <td valign="middle" style="font-family:${MONO};font-size:14px;font-weight:600;color:${t.text};letter-spacing:-0.01em;">
-              <a href="${esc(track(input.siteUrl, 'footer'))}" style="display:inline-block;padding:11px 0;color:${t.text};text-decoration:none;"><img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="" style="display:inline-block;width:22px;height:22px;margin-right:9px;border:0;border-radius:5px;vertical-align:middle;" /><span style="vertical-align:middle;">skilld <span style="color:${t.faint};font-weight:400;">${edition}</span></span></a>
+              <a href="${esc(track(input.siteUrl, 'footer'))}" style="display:inline-block;padding:11px 0;color:${t.text};text-decoration:none;"><img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="" style="display:inline-block;width:22px;height:22px;margin-right:9px;border:0;border-radius:5px;vertical-align:middle;" /><span style="vertical-align:middle;">skilld <span style="color:${t.faint};font-weight:400;">${edition === 'weekly' ? 'weekly' : 'Skill updates'}</span></span></a>
             </td>
             <td align="right" valign="middle" style="font-family:${MONO};font-size:14px;color:${t.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
           </tr>
@@ -825,7 +825,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       <tr><td class="weekly-border" style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
         ${edition === 'weekly'
           ? 'Your account is set to receive the weekly email.'
-          : 'You get this because you enabled the digest.'}
+          : 'You get this because you enabled Skill updates.'}
         <a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
         &middot;
         <a href="${esc(input.unsubscribeUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Unsubscribe</a>
@@ -848,7 +848,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 </head>
 <body style="margin:0;padding:0;background:${t.page};-webkit-font-smoothing:antialiased;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader(input))}</div>
-<main role="main" aria-label="skilld ${edition}">
+<main role="main" aria-label="skilld ${edition === 'weekly' ? 'weekly' : 'Skill updates'}">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;background:${t.page};padding:24px 8px;">
   <tr><td align="center">
     ${card}
@@ -867,7 +867,7 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
   const trendsOnly = (input.edition ?? 'weekly') === 'weekly'
   const changeLabel = input.changeSource === 'watches' ? 'RECENT COMMITS' : 'SKILLS YOU LIKE'
   const lines: string[] = [
-    `skilld ${input.edition ?? 'weekly'}  ${formatWindow(input.windowStart, input.windowEnd)}`,
+    `skilld ${input.edition === 'digest' ? 'Skill updates' : 'weekly'}  ${formatWindow(input.windowStart, input.windowEnd)}`,
     '',
     ...(!trendsOnly && input.recipientName ? [`Hi ${input.recipientName},`] : []),
     greeting(input),

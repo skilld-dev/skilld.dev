@@ -9,5 +9,5 @@ export const WELCOME_EMAIL_COPY = {
   unsubscribe: 'Stop welcome emails',
   emailChoices: 'We’ll only send other emails if you’ve opted in.',
   missingAddress: 'Add an email address, or turn off all email choices.',
-  stopped: 'You will not get welcome emails. Your weekly and digest settings are unchanged.',
+  stopped: 'You will not get welcome emails. Your weekly and Skill updates settings are unchanged.',
 } as const
