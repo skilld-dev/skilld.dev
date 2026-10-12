@@ -14,14 +14,15 @@ onMounted(() => recordSignup({ stage: 'email', outcome: 'viewed', entry: 'onboar
 const email = ref(me.value?.digest_email || me.value?.email || '')
 // A stored address records a deliberate choice, including a previous opt-out.
 const hasEmailChoices = computed(() => !!me.value?.onboarded_at || !!me.value?.digest_email)
-const optIn = ref(hasEmailChoices.value ? !!me.value?.email_opt_in : true)
-const weeklyOptIn = ref(hasEmailChoices.value ? !!me.value?.weekly_opt_in : true)
-const welcomeEmail = ref(false)
+const optIn = ref(hasEmailChoices.value ? !!me.value?.email_opt_in : false)
+const weeklyOptIn = ref(hasEmailChoices.value ? !!me.value?.weekly_opt_in : false)
+const welcomeEmail = ref(!hasEmailChoices.value)
 watch(me, (account, previous) => {
   if (account && !previous) {
     email.value = account.digest_email || account.email || ''
-    optIn.value = hasEmailChoices.value ? account.email_opt_in : true
-    weeklyOptIn.value = hasEmailChoices.value ? account.weekly_opt_in : true
+    optIn.value = hasEmailChoices.value ? account.email_opt_in : false
+    weeklyOptIn.value = hasEmailChoices.value ? account.weekly_opt_in : false
+    welcomeEmail.value = !hasEmailChoices.value
   }
 })
 
@@ -131,6 +132,10 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
           {{ WELCOME_EMAIL_COPY.consent }}
         </span>
       </label>
+
+      <p class="text-xs text-muted">
+        {{ WELCOME_EMAIL_COPY.emailChoices }}
+      </p>
 
       <p v-if="!optIn && !weeklyOptIn && !welcomeEmail" class="rounded-lg border border-default bg-elevated/50 p-3 text-xs text-muted">
         You won't receive any emails. You can opt in later from your dashboard.

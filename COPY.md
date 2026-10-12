@@ -19,7 +19,9 @@ After its main action, it says "Let me know if you’d like to see any changes :
 Replies go to `harlan@harlanzw.com`.
 Its one main action is "Open your account", linking to `/me`.
 Its footer is "Stop welcome emails", linking to a signed welcome unsubscribe URL.
-Onboarding offers an unchecked choice: "Send me one welcome email with account tips."
+Onboarding checks the welcome choice for new accounts: "Send me one welcome email from Harlan."
+New accounts start with the weekly and digest choices unchecked. Saved choices stay as selected.
+Onboarding and the welcome email say "We’ll only send other emails if you’ve opted in."
 The missing-address message is "Add an email address, or turn off all email choices."
 Welcome unsubscribe says "You will not get welcome emails. Your weekly and digest settings are unchanged."
 

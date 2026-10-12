@@ -11,8 +11,8 @@ export const identityEmailPatchBodySchema = z.object({
    * The weekly email, stored inverted as `weekly_opt_out`.
    *
    * The API speaks opt-in because that is what the switch in the UI means.
-   * The column is the opposite so the switch reads on by default; delivery
-   * still requires consent, which a captured profile address never provides.
+   * The stored flag is inverted. New accounts choose it during onboarding;
+   * a captured profile address never provides delivery consent.
    */
   weekly_opt_in: z.boolean().optional(),
   /** One welcome email, requested explicitly. It does not enroll either list. */

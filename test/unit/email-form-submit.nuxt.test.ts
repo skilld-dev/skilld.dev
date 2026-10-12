@@ -10,7 +10,7 @@ const account = ref({
   login: 'email-review',
   name: 'Email review',
   email: 'review@example.com',
-  digest_email: 'review@example.com',
+  digest_email: 'review@example.com' as string | null,
   email_opt_in: true,
   weekly_opt_in: true,
   likes_public: false,
@@ -47,6 +47,7 @@ beforeEach(() => {
   mocks.execute.mockResolvedValue({ ok: true })
   mocks.query.mockResolvedValue({ ...account.value })
   account.value.onboarded_at = null
+  account.value.digest_email = 'review@example.com'
   account.value.email_opt_in = true
   account.value.weekly_opt_in = true
 })
@@ -70,14 +71,12 @@ it('offers unfinished accounts a path back to email choices', async () => {
   wrapper.unmount()
 })
 
-it('offers one unchecked welcome and allows it without recurring emails', async () => {
+it('defaults new accounts to one welcome without recurring emails', async () => {
+  account.value.digest_email = null
   const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })
   const form = wrapper.get('#email-onboarding-form')
   const choices = form.findAll('input[type="checkbox"]')
-  expect((choices[2]!.element as HTMLInputElement).checked).toBe(false)
-  await choices[0]!.setValue(false)
-  await choices[1]!.setValue(false)
-  await choices[2]!.setValue(true)
+  expect(choices.map(choice => (choice.element as HTMLInputElement).checked)).toEqual([false, false, true])
   ;(form.element as HTMLFormElement).requestSubmit()
   await flushPromises()
   expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ path: '/api/me/email' }), {
@@ -85,6 +84,21 @@ it('offers one unchecked welcome and allows it without recurring emails', async 
     email_opt_in: false,
     weekly_opt_in: false,
     welcome_email: true,
+  })
+  wrapper.unmount()
+})
+
+it('lets new accounts opt out of every email during onboarding', async () => {
+  account.value.digest_email = null
+  const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })
+  const form = wrapper.get('#email-onboarding-form')
+  await form.findAll('input[type="checkbox"]')[2]!.setValue(false)
+  ;(form.element as HTMLFormElement).requestSubmit()
+  await flushPromises()
+  expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ path: '/api/me/email' }), {
+    digest_email: 'review@example.com',
+    email_opt_in: false,
+    weekly_opt_in: false,
   })
   wrapper.unmount()
 })
