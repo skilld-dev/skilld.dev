@@ -69,7 +69,7 @@ useSeoMeta({
           </dd>
         </div>
       </dl>
-      <NuxtLink to="/weekly/preview" class="mt-2 inline-flex min-h-11 items-center gap-2 text-sm text-muted underline hover:text-default">
+      <NuxtLink to="/weekly/preview" external class="mt-2 inline-flex min-h-11 items-center gap-2 text-sm text-muted underline hover:text-default">
         Preview the weekly
         <UIcon name="i-lucide-arrow-right" class="size-4" aria-hidden="true" />
       </NuxtLink>

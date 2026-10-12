@@ -21,17 +21,20 @@ export interface StarredRow {
 
 export async function loadStarredRows(db: D1Database, userId: number): Promise<StarredRow[]> {
   const res = await db.prepare(
-    `SELECT COALESCE(r.owner, s.owner) AS owner, COALESCE(r.repo, s.repo) AS repo, s.starred_at,
+    `WITH bounded_stars AS (
+       SELECT * FROM user_starred_repos WHERE user_id = ?1
+       ORDER BY starred_at DESC LIMIT 1000
+     )
+     SELECT COALESCE(r.owner, s.owner) AS owner, COALESCE(r.repo, s.repo) AS repo, s.starred_at,
             CASE WHEN sk.name IS NULL THEN 0 ELSE 1 END AS has_skill,
             EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.user_id = s.user_id
               AND sub.owner = s.owner COLLATE NOCASE AND sub.repo = s.repo COLLATE NOCASE) AS watching,
             sk.name as skill_name, sk.display_name as skill_display, sk.slug as skill_slug
-     FROM user_starred_repos s
+     FROM bounded_stars s
      LEFT JOIN repos r ON r.owner = s.owner COLLATE NOCASE AND r.repo = s.repo COLLATE NOCASE
      LEFT JOIN skills sk ON sk.owner = r.owner AND sk.repo = r.repo
      WHERE s.user_id = ?1
-     ORDER BY has_skill DESC, s.starred_at DESC, sk.name
-     LIMIT 1000`,
+     ORDER BY has_skill DESC, s.starred_at DESC, sk.name`,
   ).bind(userId).all<StarredRow>()
   return res.results ?? []
 }

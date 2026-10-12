@@ -191,7 +191,11 @@ Use `7-day social mentions · {date}` as the footer. Format the UTC date as `2 O
 | Login meta | Sign in with GitHub to keep liked Skills, watch for changes, and choose your emails. | Login page description. |
 | Like needs a Skill | Open a Skill before liking it. | A Repository with several Skills cannot imply which Skill to like. |
 | Star import | We check up to 1,000 starred GitHub Repositories against the registry. Choose which to watch. Email updates are optional. | Match registry coverage, regardless of Repository name. |
-| Star import empty | Find Skills from your GitHub stars · Import stars · None of the checked Repositories have Skills in the registry yet. · Browse curated Skills, then like one to keep it in your account. | Offer discovery when imported stars have no matching Skills. |
+| Star import empty | Find Skills from your GitHub stars · Import stars · None of the checked Repositories have Skills in the registry yet. · Browse curated Skills, then like one to keep it in your account. · Import your GitHub stars, or browse curated Skills. | Offer discovery when imported stars have no matching Skills. |
+| Star import progress | Page {page} · {total} Repositories checked · {matched} match the registry | Report checked Repositories and registry matches separately. |
+| Star import error | Could not import GitHub stars. Try again. | Use when an import fails without a specific error. |
+| Star import restart | Another star import started. Import your stars again. · Star import pages must run in order. Restart from page one. | Browser and CLI import recovery. |
+| Star import date | Last complete GitHub import: {date} | A bounded partial import has no completion date. |
 | Star import partial | Checked the first 1,000 GitHub stars. Some starred Repositories were not checked. | The page limit leaves coverage partial. |
 | Account without likes, with watches | Your watched Repositories are ready · {n} watched {Repository/Repositories}. Like a Skill to keep it here. · Browse skills · View watched Repositories | Show existing account value when the liked Skills view is empty. |
 

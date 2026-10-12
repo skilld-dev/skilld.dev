@@ -1,5 +1,6 @@
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { starredReposPresenter } from '../../layers/identity/server/presenters/user'
 import { importStarredPage, loadStarredRows, MAX_STAR_PAGES } from '../../layers/identity/server/utils/starred-repos'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -17,6 +18,21 @@ describe('star import coverage', () => {
   })
   afterEach(() => d1.close())
   const request = (page: number, response: Response) => importStarredPage({ db: d1.db, userId: 1, githubToken: 'fixture', page, now: () => 20, fetch: async () => response })
+
+  it('presents partial coverage without a completion date', async () => {
+    expect(starredReposPresenter(await loadStarredRows(d1.db, 1), null, true)).toMatchObject({ syncedAt: null, partial: true })
+  })
+
+  it('keeps other matched Repositories when one holds 1,000 Skills', async () => {
+    const skill = d1.raw.prepare('INSERT INTO skills (owner, repo, name, slug, display_name) VALUES (\'nuxt\', \'ui\', ?, ?, \'Skill\')')
+    for (let n = 1; n < 1000; n++)
+      skill.run(`skill-${n}`, `nuxt/ui/skill-${n}`)
+    d1.raw.exec(`INSERT INTO repos (owner, repo) VALUES ('nuxt', 'older');
+      INSERT INTO skills (owner, repo, name, slug, display_name) VALUES ('nuxt', 'older', 'older', 'nuxt/older/older', 'Older');
+      INSERT INTO user_starred_repos VALUES (1, 'nuxt', 'ui', 20, 1), (1, 'nuxt', 'older', 10, 1);`)
+    const rows = await loadStarredRows(d1.db, 1)
+    expect(rows.some(row => row.repo === 'older' && row.skill_name === 'older')).toBe(true)
+  })
 
   it('matches a registry Repository without skill in its name', async () => {
     expect(await request(1, Response.json([star('ui')]))).toMatchObject({ matched: 1, total: 1, importedAt: 20 })

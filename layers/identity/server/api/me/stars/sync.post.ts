@@ -1,5 +1,6 @@
 import { defineApiHandler } from '#shared/server/handler'
 import { authenticated } from '../../../policies/authenticated'
+import { starsImportPresenter } from '../../../presenters/user'
 import { StarsSyncQuery } from '../../../schemas/stars'
 import { importStarredPage } from '../../../utils/starred-repos'
 import { requireGithubUserToken, requireUserRow } from '../../../utils/users'
@@ -7,6 +8,7 @@ import { requireGithubUserToken, requireUserRow } from '../../../utils/users'
 export default defineApiHandler({
   schema: StarsSyncQuery,
   policy: [authenticated],
+  presenter: starsImportPresenter,
   handler: async ({ event, body, platform }) => {
     const u = await requireUserRow(event)
     const config = useRuntimeConfig(event)
@@ -20,15 +22,6 @@ export default defineApiHandler({
     if (result._tag === 'GithubFailed')
       throw createError({ statusCode: 502, message: `GitHub error ${result.status}` })
 
-    return {
-      ok: true as const,
-      page: result.page,
-      importId: result.importId,
-      fetched: result.fetched,
-      total: result.total,
-      matched: result.matched,
-      hasMore: result.hasMore,
-      syncedAt: result.importedAt,
-    }
+    return result
   },
 })
