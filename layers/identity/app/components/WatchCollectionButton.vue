@@ -1,13 +1,13 @@
 <script setup lang="ts">
 const props = defineProps<{ login: string, slug: string }>()
-const { state, loginUrl } = useAuth()
+const { state } = useAuth()
 const submitting = ref(false)
 const watched = ref(false)
 
-const anonHref = computed(() => loginUrl({
-  returnTo: `/@${props.login}/${props.slug}`,
+const anonHref = computed(() => `/login?${new URLSearchParams({
+  return_to: `/@${props.login}/${props.slug}`,
   action: 'watch-collection',
-}))
+})}`)
 
 async function watchNow() {
   submitting.value = true

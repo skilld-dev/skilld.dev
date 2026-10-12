@@ -2,6 +2,12 @@ import type { H3Event } from 'h3'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const fetchRoute = vi.hoisted(() => vi.fn())
+vi.mock('ofetch', async original => ({
+  ...await original<typeof import('ofetch')>(),
+  $fetch: Object.assign(fetchRoute, { create: () => fetchRoute }),
+}))
+
 /**
  * An anonymous heart click bounces through GitHub OAuth carrying ?action=like-skill.
  * If the callback fails to replay it the user lands back on the skill with an
@@ -16,6 +22,7 @@ describe('post-OAuth like replay', () => {
     vi.resetModules()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-10T09:00:00.000Z'))
+    fetchRoute.mockReset().mockResolvedValue({ target: { _tag: 'repo' } })
     vi.stubGlobal('createError', (input: Record<string, unknown>) => Object.assign(new Error(String(input.message)), input))
 
     sqlite = new Database(':memory:')
@@ -64,11 +71,19 @@ describe('post-OAuth like replay', () => {
     expect(likes()).toEqual([{ owner: 'nuxt', repo: 'ui', name: 'motion' }])
   })
 
-  it('does nothing when the path has no skill name to like', async () => {
-    await handleWatchAction(event(), 1, 'like-skill', '/gh/nuxt/ui')
+  it('refuses to like an ambiguous repository path', async () => {
+    await expect(handleWatchAction(event(), 1, 'like-skill', '/gh/nuxt/ui')).rejects.toMatchObject({ statusCode: 400 })
 
     expect(likes()).toEqual([])
     expect(subs()).toEqual([])
+  })
+
+  it('replays a like on a single Skill canonical repository path', async () => {
+    fetchRoute.mockResolvedValue({ target: { _tag: 'skill', name: 'design-tokens' } })
+    await handleWatchAction(event(), 1, 'like-skill', '/gh/nuxt/ui?from=search#run')
+    expect(likes()).toEqual([{ owner: 'nuxt', repo: 'ui', name: 'design-tokens' }])
+    expect(subs()).toEqual([{ owner: 'nuxt', repo: 'ui', source: 'like' }])
+    expect(fetchRoute).toHaveBeenCalledWith('/api/repos/nuxt/ui/route-target')
   })
 
   it('still supports watch-skill from a repo path with no skill segment', async () => {

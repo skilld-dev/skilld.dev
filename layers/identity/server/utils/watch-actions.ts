@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { z } from 'zod'
 import { likeSkill } from './likes'
 import { createRepositoryWatches } from './watches'
 
@@ -49,8 +50,22 @@ export async function handleWatchAction(
 
   // likeSkill derives the repo subscription itself, so there is no separate
   // watch insert here.
-  if (action === 'like-skill' && ctx.skillOwner && ctx.skillRepo && ctx.skillName) {
-    await likeSkill(d, userId, { owner: ctx.skillOwner, repo: ctx.skillRepo, name: ctx.skillName })
+  if (action === 'like-skill' && ctx.skillOwner && ctx.skillRepo) {
+    let name = ctx.skillName
+    if (!name) {
+      // The registry owns canonical repository paths. Ask it whether this path
+      // represents exactly one Skill, rather than guessing a Skill name.
+      const resolution = z.object({
+        target: z.discriminatedUnion('_tag', [
+          z.object({ _tag: z.literal('repo') }),
+          z.object({ _tag: z.literal('skill'), name: z.string().min(1) }),
+        ]),
+      }).parse(await $fetch(`/api/repos/${encodeURIComponent(ctx.skillOwner)}/${encodeURIComponent(ctx.skillRepo)}/route-target`))
+      if (resolution.target._tag !== 'skill')
+        throw createError({ statusCode: 400, message: 'Open a Skill before liking it.' })
+      name = resolution.target.name
+    }
+    await likeSkill(d, userId, { owner: ctx.skillOwner, repo: ctx.skillRepo, name })
     return
   }
 

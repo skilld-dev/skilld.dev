@@ -8,7 +8,7 @@ const { owner, repo, name, count = 0, variant = 'detail' } = defineProps<{
 }>()
 
 const route = useRoute()
-const { state, loginUrl } = useAuth()
+const { state } = useAuth()
 const { isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, toggle } = useLikes()
 
 const skillRef = computed(() => ({ owner, repo, name }))
@@ -29,7 +29,14 @@ const displayCount = computed(() => likeCount(skillRef.value) ?? baseline.value)
 
 // Anonymous clicks bounce through OAuth carrying the intent, and the callback
 // replays it via watch-actions.ts, so the user lands back on a liked skill.
-const anonHref = computed(() => loginUrl({ returnTo: route.fullPath, action: 'like-skill' }))
+const anonHref = computed(() => {
+  const skillPath = `/gh/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(name)}`
+  const repoPath = `/gh/${owner}/${repo}`
+  const returnTo = variant === 'detail' && (route.path === repoPath || route.path === skillPath)
+    ? route.fullPath
+    : skillPath
+  return `/login?${new URLSearchParams({ return_to: returnTo, action: 'like-skill' })}`
+})
 
 const NUDGE_KEY = 'skilld:like-digest-nudge-dismissed'
 const nudgeDismissed = ref(true)
