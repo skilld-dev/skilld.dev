@@ -117,7 +117,9 @@ const syncMutation = useNuxtMutation<void, StarsSyncResponse>({
   onMutate: () => actionFailed.clear('sync your starred repos'),
 })
 async function sync() {
-  await syncMutation.mutateSafe()
+  const imported = await syncMutation.mutateSafe()
+  if (imported._tag === 'ok')
+    await navigateTo('/onboarding/discover')
 }
 
 const unwatchingRepository = ref<string>()
@@ -161,6 +163,7 @@ async function saveEmail() {
 const likedSkills = computed(() => likes.value?.items ?? [])
 const likesUnavailable = computed(() => !!likesError.value && !likes.value)
 const likesLoading = computed(() => likesStatus.value === 'pending' && !likes.value)
+const monthlyDeliveryActive = computed(() => !!me.value?.email_opt_in && !!(me.value?.digest_email ?? me.value?.email ?? '').trim())
 const watchedRepositoryCount = computed(() => subs.value?.items.length ?? 0)
 
 function sourceDescription(source: string): string {
@@ -375,12 +378,21 @@ async function deleteAccount() {
           <div v-else class="editorial-state mt-6 flex flex-col items-start justify-center">
             <UIcon name="i-lucide-heart" class="size-5 text-muted" aria-hidden="true" />
             <h2 class="mt-4 text-lg font-semibold">
-              Add your first skill
+              {{ watchedRepositoryCount ? 'Your watched Repositories are ready' : 'Find Skills from your GitHub stars' }}
             </h2>
             <p class="mt-2 max-w-xl text-sm leading-relaxed text-muted">
-              Like any skill to keep it here. Turn on the monthly digest to receive its changes.
+              <template v-if="watchedRepositoryCount">
+                {{ watchedRepositoryCount }} watched {{ watchedRepositoryCount === 1 ? 'Repository' : 'Repositories' }}. Like a Skill to keep it here.
+              </template>
+              <template v-else>
+                Browse curated Skills, then like one to keep it in your account.
+              </template>
             </p>
-            <UButton to="/skills" class="mt-5 min-h-11" icon="i-lucide-search" label="Browse skills" />
+            <div class="mt-5 flex flex-wrap gap-3">
+              <UButton to="/skills" class="min-h-11" icon="i-lucide-search" label="Browse skills" />
+              <UButton v-if="watchedRepositoryCount" to="/me?view=repositories" color="neutral" variant="outline" class="min-h-11" label="View watched Repositories" />
+              <UButton v-else to="/onboarding/discover" color="neutral" variant="outline" class="min-h-11" label="Import stars" />
+            </div>
           </div>
         </section>
       </div>
@@ -409,7 +421,7 @@ async function deleteAccount() {
                   Changes to liked Skills and watched Repositories on the first day of each month.
                 </p>
               </div>
-              <UBadge :label="me?.email_opt_in ? 'On' : 'Off'" color="neutral" variant="subtle" />
+              <UBadge :label="monthlyDeliveryActive ? 'On' : 'Off'" color="neutral" variant="subtle" />
             </div>
 
             <div class="border-t border-default py-4">
@@ -556,7 +568,7 @@ async function deleteAccount() {
             {{ watchedRepositoryCount }} {{ watchedRepositoryCount === 1 ? 'repository supports' : 'repositories support' }} your skill updates.
           </p>
           <p class="mt-2 text-sm leading-relaxed text-muted">
-            Last GitHub import: {{ fmtDate(me?.stars_synced_at) }}
+            Last complete GitHub import: {{ fmtDate(me?.stars_synced_at) }}
           </p>
           <UButton
             :loading="syncMutation.pending.value"

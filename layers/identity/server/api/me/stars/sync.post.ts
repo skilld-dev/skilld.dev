@@ -12,7 +12,9 @@ export default defineApiHandler({
     const config = useRuntimeConfig(event)
     const githubToken = await requireGithubUserToken(platform.db, u.id, config.tokenKey as string)
 
-    const result = await importStarredPage({ db: platform.db, userId: u.id, githubToken, page: body.page })
+    const result = await importStarredPage({ db: platform.db, userId: u.id, githubToken, page: body.page, importId: body.importId })
+    if (result._tag === 'ImportRestartRequired')
+      throw createError({ statusCode: 409, message: 'Another star import started. Import your stars again.' })
     if (result._tag === 'GithubSignInRequired')
       throw createError({ statusCode: 401, statusMessage: 'GitHub sign-in required', message: 'GitHub rejected your access. Sign in with GitHub again.' })
     if (result._tag === 'GithubFailed')
@@ -21,6 +23,7 @@ export default defineApiHandler({
     return {
       ok: true as const,
       page: result.page,
+      importId: result.importId,
       fetched: result.fetched,
       total: result.total,
       matched: result.matched,

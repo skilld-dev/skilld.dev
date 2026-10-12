@@ -1,9 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { z } from 'zod'
+
 /**
- * A person's imported GitHub stars. The import keeps only Repositories whose
- * name mentions a Skill, and records whether the registry holds Skills for
- * each one.
+ * A person's imported GitHub stars. The bounded import checks every Repository name
+ * against registry coverage.
  */
 
 /** One row per Skill of a starred Repository, or one row with no Skill. */
@@ -35,10 +36,10 @@ export async function loadStarredRows(db: D1Database, userId: number): Promise<S
   return res.results ?? []
 }
 
-interface GitHubStarred {
-  starred_at: string
-  repo: { name: string, owner: { login: string } }
-}
+const githubStarredPageSchema = z.array(z.object({
+  starred_at: z.iso.datetime({ offset: true }),
+  repo: z.object({ name: z.string().min(1), owner: z.object({ login: z.string().min(1) }) }),
+})).max(100)
 
 const PER_PAGE = 100
 export const MAX_STAR_PAGES = 10
@@ -47,6 +48,7 @@ export type StarsImportPage
   = | {
     _tag: 'Imported'
     page: number
+    importId: string
     /** Starred Repositories this page kept. */
     fetched: number
     /** Starred Repositories stored so far. */
@@ -59,19 +61,20 @@ export type StarsImportPage
   }
   | { _tag: 'GithubSignInRequired' }
   | { _tag: 'GithubFailed', status: number }
+  | { _tag: 'ImportRestartRequired' }
 
 /**
  * Import one page of a person's GitHub stars.
  *
- * Page 1 clears the last import first, so a run of pages replaces it. GitHub
- * failures come back as values: the dashboard and the public API answer them
- * with different statuses.
+ * Pages stage separately from the last usable import. A terminal page
+ * publishes the staged rows atomically. GitHub failures leave active rows intact.
  */
 export async function importStarredPage(input: {
   db: D1Database
   userId: number
   githubToken: string
   page: number
+  importId?: string
   fetch?: typeof globalThis.fetch
   now?: () => number
 }): Promise<StarsImportPage> {
@@ -79,8 +82,14 @@ export async function importStarredPage(input: {
   const fetchImpl = input.fetch ?? globalThis.fetch
   const now = input.now ?? (() => Math.floor(Date.now() / 1000))
 
-  if (page === 1)
-    await db.prepare(`DELETE FROM user_starred_repos WHERE user_id = ?1`).bind(userId).run()
+  const state = page === 1
+    ? null
+    : await db.prepare(
+        'SELECT import_id, next_page FROM user_starred_import_state WHERE user_id = ?1',
+      ).bind(userId).first<{ import_id: string, next_page: number }>()
+  if (page !== 1 && (!state || state.next_page !== page || (input.importId && input.importId !== state.import_id)))
+    return { _tag: 'ImportRestartRequired' }
+  const importId = page === 1 ? crypto.randomUUID() : state!.import_id
 
   const res = await fetchImpl(`https://api.github.com/user/starred?per_page=${PER_PAGE}&page=${page}`, {
     headers: {
@@ -91,43 +100,73 @@ export async function importStarredPage(input: {
   })
   if (!res.ok)
     return res.status === 401 ? { _tag: 'GithubSignInRequired' } : { _tag: 'GithubFailed', status: res.status }
-  const raw = await res.json() as GitHubStarred[]
-  const items = raw.filter(it => /skill/i.test(it.repo.name))
+  const raw = githubStarredPageSchema.parse(await res.json())
+  const items = raw
 
-  if (items.length) {
-    const stmts = items.map((it) => {
-      const owner = it.repo.owner.login
-      const repo = it.repo.name
-      const starredAt = Math.floor(new Date(it.starred_at).getTime() / 1000)
-      return db.prepare(
-        `INSERT OR REPLACE INTO user_starred_repos (user_id, owner, repo, starred_at, has_skill)
-         VALUES (?1,
-           COALESCE((SELECT owner FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?2),
-           COALESCE((SELECT repo FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?3), ?4,
-           (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
-            FROM skills WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE))`,
-      ).bind(userId, owner, repo, starredAt)
-    })
-    const chunk = 50
-    for (let i = 0; i < stmts.length; i += chunk)
-      await db.batch(stmts.slice(i, i + chunk))
+  const guard = 'EXISTS (SELECT 1 FROM user_starred_import_state WHERE user_id = ?1 AND import_id = ?5 AND next_page = ?6)'
+  const statements: D1PreparedStatement[] = []
+  if (page === 1) {
+    statements.push(
+      db.prepare('DELETE FROM user_starred_import WHERE user_id = ?1').bind(userId),
+      db.prepare(`INSERT INTO user_starred_import_state (user_id, import_id, next_page) VALUES (?1, ?2, 1)
+        ON CONFLICT (user_id) DO UPDATE SET import_id = excluded.import_id, next_page = 1`).bind(userId, importId),
+    )
   }
+  statements.push(...items.map((it) => {
+    const owner = it.repo.owner.login
+    const repo = it.repo.name
+    const starredAt = Math.floor(new Date(it.starred_at).getTime() / 1000)
+    return db.prepare(
+      `INSERT OR REPLACE INTO user_starred_import (user_id, owner, repo, starred_at, has_skill)
+       SELECT ?1,
+         COALESCE((SELECT owner FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?2),
+         COALESCE((SELECT repo FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?3), ?4,
+         (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+          FROM skills WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE)
+       WHERE ${guard}`,
+    ).bind(userId, owner, repo, starredAt, importId, page)
+  }))
 
-  const hasMore = raw.length === PER_PAGE && page < MAX_STAR_PAGES
+  const link = res.headers.get('link')
+  const hasNextPage = link ? /rel="next"/.test(link) : raw.length === PER_PAGE
+  const hasMore = hasNextPage && page < MAX_STAR_PAGES
 
-  let importedAt: number | null = null
+  // A full tenth page can have unseen stars. Publish its bounded coverage,
+  // but never set the timestamp that means a complete import.
+  const importedAt = !hasNextPage ? now() : null
+
+  // Every mutation and the page advance share one D1 transaction. A stale
+  // request cannot insert, publish, or clear another browser's generation.
+  const stateGuard = 'EXISTS (SELECT 1 FROM user_starred_import_state WHERE user_id = ?1 AND import_id = ?2 AND next_page = ?3)'
+  const countIndex = statements.length
+  statements.push(db.prepare(
+    'SELECT COUNT(*) AS n, SUM(has_skill) AS matched FROM user_starred_import WHERE user_id = ?1',
+  ).bind(userId))
   if (!hasMore) {
-    importedAt = now()
-    await db.prepare(`UPDATE users SET stars_synced_at = ?1 WHERE id = ?2`).bind(importedAt, userId).run()
+    statements.push(
+      db.prepare(`DELETE FROM user_starred_repos WHERE user_id = ?1 AND ${stateGuard}`).bind(userId, importId, page),
+      db.prepare(`INSERT INTO user_starred_repos (user_id, owner, repo, starred_at, has_skill)
+        SELECT user_id, owner, repo, starred_at, has_skill FROM user_starred_import
+        WHERE user_id = ?1 AND ${stateGuard}`).bind(userId, importId, page),
+      db.prepare(`UPDATE users SET stars_synced_at = ?4 WHERE id = ?1 AND ${stateGuard}`).bind(userId, importId, page, importedAt),
+      db.prepare(`DELETE FROM user_starred_import WHERE user_id = ?1 AND ${stateGuard}`).bind(userId, importId, page),
+    )
   }
-
-  const totalRow = await db.prepare(
-    `SELECT COUNT(*) as n, SUM(has_skill) as matched FROM user_starred_repos WHERE user_id = ?1`,
-  ).bind(userId).first<{ n: number, matched: number | null }>()
+  const advanceIndex = statements.length
+  statements.push(db.prepare(
+    `UPDATE user_starred_import_state SET next_page = ?4,
+      active_partial = COALESCE(?5, active_partial)
+      WHERE user_id = ?1 AND import_id = ?2 AND next_page = ?3`,
+  ).bind(userId, importId, page, page + 1, hasMore ? null : Number(hasNextPage)))
+  const results = await db.batch<{ n: number, matched: number | null }>(statements)
+  if (!results[advanceIndex]?.meta.changes)
+    return { _tag: 'ImportRestartRequired' }
+  const totalRow = results[countIndex]?.results?.[0]
 
   return {
     _tag: 'Imported',
     page,
+    importId,
     fetched: items.length,
     total: totalRow?.n ?? 0,
     matched: totalRow?.matched ?? 0,

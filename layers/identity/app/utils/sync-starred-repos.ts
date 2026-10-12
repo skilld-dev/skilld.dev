@@ -1,4 +1,5 @@
 export interface StarsSyncResponse {
+  importId?: string
   ok: true
   page: number
   fetched: number
@@ -10,7 +11,7 @@ export interface StarsSyncResponse {
 
 interface StarsSyncRequest {
   method: 'POST'
-  body: { page: number }
+  body: { page: number, importId?: string }
 }
 
 type StarsSyncFetch = (
@@ -22,11 +23,13 @@ export async function syncStarredRepos(
   fetchPage: StarsSyncFetch,
   onPage?: (response: StarsSyncResponse) => void,
 ): Promise<StarsSyncResponse> {
+  let importId: string | undefined
   for (let page = 1; page <= 10; page++) {
     const response = await fetchPage('/api/me/stars/sync', {
       method: 'POST',
-      body: { page },
+      body: importId ? { page, importId } : { page },
     })
+    importId = response.importId
     onPage?.(response)
     if (!response.hasMore)
       return response

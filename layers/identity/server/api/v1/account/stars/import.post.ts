@@ -10,6 +10,8 @@ export default defineApiOperation({
     // Throws the 401 that asks for a new GitHub sign-in when no token is stored.
     const githubToken = await requireGithubUserToken(platform.db, user.id, useRuntimeConfig(event).tokenKey as string)
     const result = await importStarredPage({ db: platform.db, userId: user.id, githubToken, page: input.body.page })
+    if (result._tag === 'ImportRestartRequired')
+      throw createError({ statusCode: 400, message: 'Star import pages must run in order. Restart from page one.' })
     if (result._tag === 'GithubSignInRequired')
       return operationFailure('AUTH_REQUIRED', 'GitHub rejected skilld\'s access to your account. Sign in on skilld.dev again.')
     // SERVICE_UNAVAILABLE is implicit, so no handler returns it as a value:
