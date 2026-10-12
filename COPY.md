@@ -201,6 +201,7 @@ Use `7-day social mentions · {date}` as the footer. Format the UTC date as `2 O
 | Star import date | Last complete GitHub import: {date} | A bounded partial import has no completion date. |
 | Star import partial | Checked the first 1,000 GitHub stars. Some starred Repositories were not checked. | The page limit leaves coverage partial. |
 | Account without likes, with watches | Your watched Repositories are ready · {n} watched {Repository/Repositories}. Like a Skill to keep it here. · Browse skills · View watched Repositories | Show existing account value when the liked Skills view is empty. |
+| Stop watching a Repository | Stop watching {owner}/{repo} | Remove the Repository watch. Email preferences stay separate. |
 
 ## Register by context
 

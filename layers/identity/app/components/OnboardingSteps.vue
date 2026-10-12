@@ -12,6 +12,7 @@ const steps = [
     <li
       v-for="(s, i) in steps"
       :key="s.n"
+      :aria-current="s.n === step ? 'step' : undefined"
       class="flex items-center gap-2"
     >
       <span

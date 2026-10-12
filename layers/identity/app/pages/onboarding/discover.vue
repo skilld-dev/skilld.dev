@@ -123,12 +123,6 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     <p class="mt-2 text-sm text-muted">
       We check up to 1,000 starred GitHub Repositories against the registry. Choose which to watch. Email updates are optional.
     </p>
-    <OwnedSkillsPrompt
-      v-if="user?.login"
-      :login="user.login"
-      class="mt-6"
-    />
-
     <div class="mt-4 flex flex-wrap items-center gap-3">
       <UButton
         :loading="syncing"
@@ -140,12 +134,14 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         :label="data?.syncedAt ? 'Import stars again' : 'Import stars'"
         @click="syncStars"
       />
-      <span v-if="syncing && syncProgress" class="text-xs text-muted">
-        Page {{ syncProgress.page || '…' }} · {{ syncProgress.total }} Repositories checked · {{ syncProgress.matched }} match the registry
-      </span>
-      <span v-else-if="data?.syncedAt" class="text-xs text-muted">
-        Last GitHub import
-        <NuxtTime :datetime="data.syncedAt * 1000" locale="en-AU" time-zone="UTC" date-style="medium" time-style="short" /> UTC
+      <span class="text-xs text-muted" role="status" aria-live="polite" aria-atomic="true">
+        <template v-if="syncing && syncProgress">
+          Page {{ syncProgress.page || '…' }} · {{ syncProgress.total }} Repositories checked · {{ syncProgress.matched }} match the registry
+        </template>
+        <template v-else-if="data?.syncedAt">
+          Last GitHub import
+          <NuxtTime :datetime="data.syncedAt * 1000" locale="en-AU" time-zone="UTC" date-style="medium" time-style="short" /> UTC
+        </template>
       </span>
     </div>
 
@@ -153,7 +149,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       Checked the first 1,000 GitHub stars. Some starred Repositories were not checked.
     </p>
 
-    <div v-if="syncError" class="mt-3 rounded border border-error/40 bg-error/5 p-2 text-xs text-error">
+    <div v-if="syncError" class="mt-3 rounded border border-error/40 bg-error/5 p-2 text-xs text-error" role="alert">
       {{ syncError }}
     </div>
 
@@ -249,5 +245,10 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         @click="watchSelected"
       />
     </div>
+    <OwnedSkillsPrompt
+      v-if="user?.login"
+      :login="user.login"
+      class="mt-8"
+    />
   </section>
 </template>

@@ -2,6 +2,7 @@ import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
+import OnboardingSteps from '../../layers/identity/app/components/OnboardingSteps.vue'
 import { useAuth } from '../../layers/identity/app/composables/useAuth'
 import Discover from '../../layers/identity/app/pages/onboarding/discover.vue'
 
@@ -28,6 +29,29 @@ beforeEach(() => {
 })
 
 describe('onboarding watch save', () => {
+  it('announces import progress and completion', async () => {
+    let finishImport: (value: unknown) => void
+    mocks.fetch.mockImplementation(() => new Promise((resolve) => {
+      finishImport = resolve
+    }))
+    const wrapper = await mountSuspended(Discover, { global: { stubs: { OwnedSkillsPrompt: true } } })
+    await wrapper.findAll('button').find(button => button.text().includes('Import stars again'))!.trigger('click')
+    expect(wrapper.get('[role="status"]').text()).toContain('Repositories checked')
+    finishImport!({ ok: true, page: 1, total: 1, matched: 1, hasMore: false, syncedAt: 1 })
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toContain('Last GitHub import')
+    wrapper.unmount()
+  })
+
+  it('announces a failed import while keeping the selected Repository', async () => {
+    mocks.fetch.mockRejectedValue(new Error('Could not import GitHub stars. Try again.'))
+    const wrapper = await mountSuspended(Discover, { global: { stubs: { OwnedSkillsPrompt: true } } })
+    await wrapper.findAll('button').find(button => button.text().includes('Import stars again'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Could not import GitHub stars. Try again.')
+    expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
+    wrapper.unmount()
+  })
   it('keeps the selections and stays on discovery when the save fails', async () => {
     mocks.fetch.mockRejectedValue(new Error('offline'))
     const wrapper = await mountSuspended(Discover, { global: { stubs: { OwnedSkillsPrompt: true } } })
@@ -49,6 +73,14 @@ describe('onboarding watch save', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/onboarding/email')
     wrapper.unmount()
   })
+})
+
+it('identifies the current onboarding step beyond its color', async () => {
+  const wrapper = await mountSuspended(OnboardingSteps, { props: { step: 1 } })
+  expect(wrapper.get('[aria-current="step"]').text()).toContain('Discover')
+  await wrapper.setProps({ step: 2 })
+  expect(wrapper.get('[aria-current="step"]').text()).toContain('Email')
+  wrapper.unmount()
 })
 
 describe('sign out', () => {
