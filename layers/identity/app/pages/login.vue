@@ -55,6 +55,7 @@ useSeoMeta({
           trailing-icon="i-lucide-arrow-right"
           size="md"
           class="min-h-11"
+          :ui="{ label: 'overflow-visible whitespace-normal' }"
           block
         />
       </div>
