@@ -516,11 +516,11 @@ function trendingRow(t: Tokens, options: {
         <img class="weekly-border" src="${esc(avatarUrl(options.siteUrl, options.owner))}" width="28" height="28" alt=""
              style="width:28px;height:28px;border-radius:14px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
-      <td valign="top">
+      <td valign="top" style="overflow-wrap:anywhere;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr>
-            <td valign="top"><a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a></td>
-            ${options.spark ? `<td valign="top" align="right" style="padding-left:12px;white-space:nowrap;">${sparkHtml(t, options.spark)}</td>` : ''}
+            <td class="weekly-row-heading" valign="top"><a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a></td>
+            ${options.spark ? `<td class="weekly-row-spark" valign="top" align="right" style="padding-left:12px;white-space:nowrap;">${sparkHtml(t, options.spark)}</td>` : ''}
           </tr>
         </table>
         ${description ? `<div style="margin-top:3px;font-family:${SANS};font-size:14px;line-height:1.55;color:${t.body};">${esc(description)}</div>` : ''}
@@ -823,7 +823,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       <tr><td style="height:3px;background:${t.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
       <tr><td class="weekly-border" style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
         ${edition === 'weekly'
-          ? 'You get this because you enabled the weekly email.'
+          ? 'Your account is set to receive the weekly email.'
           : 'You get this because you enabled the digest.'}
         <a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
         &middot;
@@ -842,6 +842,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 <style>
 @media (prefers-color-scheme: dark){.weekly-border{border-color:${PALETTE.dark.borderStrong}!important;}}
 [data-ogsc] .weekly-border{border-color:${PALETTE.dark.borderStrong}!important;}
+@media(max-width:480px){.weekly-row-heading,.weekly-row-spark{display:block!important;width:auto!important;}.weekly-row-spark{padding-left:0!important;padding-top:4px!important;text-align:left!important;}}
 </style>
 </head>
 <body style="margin:0;padding:0;background:${t.page};-webkit-font-smoothing:antialiased;">

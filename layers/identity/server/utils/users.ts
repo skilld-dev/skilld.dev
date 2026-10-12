@@ -94,8 +94,8 @@ export async function upsertUserFromGithub(
        github_token_encrypted, github_token_scopes, github_token_expires_at,
        github_refresh_token_encrypted, github_refresh_token_expires_at,
        github_token_client_id,
-       created_at, last_login_at
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)
+       created_at, last_login_at, weekly_opt_out
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, 1)
      ON CONFLICT(github_id) DO NOTHING
      RETURNING id`,
   ).bind(...values).first<{ id: number }>()

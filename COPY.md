@@ -24,7 +24,7 @@ Onboarding has no welcome checkbox. It offers previews of the welcome, weekly, a
 Preview labels are "Preview the welcome", "Preview the weekly", and "Preview the digest".
 The welcome preview footer says "Email preferences" and links to `/me`.
 Preview loading says "Loading email preview". Failure says "Could not load the email preview. Try again."
-The weekly footer says "You get this because you enabled the weekly email."
+The weekly footer says "Your account is set to receive the weekly email."
 New accounts start with the weekly and digest choices unchecked. Saved choices stay as selected.
 Onboarding and the welcome email say "We’ll only send other emails if you’ve opted in."
 The missing-address message is "Add an email address, or turn off all email choices."

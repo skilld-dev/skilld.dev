@@ -10,7 +10,13 @@ const updateSchema = z.discriminatedUnion('kind', [
     occurredAt: z.number(),
     changeSummary: z.string().nullable(),
   }),
-  z.object({ kind: z.literal('repo') }),
+  z.object({
+    kind: z.literal('repo'),
+    owner: z.string(),
+    repo: z.string(),
+    occurredAt: z.number(),
+    skills: z.array(z.object({ name: z.string() })),
+  }),
 ])
 
 export const publicDigestUpdatesSchema = z.object({ items: z.array(updateSchema) })
@@ -19,9 +25,16 @@ export const publicDigestSkillSchema = z.object({
   sourceUrl: z.string().url(),
   sourceGone: z.boolean(),
   sourceCommit: z.string().nullable(),
+  updatedAt: z.iso.datetime().nullable(),
 })
 
-type PublicDigestUpdate = Extract<z.infer<typeof updateSchema>, { kind: 'skill' }>
+interface PublicDigestUpdate {
+  owner: string
+  repo: string
+  name: string
+  occurredAt: number | null
+  changeSummary: string | null
+}
 
 export interface PublicDigestDependencies {
   windowStart: number
@@ -33,14 +46,33 @@ export interface PublicDigestDependencies {
 /** Public changes only. Never read an account's watches for an anonymous example. */
 export async function loadPublicDigestChanges(deps: PublicDigestDependencies): Promise<WeeklyLikedChange[]> {
   const updates = await deps.loadUpdates()
-  const recent = updates.items.filter((item): item is PublicDigestUpdate =>
-    item.kind === 'skill'
-    && item.occurredAt >= deps.windowStart
+  const seen = new Set<string>()
+  const recent = updates.items.filter(item =>
+    item.occurredAt >= deps.windowStart
     && item.occurredAt <= deps.windowEnd,
-  ).slice(0, 5)
+  ).flatMap((item): PublicDigestUpdate[] => item.kind === 'skill'
+    ? [item]
+    : item.skills.map(skill => ({
+        owner: item.owner,
+        repo: item.repo,
+        name: skill.name,
+        // Repository cards span 90 days. Their timestamp and summary belong
+        // to the latest entry, not every Skill named on the card.
+        occurredAt: null,
+        changeSummary: null,
+      }))).filter((item) => {
+    const key = JSON.stringify([item.owner.toLowerCase(), item.repo.toLowerCase(), item.name])
+    if (seen.has(key))
+      return false
+    seen.add(key)
+    return true
+  }).slice(0, 30)
   const changes = await Promise.all(recent.map(async (item): Promise<WeeklyLikedChange | null> => {
     const skill = await deps.loadSkill(item)
     if (skill.sourceGone)
+      return null
+    const changedAt = item.occurredAt ?? (skill.updatedAt === null ? null : Date.parse(skill.updatedAt) / 1000)
+    if (changedAt === null || changedAt < deps.windowStart || changedAt > deps.windowEnd)
       return null
     return {
       owner: item.owner,
@@ -49,7 +81,7 @@ export async function loadPublicDigestChanges(deps: PublicDigestDependencies): P
       slug: item.name,
       description: skill.description,
       changeCount: 1,
-      changedAt: item.occurredAt,
+      changedAt,
       commitMessages: item.changeSummary ? [item.changeSummary] : [],
       sourceUrl: skill.sourceUrl,
       // Feed hashes identify blobs. The detail API identifies revision commits.
@@ -58,5 +90,5 @@ export async function loadPublicDigestChanges(deps: PublicDigestDependencies): P
         : skill.sourceUrl.replace('/blob/', '/commits/'),
     }
   }))
-  return changes.filter((item): item is WeeklyLikedChange => item !== null)
+  return changes.filter((item): item is WeeklyLikedChange => item !== null).slice(0, 5)
 }

@@ -46,9 +46,10 @@ function input(): WeeklyRenderInput {
 }
 
 describe('weekly email improvement contract', () => {
-  it('explains that weekly emails require opt-in', () => {
+  it('describes the weekly setting without claiming the reader enabled it', () => {
     const rendered = renderWeekly({ ...input(), edition: 'weekly' })
-    expect(rendered.html).toContain('You get this because you enabled the weekly email.')
+    expect(rendered.html).toContain('Your account is set to receive the weekly email.')
+    expect(rendered.html).not.toContain('you enabled the weekly')
   })
 
   it('removes install commands and cuts on a word boundary', () => {

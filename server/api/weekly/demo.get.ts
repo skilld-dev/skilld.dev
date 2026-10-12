@@ -73,5 +73,5 @@ export default defineCachedEventHandler(
   // spend D1 reads to serve an answer that cannot have changed.
   // The name changes whenever the card markup changes, so a deploy never serves
   // the previous markup from cache.
-  { maxAge: 3600, swr: true, name: 'weekly-demo-v2' },
+  { maxAge: 3600, swr: true, name: 'weekly-demo-v3' },
 )

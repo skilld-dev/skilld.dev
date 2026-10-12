@@ -47,5 +47,5 @@ export default defineCachedEventHandler(
     setHeader(event, 'x-robots-tag', 'noindex, follow')
     return rendered.html
   },
-  { maxAge: 3600, swr: true, name: 'weekly-preview-v1' },
+  { maxAge: 3600, swr: true, name: 'weekly-preview-v2' },
 )

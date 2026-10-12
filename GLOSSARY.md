@@ -377,7 +377,8 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 
 ### weekly
 
-**Is:** the weekly email with Skills you liked that changed, plus what trended. New accounts opt in during onboarding.
+**Is:** the weekly email with distinct trending Skills. New accounts choose during onboarding; both recurring email choices start unchecked.
+Existing accounts keep their saved choices.
 
 **Use for:** "the weekly", lowercase. It sits beside **digest**, which is the separate watched-Repository email. They are not the same send.
 
