@@ -11,11 +11,12 @@ const route = useRoute()
       </NuxtLink>
       <UColorModeButton color="neutral" variant="ghost" class="min-h-11 min-w-11" />
     </header>
-    <main id="main-content" tabindex="-1" class="flex flex-1 flex-col items-center justify-center px-4 pt-6 pb-16 sm:px-6">
-      <NuxtLink to="/" aria-label="skilld, home" class="mb-8 flex min-h-11 items-center rounded-lg">
+    <main id="main-content" tabindex="-1" class="editorial-band flex flex-1 flex-col items-center justify-center px-4 pt-6 pb-16 sm:px-6">
+      <div v-if="route.meta.authWide" class="editorial-atmosphere" data-palette="rose" data-geometry="bloom" data-intensity="ambient" aria-hidden="true" />
+      <NuxtLink to="/" aria-label="skilld, home" class="relative mb-8 flex min-h-11 items-center rounded-lg">
         <AppLogo />
       </NuxtLink>
-      <div class="w-full" :class="route.meta.authWide ? 'max-w-[51rem]' : 'max-w-2xl'">
+      <div class="relative w-full" :class="route.meta.authWide ? 'max-w-[51rem]' : 'max-w-2xl'">
         <slot />
       </div>
     </main>

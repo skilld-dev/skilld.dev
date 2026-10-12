@@ -35,18 +35,18 @@ useSeoMeta({
 </script>
 
 <template>
-  <section class="mx-auto flex w-full max-w-md flex-col gap-5 lg:max-w-[51rem] lg:flex-row lg:items-stretch lg:justify-center">
-    <div class="w-full rounded-lg border border-default bg-default p-6 sm:p-8 lg:max-w-md lg:shrink-0">
-      <h1 class="text-3xl font-semibold leading-tight tracking-tight">
-        Sign in to skilld
+  <section class="mx-auto grid w-full max-w-md gap-5 lg:max-w-[51rem] lg:grid-cols-[minmax(0,448px)_320px] lg:items-start lg:justify-center">
+    <div class="w-full rounded-lg border border-accented bg-elevated p-6 sm:p-8">
+      <h1 class="text-3xl font-semibold leading-tight tracking-tight text-highlighted text-balance">
+        {{ actionMessage ? 'Sign in to skilld' : 'Find Skills from your GitHub stars' }}
       </h1>
-      <p class="mt-3 text-base text-muted leading-relaxed">
+      <p class="mt-3 text-sm text-muted leading-relaxed">
         Use your GitHub account. New here? The same step creates your account.
       </p>
       <p v-if="actionMessage" class="mt-6 text-base font-medium">
         {{ actionMessage }}
       </p>
-      <div class="mt-6">
+      <div class="mt-8">
         <UButton
           :to="href"
           external
@@ -58,8 +58,9 @@ useSeoMeta({
           block
         />
       </div>
-      <p class="mt-4 text-sm text-muted">
-        We ask for your public profile and email address.
+      <p class="mt-6 flex items-start gap-2 border-t border-default pt-5 text-xs text-muted leading-relaxed">
+        <UIcon name="i-lucide-lock-keyhole" class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span>We ask for your public profile and email address.</span>
       </p>
       <p
         v-if="error"
@@ -69,36 +70,47 @@ useSeoMeta({
         Couldn't complete sign-in. Try again.
       </p>
     </div>
-    <aside class="w-full rounded-lg border border-default bg-default/60 p-6 sm:p-8 lg:w-80 lg:shrink-0">
+    <aside class="w-full rounded-lg border border-default bg-muted/60 p-6 sm:p-8" aria-labelledby="account-benefits-heading">
+      <h2 id="account-benefits-heading" class="mb-6 flex items-center gap-2.5 text-lg font-semibold tracking-tight text-highlighted">
+        <UIcon name="i-lucide-git-branch" class="size-5 shrink-0" aria-hidden="true" />
+        Keep updated.
+      </h2>
       <dl class="space-y-5">
-        <div>
-          <dt class="font-semibold">
+        <div class="relative pl-7">
+          <UIcon name="i-lucide-heart" class="absolute top-0.5 left-0 size-4 text-muted" aria-hidden="true" />
+          <dt class="text-sm font-semibold text-highlighted">
             Your skills
           </dt>
-          <dd class="mt-1 text-base text-muted">
+          <dd class="mt-1 text-sm text-muted leading-relaxed">
             Like Skills to find them again in your account.
           </dd>
         </div>
-        <div>
-          <dt class="font-semibold">
+        <div class="relative pl-7">
+          <UIcon name="i-lucide-bell" class="absolute top-0.5 left-0 size-4 text-muted" aria-hidden="true" />
+          <dt class="text-sm font-semibold text-highlighted">
             Watch for changes
           </dt>
-          <dd class="mt-1 text-base text-muted">
+          <dd class="mt-1 text-sm text-muted leading-relaxed">
             Watch the Repositories you use and see what changed.
           </dd>
         </div>
-        <div>
-          <dt class="font-semibold">
+        <div class="relative pl-7">
+          <UIcon name="i-lucide-mail" class="absolute top-0.5 left-0 size-4 text-muted" aria-hidden="true" />
+          <dt class="text-sm font-semibold text-highlighted">
             Email updates
           </dt>
-          <dd class="mt-1 text-base text-muted">
+          <dd class="mt-1 text-sm text-muted leading-relaxed">
             Choose the weekly, monthly watched changes, or neither.
           </dd>
         </div>
       </dl>
-      <NuxtLink to="/weekly/preview" external class="mt-5 inline-flex min-h-11 items-center gap-2 text-sm text-muted underline hover:text-default">
+      <NuxtLink to="/weekly/preview" external class="mt-5 inline-flex min-h-11 items-center gap-2 font-mono text-xs text-default underline underline-offset-4 transition-colors hover:text-primary">
         Preview the weekly
         <UIcon name="i-lucide-arrow-right" class="size-4" aria-hidden="true" />
+      </NuxtLink>
+      <NuxtLink to="/digest/preview" external class="inline-flex min-h-11 items-center gap-2 font-mono text-xs text-default underline underline-offset-4 transition-colors hover:text-primary">
+        See an example digest
+        <UIcon name="i-lucide-arrow-up-right" class="size-4" aria-hidden="true" />
       </NuxtLink>
     </aside>
   </section>
