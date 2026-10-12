@@ -50,6 +50,8 @@ let releaseDelete: (() => void) | undefined
 let releaseEmailSave: (() => void) | undefined
 
 const requestFetch = vi.hoisted(() => vi.fn())
+const navigate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+mockNuxtImport('navigateTo', () => navigate)
 const executeRpc = vi.fn()
 const queryRpc = vi.fn()
 
@@ -151,15 +153,9 @@ function buttonWithText(wrapper: Awaited<ReturnType<typeof mountPage>>, text: st
   return button
 }
 
-function paragraphWithText(wrapper: Awaited<ReturnType<typeof mountPage>>, text: string) {
-  const paragraph = wrapper.findAll('p').find(candidate => candidate.text().includes(text))
-  if (!paragraph)
-    throw new Error(`Could not find paragraph: ${text}`)
-  return paragraph
-}
-
 describe('account skill watchlist', () => {
   beforeEach(() => {
+    navigate.mockClear()
     accountError.value = undefined
     subscriptionsError.value = undefined
     retryAccount.mockClear()
@@ -274,7 +270,7 @@ describe('account skill watchlist', () => {
     await wrapper.get('button[aria-label="Remove nuxt from your skills"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Add your first skill')
+    expect(wrapper.text()).toContain('Find Skills from your GitHub stars')
     const router = wrapper.vm.$router
     await router.push('/?view=repositories')
     await flushPromises()
@@ -296,15 +292,21 @@ describe('account skill watchlist', () => {
     expect(disabledWhilePending).toBe(true)
   })
 
-  it('refreshes the visible account timestamp after syncing GitHub stars', async () => {
+  it('opens imported star results for watch selection after refreshing account data', async () => {
     const wrapper = await mountPage('repositories')
-    const before = paragraphWithText(wrapper, 'Last GitHub import:').text()
-
     await buttonWithText(wrapper, 'Import stars again').trigger('click')
     await flushPromises()
-    const after = paragraphWithText(wrapper, 'Last GitHub import:').text()
+    expect(account.value?.stars_synced_at).toBe(newSyncTime)
+    expect(navigate).toHaveBeenCalledWith('/onboarding/discover')
+  })
 
-    expect(after).not.toBe(before)
+  it('shows existing watches when no Skills are liked', async () => {
+    likes.value = { items: [] }
+    subscriptions.value = { items: [{ owner: 'nuxt', repo: 'ui', source: 'star-import' }] }
+    const wrapper = await mountPage()
+    expect(wrapper.text()).toContain('Your watched Repositories are ready')
+    expect(wrapper.text()).toContain('1 watched Repository.')
+    expect(wrapper.get('a[href="/me?view=repositories"]').text()).toContain('View watched Repositories')
   })
 
   it('shows a retry state when liked skills fail to load', async () => {

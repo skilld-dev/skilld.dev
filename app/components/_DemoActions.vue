@@ -63,5 +63,4 @@ async function share() {
 <style scoped>
 .demo-actions__format[aria-pressed='true'] { background: var(--ui-bg-accented); color: var(--ui-text-highlighted); }
 .demo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-@media (max-width: 39.99rem) { .demo-actions__run { display: none; } }
 </style>

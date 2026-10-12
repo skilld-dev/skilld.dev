@@ -321,7 +321,7 @@ describe('presentStarsImport', () => {
     [{ page: 3, hasMore: true, importedAt: null }, { nextPage: 4, importedAt: null }],
     [{ page: 4, hasMore: false, importedAt: NOW_SEC }, { nextPage: null, importedAt: NOW.toISOString() }],
   ])('points at the next page until the import ends', (page, expected) => {
-    const answer = presentStarsImport({ _tag: 'Imported', fetched: 2, total: 9, matched: 4, ...page })
+    const answer = presentStarsImport({ _tag: 'Imported', importId: 'fixture', fetched: 2, total: 9, matched: 4, ...page })
 
     expect(starsV1.operations.import.response.body.producer.parse(answer)).toEqual({ page: page.page, imported: 9, withSkills: 4, ...expected })
   })

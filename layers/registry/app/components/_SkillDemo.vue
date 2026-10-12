@@ -46,12 +46,17 @@ const DESKTOP_WINDOW_MEDIA = '(min-width: 48rem)'
       </p>
     </div>
 
-    <p class="skill-demo__prompt mt-3 text-sm leading-relaxed text-default">
-      <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
-    </p>
-    <p v-if="demo.setup" class="mt-2 text-xs leading-relaxed text-muted">
-      <span class="data-label mr-2">Folder</span>{{ demo.setup }}
-    </p>
+    <details class="skill-demo__task mt-3">
+      <summary class="data-label min-h-11 cursor-pointer content-center">
+        Prompt
+      </summary>
+      <p class="skill-demo__prompt text-sm leading-relaxed text-default">
+        {{ demo.prompt }}
+      </p>
+      <p v-if="demo.setup" class="mt-2 text-xs leading-relaxed text-muted">
+        <span class="data-label mr-2">Folder</span>{{ demo.setup }}
+      </p>
+    </details>
 
     <div v-if="demo.writing" class="mt-4">
       <DemoWriting :writing="demo.writing" />
@@ -160,6 +165,11 @@ const DESKTOP_WINDOW_MEDIA = '(min-width: 48rem)'
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   background: var(--ui-bg-muted);
+}
+
+.skill-demo__task summary:focus-visible {
+  outline: 2px solid var(--ui-border-accented);
+  outline-offset: 2px;
 }
 
 .skill-demo__window {

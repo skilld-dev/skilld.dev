@@ -1,4 +1,4 @@
-import type { StarredRow } from '../utils/starred-repos'
+import type { StarredRow, StarsImportPage } from '../utils/starred-repos'
 import type { UserRow } from '../utils/users'
 import { weeklyDeliveryActive } from '../utils/weekly-select'
 
@@ -14,7 +14,8 @@ export interface StarredRepoEntry {
 export function starredReposPresenter(
   rows: StarredRow[],
   syncedAt: number | null,
-): { items: StarredRepoEntry[], syncedAt: number | null } {
+  partial = false,
+): { items: StarredRepoEntry[], syncedAt: number | null, partial: boolean } {
   const byRepo = new Map<string, StarredRepoEntry>()
   for (const r of rows) {
     const key = `${r.owner}/${r.repo}`
@@ -38,7 +39,20 @@ export function starredReposPresenter(
       })
     }
   }
-  return { items: [...byRepo.values()], syncedAt }
+  return { items: [...byRepo.values()], syncedAt, partial }
+}
+
+export function starsImportPresenter(result: Extract<StarsImportPage, { _tag: 'Imported' }>) {
+  return {
+    ok: true as const,
+    page: result.page,
+    importId: result.importId,
+    fetched: result.fetched,
+    total: result.total,
+    matched: result.matched,
+    hasMore: result.hasMore,
+    syncedAt: result.importedAt,
+  }
 }
 
 export function mePresenter(u: UserRow) {

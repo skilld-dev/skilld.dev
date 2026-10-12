@@ -18,6 +18,8 @@ const ACCOUNT_ROW_DELETES = [
   `DELETE FROM skill_likes WHERE user_id = ?1`,
   `DELETE FROM skill_subscriptions WHERE user_id = ?1`,
   `DELETE FROM user_starred_repos WHERE user_id = ?1`,
+  `DELETE FROM user_starred_import WHERE user_id = ?1`,
+  `DELETE FROM user_starred_import_state WHERE user_id = ?1`,
   `DELETE FROM collection_skills_v2
    WHERE collection_id IN (SELECT id FROM collections_v2 WHERE author_user_id = ?1)`,
   `DELETE FROM collections_v2 WHERE author_user_id = ?1`,

@@ -20,7 +20,7 @@ interface StarredRepo {
   watching: boolean
   skills: Skill[]
 }
-const { data, refresh, status, error } = await useFetch<{ items: StarredRepo[], syncedAt: number | null }>('/api/me/starred')
+const { data, refresh, status, error } = await useFetch<{ items: StarredRepo[], syncedAt: number | null, partial: boolean }>('/api/me/starred')
 
 const skillItems = computed(() => (data.value?.items ?? []).filter(r => r.hasSkill))
 const totalSkills = computed(() => skillItems.value.reduce((n, r) => n + r.skills.length, 0))
@@ -68,7 +68,7 @@ async function syncStars() {
     recordSignup({ stage: 'discover', outcome: 'import-failed', entry: 'onboarding' })
     syncError.value = (e as { statusMessage?: string, message?: string }).statusMessage
       ?? (e as Error).message
-      ?? 'Sync failed'
+      ?? 'Could not import GitHub stars. Try again.'
   }
   finally {
     syncing.value = false
@@ -77,7 +77,7 @@ async function syncStars() {
 
 onMounted(() => {
   recordSignup({ stage: 'discover', outcome: 'viewed', entry: 'onboarding' })
-  if (data.value && !data.value.syncedAt) {
+  if (data.value && !data.value.syncedAt && !data.value.partial) {
     void syncStars()
     return
   }
@@ -121,7 +121,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       Watch what you've already starred
     </h1>
     <p class="mt-2 text-sm text-muted">
-      We check starred GitHub repos with "skill" in the name against the registry. Choose the ones to watch. You'll only get a digest when one changes.
+      We check up to 1,000 starred GitHub Repositories against the registry. Choose which to watch. Email updates are optional.
     </p>
     <OwnedSkillsPrompt
       v-if="user?.login"
@@ -141,13 +141,17 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         @click="syncStars"
       />
       <span v-if="syncing && syncProgress" class="text-xs text-muted">
-        Page {{ syncProgress.page || '…' }} · {{ syncProgress.total }} repos cached · {{ syncProgress.matched }} match the registry
+        Page {{ syncProgress.page || '…' }} · {{ syncProgress.total }} Repositories checked · {{ syncProgress.matched }} match the registry
       </span>
       <span v-else-if="data?.syncedAt" class="text-xs text-muted">
         Last GitHub import
         <NuxtTime :datetime="data.syncedAt * 1000" locale="en-AU" time-zone="UTC" date-style="medium" time-style="short" /> UTC
       </span>
     </div>
+
+    <p v-if="data?.partial" class="mt-3 text-sm text-muted" role="status">
+      Checked the first 1,000 GitHub stars. Some starred Repositories were not checked.
+    </p>
 
     <div v-if="syncError" class="mt-3 rounded border border-error/40 bg-error/5 p-2 text-xs text-error">
       {{ syncError }}
@@ -163,15 +167,19 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       <UButton label="Retry" color="neutral" variant="outline" class="mt-4 min-h-11" @click="refresh()" />
     </div>
     <div v-else-if="!skillItems.length" class="mt-6 rounded-lg border border-default p-4 text-sm text-muted">
-      <template v-if="!data?.syncedAt">
-        No star import yet. Click <strong>Import stars</strong> above, or
+      <template v-if="!data?.syncedAt && !data?.partial">
+        Import your GitHub stars, or browse curated Skills.
       </template>
       <template v-else>
-        None of your starred repos with "skill" in the name are in the registry yet.
+        None of the checked Repositories have Skills in the registry yet.
       </template>
-      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 items-center underline" @click="recordSignup({ stage: 'discover', outcome: 'skipped', entry: 'onboarding' })">
+      <p class="mt-2">
+        Browse curated Skills, then like one to keep it in your account.
+      </p>
+      <UButton to="/skills" label="Browse skills" icon="i-lucide-search" class="mt-4 min-h-11" />
+      <NuxtLink to="/onboarding/email" class="ml-4 inline-flex min-h-11 items-center underline" @click="recordSignup({ stage: 'discover', outcome: 'skipped', entry: 'onboarding' })">
         skip ahead
-      </NuxtLink>.
+      </NuxtLink>
     </div>
     <template v-else>
       <div class="mt-6 flex items-center justify-between">

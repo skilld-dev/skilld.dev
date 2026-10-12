@@ -143,7 +143,7 @@ describe('likeButton toggle semantics', () => {
     wrapper.unmount()
   })
 
-  it('sends an anonymous visitor through OAuth carrying the like intent and return path', async () => {
+  it('shows account benefits before OAuth and carries the selected Skill from a listing', async () => {
     loggedIn.value = false
     const wrapper = await mountSuspended(LikeButton, { props: { ...skill, count: 2 } })
     await flushPromises()
@@ -151,10 +151,24 @@ describe('likeButton toggle semantics', () => {
     const link = wrapper.get('a')
     const href = link.attributes('href')!
     expect(wrapper.find('button').exists()).toBe(false)
+    expect(new URL(href, 'https://skilld.dev').pathname).toBe('/login')
     expect(new URL(href, 'https://skilld.dev').searchParams.get('action')).toBe('like-skill')
-    expect(new URL(href, 'https://skilld.dev').searchParams.get('return_to')).toBe('/')
+    expect(new URL(href, 'https://skilld.dev').searchParams.get('return_to')).toBe('/gh/antfu/skills/nuxt')
     expect(link.attributes('aria-label')).toBe('Like nuxt')
 
+    wrapper.unmount()
+  })
+
+  it('preserves a single Skill canonical path and query through account entry', async () => {
+    loggedIn.value = false
+    const wrapper = await mountSuspended(LikeButton, {
+      props: skill,
+      route: '/gh/antfu/skills?from=search#run',
+    })
+    await flushPromises()
+    const href = new URL(wrapper.get('a').attributes('href')!, 'https://skilld.dev')
+    expect(href.pathname).toBe('/login')
+    expect(href.searchParams.get('return_to')).toBe('/gh/antfu/skills?from=search#run')
     wrapper.unmount()
   })
 

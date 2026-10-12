@@ -51,11 +51,11 @@ These exact strings. Do not paraphrase them per page.
 | Demo groups | Films and launch videos · Landing pages · UI components · Diagrams and explainers | guidance only: `DEMO_GROUPS` in `shared/demo-groups.ts`: the `/skills/demos` group headings and their lines |
 | Writing demo | Writing · Articles, READMEs, and PR descriptions. · Files · Updated · Diff · Markdown · No newline at end of file | guidance only: writing support on the existing demos board. Show file buttons with Markdown icons and one Diff toggle with an icon. Show the updated document by default. Diff compares the original seed and updated Markdown with line numbers and syntax highlighting. Fit short documents to their content and cap long documents. Keep the no-Skill baseline in recording data for later evaluations. No decorative text. |
 | Writing demo example | Example data · Example data. No Skills were run. | guidance only: each known writing Skill uses `/skills/demos/<owner>/<repo>/<name>`, with `/{name}` as its heading. All candidate rows share handwritten UI fixtures. Keep the disclosure visible. Show no recording metadata. Reuse the demo footer with Skill links, Run it yourself, and Copy demo link. The run prompt supplies the original fixture documents. README and PR documents use GitHub-style Markdown with the shared Skill renderer and rangi highlighter. Diff toggles the Markdown comparison on and off. |
-| Demo actions | Run it yourself · Agent prompt · Terminal · Copy Agent prompt · Copy command · Copied · Copy demo link · Copied demo link | guidance only: demo stages. The Agent prompt includes the recorded task. The terminal option loads the Skill. Run is hidden on phones. |
+| Demo actions | Run it yourself · Agent prompt · Terminal · Copy Agent prompt · Copy command · Copied · Copy demo link · Copied demo link | guidance only: demo stages. The Agent prompt includes the recorded task. The terminal option loads the Skill. Run is available on phones. |
 | Demo stage | Open the demo | guidance only: the demo stage link. The hero shows the output, author row, and this link only. On the homepage it opens the demo page; on a demo page it opens the Skill page Demo panel |
 | Home demo carousel | Previous demo · Next demo · {n} of {total} | guidance only: the manual homepage demo controls. The position is live text for screen readers. |
-| Demo page prompt | Prompt | guidance only: the selected demo page keeps its recorded task in an expandable disclosure beside the model and effort, above the output frame. |
-| Demo panel | Demo · Prompt · Open live demo · Open in a new tab · Run it yourself · All demos | guidance only: the Skill page Demo panel. "Show screenshots" replaces "Open live demo" while the live output shows. "All demos" opens the demo page. It hides for a Skill page only demo, and while the Skill holds a run check flag |
+| Demo page prompt | Prompt | guidance only: full and compact demo stages keep the recorded task in a closed disclosure above the output frame. |
+| Demo panel | Demo · Prompt · Open live demo · Open in a new tab · Run it yourself · All demos | guidance only: the Skill page Demo panel. Prompt and setup start in a closed disclosure. "Show screenshots" replaces "Open live demo" while the live output shows. "All demos" opens the demo page. It hides for a Skill page only demo, and while the Skill holds a run check flag |
 | Demo token usage | {n} tokens · Input: {input}; cached input: {cached}; output: {output} | guidance only: recording metadata. Counts come from recorded usage. Cached input is included in input. Omit unavailable counts. |
 | Demo provenance | {Agent logo} {model}, {effort} effort | guidance only: the recording line on the Skill page panel and the homepage stage. Screen readers and the title get "Recorded with {agent}, {model}, {effort} effort". Omit effort when the recording has no evidence for it. No date and no GitHub link: the Skill page is where visitors inspect a Skill |
 | Demo outdated | Recorded on an older version of this Skill. | guidance only: under the Demo panel when the Skill moved past the recorded commit |
@@ -179,6 +179,28 @@ The strings live in `layers/registry/app/components/_SkillBehaviors.vue`.
 The weekly card uses `Trending skills this week` as its title and links to the trending page.
 Each row links the Skill, the dev count, and `Source`. Keep the run command beside the source link.
 Use `7-day social mentions · {date}` as the footer. Format the UTC date as `2 Oct 2026`.
+
+## Account entry and setup
+
+| Surface | Canonical strings | Use |
+| --- | --- | --- |
+| Login | Sign In with GitHub · Sign Up with GitHub · Continue with GitHub | Sign-in and sign-up share GitHub authentication. Preserve the requested action and return page when switching. |
+| Login switch | New to skilld? · Sign up · Already have an account? · Sign in | Link between the sign-in and sign-up views. Sign-up shows the account benefits. |
+| Login description | Keep your liked Skills and watched Repositories together. | Explain account value below either authentication heading. |
+| Login benefits | Your skills · Like Skills to find them again in your account. · Watch for changes · Watch the Repositories you use and see what changed. · Email updates · Choose the weekly, monthly watched changes, or neither. | Three account benefits. Running Skills remains anonymous. |
+| Login permissions | We ask for your public profile and email address. | Keep permission scope separate from account benefits. |
+| Login benefits heading | Keep updated. | Sign-up benefits panel. |
+| Login intent | Sign in to like this Skill. · Sign in to watch this Repository. · Sign in to watch this collection. | Explain the action carried into authentication. |
+| Login meta | Sign in with GitHub to keep liked Skills, watch for changes, and choose your emails. | Login page description. |
+| Like needs a Skill | Open a Skill before liking it. | A Repository with several Skills cannot imply which Skill to like. |
+| Star import | We check up to 1,000 starred GitHub Repositories against the registry. Choose which to watch. Email updates are optional. | Match registry coverage, regardless of Repository name. |
+| Star import empty | Find Skills from your GitHub stars · Import stars · None of the checked Repositories have Skills in the registry yet. · Browse curated Skills, then like one to keep it in your account. · Import your GitHub stars, or browse curated Skills. | Offer discovery when imported stars have no matching Skills. |
+| Star import progress | Page {page} · {total} Repositories checked · {matched} match the registry | Report checked Repositories and registry matches separately. |
+| Star import error | Could not import GitHub stars. Try again. | Use when an import fails without a specific error. |
+| Star import restart | Another star import started. Import your stars again. · Star import pages must run in order. Restart from page one. | Browser and CLI import recovery. |
+| Star import date | Last complete GitHub import: {date} | A bounded partial import has no completion date. |
+| Star import partial | Checked the first 1,000 GitHub stars. Some starred Repositories were not checked. | The page limit leaves coverage partial. |
+| Account without likes, with watches | Your watched Repositories are ready · {n} watched {Repository/Repositories}. Like a Skill to keep it here. · Browse skills · View watched Repositories | Show existing account value when the liked Skills view is empty. |
 
 ## Register by context
 

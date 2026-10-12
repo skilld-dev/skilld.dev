@@ -797,6 +797,15 @@ describe('accessibility: components', () => {
     expect(container.textContent).toContain('Recorded on an older version of this Skill.')
     expect(container.querySelector('a[href="/skills/demos/anthropics/skills/frontend-design"]')?.textContent).toContain('All demos')
 
+    const prompt = wrapper.get('details')
+    expect(prompt.element.open).toBe(false)
+    expect(prompt.get('summary').text()).toBe('Prompt')
+    prompt.element.open = true
+    await nextTick()
+    expect(prompt.text()).toContain('Build a landing page for Tidepool. Save it as index.html.')
+    const expandedResults = await runAxe(container)
+    expect(expandedResults.violations, formatViolations(expandedResults)).toHaveLength(0)
+
     // A flagged Skill is off the board, and its demo page answers 404.
     await wrapper.setProps({ onBoard: false })
     expect(container.querySelector('a[href^="/skills/demos/"]')).toBeNull()

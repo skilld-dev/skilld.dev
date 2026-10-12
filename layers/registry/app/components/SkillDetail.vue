@@ -1544,6 +1544,15 @@ useHead(computed(() => ({
               class="ml-auto hidden shrink-0 lg:flex"
             />
           </div>
+          <UButton
+            v-if="!data.sourceGone"
+            to="#run"
+            label="Run it yourself"
+            icon="i-lucide-arrow-down"
+            color="neutral"
+            variant="outline"
+            class="mt-3 min-h-11"
+          />
           <!-- Only the browser can tell whether two lines clamp the text, so
                "more" appears after hydration. It sits over the end of the
                second line instead of below it, so nothing under it moves. -->
