@@ -8,7 +8,6 @@ import type {
   SkillCardSkill,
   SkillCardView,
 } from '~/types/skill-card'
-import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillRunCmd } from '#shared/skill-commands'
 import { formatGithubStars } from './github-stars'
 import { resolveAuthorName } from './skill-byline'
@@ -99,7 +98,6 @@ export function buildSkillCardView(skill: SkillCardSkill, options: SkillCardOpti
     author,
     source: `${skill.owner}/${skill.repo}`,
     byline: options.byline,
-    avatar: cssSize => githubAvatarProxyUrl(skill.owner, cssSize * 2),
     description: (options.description ?? defaultSkillCardDescription(options.layout)) ? (skill.description?.trim() || null) : null,
     metricKind: options.metric,
     metric: metricView(skill, options.metric),

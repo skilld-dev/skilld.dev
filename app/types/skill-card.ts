@@ -80,8 +80,6 @@ export interface SkillCardView {
   /** `owner/repo`. */
   source: string
   byline: SkillCardByline
-  /** Square GitHub avatar URL at twice the CSS size. */
-  avatar: (cssSize: number) => string
   description: string | null
   /** The metric the context asked for, so a row can drop its metric column when it is `none`. */
   metricKind: SkillCardMetric

@@ -428,7 +428,7 @@ async function deleteAccount() {
               <p class="data-label">
                 Email
               </p>
-              <p class="mt-2 break-all font-mono text-sm">
+              <p class="mt-2 wrap-anywhere font-mono text-sm">
                 {{ me?.digest_email || me?.email || 'No email set' }}
               </p>
               <UButton
@@ -594,10 +594,11 @@ async function deleteAccount() {
               <li
                 v-for="source in subs.items"
                 :key="`${source.owner}/${source.repo}`"
-                class="flex min-w-0 items-center gap-2 border-b border-default py-3 last:border-b-0"
+                class="flex min-w-0 items-center gap-3 border-b border-default py-3 last:border-b-0"
               >
+                <GitHubAvatar :owner="source.owner" :size="32" />
                 <div class="min-w-0 flex-1">
-                  <NuxtLink :to="repoHubPath(source.owner, source.repo)" class="flex min-h-11 items-center truncate font-mono text-sm hover:text-primary">
+                  <NuxtLink :to="repoHubPath(source.owner, source.repo)" class="flex min-h-11 items-center wrap-anywhere font-mono text-sm font-semibold text-highlighted hover:text-primary">
                     {{ source.owner }}/{{ source.repo }}
                   </NuxtLink>
                   <p class="mt-1 text-sm text-muted">

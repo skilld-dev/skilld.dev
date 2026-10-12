@@ -208,9 +208,10 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
               class="mt-1 size-4 accent-primary"
               @change="toggle(`${r.owner}/${r.repo}`)"
             >
+            <GitHubAvatar :owner="r.owner" :size="32" class="mt-0.5" />
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
-                <span class="font-mono text-sm">{{ r.owner }}/{{ r.repo }}</span>
+                <span class="min-w-0 wrap-anywhere font-mono text-sm font-semibold text-highlighted">{{ r.owner }}/{{ r.repo }}</span>
                 <span v-if="r.watching" class="rounded bg-elevated px-1.5 py-0.5 text-xs text-muted">
                   Already watching
                 </span>
