@@ -184,10 +184,11 @@ Use `7-day social mentions · {date}` as the footer. Format the UTC date as `2 O
 
 | Surface | Canonical strings | Use |
 | --- | --- | --- |
-| Login | Sign in to skilld · Use your GitHub account. New here? The same step creates your account. · Continue with GitHub | One account entry creates an account or signs in. Preserve the requested action and return page. |
+| Login | Sign In with GitHub · Sign Up with GitHub · Continue with GitHub | Sign-in and sign-up share GitHub authentication. Preserve the requested action and return page when switching. |
+| Login switch | New to skilld? · Sign up · Already have an account? · Sign in | Link between the sign-in and sign-up views. Sign-up shows the account benefits. |
 | Login benefits | Your skills · Like Skills to find them again in your account. · Watch for changes · Watch the Repositories you use and see what changed. · Email updates · Choose the weekly, monthly watched changes, or neither. | Three account benefits. Running Skills remains anonymous. |
 | Login permissions | We ask for your public profile and email address. | Keep permission scope separate from account benefits. |
-| Login evidence | Find Skills from your GitHub stars · Keep updated. · See an example digest | Reuse the star-import heading for direct account entry. Keep Sign in to skilld for a carried Like or Watch action. Reuse the approved pitch line and homepage digest link. |
+| Login benefits heading | Keep updated. | Sign-up benefits panel. |
 | Login intent | Sign in to like this Skill. · Sign in to watch this Repository. · Sign in to watch this collection. | Explain the action carried into authentication. |
 | Login meta | Sign in with GitHub to keep liked Skills, watch for changes, and choose your emails. | Login page description. |
 | Like needs a Skill | Open a Skill before liking it. | A Repository with several Skills cannot imply which Skill to like. |
