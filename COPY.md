@@ -74,6 +74,11 @@ These exact strings. Do not paraphrase them per page.
 | Nav: setup guides | All setup guides | guidance only: the link under the Developers menu cards. Links `/developers` |
 | Skillgen lead | Keep your package skill current. After each release tag, Skillgen opens a pull request that updates the Skill in your repository. You review it and decide what merges. | guidance only: the `/skillgen` line under the H1. Its first two sentences are the page's meta description. A "Make a skill" link above the H1 returns to `/make-skill` |
 | Skillgen opt-in | Skillgen opens a pull request after each release tag. It runs only on the repositories you turn on here. | guidance only: the intro of the Skillgen view on `/me?view=skillgen`. The `/skillgen` step 02 says the same in its own words: Skillgen never runs on a repository you did not turn on |
+| Public repository settings | Your public repository settings | heading for `OwnedSkillsPrompt`. Describe the setting without claiming a scan added repositories. |
+| Public repository settings: privacy notice | When indexing is on, skilld checks your public GitHub repositories for SKILL.md files. Each Skill it finds gets a public page. You can turn indexing off here. | explanation of public indexing, including when the saved setting is off. |
+| Public repository settings: loading | Loading your repository settings. | status while the saved account setting loads. |
+| Public repository settings: load error | Could not load your repository settings. Try again. | alert with a Retry action. Hide scan and privacy actions until the setting loads. |
+| Public repository settings: save error | Could not turn off indexing. Indexing is still on. Try again. | alert after a failed privacy save. Preserve the saved setting and allow retry. |
 | Skillgen groups | Ready · Needs a change · Turn on all (n) · n of n on | guidance only: the two groups on `/me?view=skillgen`. Ready rows say "Updates <package> on each new tag." when on and "Can update <package> when you turn it on." when off. Needs a change rows show the refusal sentence from `skillgenRefusal` |
 | CLI H1 | The skilld CLI | guidance only: the `/cli` H1 and its OG title |
 | CLI line | Search, run, install, and keep Skills current. | guidance only: the `/cli` line under the H1. It is the CLI's own `--help` line, so change it in the CLI first |
