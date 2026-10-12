@@ -70,6 +70,38 @@ it('offers unfinished accounts a path back to email choices', async () => {
   wrapper.unmount()
 })
 
+it('offers one unchecked welcome and allows it without recurring emails', async () => {
+  const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })
+  const form = wrapper.get('#email-onboarding-form')
+  const choices = form.findAll('input[type="checkbox"]')
+  expect((choices[2]!.element as HTMLInputElement).checked).toBe(false)
+  await choices[0]!.setValue(false)
+  await choices[1]!.setValue(false)
+  await choices[2]!.setValue(true)
+  ;(form.element as HTMLFormElement).requestSubmit()
+  await flushPromises()
+  expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ path: '/api/me/email' }), {
+    digest_email: 'review@example.com',
+    email_opt_in: false,
+    weekly_opt_in: false,
+    welcome_email: true,
+  })
+  wrapper.unmount()
+})
+
+it('requires a valid address when only the welcome is selected', async () => {
+  const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })
+  const form = wrapper.get('#email-onboarding-form')
+  await form.get('input[type="email"]').setValue('broken@')
+  for (const [index, checkbox] of form.findAll('input[type="checkbox"]').entries())
+    await checkbox.setValue(index === 2)
+  ;(form.element as HTMLFormElement).requestSubmit()
+  await flushPromises()
+  expect(mocks.execute).not.toHaveBeenCalled()
+  expect(form.get('#email-error').text()).toBe('Add an email address, or turn off all email choices.')
+  wrapper.unmount()
+})
+
 describe.each(screens)('$name email submission', ({ component, form: selector }) => {
   async function mountForm() {
     const wrapper = await mountSuspended(component, { attachTo: document.body, route: component === Account ? '/me?view=email' : '/onboarding/email' })
@@ -114,7 +146,7 @@ describe.each(screens)('$name email submission', ({ component, form: selector })
       await flushPromises()
 
       expect(mocks.execute).not.toHaveBeenCalled()
-      expect(form.text()).toContain('turn off both emails')
+      expect(form.text()).toContain(component === OnboardingEmail ? 'turn off all email choices' : 'turn off both emails')
     }
     finally {
       wrapper.unmount()

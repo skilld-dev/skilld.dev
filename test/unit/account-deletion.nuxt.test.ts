@@ -151,6 +151,8 @@ function seedAccount(raw: DatabaseSync, account: Account, githubToken: string | 
   )
   run(`INSERT INTO email_preference_events (user_id, list, action, occurred_at) VALUES (?, 'weekly', 'unsubscribed', ?)`, id, NOW)
   run(`INSERT INTO skill_validation_email_deliveries (user_id, status, attempted_at) VALUES (?, 'accepted', ?)`, id, NOW)
+  run(`INSERT INTO welcome_email_deliveries (user_id, status, recipient, consented_at, attempted_at, attempt_id)
+    VALUES (?, 'accepted', ?, ?, ?, ?)`, id, `${login}@example.com`, NOW, NOW, `welcome-${login}`)
 
   run(
     `INSERT INTO github_app_installations (installation_id, account_id, github_account_id, state, connected_at, verified_at)

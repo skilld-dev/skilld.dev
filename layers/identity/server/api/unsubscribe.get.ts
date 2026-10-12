@@ -7,7 +7,7 @@ export default defineApiHandler({
   schema: UnsubQuery,
   handler: async ({ event, body }) => {
     const config = useRuntimeConfig(event)
-    const userId = await verifyUnsubToken(body.t, config.tokenKey as string)
+    const userId = await verifyUnsubToken(body.t, config.tokenKey as string, body.list === 'welcome' ? 'welcome' : 'recurring')
     if (!userId) {
       setResponseStatus(event, 400)
       setHeader(event, 'content-type', 'text/html; charset=utf-8')

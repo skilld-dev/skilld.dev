@@ -15,7 +15,7 @@ export default defineApiHandler({
     const userId = parsed.success
       ? await verifyUnsubToken(parsed.data.t, config.tokenKey as string)
       : null
-    if (!parsed.success || !userId) {
+    if (!parsed.success || !userId || parsed.data.list === 'welcome') {
       setResponseStatus(event, 400)
       setHeader(event, 'content-type', 'text/html; charset=utf-8')
       return renderUnsubscribePage({ _tag: 'invalid' })
