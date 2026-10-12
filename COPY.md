@@ -11,7 +11,7 @@ contradicts this file is a bug.
 
 ## Canonical assets
 
-The optional welcome email uses the subject "Welcome to skilld".
+The signup welcome email uses the subject "Welcome to skilld".
 Its greeting is "Hi! I’m Harlan."
 Its story is "I built skilld to discover new Skills without spending all day on social media, read their source, and keep up with updates."
 Its account line is "Your account lets you save liked Skills, watch Repositories, and choose which update emails you receive."
@@ -19,7 +19,17 @@ After its main action, it says "Let me know if you’d like to see any changes :
 Replies go to `harlan@harlanzw.com`.
 Its one main action is "Open your account", linking to `/me`.
 Its footer is "Stop welcome emails", linking to a signed welcome unsubscribe URL.
-Onboarding offers an unchecked choice: "Send me one welcome email with account tips."
+Signup sends one welcome email automatically when GitHub supplies an email address.
+Onboarding has no welcome checkbox. It offers previews of the welcome, weekly, and digest emails.
+Preview labels are "Preview the welcome", "Preview the weekly", and "Preview the digest".
+The welcome preview footer says "Email preferences" and links to `/me`.
+Preview loading says "Loading email preview". Failure says "Could not load the email preview. Try again."
+The weekly footer says "Your account is set to receive the weekly email."
+The digest heading is "Skill updates". Its introduction is "Recent commits from repos you watch."
+Its changes section is "Recent commits". Show author commit subjects, never generated summaries or Skill descriptions.
+If commit details are missing, say "Commit details are unavailable." Link "View commits" to the Skill file's GitHub history.
+New accounts start with the weekly and digest choices unchecked. Saved choices stay as selected.
+Onboarding and the welcome email say "We’ll only send other emails if you’ve opted in."
 The missing-address message is "Add an email address, or turn off all email choices."
 Welcome unsubscribe says "You will not get welcome emails. Your weekly and digest settings are unchanged."
 

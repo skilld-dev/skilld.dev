@@ -39,6 +39,10 @@ export interface GithubUserCredentials {
   scopes: string[]
 }
 
+export type GithubSignInResult
+  = | { _tag: 'created', user: UserRow }
+    | { _tag: 'existing', user: UserRow }
+
 function db(event: H3Event): D1Database {
   return event.context.platform.db
 }
@@ -47,7 +51,7 @@ export async function upsertUserFromGithub(
   event: H3Event,
   profile: GitHubProfile,
   credentials: GithubUserCredentials,
-): Promise<UserRow> {
+): Promise<GithubSignInResult> {
   const config = useRuntimeConfig(event)
   const encrypted = await encryptToken(credentials.accessToken, config.tokenKey as string)
   const encryptedRefreshToken = credentials.refreshToken
@@ -62,36 +66,7 @@ export async function upsertUserFromGithub(
     : now + credentials.refreshTokenExpiresIn
   const d = db(event)
 
-  // Merge ghost rows seeded by 0022 backfill (github_id < 0, login matches).
-  await d.prepare(
-    `UPDATE users
-     SET github_id = ?1
-     WHERE github_id < 0 AND login = ?2`,
-  ).bind(profile.id, profile.login).run()
-
-  await d.prepare(
-    `INSERT INTO users (
-       github_id, login, name, email, avatar,
-       github_token_encrypted, github_token_scopes, github_token_expires_at,
-       github_refresh_token_encrypted, github_refresh_token_expires_at,
-       github_token_client_id,
-       created_at, last_login_at
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)
-     ON CONFLICT(github_id) DO UPDATE SET
-       login = excluded.login,
-       name = excluded.name,
-       -- A private profile or a failed /user/emails lookup yields no address;
-       -- that must not erase the one an earlier sign-in stored.
-       email = COALESCE(excluded.email, users.email),
-       avatar = excluded.avatar,
-       github_token_encrypted = excluded.github_token_encrypted,
-       github_token_scopes = excluded.github_token_scopes,
-       github_token_expires_at = excluded.github_token_expires_at,
-       github_refresh_token_encrypted = excluded.github_refresh_token_encrypted,
-       github_refresh_token_expires_at = excluded.github_refresh_token_expires_at,
-       github_token_client_id = excluded.github_token_client_id,
-       last_login_at = excluded.last_login_at`,
-  ).bind(
+  const values = [
     profile.id,
     profile.login,
     profile.name ?? null,
@@ -104,7 +79,44 @@ export async function upsertUserFromGithub(
     refreshTokenExpiresAt,
     credentials.clientId,
     now,
-  ).run()
+  ]
+  // Merge ghost rows seeded by 0022 backfill (github_id < 0, login matches).
+  await d.prepare(
+    `UPDATE users
+     SET github_id = ?1
+     WHERE github_id < 0 AND login = ?2`,
+  ).bind(profile.id, profile.login).run()
+
+  // Only the callback that inserts the account owns its signup welcome.
+  const created = await d.prepare(
+    `INSERT INTO users (
+       github_id, login, name, email, avatar,
+       github_token_encrypted, github_token_scopes, github_token_expires_at,
+       github_refresh_token_encrypted, github_refresh_token_expires_at,
+       github_token_client_id,
+       created_at, last_login_at, weekly_opt_out
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, 1)
+     ON CONFLICT(github_id) DO NOTHING
+     RETURNING id`,
+  ).bind(...values).first<{ id: number }>()
+
+  if (!created) {
+    await d.prepare(`UPDATE users SET
+       login = ?2,
+       name = ?3,
+       -- A private profile or a failed /user/emails lookup yields no address;
+       -- that must not erase the one an earlier sign-in stored.
+       email = COALESCE(?4, users.email),
+       avatar = ?5,
+       github_token_encrypted = ?6,
+       github_token_scopes = ?7,
+       github_token_expires_at = ?8,
+       github_refresh_token_encrypted = ?9,
+       github_refresh_token_expires_at = ?10,
+       github_token_client_id = ?11,
+       last_login_at = ?12
+       WHERE github_id = ?1`).bind(...values).run()
+  }
 
   const row = await d.prepare(
     `SELECT id, github_id, login, name, email, avatar,
@@ -115,7 +127,7 @@ export async function upsertUserFromGithub(
 
   if (!row)
     throw createError({ statusCode: 500, message: 'User upsert failed' })
-  return row
+  return { _tag: created ? 'created' : 'existing', user: row }
 }
 
 export async function getUserById(event: H3Event, id: number): Promise<UserRow | null> {

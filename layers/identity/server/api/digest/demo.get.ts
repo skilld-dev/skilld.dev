@@ -1,6 +1,7 @@
 import { defineApiHandler } from '#shared/server/handler'
 import {
   loadPublicDigestChanges,
+  publicDigestCommitsSchema,
   publicDigestSkillSchema,
   publicDigestUpdatesSchema,
 } from '../../utils/public-digest'
@@ -24,6 +25,9 @@ export default defineCachedEventHandler(defineApiHandler({ handler: async () => 
     loadUpdates: async () => publicDigestUpdatesSchema.parse(await $fetch('/api/feed/recent-updates')),
     loadSkill: async item => publicDigestSkillSchema.parse(await $fetch(
       `/api/v1/skills/${encodeURIComponent(item.owner)}/${encodeURIComponent(item.repo)}/${encodeURIComponent(item.name)}`,
+    )),
+    loadCommits: async item => publicDigestCommitsSchema.parse(await $fetch(
+      `/api/skill-related/${encodeURIComponent(item.owner)}/${encodeURIComponent(item.repo)}/${encodeURIComponent(item.name)}`,
     )),
   })
   return { changes, windowStart, windowEnd }
@@ -51,4 +55,4 @@ export default defineCachedEventHandler(defineApiHandler({ handler: async () => 
     windowEnd,
     rowCount: changes.length,
   }
-} }), { maxAge: 3600, swr: true, name: 'public-digest-demo-v1' })
+} }), { maxAge: 3600, swr: true, name: 'public-digest-demo-v3' })

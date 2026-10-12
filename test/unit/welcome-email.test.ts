@@ -7,7 +7,7 @@ import { sendWelcomeEmail } from '../../layers/identity/server/utils/welcome-ema
 import { identityEmailPatchBodySchema } from '../../layers/identity/shared/contracts/account'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
-describe('one optional welcome email', () => {
+describe('one signup welcome email', () => {
   let d1: SqliteD1
   beforeEach(() => {
     d1 = createSqliteD1(allMigrations())
@@ -16,12 +16,11 @@ describe('one optional welcome email', () => {
   })
   afterEach(() => d1.close())
 
-  function input(consent = true, now = 10, attemptId = 'first') {
+  function input(now = 10, attemptId = 'first') {
     return {
       db: d1.db,
       userId: 900001,
       to: 'account@example.com',
-      consent,
       now,
       attemptId,
       signUnsubscribe: async () => 'signed-token',
@@ -42,13 +41,8 @@ describe('one optional welcome email', () => {
     }))
   })
 
-  it('requires an address when only the welcome email is selected', () => {
-    expect(identityEmailPatchBodySchema.safeParse({ welcome_email: true }).success).toBe(false)
-  })
-
-  it('requires explicit recurring choices and preserves a welcome-only opt-in', async () => {
-    expect(identityEmailPatchBodySchema.safeParse({ digest_email: 'account@example.com', welcome_email: true }).success).toBe(false)
-    const body = identityEmailPatchBodySchema.parse({ digest_email: 'account@example.com', welcome_email: true, weekly_opt_in: false, email_opt_in: false })
+  it('keeps both recurring emails off when saving that choice', async () => {
+    const body = identityEmailPatchBodySchema.parse({ digest_email: 'account@example.com', weekly_opt_in: false, email_opt_in: false })
     const plan = planAccountSettings({ email: 'account@example.com', digest_email: null }, {
       email: body.digest_email,
       weekly: body.weekly_opt_in,
@@ -78,13 +72,13 @@ describe('one optional welcome email', () => {
     expect(deps.send).toHaveBeenCalledTimes(1)
   })
 
-  it('never sends without its own consent', async () => {
-    const deps = input(false)
-    expect(await sendWelcomeEmail(deps)).toBe('skipped')
+  it('never sends without an address', async () => {
+    const deps = input()
+    expect(await sendWelcomeEmail({ ...deps, to: '' })).toBe('skipped')
     expect(deps.send).not.toHaveBeenCalled()
   })
 
-  it('sends once despite concurrent saves and later requests', async () => {
+  it('sends once despite concurrent dispatches and later requests', async () => {
     const deps = input()
     const outcomes = await Promise.all([sendWelcomeEmail(deps), sendWelcomeEmail({ ...deps, attemptId: 'second' })])
     expect(outcomes.sort()).toEqual(['accepted', 'skipped'])

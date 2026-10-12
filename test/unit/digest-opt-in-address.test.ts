@@ -167,17 +167,14 @@ describe('me email patch endpoint', () => {
       .toEqual({ digest_email: 'harlan@example.com', email_opt_in: 1 })
   })
 
-  it('uses the address explicitly consented for welcome despite a racing account save', async () => {
-    sqlite.exec(`CREATE TRIGGER racing_address AFTER UPDATE OF digest_email ON users
-      BEGIN UPDATE users SET digest_email = 'other@example.com' WHERE id = NEW.id; END;`)
+  it('never sends a welcome when saving recurring email preferences', async () => {
     vi.stubGlobal('readBody', () => Promise.resolve({
       digest_email: 'welcome@example.com',
-      welcome_email: true,
       email_opt_in: false,
       weekly_opt_in: false,
     }))
     await emailPatchHandler(patchEvent())
-    expect(welcomeSend).toHaveBeenCalledWith(expect.objectContaining({ consent: true, to: 'welcome@example.com' }))
+    expect(welcomeSend).not.toHaveBeenCalled()
     expect(sqlite.prepare('SELECT email_opt_in, weekly_opt_out FROM users WHERE id = 1').get())
       .toEqual({ email_opt_in: 0, weekly_opt_out: 1 })
   })

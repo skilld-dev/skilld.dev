@@ -516,11 +516,11 @@ function trendingRow(t: Tokens, options: {
         <img class="weekly-border" src="${esc(avatarUrl(options.siteUrl, options.owner))}" width="28" height="28" alt=""
              style="width:28px;height:28px;border-radius:14px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
-      <td valign="top">
+      <td valign="top" style="overflow-wrap:anywhere;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr>
-            <td valign="top"><a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a></td>
-            ${options.spark ? `<td valign="top" align="right" style="padding-left:12px;white-space:nowrap;">${sparkHtml(t, options.spark)}</td>` : ''}
+            <td class="weekly-row-heading" valign="top"><a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a></td>
+            ${options.spark ? `<td class="weekly-row-spark" valign="top" align="right" style="padding-left:12px;white-space:nowrap;">${sparkHtml(t, options.spark)}</td>` : ''}
           </tr>
         </table>
         ${description ? `<div style="margin-top:3px;font-family:${SANS};font-size:14px;line-height:1.55;color:${t.body};">${esc(description)}</div>` : ''}
@@ -665,7 +665,7 @@ function preheader(input: WeeklyRenderInput): string {
 
 function greeting(input: WeeklyRenderInput): string {
   if (input.changeSource === 'watches')
-    return input.likedChanges.length ? 'Source files changed in the repos you watch.' : 'No source changes this week.'
+    return input.likedChanges.length ? 'Recent commits from repos you watch.' : 'No source changes this week.'
   if ((input.edition ?? 'weekly') === 'weekly')
     return 'Here are this week’s trending Skills.'
   const liked = input.likedChanges.length + input.likedOverflow
@@ -706,7 +706,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const subject = subjectFor(input)
   const edition = input.edition ?? 'weekly'
   const trendsOnly = edition === 'weekly'
-  const changeLabel = input.changeSource === 'watches' ? 'Repos you watch' : 'Skills you like'
+  const changeLabel = input.changeSource === 'watches' ? 'Recent commits' : 'Skills you like'
   const empty = !input.likedChanges.length && !input.trackedCount && !input.trending.length
 
   // Only the HTML is counted. Plain-text clients show the raw URL and often
@@ -726,9 +726,8 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       owner: change.owner,
       title: change.name,
       href: sourceUrl,
-      // The description explains the skill, and it only earns its line when
-      // there are no commit subjects to explain what actually changed.
-      description: subjects.length ? null : change.description,
+      // A watched change must explain its commits or disclose missing details.
+      description: subjects.length ? null : input.changeSource === 'watches' ? 'Commit details are unavailable.' : change.description,
       body: commitList(t, change.commitMessages),
       meta: joinMeta([
         `${change.owner}/${change.repo}`,
@@ -736,7 +735,9 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
         relativeDay(change.changedAt, now),
       ]),
       links: rowLinks(t, [
-        ...(change.changeUrl ? [{ href: track(change.changeUrl, 'liked'), label: 'View change' }] : []),
+        ...(input.changeSource === 'watches'
+          ? [{ href: sourceUrl.replace('/blob/', '/commits/'), label: 'View commits' }]
+          : change.changeUrl ? [{ href: track(change.changeUrl, 'liked'), label: 'View change' }] : []),
         { href: sourceUrl, label: 'Open SKILL.md' },
       ]),
     })
@@ -810,7 +811,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr><td style="padding:22px 0 8px;">
-            <h1 style="margin:0;font-family:${SANS};font-size:20px;font-weight:600;line-height:1.35;color:${t.text};">${trendsOnly ? 'This week’s trending Skills' : input.recipientName ? `Hi ${esc(input.recipientName)},` : 'Your Skill updates'}</h1>
+            <h1 style="margin:0;font-family:${SANS};font-size:20px;font-weight:600;line-height:1.35;color:${t.text};">${trendsOnly ? 'This week’s trending Skills' : input.changeSource === 'watches' ? 'Skill updates' : input.recipientName ? `Hi ${esc(input.recipientName)},` : 'Your Skill updates'}</h1>
             <div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(greeting(input))}</div>
           </td></tr>
           ${body}
@@ -823,7 +824,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       <tr><td style="height:3px;background:${t.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
       <tr><td class="weekly-border" style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
         ${edition === 'weekly'
-          ? 'You get this once a week because you have a skilld account.'
+          ? 'Your account is set to receive the weekly email.'
           : 'You get this because you enabled the digest.'}
         <a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
         &middot;
@@ -842,6 +843,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 <style>
 @media (prefers-color-scheme: dark){.weekly-border{border-color:${PALETTE.dark.borderStrong}!important;}}
 [data-ogsc] .weekly-border{border-color:${PALETTE.dark.borderStrong}!important;}
+@media(max-width:480px){.weekly-row-heading,.weekly-row-spark{display:block!important;width:auto!important;}.weekly-row-spark{padding-left:0!important;padding-top:4px!important;text-align:left!important;}}
 </style>
 </head>
 <body style="margin:0;padding:0;background:${t.page};-webkit-font-smoothing:antialiased;">
@@ -863,7 +865,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 export function renderWeeklyText(input: WeeklyRenderInput): string {
   const now = input.windowEnd
   const trendsOnly = (input.edition ?? 'weekly') === 'weekly'
-  const changeLabel = input.changeSource === 'watches' ? 'REPOS YOU WATCH' : 'SKILLS YOU LIKE'
+  const changeLabel = input.changeSource === 'watches' ? 'RECENT COMMITS' : 'SKILLS YOU LIKE'
   const lines: string[] = [
     `skilld ${input.edition ?? 'weekly'}  ${formatWindow(input.windowStart, input.windowEnd)}`,
     '',
@@ -883,12 +885,14 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
         lines.push(...subjects.map(subject => `  * ${subject}`))
       }
       else {
-        const description = trimDescription(change.description)
+        const description = input.changeSource === 'watches' ? 'Commit details are unavailable.' : trimDescription(change.description)
         if (description)
           lines.push(`  ${description}`)
       }
       lines.push(`  ${change.owner}/${change.repo}, ${change.changeCount} ${plural(change.changeCount, 'change', 'changes')}, ${relativeDay(change.changedAt, now)}`)
-      if (change.changeUrl)
+      if (input.changeSource === 'watches')
+        lines.push(`  Commits: ${(change.sourceUrl ?? skillUrl(input.siteUrl, change)).replace('/blob/', '/commits/')}`)
+      else if (change.changeUrl)
         lines.push(`  Change: ${change.changeUrl}`)
       lines.push(`  Source: ${change.sourceUrl ?? skillUrl(input.siteUrl, change)}`)
       lines.push('')

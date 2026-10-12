@@ -14,7 +14,7 @@ export interface DigestRepoEntry {
     changeUrl: string
   }>
   changeCount: number
-  /** Optional generated sentence. Commit messages remain the fallback. */
+  /** Delivery metadata. Author commit messages remain the email content. */
   summary?: string | null
 }
 
@@ -39,7 +39,7 @@ export interface DigestRender {
 
 export function renderDigest(input: DigestRenderInput): DigestRender {
   const siteUrl = input.siteUrl ?? 'https://skilld.dev'
-  const changes = input.entries.flatMap(entry => entry.skills.map((skill, index) => ({
+  const changes = input.entries.flatMap(entry => entry.skills.map(skill => ({
     owner: entry.owner,
     repo: entry.repo,
     name: skill.name,
@@ -47,9 +47,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
     description: skill.description,
     changeCount: skill.changeCount,
     changedAt: skill.changedAt,
-    commitMessages: entry.summary && index === 0
-      ? [`Generated summary: ${entry.summary}`]
-      : skill.commitMessages,
+    commitMessages: skill.commitMessages,
     sourceUrl: skill.sourceUrl,
     changeUrl: skill.changeUrl,
   })))

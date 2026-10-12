@@ -199,7 +199,7 @@ UI fixtures are labelled Example data. They are not recorded runs or evaluation 
 
 **Is:** the monthly email that summarises changes to watched Repositories. The user can turn it off.
 
-**Never:** newsletter, notification, alert. "the weekly" is the separate opt-out email.
+**Never:** newsletter, notification, alert. "the weekly" is the separate weekly email.
 
 ### trending
 
@@ -377,7 +377,8 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 
 ### weekly
 
-**Is:** the one email everyone gets: Skills you liked that changed, plus what trended. Opt-out, on by default.
+**Is:** the weekly email with distinct trending Skills. New accounts choose during onboarding; both recurring email choices start unchecked.
+Existing accounts keep their saved choices.
 
 **Use for:** "the weekly", lowercase. It sits beside **digest**, which is the separate watched-Repository email. They are not the same send.
 

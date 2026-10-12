@@ -53,7 +53,7 @@ describe('digest rehearsal', () => {
     expect(result._tag).toBe('rendered')
     if (result._tag !== 'rendered')
       throw new Error('Expected rendered preview')
-    expect(result.rendered.html).toContain(entry.skills[0]!.changeUrl)
+    expect(result.rendered.html).toContain(entry.skills[0]!.sourceUrl.replace('/blob/', '/commits/'))
     expect(result.rendered.text).toContain('Improve review')
     expect(deps.send).not.toHaveBeenCalled()
   })

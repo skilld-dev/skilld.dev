@@ -6,7 +6,6 @@ import { planAccountSettings, updateAccountSettings } from '../../utils/account-
 import { sendEmailWithEnv, signUnsubToken } from '../../utils/email'
 import { sendSkillValidationSummary } from '../../utils/skill-validation-email'
 import { requireUserRow } from '../../utils/users'
-import { sendWelcomeEmail } from '../../utils/welcome-email'
 
 export default defineApiHandler({
   schema: identityEmailPatchBodySchema,
@@ -27,22 +26,6 @@ export default defineApiHandler({
     await updateAccountSettings(platform.db, u.id, plan.columns)
     const config = useRuntimeConfig(event)
     const updated = await requireUserRow(event)
-    const welcome = sendWelcomeEmail({
-      db: platform.db,
-      userId: updated.id,
-      // The request address owns this consent, even if another save races this one.
-      to: body.digest_email ?? '',
-      consent: body.welcome_email === true,
-      now: Math.floor(Date.now() / 1000),
-      attemptId: crypto.randomUUID(),
-      signUnsubscribe: userId => signUnsubToken(userId, config.tokenKey, 'welcome'),
-      send: input => sendEmailWithEnv(platform.env, { ...input, from: config.email.from }),
-    }).then((outcome) => {
-      if (outcome === 'rejected' || outcome === 'uncertain')
-        emitOperationalEvent(createWideEvent({ operation: 'welcome-email', outcome: 'failed' }))
-    }).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'welcome-email', outcome: 'failed' }))
-    })
     const summary = sendSkillValidationSummary({
       db: platform.db,
       user: updated,
@@ -57,9 +40,9 @@ export default defineApiHandler({
     })
     const context = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
     if (context?.waitUntil)
-      context.waitUntil(Promise.all([summary, welcome]))
+      context.waitUntil(summary)
     else
-      await Promise.all([summary, welcome])
+      await summary
     const current = session as unknown as UserSession | null
     if (current?.user && (body.email_opt_in !== undefined || body.weekly_opt_in !== undefined)) {
       await setUserSession(event, {
