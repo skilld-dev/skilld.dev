@@ -15,15 +15,10 @@ export const identityEmailPatchBodySchema = z.object({
    * a captured profile address never provides delivery consent.
    */
   weekly_opt_in: z.boolean().optional(),
-  /** One welcome email, requested explicitly. It does not enroll either list. */
-  welcome_email: z.boolean().optional(),
 }).refine(
-  input => !(input.email_opt_in || input.weekly_opt_in || input.welcome_email)
+  input => !(input.email_opt_in || input.weekly_opt_in)
     || z.string().email().safeParse(input.digest_email).success,
   { path: ['digest_email'], message: 'Add a valid email address to receive emails' },
-).refine(
-  input => !input.welcome_email || (input.email_opt_in !== undefined && input.weekly_opt_in !== undefined),
-  { message: 'Choose weekly and monthly email settings before requesting a welcome email' },
 )
 
 export const identityMeSchema = z.object({

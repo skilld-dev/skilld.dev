@@ -823,7 +823,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       <tr><td style="height:3px;background:${t.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
       <tr><td class="weekly-border" style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
         ${edition === 'weekly'
-          ? 'You get this once a week because you have a skilld account.'
+          ? 'You get this because you enabled the weekly email.'
           : 'You get this because you enabled the digest.'}
         <a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
         &middot;

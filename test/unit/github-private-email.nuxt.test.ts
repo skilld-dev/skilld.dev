@@ -92,14 +92,30 @@ describe('upsertUserFromGithub email', () => {
     await upsertUserFromGithub(event(), { id: 1, login: 'octo', email: 'me@example.com' }, credentials)
     const row = await upsertUserFromGithub(event(), { id: 1, login: 'octo', email: null }, credentials)
 
-    expect(row.email).toBe('me@example.com')
+    expect(row.user.email).toBe('me@example.com')
   })
 
   it('replaces a stored email when GitHub reports a new one', async () => {
     await upsertUserFromGithub(event(), { id: 1, login: 'octo', email: 'old@example.com' }, credentials)
     const row = await upsertUserFromGithub(event(), { id: 1, login: 'octo', email: 'new@example.com' }, credentials)
 
-    expect(row.email).toBe('new@example.com')
+    expect(row.user.email).toBe('new@example.com')
+  })
+
+  it('identifies exactly one new account across concurrent callbacks', async () => {
+    const results = await Promise.all([
+      upsertUserFromGithub(event(), { id: 1, login: 'octo', email: 'me@example.com' }, credentials),
+      upsertUserFromGithub(event(), { id: 1, login: 'octo', email: 'me@example.com' }, credentials),
+    ])
+    expect(results.map(result => result._tag).sort()).toEqual(['created', 'existing'])
+    expect(results[0]!.user.id).toBe(results[1]!.user.id)
+  })
+
+  it('treats a seeded account as existing', async () => {
+    d1.raw.exec('INSERT INTO users (github_id, login, created_at, last_login_at) VALUES (-900001, \'octo\', 1, 1)')
+    const result = await upsertUserFromGithub(event(), { id: 1, login: 'octo', email: 'me@example.com' }, credentials)
+    expect(result._tag).toBe('existing')
+    expect(result.user.github_id).toBe(1)
   })
 
   it('never enrolls a never-consenting user in the weekly list', async () => {

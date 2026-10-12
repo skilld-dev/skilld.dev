@@ -10,6 +10,7 @@ import { emitSignupEvent } from '../../utils/signup-analytics'
 import { sendSkillValidationSummary } from '../../utils/skill-validation-email'
 import { upsertUserFromGithub } from '../../utils/users'
 import { handleWatchAction } from '../../utils/watch-actions'
+import { sendWelcomeEmail } from '../../utils/welcome-email'
 
 const githubTokensSchema = z.object({
   access_token: z.string().min(1).max(2048),
@@ -58,7 +59,7 @@ const githubHandler = defineOAuthGitHubEventHandler({
       return null
     })
 
-    const row = await upsertUserFromGithub(event, { ...profile, email }, {
+    const signIn = await upsertUserFromGithub(event, { ...profile, email }, {
       accessToken,
       accessTokenExpiresIn: parsedTokens.expires_in ?? null,
       refreshToken: parsedTokens.refresh_token ?? null,
@@ -66,7 +67,29 @@ const githubHandler = defineOAuthGitHubEventHandler({
       clientId: platform.env.NUXT_OAUTH_GITHUB_CLIENT_ID,
       scopes,
     })
+    const row = signIn.user
     const config = useRuntimeConfig(event)
+    if (signIn._tag === 'created' && row.email) {
+      const welcome = sendWelcomeEmail({
+        db: platform.db,
+        userId: row.id,
+        to: email ?? '',
+        now: Math.floor(Date.now() / 1000),
+        attemptId: crypto.randomUUID(),
+        signUnsubscribe: userId => signUnsubToken(userId, config.tokenKey, 'welcome'),
+        send: input => sendEmailWithEnv(platform.env, { ...input, from: config.email.from }),
+      }).then((outcome) => {
+        if (outcome === 'rejected' || outcome === 'uncertain')
+          emitOperationalEvent(createWideEvent({ operation: 'welcome-email', outcome: 'failed' }))
+      }).catch(() => {
+        emitOperationalEvent(createWideEvent({ operation: 'welcome-email', outcome: 'failed' }))
+      })
+      const context = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
+      if (context?.waitUntil)
+        context.waitUntil(welcome)
+      else
+        await welcome
+    }
     const sendValidationSummary = () => sendSkillValidationSummary({
       db: platform.db,
       user: row,

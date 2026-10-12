@@ -16,13 +16,11 @@ const email = ref(me.value?.digest_email || me.value?.email || '')
 const hasEmailChoices = computed(() => !!me.value?.onboarded_at || !!me.value?.digest_email)
 const optIn = ref(hasEmailChoices.value ? !!me.value?.email_opt_in : false)
 const weeklyOptIn = ref(hasEmailChoices.value ? !!me.value?.weekly_opt_in : false)
-const welcomeEmail = ref(!hasEmailChoices.value)
 watch(me, (account, previous) => {
   if (account && !previous) {
     email.value = account.digest_email || account.email || ''
     optIn.value = hasEmailChoices.value ? account.email_opt_in : false
     weeklyOptIn.value = hasEmailChoices.value ? account.weekly_opt_in : false
-    welcomeEmail.value = !hasEmailChoices.value
   }
 })
 
@@ -45,7 +43,7 @@ const finishOnboardingMutation = useNuxtMutation<void, IdentityMutationResponse>
 
 // Opting in needs somewhere to send the digest, so the address is required
 // exactly when the box is ticked.
-const missingAddress = computed(() => (optIn.value || weeklyOptIn.value || welcomeEmail.value)
+const missingAddress = computed(() => (optIn.value || weeklyOptIn.value)
   && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(email.value.trim()))
 
 const submitting = computed(() => saveEmailMutation.pending.value || finishOnboardingMutation.pending.value)
@@ -56,7 +54,6 @@ async function finish() {
     digest_email: email.value,
     email_opt_in: optIn.value,
     weekly_opt_in: weeklyOptIn.value,
-    ...(welcomeEmail.value ? { welcome_email: true } : {}),
   })
   if (saved._tag === 'err') {
     recordSignup({ stage: 'email', outcome: 'failed', entry: 'onboarding' })
@@ -74,6 +71,24 @@ async function finish() {
   await fetchSession()
   await navigateTo('/me?welcome=1')
 }
+
+const preview = ref<'weekly' | 'digest' | 'welcome' | null>(null)
+const { data: previewHtml, status: previewStatus, error: previewError, refresh: loadPreview } = useFetch<string>(() => `/${preview.value || 'welcome'}/preview`, { immediate: false, watch: false, responseType: 'text' })
+// Keep email links out of the sandboxed preview frame.
+const previewDocument = computed(() => previewHtml.value?.replace(/<head\b[^>]*>/i, '$&<base target="_blank">'))
+function openPreview(kind: 'weekly' | 'digest' | 'welcome') {
+  preview.value = kind
+  loadPreview()
+}
+const previewOpen = computed({
+  get: () => preview.value !== null,
+  set: (open: boolean) => {
+    if (!open)
+      preview.value = null
+  },
+})
+const previewTitle = computed(() => preview.value === 'weekly' ? 'Preview the weekly' : preview.value === 'digest' ? 'Preview the digest' : 'Preview the welcome')
+const checkboxUi = { base: 'size-6', container: 'h-6', wrapper: 'ms-3', label: 'min-h-11 cursor-pointer font-normal leading-6' }
 
 useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
 </script>
@@ -112,33 +127,22 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         </p>
       </div>
 
-      <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="weeklyOptIn" type="checkbox" :disabled="submitting" class="mt-0.5 size-4 accent-primary">
-        <span class="text-sm text-muted leading-relaxed">
-          Send me distinct trending Skills each Monday.
-        </span>
-      </label>
+      <div class="space-y-1">
+        <UCheckbox v-model="weeklyOptIn" size="xl" :disabled="submitting" :ui="checkboxUi" label="Send me distinct trending Skills each Monday." />
+        <UButton label="Preview the weekly" color="neutral" variant="link" class="min-h-11 px-0 ms-9" trailing-icon="i-lucide-arrow-up-right" @click="openPreview('weekly')" />
+      </div>
 
-      <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="optIn" type="checkbox" :disabled="submitting" class="mt-0.5 size-4 accent-primary">
-        <span class="text-sm text-muted leading-relaxed">
-          Send me watched changes once a month.
-        </span>
-      </label>
+      <div class="space-y-1">
+        <UCheckbox v-model="optIn" size="xl" :disabled="submitting" :ui="checkboxUi" label="Send me watched changes once a month." />
+        <UButton label="Preview the digest" color="neutral" variant="link" class="min-h-11 px-0 ms-9" trailing-icon="i-lucide-arrow-up-right" @click="openPreview('digest')" />
+      </div>
 
-      <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="welcomeEmail" type="checkbox" :disabled="submitting" class="mt-0.5 size-4 accent-primary">
-        <span class="text-sm text-muted leading-relaxed">
-          {{ WELCOME_EMAIL_COPY.consent }}
-        </span>
-      </label>
+      <div class="border-t border-default pt-3">
+        <UButton label="Preview the welcome" color="neutral" variant="link" class="min-h-11 px-0" trailing-icon="i-lucide-arrow-up-right" @click="openPreview('welcome')" />
+      </div>
 
-      <p class="text-xs text-muted">
+      <p class="text-sm leading-relaxed text-muted">
         {{ WELCOME_EMAIL_COPY.emailChoices }}
-      </p>
-
-      <p v-if="!optIn && !weeklyOptIn && !welcomeEmail" class="rounded-lg border border-default bg-elevated/50 p-3 text-xs text-muted">
-        You won't receive any emails. You can opt in later from your dashboard.
       </p>
     </form>
 
@@ -163,5 +167,17 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         form="email-onboarding-form"
       />
     </div>
+    <UModal v-model:open="previewOpen" :title="previewTitle" :ui="{ content: 'max-w-2xl', body: 'p-0 sm:p-0' }">
+      <template #body>
+        <div v-if="previewStatus === 'pending'" role="status" class="flex min-h-80 items-center justify-center text-muted">
+          Loading email preview
+        </div>
+        <div v-else-if="previewError" role="alert" class="min-h-80 p-6">
+          <p>Could not load the email preview. Try again.</p>
+          <UButton label="Retry" color="neutral" variant="outline" class="mt-4 min-h-11" @click="loadPreview()" />
+        </div>
+        <iframe v-else-if="previewHtml" :srcdoc="previewDocument" :title="previewTitle" sandbox="allow-popups allow-popups-to-escape-sandbox" class="h-[65dvh] min-h-80 w-full border-0 bg-muted" />
+      </template>
+    </UModal>
   </section>
 </template>

@@ -9,12 +9,15 @@ const mocks = vi.hoisted(() => ({
   email: vi.fn(),
   establish: vi.fn(),
   analytics: vi.fn(),
+  welcome: vi.fn(),
 }))
 vi.mock('h3', async importOriginal => ({ ...await importOriginal<typeof import('h3')>(), useSession: mocks.session }))
 vi.mock('../../layers/identity/server/utils/users', () => ({ upsertUserFromGithub: mocks.upsert }))
 vi.mock('../../layers/identity/server/utils/watch-actions', () => ({ handleWatchAction: mocks.replay }))
 vi.mock('../../layers/identity/server/utils/scan-owned-repos', () => ({ scanOwnedRepos: mocks.scan, ownedRepoScanWarning: () => false }))
 vi.mock('../../layers/identity/server/utils/github-emails', () => ({ fetchVerifiedPrimaryEmail: mocks.email }))
+vi.mock('../../layers/identity/server/utils/welcome-email', () => ({ sendWelcomeEmail: mocks.welcome }))
+vi.mock('../../layers/identity/server/utils/skill-validation-email', () => ({ sendSkillValidationSummary: vi.fn().mockResolvedValue('skipped') }))
 
 // Simulate GitHub's callback: it carries code and state, never our query fields.
 describe('gitHub browser login round trip', () => {
@@ -35,14 +38,15 @@ describe('gitHub browser login round trip', () => {
     intent = {}
     failure = false
     providerFailure = false
-    mocks.upsert.mockResolvedValue({ id: 1, github_id: 1, login: 'octocat', onboarded_at: 1 })
+    mocks.upsert.mockResolvedValue({ _tag: 'existing', user: { id: 1, github_id: 1, login: 'octocat', onboarded_at: 1 } })
+    mocks.welcome.mockResolvedValue('accepted')
     mocks.replay.mockResolvedValue(undefined)
     vi.stubGlobal('getQuery', () => query)
     vi.stubGlobal('getCookie', () => undefined)
     vi.stubGlobal('deleteCookie', vi.fn())
     vi.stubGlobal('defineEventHandler', (fn: unknown) => fn)
     vi.stubGlobal('setUserSession', mocks.establish)
-    vi.stubGlobal('useRuntimeConfig', () => ({ session: { password: 'x'.repeat(32) } }))
+    vi.stubGlobal('useRuntimeConfig', () => ({ session: { password: 'x'.repeat(32) }, email: { from: 'agent@example.com' } }))
     vi.stubGlobal('emitOperationalEvent', vi.fn())
     vi.stubGlobal('createWideEvent', vi.fn())
     vi.stubGlobal('sendRedirect', (_event: unknown, target: string) => target)
@@ -67,6 +71,36 @@ describe('gitHub browser login round trip', () => {
       })
     })
     handler = (await import('../../layers/identity/server/routes/auth/github.get')).default as typeof handler
+  })
+
+  it('sends the new account welcome without subscribing to recurring emails', async () => {
+    mocks.upsert.mockResolvedValue({ _tag: 'created', user: { id: 1, github_id: 1, login: 'octocat', email: 'octocat@example.com', onboarded_at: null, repo_indexing: 0 } })
+    query = { code: 'github-code', state: 'valid-state' }
+    expect(await handler(event)).toBe('/onboarding/discover')
+    expect(mocks.welcome).toHaveBeenCalledWith(expect.objectContaining({ userId: 1, to: 'octocat@example.com' }))
+    expect(mocks.establish).toHaveBeenCalledWith(event, expect.objectContaining({ user: expect.objectContaining({ id: 1 }) }))
+  })
+
+  it('does not send welcome for a returning account that has not finished onboarding', async () => {
+    mocks.upsert.mockResolvedValue({ _tag: 'existing', user: { id: 1, github_id: 1, login: 'octocat', email: 'octocat@example.com', onboarded_at: null, repo_indexing: 0 } })
+    query = { code: 'github-code', state: 'valid-state' }
+    expect(await handler(event)).toBe('/onboarding/discover')
+    expect(mocks.welcome).not.toHaveBeenCalled()
+  })
+
+  it('keeps signup working when the welcome cannot send', async () => {
+    mocks.upsert.mockResolvedValue({ _tag: 'created', user: { id: 1, github_id: 1, login: 'octocat', email: 'octocat@example.com', onboarded_at: null, repo_indexing: 0 } })
+    mocks.welcome.mockRejectedValue(new Error('Email unavailable'))
+    query = { code: 'github-code', state: 'valid-state' }
+    expect(await handler(event)).toBe('/onboarding/discover')
+    expect(mocks.establish).toHaveBeenCalled()
+  })
+
+  it('does not attempt a welcome when signup has no address', async () => {
+    mocks.upsert.mockResolvedValue({ _tag: 'created', user: { id: 1, github_id: 1, login: 'octocat', email: null, onboarded_at: null, repo_indexing: 0 } })
+    query = { code: 'github-code', state: 'valid-state' }
+    expect(await handler(event)).toBe('/onboarding/discover')
+    expect(mocks.welcome).not.toHaveBeenCalled()
   })
 
   it('returns to the starting page and replays the pending like', async () => {

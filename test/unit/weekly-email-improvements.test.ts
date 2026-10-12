@@ -46,6 +46,11 @@ function input(): WeeklyRenderInput {
 }
 
 describe('weekly email improvement contract', () => {
+  it('explains that weekly emails require opt-in', () => {
+    const rendered = renderWeekly({ ...input(), edition: 'weekly' })
+    expect(rendered.html).toContain('You get this because you enabled the weekly email.')
+  })
+
   it('removes install commands and cuts on a word boundary', () => {
     const quote = trimQuote(`Useful release. npx skills add competitor/pkg ${'long words '.repeat(30)}`)
 

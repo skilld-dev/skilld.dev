@@ -7,7 +7,6 @@ export const WELCOME_EMAIL_COPY = {
   signature: 'Harlan',
   action: 'Open your account',
   unsubscribe: 'Stop welcome emails',
-  consent: 'Send me one welcome email from Harlan.',
   emailChoices: 'We’ll only send other emails if you’ve opted in.',
   missingAddress: 'Add an email address, or turn off all email choices.',
   stopped: 'You will not get welcome emails. Your weekly and digest settings are unchanged.',

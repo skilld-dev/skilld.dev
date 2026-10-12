@@ -1,3 +1,4 @@
+import type { DOMWrapper, VueWrapper } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
@@ -26,7 +27,7 @@ mockNuxtImport('useNuxtRpcQuery', () => (operation: { path: string }) => ({
   error: ref(),
   refresh: vi.fn(),
 }))
-mockNuxtImport('useFetch', () => () => ({ data: ref({ items: [] }), status: ref('success'), error: ref(), refresh: vi.fn() }))
+mockNuxtImport('useFetch', () => (url: unknown) => ({ data: ref(typeof url === 'function' ? '<html><head></head><body>Example email</body></html>' : { items: [] }), status: ref('success'), error: ref(), refresh: vi.fn() }))
 mockNuxtImport('useNuxtRpc', () => () => ({ execute: mocks.execute, query: mocks.query }))
 mockNuxtImport('useAuth', () => () => ({ fetchSession: mocks.session }))
 mockNuxtImport('navigateTo', () => mocks.navigate)
@@ -36,6 +37,19 @@ mockNuxtImport('useNuxtMutation', () => (options: { mutation: (body?: unknown) =
   pending: ref(false),
   mutateSafe: async (body?: unknown) => ({ _tag: 'ok', data: await options.mutation(body) }),
 }))
+
+function checkboxes(form: DOMWrapper<Element> | VueWrapper) {
+  return form.findAll('[role="checkbox"], input[type="checkbox"]:not([aria-hidden="true"])')
+}
+async function setChecked(checkbox: DOMWrapper<Element>, checked: boolean) {
+  if (checkbox.attributes('role') === 'checkbox') {
+    if ((checkbox.attributes('aria-checked') === 'true') !== checked)
+      await checkbox.trigger('click')
+  }
+  else {
+    await checkbox.setValue(checked)
+  }
+}
 
 const screens = [
   { name: 'account settings', component: Account, form: '#email-settings-form' },
@@ -57,8 +71,8 @@ it('keeps saved email choices when returning to completed onboarding', async () 
   account.value.email_opt_in = false
   account.value.weekly_opt_in = false
   const wrapper = await mountSuspended(OnboardingEmail, { route: '/onboarding/email' })
-  for (const checkbox of wrapper.findAll('input[type="checkbox"]'))
-    expect((checkbox.element as HTMLInputElement).checked).toBe(false)
+  for (const checkbox of checkboxes(wrapper))
+    expect(checkbox.attributes('role') === 'checkbox' ? checkbox.attributes('aria-checked') === 'true' : (checkbox.element as HTMLInputElement).checked).toBe(false)
   wrapper.unmount()
 })
 
@@ -71,28 +85,12 @@ it('offers unfinished accounts a path back to email choices', async () => {
   wrapper.unmount()
 })
 
-it('defaults new accounts to one welcome without recurring emails', async () => {
+it('offers new accounts only optional recurring emails', async () => {
   account.value.digest_email = null
   const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })
   const form = wrapper.get('#email-onboarding-form')
-  const choices = form.findAll('input[type="checkbox"]')
-  expect(choices.map(choice => (choice.element as HTMLInputElement).checked)).toEqual([false, false, true])
-  ;(form.element as HTMLFormElement).requestSubmit()
-  await flushPromises()
-  expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ path: '/api/me/email' }), {
-    digest_email: 'review@example.com',
-    email_opt_in: false,
-    weekly_opt_in: false,
-    welcome_email: true,
-  })
-  wrapper.unmount()
-})
-
-it('lets new accounts opt out of every email during onboarding', async () => {
-  account.value.digest_email = null
-  const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })
-  const form = wrapper.get('#email-onboarding-form')
-  await form.findAll('input[type="checkbox"]')[2]!.setValue(false)
+  const choices = form.findAll('[role="checkbox"], input[type="checkbox"]:not([aria-hidden="true"])')
+  expect(choices).toHaveLength(2)
   ;(form.element as HTMLFormElement).requestSubmit()
   await flushPromises()
   expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ path: '/api/me/email' }), {
@@ -103,16 +101,17 @@ it('lets new accounts opt out of every email during onboarding', async () => {
   wrapper.unmount()
 })
 
-it('requires a valid address when only the welcome is selected', async () => {
+it.each([
+  ['weekly', 'Preview the weekly'],
+  ['digest', 'Preview the digest'],
+  ['welcome', 'Preview the welcome'],
+])('opens the %s preview without changing email choices', async (kind, label) => {
   const wrapper = await mountSuspended(OnboardingEmail, { attachTo: document.body, route: '/onboarding/email' })
-  const form = wrapper.get('#email-onboarding-form')
-  await form.get('input[type="email"]').setValue('broken@')
-  for (const [index, checkbox] of form.findAll('input[type="checkbox"]').entries())
-    await checkbox.setValue(index === 2)
-  ;(form.element as HTMLFormElement).requestSubmit()
+  await wrapper.findAll('button').find(button => button.text() === label)!.trigger('click')
   await flushPromises()
+  expect(document.querySelector('iframe')?.getAttribute('title')).toBe(label)
+  expect(document.querySelector('iframe')?.getAttribute('srcdoc')).toBe('<html><head><base target="_blank"></head><body>Example email</body></html>')
   expect(mocks.execute).not.toHaveBeenCalled()
-  expect(form.get('#email-error').text()).toBe('Add an email address, or turn off all email choices.')
   wrapper.unmount()
 })
 
@@ -128,8 +127,8 @@ describe.each(screens)('$name email submission', ({ component, form: selector })
     const { wrapper, form } = await mountForm()
     try {
       await form.get('input[type="email"]').setValue('broken@')
-      for (const checkbox of form.findAll('input[type="checkbox"]'))
-        await checkbox.setValue(false)
+      for (const checkbox of checkboxes(form))
+        await setChecked(checkbox, false)
 
       // Use native submission. A synthetic submit event skips browser validation.
       ;(form.element as HTMLFormElement).requestSubmit()
@@ -153,8 +152,8 @@ describe.each(screens)('$name email submission', ({ component, form: selector })
     const { wrapper, form } = await mountForm()
     try {
       await form.get('input[type="email"]').setValue('broken@')
-      for (const [index, checkbox] of form.findAll('input[type="checkbox"]').entries())
-        await checkbox.setValue(index === enabledChoice)
+      for (const [index, checkbox] of checkboxes(form).entries())
+        await setChecked(checkbox, index === enabledChoice)
 
       ;(form.element as HTMLFormElement).requestSubmit()
       await flushPromises()
