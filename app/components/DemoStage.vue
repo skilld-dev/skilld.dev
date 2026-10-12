@@ -10,8 +10,8 @@ import DemoWriting from './home-demos/_DemoWriting.vue'
 /**
  * One demo on show: how it was recorded, the output in a window one screen
  * tall (a page that scrolls inside it, or a film that plays while on screen),
- * and the Skill's row with its run command. `showPrompt` adds the prompt in
- * full, for a list that names the demos without their prompts. `live` puts a
+ * and the Skill's row with its run command. `showPrompt` adds a disclosure
+ * for the recorded task. `live` puts a
  * page demo's real output in the window, in a frame with no same-origin
  * access; the route serves it under a CSP sandbox too. `opens` picks where
  * "Open the demo" goes: the demo's own page, or, on that page, the Skill
@@ -56,9 +56,14 @@ const liveUrl = computed(() => live && !demo.video && !demo.writing ? demo.liveU
         <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
       </NuxtLink>
     </div>
-    <p v-if="showPrompt && presentation === 'full'" class="demo-stage__prompt">
-      <span class="data-label mr-2">Prompt</span>{{ demo.prompt }}
-    </p>
+    <details v-if="showPrompt && presentation === 'full'" class="demo-stage__task demo-stage__task--full">
+      <summary class="data-label">
+        Prompt
+      </summary>
+      <p class="demo-stage__prompt">
+        {{ demo.prompt }}
+      </p>
+    </details>
     <div v-if="demo.writing" ref="stage">
       <DemoWriting :writing="demo.writing" />
     </div>
@@ -223,6 +228,10 @@ const liveUrl = computed(() => live && !demo.video && !demo.writing ? demo.liveU
 .demo-stage__task summary:focus-visible {
   outline: 2px solid var(--ui-border-accented);
   outline-offset: 2px;
+}
+
+.demo-stage__task--full summary {
+  padding-inline-end: 0;
 }
 
 /* The live page scrolls inside its own frame. */

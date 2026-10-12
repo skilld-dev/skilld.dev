@@ -56,6 +56,7 @@ const emit = defineEmits<{ action: [action: { event: 'share' } | { event: 'copy'
 }
 .demo-footer__open:hover { color: var(--ui-text-highlighted); }
 @media (max-width: 39.99rem) {
+  .demo-footer { grid-template-columns: minmax(0, 1fr); }
   .demo-footer :deep(.skill-card--row) { padding-block: 0.5rem; }
   .demo-footer :deep(.skill-card__row-end) { display: none; }
 }
