@@ -11,9 +11,12 @@ contradicts this file is a bug.
 
 ## Canonical assets
 
-The optional welcome email uses the subject "Your skilld account is ready".
-Its body is "Like Skills to find them again in your account." and "Watch the Repositories you use and see what changed."
-Its final line is "Your weekly and monthly email choices stay as you set them."
+The optional welcome email uses the subject "Welcome to skilld".
+Its greeting is "Hi! I’m Harlan."
+Its story is "I built skilld to discover new Skills without spending all day on social media, read their source, and keep up with updates."
+Its account line is "Your account lets you save liked Skills, watch Repositories, and choose which update emails you receive."
+After its main action, it says "Let me know if you’d like to see any changes :)" and signs off "Harlan".
+Replies go to `harlan@harlanzw.com`.
 Its one main action is "Open your account", linking to `/me`.
 Its footer is "Stop welcome emails", linking to a signed welcome unsubscribe URL.
 Onboarding offers an unchecked choice: "Send me one welcome email with account tips."

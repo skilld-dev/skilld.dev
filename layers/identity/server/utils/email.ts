@@ -10,6 +10,7 @@
 export interface SendEmailInput {
   to: string
   from?: EmailAddress
+  replyTo?: string
   subject: string
   html: string
   text?: string
@@ -46,6 +47,7 @@ export async function sendEmailWithEnv(
   const outcome = await binding.send({
     to: input.to,
     from,
+    replyTo: input.replyTo,
     subject: input.subject,
     html: input.html,
     text: input.text,

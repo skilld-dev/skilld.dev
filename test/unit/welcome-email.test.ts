@@ -1,7 +1,7 @@
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { planAccountSettings, updateAccountSettings } from '../../layers/identity/server/utils/account-settings'
-import { signUnsubToken, verifyUnsubToken } from '../../layers/identity/server/utils/email'
+import { sendEmailWithEnv, signUnsubToken, verifyUnsubToken } from '../../layers/identity/server/utils/email'
 import { applyUnsubscribe, renderUnsubscribePage } from '../../layers/identity/server/utils/unsubscribe'
 import { sendWelcomeEmail } from '../../layers/identity/server/utils/welcome-email'
 import { identityEmailPatchBodySchema } from '../../layers/identity/shared/contracts/account'
@@ -28,6 +28,19 @@ describe('one optional welcome email', () => {
       send: vi.fn().mockResolvedValue({ _tag: 'accepted', messageId: 'receipt' }),
     }
   }
+
+  it('routes welcome replies to Harlan through the email binding', async () => {
+    const send = vi.fn().mockResolvedValue({ messageId: 'receipt' })
+    const deps = input()
+    deps.send.mockImplementation(message => sendEmailWithEnv(
+      { EMAIL: { send } } as unknown as Pick<Cloudflare.Env, 'EMAIL'>,
+      { ...message, from: { email: 'noreply@mail.skilld.dev', name: 'skilld' } },
+    ))
+    expect(await sendWelcomeEmail(deps)).toBe('accepted')
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      replyTo: 'harlan@harlanzw.com',
+    }))
+  })
 
   it('requires an address when only the welcome email is selected', () => {
     expect(identityEmailPatchBodySchema.safeParse({ welcome_email: true }).success).toBe(false)
@@ -79,7 +92,7 @@ describe('one optional welcome email', () => {
     expect(deps.send).toHaveBeenCalledTimes(1)
     expect(deps.send).toHaveBeenCalledWith(expect.objectContaining({
       to: 'account@example.com',
-      subject: 'Your skilld account is ready',
+      subject: 'Welcome to skilld',
       text: expect.stringContaining('https://skilld.dev/me'),
       headers: expect.objectContaining({ 'List-Unsubscribe': '<https://skilld.dev/api/unsubscribe?t=signed-token&list=welcome>' }),
     }))
