@@ -16,6 +16,9 @@
  * 6. Every board is stored under its own key: boards that differ only by query
  *    string render a different title or canonical URL. The bare path and the
  *    default range are one board, so they may share both.
+ * 7. A stored page carries an ETag, and a request that sends it back gets a
+ *    304. A 304 must never be stored as the page: after a conditional request
+ *    on a cold entry, the next plain request still gets the whole page.
  */
 
 import { varyKeysEdgeCache } from '../../shared/content-negotiation'
@@ -46,7 +49,7 @@ const SERVED_FROM_CACHE = new Set(['HIT', 'STALE', 'UPDATING'])
 
 export type EdgeCacheFetch = (input: string, init: RequestInit) => Promise<Response>
 
-export type EdgeCacheRequest = 'anonymous' | 'markdown' | 'session-cookie'
+export type EdgeCacheRequest = 'anonymous' | 'markdown' | 'session-cookie' | 'revalidation'
 
 export type EdgeCacheFailure
   = | { _tag: 'network-error', path: string, request: EdgeCacheRequest, message: string }
@@ -58,6 +61,9 @@ export type EdgeCacheFailure
     | { _tag: 'rendered-for-session', path: string, reason: string }
     | { _tag: 'www-redirect', path: string, status: number | null, location: string | null, message?: string }
     | { _tag: 'shared-cache-entry', paths: string[], identity: string | null }
+    | { _tag: 'no-etag', path: string }
+    | { _tag: 'not-revalidated', path: string, status: number }
+    | { _tag: 'stored-not-modified', path: string, status: number }
 
 export type EdgeCacheCheckResult
   = | { _tag: 'passed', checks: Array<{ path: string, cacheStatuses: string[] }> }
@@ -77,6 +83,8 @@ export interface EdgeCacheCheckDependencies {
    */
   hitAttempts?: number
   retryDelayMs?: number
+  /** Makes the cold cache entry for the revalidation check. Defaults to a random UUID. */
+  nonce?: string
 }
 
 type Fetched
@@ -227,6 +235,42 @@ async function checkSessionCookie(path: string, url: string, fetch: EdgeCacheFet
   return null
 }
 
+/**
+ * Runs after the anonymous check, so the entry is warm. Workers Cache stores
+ * one variant per `Accept` value, so an `Accept` that names the nonce reaches
+ * a cold entry that still renders HTML.
+ */
+async function checkRevalidation(path: string, url: string, fetch: EdgeCacheFetch, nonce: string): Promise<EdgeCacheFailure | null> {
+  const networkError = (message: string): EdgeCacheFailure => ({ _tag: 'network-error', path, request: 'revalidation', message })
+
+  const stored = await request(fetch, url, BROWSER_HEADERS)
+  if (stored._tag === 'error')
+    return networkError(stored.message)
+  if (stored.response.status !== 200)
+    return { _tag: 'status', path, request: 'revalidation', expected: 200, actual: stored.response.status }
+  const etag = stored.response.headers.get('etag')
+  if (!etag)
+    return { _tag: 'no-etag', path }
+
+  const conditional = await request(fetch, url, { ...BROWSER_HEADERS, 'if-none-match': etag })
+  if (conditional._tag === 'error')
+    return networkError(conditional.message)
+  if (conditional.response.status !== 304)
+    return { _tag: 'not-revalidated', path, status: conditional.response.status }
+
+  // Either a 200 or a 304 is right here. The plain request after it is the check.
+  const cold = { ...BROWSER_HEADERS, accept: `${BROWSER_HEADERS.accept},application/x-edge-check;q=0.1;n=${nonce}` }
+  const coldConditional = await request(fetch, url, { ...cold, 'if-none-match': etag })
+  if (coldConditional._tag === 'error')
+    return networkError(coldConditional.message)
+  const next = await request(fetch, url, cold)
+  if (next._tag === 'error')
+    return networkError(next.message)
+  if (next.response.status !== 200 || !next.body.includes('</html>'))
+    return { _tag: 'stored-not-modified', path, status: next.response.status }
+  return null
+}
+
 function defaultWwwBaseUrl(baseUrl: string): string | null {
   const { protocol, hostname } = new URL(baseUrl)
   return hostname === 'skilld.dev' ? `${protocol}//www.${hostname}` : null
@@ -251,6 +295,7 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
   const retryDelayMs = Math.max(0, Math.floor(dependencies.retryDelayMs ?? 5_000))
   const paths = dependencies.paths ?? EDGE_CACHED_PATHS
   const wwwBaseUrl = dependencies.wwwBaseUrl === undefined ? defaultWwwBaseUrl(dependencies.baseUrl) : dependencies.wwwBaseUrl
+  const nonce = dependencies.nonce ?? crypto.randomUUID()
 
   const failures: EdgeCacheFailure[] = []
   const checks: Array<{ path: string, cacheStatuses: string[] }> = []
@@ -264,6 +309,9 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
     else {
       checks.push({ path, cacheStatuses: anonymous.cacheStatuses })
       identities.set(anonymous.identity, [...identities.get(anonymous.identity) ?? [], path])
+      const revalidation = await checkRevalidation(path, url, fetch, nonce)
+      if (revalidation)
+        failures.push(revalidation)
     }
 
     // After the anonymous loop, so the apex entry is warm.

@@ -160,9 +160,10 @@ jobs:
       # Workers Cache stores `/skills/trending` (see routeRules in
       # nuxt.config.ts). This proves a repeat visit is a hit, and that no stored
       # response sets a cookie, hides Markdown from an agent, or carries a
-      # session. It fails the job without a rollback: the rollback smoke
-      # re-checks the previous version, and a version from before the rule
-      # could never pass these checks.
+      # session. It also proves a stored page answers its ETag with a 304, and
+      # that a 304 never replaces the stored page. It fails the job without a
+      # rollback: the rollback smoke re-checks the previous version, and a
+      # version from before the rule could never pass these checks.
       - name: Check the trending edge cache
         run: pnpm production:edge-cache
 

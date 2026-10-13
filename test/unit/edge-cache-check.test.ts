@@ -23,22 +23,28 @@ interface Answer {
   body?: string
 }
 
+const STORED_ETAG = 'W/"build-1-stored"'
+
 function response(answer: Answer, path = '/skills/trending'): Response {
   const headers = new Headers({
     'content-type': 'text/html;charset=utf-8',
     'vary': 'Accept, Sec-Fetch-Dest, Host',
+    ...((answer.status ?? 200) === 200 ? { etag: STORED_ETAG } : {}),
     ...answer.headers,
   })
   for (const cookie of answer.cookies ?? [])
     headers.append('set-cookie', cookie)
-  return new Response(answer.body ?? page(null, false, path), { status: answer.status ?? 200, headers })
+  const status = answer.status ?? 200
+  // A 304 has no body, and the Response constructor refuses one.
+  return new Response(status === 304 ? null : answer.body ?? page(null, false, path), { status, headers })
 }
 
 /**
  * A fake edge. Every anonymous request after the first to a path is a hit,
- * unless a test overrides one kind of request.
+ * and a request that sends the stored ETag back gets a 304, unless a test
+ * overrides one kind of request.
  */
-function edge(overrides: Partial<Record<'anonymous' | 'markdown' | 'session' | 'www', (path: string, seen: number) => Answer>> = {}): EdgeCacheFetch {
+function edge(overrides: Partial<Record<'anonymous' | 'markdown' | 'session' | 'www' | 'conditional', (path: string, seen: number) => Answer>> = {}): EdgeCacheFetch {
   const seen = new Map<string, number>()
   return async (url, init) => {
     const { pathname, search } = new URL(url)
@@ -61,6 +67,13 @@ function edge(overrides: Partial<Record<'anonymous' | 'markdown' | 'session' | '
     if (headers.get('cookie')) {
       return response(overrides.session?.(path, 0) ?? {
         headers: { 'cf-cache-status': 'HIT' },
+      }, path)
+    }
+    if (headers.get('if-none-match')) {
+      return response(overrides.conditional?.(path, 0) ?? {
+        status: 304,
+        headers: { etag: STORED_ETAG },
+        body: '',
       }, path)
     }
     const count = (seen.get(path) ?? 0) + 1
@@ -289,6 +302,50 @@ describe('checkEdgeCache', () => {
       _tag: 'failed',
       failures: [{ _tag: 'sets-cookie', path: '/skills/trending', request: 'session-cookie', cookies: ['nuxt-session'] }],
     })
+  })
+
+  it('sends the stored page\'s ETag back and expects a 304', async () => {
+    const conditional: Array<string | null> = []
+    const inner = edge()
+    const result = await run(async (url, init) => {
+      const headers = new Headers(init.headers)
+      if (headers.get('if-none-match'))
+        conditional.push(headers.get('if-none-match'))
+      return inner(url, init)
+    })
+
+    expect(result._tag).toBe('passed')
+    expect(conditional).toEqual([STORED_ETAG, STORED_ETAG])
+  })
+
+  it('fails when a stored page carries no ETag', async () => {
+    const result = await run(edge({
+      anonymous: (_path, count) => ({ headers: { 'cf-cache-status': count === 1 ? 'MISS' : 'HIT', 'etag': '' } }),
+    }))
+
+    expect(result).toMatchObject({ _tag: 'failed', failures: [{ _tag: 'no-etag', path: '/skills/trending' }] })
+  })
+
+  it('fails when the edge answers a matching ETag with the whole page', async () => {
+    const result = await run(edge({ conditional: () => ({ headers: { 'cf-cache-status': 'HIT' } }) }))
+
+    expect(result).toMatchObject({ _tag: 'failed', failures: [{ _tag: 'not-revalidated', path: '/skills/trending', status: 200 }] })
+  })
+
+  it('fails when a conditional request on a cold entry leaves a 304 for the next visitor', async () => {
+    const inner = edge()
+    const storedNotModified = new Set<string>()
+    const result = await run(async (url, init) => {
+      const headers = new Headers(init.headers)
+      const variant = headers.get('accept') ?? ''
+      if (headers.get('if-none-match') && variant.includes('x-edge-check'))
+        storedNotModified.add(variant)
+      if (!headers.get('if-none-match') && storedNotModified.has(variant))
+        return response({ status: 304, body: '' })
+      return inner(url, init)
+    })
+
+    expect(result).toMatchObject({ _tag: 'failed', failures: [{ _tag: 'stored-not-modified', path: '/skills/trending', status: 304 }] })
   })
 
   it('reports a network error instead of throwing', async () => {
