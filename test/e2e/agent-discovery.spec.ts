@@ -1,6 +1,7 @@
 import { expect, test } from './test-utils'
 
 const LINK_RE = /\]\((https:\/\/skilld\.dev[^)\s]+)\)/g
+const DISCOVERY_PATH_RE = /^\/llms\/[^/]+\.txt$/i
 
 test.describe('agent discovery', () => {
   test('the AI sitemap answers HEAD the way it answers GET', async ({ request, baseURL }) => {
@@ -19,19 +20,56 @@ test.describe('agent discovery', () => {
     const index = await request.get(`${baseURL}/llms.txt`)
     expect(index.status()).toBe(200)
     const text = await index.text()
-    expect(text.length).toBeLessThan(100_000)
+    expect(text.length).toBeLessThanOrEqual(80_000)
     expect(text).not.toContain('llms-full.txt')
+    expect(text).toContain('https://skilld.dev/agent.md')
+    expect(text).toContain('https://skilld.dev/.well-known/agent-skills/index.json')
+    expect(text).toContain('https://skilld.dev/SKILL.md')
+    expect(text).toContain('https://skilld.dev/.well-known/api-catalog')
+    expect(text).toContain('https://skilld.dev/api/v1/openapi.json')
+    expect(text).toContain('https://skilld.dev/ai-sitemap.xml')
 
-    const nested = [...text.matchAll(LINK_RE)].map(match => match[1]!).filter(url => url.includes('/llms/'))
-    const links = [...text.matchAll(LINK_RE)].map(match => match[1]!)
-    for (const url of nested) {
+    const visited = new Set<string>(['https://skilld.dev/llms.txt'])
+    const links = new Set([...text.matchAll(LINK_RE)].map(match => match[1]!))
+    const pending = [...links].filter(url => DISCOVERY_PATH_RE.test(new URL(url).pathname))
+    while (pending.length) {
+      const url = pending.shift()!
+      if (visited.has(url))
+        continue
+      visited.add(url)
       const res = await request.get(local(url))
       expect(res.status(), url).toBe(200)
-      links.push(...[...(await res.text()).matchAll(LINK_RE)].map(match => match[1]!))
+      const child = await res.text()
+      expect(child.length, url).toBeLessThanOrEqual(80_000)
+      expect(child, url).not.toContain('llms-full.txt')
+      expect(child, url).not.toContain('/__sitemap__/retired')
+      for (const match of child.matchAll(LINK_RE)) {
+        const href = match[1]!
+        links.add(href)
+        if (DISCOVERY_PATH_RE.test(new URL(href).pathname))
+          pending.push(href)
+      }
+      const head = await request.head(local(url))
+      expect(head.status(), url).toBe(200)
+      expect(head.headers()['content-type'], url).toContain('text/plain')
     }
-    for (const url of new Set(links)) {
+    for (const url of links) {
+      expect(new URL(url).pathname, url).not.toMatch(/^\/skills\/[^/]+\/[^/]+\/[^/]+$/)
+      expect(new URL(url).pathname, url).not.toContain('/__sitemap__/retired')
       const res = await request.get(local(url), { maxRedirects: 0 })
       expect(res.status(), url).toBe(200)
     }
+  })
+
+  test('generated discovery files enforce their HTTP methods and unknown paths', async ({ request }) => {
+    const head = await request.head('/llms.txt')
+    expect(head.status()).toBe(200)
+    expect(head.headers()['content-type']).toContain('text/plain')
+    expect(await head.body()).toHaveLength(0)
+    expect((await request.post('/llms.txt')).status()).toBe(405)
+    expect((await request.get('/llms/missing-discovery-file.txt')).status()).toBe(404)
+    const full = await request.get('/llms-full.txt', { maxRedirects: 0 })
+    expect(full.status()).toBe(302)
+    expect(full.headers().location).toBe('/llms.txt')
   })
 })
