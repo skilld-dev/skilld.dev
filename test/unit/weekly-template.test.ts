@@ -3,6 +3,7 @@ import type { WeeklyRenderInput, WeeklyTrendingSkill } from '../../layers/identi
 import { describe, expect, it } from 'vitest'
 import { formatWindow, renderWeekly, renderWeeklyPreview } from '../../layers/identity/server/utils/weekly-template'
 import { SPARK_BARS } from '../../shared/braille-spark'
+import { compactWeeklyPreview } from '../../shared/weekly-preview'
 
 const WINDOW_END = 1_755_648_000
 const WINDOW_START = WINDOW_END - 7 * 86_400
@@ -40,18 +41,33 @@ function trending(overrides: Partial<WeeklyTrendingSkill> = {}): WeeklyTrendingS
 }
 
 describe('weekly template', () => {
+  it('keeps a multi-row browser preview smaller than the delivered email card', () => {
+    const source = input({ likedChanges: [likedChange(), likedChange(), likedChange()] })
+    const email = renderWeekly(source).card
+    const preview = compactWeeklyPreview(renderWeeklyPreview(source))
+    expect(Buffer.byteLength(JSON.stringify(preview))).toBeLessThan(Buffer.byteLength(JSON.stringify(email)) * 0.65)
+  })
   it('keeps preview content and links while email retains inline colours', () => {
     const source = input({ trending: [trending()] })
     const email = renderWeekly(source).card
-    const preview = renderWeeklyPreview(source)
+    const preview = compactWeeklyPreview(renderWeeklyPreview(source))
     const emailElement = document.createElement('div')
     const previewElement = document.createElement('div')
     emailElement.innerHTML = email
     previewElement.innerHTML = preview
     expect(previewElement.textContent?.replace(/\s+/g, '')).toBe(emailElement.textContent?.replace(/\s+/g, ''))
     expect([...previewElement.querySelectorAll('a')].map(a => a.href)).toEqual([...emailElement.querySelectorAll('a')].map(a => a.href))
+    expect([...previewElement.querySelectorAll('img')].map(image => [image.src, image.width, image.height, image.alt])).toEqual([...emailElement.querySelectorAll('img')].map(image => [image.src, image.width, image.height, image.alt]))
     expect(preview).toContain('var(--email-')
     expect(email).not.toContain('var(--email-')
+  })
+  it('keeps new preview styles as inline fallbacks', () => {
+    const card = '<table><tr><td style="color:rebeccapurple;padding:19px">Future layout</td></tr></table>'
+    const element = document.createElement('div')
+    element.innerHTML = compactWeeklyPreview(card)
+    expect(element.querySelector('td')?.style.color).toBe('rebeccapurple')
+    expect(element.querySelector('td')?.style.padding).toBe('19px')
+    expect(element.textContent).toBe('Future layout')
   })
   it('states the star count once for a star-only row', () => {
     const { html, text } = renderWeekly(input({

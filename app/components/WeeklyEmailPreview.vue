@@ -5,6 +5,9 @@
  */
 
 import type { DigestDemoResponse } from '#layers/identity/server/api/digest/demo.get'
+import { compactWeeklyPreview, weeklyPreviewCss } from '#shared/weekly-preview'
+
+useHead({ style: [{ key: 'weekly-preview', innerHTML: weeklyPreviewCss }] })
 
 // A failed demo costs the section its picture, never its copy or its CTA:
 // `data` stays null on error and `hasDemo` gates the whole frame.
@@ -12,7 +15,7 @@ import type { DigestDemoResponse } from '#layers/identity/server/api/digest/demo
 // the whole email as `html`, which this preview never renders.
 const { data: demo } = await useFetch('/api/digest/demo', {
   key: 'home-digest-demo-v2',
-  transform: ({ card, rowCount }: DigestDemoResponse) => ({ card, rowCount }),
+  transform: ({ card, rowCount }: DigestDemoResponse) => ({ card: compactWeeklyPreview(card), rowCount }),
 })
 
 const hasDemo = computed(() => !!demo.value?.card && (demo.value?.rowCount ?? 0) > 0)
