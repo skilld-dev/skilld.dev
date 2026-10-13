@@ -15,6 +15,7 @@ import { skillContentSha256 } from './skill-content-hash'
 import { parseSkillFile, registrySkillName } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { parseSkillMd } from './skill-md-render'
+import { findSkillRenames, skillRenameStatements } from './skill-rename'
 import { resolveSkillTrust } from './skill-trust'
 
 export interface SyncRepoStats {
@@ -24,6 +25,8 @@ export interface SyncRepoStats {
   reason?: string
   skillsSeen: number
   skillsUpserted: number
+  /** Skills this sync followed to a new folder name (ADR-0017). */
+  skillsRenamed?: number
   /** Files present upstream that GitHub will not return as text. */
   skillsUnreadable: number
   revisionsInserted: number
@@ -1575,8 +1578,15 @@ export async function syncRepo(
   // judgement has to wait for every chunk. Rows acknowledged by an earlier
   // invocation carry this run's stable last_synced_at checkpoint.
   const finalWrites: D1PreparedStatement[] = []
-  for (const [name, skill] of existing) {
-    if (!seenNames.has(name) && skill.last_synced_at !== now) {
+  const missing = [...existing]
+    .filter(([name, skill]) => !seenNames.has(name) && skill.last_synced_at !== now)
+    .map(([name]) => name)
+  // A missing Skill whose body reappears under a name this sync added was
+  // renamed, not removed. Its rows follow it, and its old URLs redirect.
+  const renames = await findSkillRenames(db, { owner, repo, missing, checkedAt: now })
+  const renamedFrom = new Set(renames.map(rename => rename.from))
+  for (const name of missing) {
+    if (!renamedFrom.has(name)) {
       finalWrites.push(db.prepare(
         `UPDATE skills
            SET source_resolved = 0,
@@ -1594,6 +1604,9 @@ export async function syncRepo(
       ).bind(now, now, owner, repo, name))
     }
   }
+  for (const rename of renames)
+    finalWrites.push(...skillRenameStatements(rename).map(statement => db.prepare(statement.sql).bind(...statement.params)))
+  stats.skillsRenamed = renames.length
 
   // The content cursor is written last and only once every slice has committed.
   // A run that fails partway leaves the tree unacknowledged, so the next run

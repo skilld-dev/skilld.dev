@@ -1,4 +1,5 @@
 import { findRepositoryAlias } from './repository-aliases'
+import { findSkillAlias } from './skill-aliases'
 
 export interface SkillRunIdentityQuery {
   owner: string
@@ -36,6 +37,7 @@ interface IdentityRow {
  *
  * A Repository that moved keeps answering under its old name, so a run
  * command printed before the move resolves the identity the page shows now.
+ * A renamed Skill does the same under its old Skill name (ADR-0017).
  */
 export async function findSkillRunIdentity(
   db: D1Database,
@@ -44,6 +46,9 @@ export async function findSkillRunIdentity(
   const identity = await findAdmittedIdentity(db, query)
   if (identity)
     return identity
+  const renamed = await findSkillAlias(db, { owner: query.owner, repo: query.repository, name: query.name })
+  if (renamed)
+    return await findAdmittedIdentity(db, { owner: query.owner, repository: query.repository, name: renamed.targetName })
   const alias = await findRepositoryAlias(db, { owner: query.owner, repo: query.repository })
   if (!alias)
     return null
