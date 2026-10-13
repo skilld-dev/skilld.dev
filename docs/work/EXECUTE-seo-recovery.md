@@ -26,6 +26,14 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-10-13 Cloudflare's GraphQL Analytics API (`httpRequestsAdaptiveGroups`, zone `skilld.dev`) counted 2,219 verified Googlebot requests from 2026-10-06 to 2026-10-12 UTC, about 317 a day.
+  By status: 200: 1,918. 403: 172. 301: 60. 404: 51. 204: 15. 524: 2. 410: 1. Unverified "Googlebot" user agents made 92 requests.
+  All 172 verified 403 responses were OG image URLs under `/_og/d/…png`, refused by nuxt-og-image's signature check in the Worker.
+  127 had no signature, and 45 had a signature that no longer verifies. The og:image URLs of the home page and 2 Skill pages returned 200.
+  This read does not split discovery from refresh. The query and its baseline table are in Weekly measurement step 2.
+  gscdump.com `docs/work/EXECUTE-bing-search-data-expansion.md` dates the Bing fix: a fixed-IP relay, [#628](https://github.com/harlan-zw/gscdump.com/pull/628), shipped on 2026-10-01 at 17:35 UTC.
+  Its 2026-10-10 audit recorded seven completed skilld.dev search-data jobs on 4 to 10 October, with every dataset `ready`. Pages and Keywords held zero rows.
+
 - 2026-10-11 readiness read with NuxtSEO CLI 0.5.8 matched all 41 watches, with no missing or empty Checkpoint lists.
   No Checkpoint changed from the earlier 10 October read. Latest Checkpoints span 4 to 8 October UTC.
   This is readiness evidence, not the first weekly measurement.
@@ -295,6 +303,36 @@ Report unavailable evidence separately from a missing Sitemap. Do not submit or 
    | HTML share | 10% |
    | Share of 404, 410 and 301 responses | 21% |
 
+   Then read Googlebot requests by status from Cloudflare's GraphQL Analytics API, zone `skilld.dev`.
+   The query reads `httpRequestsAdaptiveGroups` with `userAgent_like: "%Googlebot%"` and groups by `edgeResponseStatus`.
+   A row with `verifiedBotCategory: "Search Engine Crawler"` is verified Googlebot. Any other row is an unverified user agent that names Googlebot.
+   The Free plan keeps 31 days of these rows, so read every week. Move both date filters forward 7 days for each reading.
+   Send it to `https://api.cloudflare.com/client/v4/graphql` with a Zone Analytics Read token from the environment. Never write the token here.
+   This read does not split discovery from refresh. The Search Console UI stays the source for discovery share.
+
+   ```graphql
+   query GooglebotVerified($zoneTag: string!) {
+     viewer {
+       zones(filter: { zoneTag: $zoneTag }) {
+         byStatus: httpRequestsAdaptiveGroups(limit: 200, orderBy: [count_DESC], filter: { datetime_geq: "2026-10-06T00:00:00Z", datetime_lt: "2026-10-13T00:00:00Z", requestSource: "eyeball", userAgent_like: "%Googlebot%" }) { count dimensions { edgeResponseStatus verifiedBotCategory } }
+         blocked: httpRequestsAdaptiveGroups(limit: 500, orderBy: [count_DESC], filter: { datetime_geq: "2026-10-06T00:00:00Z", datetime_lt: "2026-10-13T00:00:00Z", requestSource: "eyeball", userAgent_like: "%Googlebot%", edgeResponseStatus_in: [403, 429] }) { count dimensions { edgeResponseStatus verifiedBotCategory clientRequestPath edgeResponseContentTypeName securityAction securitySource originResponseStatus } }
+       }
+     }
+   }
+   ```
+
+   Pass `{ "zoneTag": "632f05c809f879ddb0cd77e845e515f5" }`, the zone ID of `skilld.dev`, as the variables.
+
+   | Signal, 2026-10-06 to 2026-10-12 UTC | Baseline |
+   | --- | --- |
+   | Verified Googlebot requests | 2,219, about 317 a day |
+   | Verified, by status | 200: 1,918. 403: 172. 301: 60. 404: 51. 204: 15. 524: 2. 410: 1 |
+   | Unverified "Googlebot" user agents | 92 requests |
+
+   All 172 verified 403 responses in that window were OG image URLs under `/_og/d/…png`.
+   The Worker answered them through nuxt-og-image's signature check: 127 URLs had no signature, and 45 had a signature that no longer verifies.
+   On 2026-10-13, the og:image URLs of the home page and 2 Skill pages returned 200.
+
 3. Read impressions and clicks over 7 days, and impressions for the brand query `skilld`.
 4. Read clean referring domains from separately dated retained evidence, and GitHub and Bing referral sessions.
    If backlink evidence is unavailable, say so. Do not start paid research to discover whether a result is cached.
@@ -314,7 +352,10 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 
 - Measures: Bing's per-URL index status for the panel. The original 40-URL baseline is 2026-09-30.
 - Setup: skilld.dev was connected to Bing in gscdump on 2026-09-30 and held no data. Harlan submits `https://skilld.dev/sitemap_index.xml` in Bing Webmaster Tools. IndexNow submission moves to another service (owner decision, 2026-10-01). [#320](https://github.com/skilld-dev/skilld.dev/pull/320) stays in draft.
-- Limit: since 2026-09-09, gscdump reads of Bing traffic and crawl data fail for every site. Only Bing's per-URL index status works.
+- Bing data: from about 2026-09-08, Bing refused gscdump's calls from Cloudflare's shared egress IPs (`ThrottleIP`), so its traffic and crawl reads failed for every Site.
+  gscdump.com [#628](https://github.com/harlan-zw/gscdump.com/pull/628) sends Bing Webmaster API calls through a fixed-IP relay. It shipped on 2026-10-01 at 17:35 UTC.
+  gscdump's audit on 2026-10-10 recorded seven completed skilld.dev search-data jobs on 4 to 10 October, with every dataset `ready`. Pages and Keywords held zero rows.
+  Source: gscdump.com `docs/work/EXECUTE-bing-search-data-expansion.md`, Log entries dated 2026-10-01 to 2026-10-10.
 - Read on 2026-10-12, after the spam update ends.
 - Scale rule: if Bing indexes the curated pages and Google does not, the content can be indexed. The problem is Google's verdict on the domain.
 - Bonus: Bing feeds ChatGPT and Copilot answers.
