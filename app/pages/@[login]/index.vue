@@ -34,6 +34,16 @@ const {
 const skills = computed(() => skillsData.value?.items ?? [])
 type AuthorSkill = NonNullable<typeof skillsData.value>['items'][number]
 
+// `/@<login>` is an Author when skilld.dev holds an account or Skills for the
+// login. A collection needs an account, so these two cover every Author. Any
+// other login is a made-up URL: it answers 404, never an empty 200 page.
+const { error: accountError } = await useFetch(
+  () => `/api/users/${login.value}`,
+  { key: () => `author-account-${login.value}` },
+)
+if (accountError.value?.statusCode === 404 && !skillsError.value && skills.value.length === 0)
+  throw createError({ statusCode: 404, message: 'Author not found', fatal: true })
+
 interface SkillGroup {
   key: string
   owner: string

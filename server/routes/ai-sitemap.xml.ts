@@ -1,12 +1,17 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { assertMethod } from 'h3'
+
 // 2026-08-22 agent lane: an agent-only sitemap listing
 // every AI-ready page, including pages that are noindex for Google. Referenced
 // from llms.txt only, never robots.txt, so it cannot couple agent discovery to
 // the Google recovery surface. Google officially ignores llms.txt, and even if
 // it found this file the worst case is minor crawl waste on URLs that answer
 // noindex.
+// No `.get` suffix: h3 routes a HEAD only to a handler with no method, so a
+// `.get` route answered HEAD with the 404 page while GET answered 200.
 export default defineEventHandler(async (event) => {
+  assertMethod(event, 'GET', true)
   const db = event.context.platform?.db
   if (!db) {
     throw createError({ statusCode: 503, statusMessage: 'AI sitemap unavailable' })

@@ -36,7 +36,10 @@ export function resolveSkillsRoute(
 ): SkillsRouteDecision {
   if (!pathname.startsWith('/skills/') && pathname !== '/skills')
     return { _tag: 'pass' }
-  if (marketingPaths.has(pathname)
+  // `/skills/planning.md` is the Markdown of `/skills/planning`. Accept
+  // negotiation redirects there, so it passes whenever the page does.
+  const pagePath = pathname.endsWith('.md') ? pathname.slice(0, -'.md'.length) : pathname
+  if (marketingPaths.has(pagePath)
     || marketingPrefixes.some(prefix => pathname.startsWith(prefix))) {
     return { _tag: 'pass' }
   }

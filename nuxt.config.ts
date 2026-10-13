@@ -8,6 +8,7 @@ import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat.t
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough.ts'
 import { externalCheckin } from './shared/checkin-external.ts'
 import { iconifyCollections } from './shared/icon-collections.ts'
+import { REGISTRY_SKILL } from './shared/llms-txt.ts'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry.ts'
 import { SESSION_NAME } from './shared/server/session-access.ts'
 import { CLI_INSTALL_SCRIPTS } from './shared/skill-commands.ts'
@@ -52,22 +53,6 @@ export default defineNuxtConfig({
         nitroConfig.publicAssets || [],
         '/_nuxt/v2/',
       )
-    },
-    // 2026-08-22 agent lane, where agents discover pages without Google's
-    // sitemap: list the agent-only sitemap in llms.txt. The module's `notes` config exists but never renders, so
-    // this pushes a link into the first section instead.
-    'ai-ready:llms-txt': (payload: { sections?: { links?: { title: string, href: string, description?: string }[] }[], notes: string[] }) => {
-      const section = payload.sections?.[0]
-      if (!section)
-        return
-      section.links ??= []
-      if (!section.links.some(l => l.href.includes('/ai-sitemap.xml'))) {
-        section.links.push({
-          title: 'AI sitemap',
-          href: 'https://skilld.dev/ai-sitemap.xml',
-          description: 'Every AI-ready page, including pages that are noindex for Google.',
-        })
-      }
     },
   },
 
@@ -313,11 +298,15 @@ export default defineNuxtConfig({
     },
     cron: false,
     runtimeSync: true,
-    // llms.txt is an index, not a dump: each entry links the page's .md.
-    // The 28.5 MB llms-full.txt inline dump is retired below (routeRules).
-    llmsTxt: {
-      markdownLinks: true,
+    // Content Signals for robots.txt: allow search, AI input, and AI training.
+    contentSignal: {
+      search: true,
+      aiInput: true,
+      aiTrain: true,
     },
+    // `server/middleware/llms-txt.ts` serves /llms.txt and its nested files
+    // from the sitemaps, ahead of the module's route. The 28.5 MB
+    // llms-full.txt inline dump is retired below (routeRules).
     // The module's negotiation also reads User-Agent, which a shared cache
     // cannot key on. server/handlers/content-negotiation.ts decides from
     // Accept and Sec-Fetch-Dest instead. Explicit `.md` URLs and the
@@ -349,8 +338,7 @@ export default defineNuxtConfig({
     agentSkills: {
       skills: [{
         source: 'local',
-        name: 'skilld-registry',
-        description: 'Search skilld.dev and return verified commands to run or install a skill.',
+        ...REGISTRY_SKILL,
         file: './skills/skilld-registry/SKILL.md',
       }],
     },
@@ -654,9 +642,9 @@ export default defineNuxtConfig({
     // empty sibling redirects instead of shipping next to it.
     '/brand-kit/_GithubBadgePreview': { redirect: { to: '/brand-kit/github-badge', statusCode: 301 } } as any,
     // 2026-08-22: llms-full.txt inlined every page's markdown into one 28.5 MB
-    // file; agents truncate or time out on it. llms.txt now links each page's
-    // .md (aiReady.llmsTxt.markdownLinks), so the dump redirects there. 302 so
-    // this reverses the moment per-section splitting is worth building.
+    // file; agents truncate or time out on it. llms.txt is now a root index
+    // with one nested file per sitemap, and nothing links llms-full.txt. The
+    // redirect keeps old bookmarks working.
     '/llms-full.txt': { redirect: { to: '/llms.txt', statusCode: 302 } } as any,
     // The printed native install commands. `CLI_INSTALL_SCRIPTS` says why each is a 302.
     '/install.sh': { redirect: { to: CLI_INSTALL_SCRIPTS['/install.sh'], statusCode: 302 } } as any,

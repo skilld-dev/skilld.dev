@@ -94,20 +94,23 @@ minimumReleaseAgeExclude:
   - '@sentry/vue@11.1.0'
   - motion-v@2.5.1
   - '@nuxtjs/seo@6.0.1'
-  - '@nuxtjs/robots@7.0.1'
-  - '@nuxtjs/sitemap@9.0.1'
-  - nuxt-og-image@7.0.1
-  - nuxt-ai-ready@3.0.1
-  - nuxt-skew-protection@2.0.1
-  - nuxt-schema-org@7.0.0
+  - '@nuxtjs/robots@7.0.2'
+  - '@nuxtjs/sitemap@9.1.0'
+  - nuxt-og-image@7.0.3
+  - nuxt-ai-ready@3.1.0
+  - nuxt-skew-protection@2.0.2
+  - nuxt-schema-org@7.0.1
   - nuxt-seo-utils@9.0.0
-  - nuxt-link-checker@6.0.0
-  - nuxt-site-config@5.0.1
-  - nuxt-site-config-kit@5.0.1
-  - site-config-stack@5.0.1
-  - nuxtseo-shared@6.0.0 || 6.0.1
-  - nuxtseo-devtools-host@1.0.0
-  - nuxtseo-layer-devtools@6.0.0
+  - nuxt-link-checker@6.0.1
+  - nuxt-site-config@5.0.3
+  - nuxt-site-config-kit@5.0.3
+  - site-config-stack@5.0.3
+  - nuxtseo-shared@6.0.2
+  - nuxtseo-devtools-host@1.0.2
+  - nuxtseo-layer-devtools@6.0.2
+  - unhead@3.4.3
+  - '@unhead/vue@3.4.3'
+  - '@unhead/bundler@3.4.3'
   - '@takumi-rs/core-darwin-arm64@2.15.0'
   - '@takumi-rs/core-darwin-x64@2.15.0'
   - '@takumi-rs/core-linux-arm64-gnu@2.15.0'
@@ -307,7 +310,7 @@ catalog:
   motion-v: ^2.5.1
   nuxt: ^4.6.1
   nuxt-auth-utils: ^0.5.30
-  nuxtseo-devtools-host: ^1.0.0
+  nuxtseo-devtools-host: ^1.0.2
   rangi: ^2.2.0
   # The header menu imports reka-ui directly. Keep it equal to the version
   # @nuxt/ui pins, or the client ships two copies.
