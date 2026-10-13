@@ -22,7 +22,8 @@ vi.mock('../../layers/identity/server/utils/skill-validation-email', () => ({ se
 // Simulate GitHub's callback: it carries code and state, never our query fields.
 describe('gitHub browser login round trip', () => {
   let handler: (event: H3Event) => Promise<unknown>
-  let query: Record<string, string>
+  let query: Record<string, string | string[]>
+  let stateCookie: string | undefined
   let intent: Record<string, unknown>
   let failure: boolean
   let providerFailure: boolean
@@ -35,6 +36,7 @@ describe('gitHub browser login round trip', () => {
     vi.resetModules()
     vi.clearAllMocks()
     query = {}
+    stateCookie = 'valid-state'
     intent = {}
     failure = false
     providerFailure = false
@@ -42,7 +44,7 @@ describe('gitHub browser login round trip', () => {
     mocks.welcome.mockResolvedValue('accepted')
     mocks.replay.mockResolvedValue(undefined)
     vi.stubGlobal('getQuery', () => query)
-    vi.stubGlobal('getCookie', () => undefined)
+    vi.stubGlobal('getCookie', () => stateCookie)
     vi.stubGlobal('deleteCookie', vi.fn())
     vi.stubGlobal('defineEventHandler', (fn: unknown) => fn)
     vi.stubGlobal('setUserSession', mocks.establish)
@@ -71,6 +73,23 @@ describe('gitHub browser login round trip', () => {
       })
     })
     handler = (await import('../../layers/identity/server/routes/auth/github.get')).default as typeof handler
+  })
+
+  it.each([
+    ['missing query and cookie', undefined, undefined],
+    ['missing query state', undefined, 'valid-state'],
+    ['missing cookie', 'valid-state', undefined],
+    ['empty query and cookie', '', ''],
+    ['empty query state', '', 'valid-state'],
+    ['empty cookie', 'valid-state', ''],
+    ['duplicate query state', ['valid-state', 'valid-state'], 'valid-state'],
+    ['mismatched state', 'other-state', 'valid-state'],
+  ])('rejects %s before establishing identity', async (_label, state, cookie) => {
+    query = { code: 'github-code', ...(state === undefined ? {} : { state }) }
+    stateCookie = cookie as string | undefined
+    expect(await handler(event)).toBe('/login?error=oauth')
+    expect(mocks.upsert).not.toHaveBeenCalled()
+    expect(mocks.establish).not.toHaveBeenCalled()
   })
 
   it('sends the new account welcome without subscribing to recurring emails', async () => {
