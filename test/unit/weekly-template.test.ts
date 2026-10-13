@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import type { WeeklyRenderInput, WeeklyTrendingSkill } from '../../layers/identity/server/utils/weekly-template'
 import { describe, expect, it } from 'vitest'
-import { formatWindow, renderWeekly } from '../../layers/identity/server/utils/weekly-template'
+import { formatWindow, renderWeekly, renderWeeklyPreview } from '../../layers/identity/server/utils/weekly-template'
 import { SPARK_BARS } from '../../shared/braille-spark'
 
 const WINDOW_END = 1_755_648_000
@@ -40,6 +40,19 @@ function trending(overrides: Partial<WeeklyTrendingSkill> = {}): WeeklyTrendingS
 }
 
 describe('weekly template', () => {
+  it('keeps preview content and links while email retains inline colours', () => {
+    const source = input({ trending: [trending()] })
+    const email = renderWeekly(source).card
+    const preview = renderWeeklyPreview(source)
+    const emailElement = document.createElement('div')
+    const previewElement = document.createElement('div')
+    emailElement.innerHTML = email
+    previewElement.innerHTML = preview
+    expect(previewElement.textContent?.replace(/\s+/g, '')).toBe(emailElement.textContent?.replace(/\s+/g, ''))
+    expect([...previewElement.querySelectorAll('a')].map(a => a.href)).toEqual([...emailElement.querySelectorAll('a')].map(a => a.href))
+    expect(preview).toContain('var(--email-')
+    expect(email).not.toContain('var(--email-')
+  })
   it('states the star count once for a star-only row', () => {
     const { html, text } = renderWeekly(input({
       trending: [trending({ reason: { _tag: 'popular', stars: 46_712 }, stars: 46_712 })],

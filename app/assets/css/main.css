@@ -875,6 +875,25 @@
   content: none;
 }
 
+/* Shared GitHub token palette. Persisted inline colours remain supported. */
+.shj-kwd { color: #cf222e; --shiki-dark: #ff7b72; }
+.shj-oper { color: #cf222e; --shiki-dark: #ff7b72; }
+.shj-err { color: #82071e; --shiki-dark: #ffa198; }
+.shj-deleted { color: #82071e; --shiki-dark: #ffa198; }
+.shj-class { color: #953800; --shiki-dark: #ffa657; }
+.shj-cmnt { color: #6e7781; --shiki-dark: #8b949e; }
+.shj-bracket { color: #57606a; --shiki-dark: #8b949e; }
+.shj-num { color: #0550ae; --shiki-dark: #79c0ff; }
+.shj-bool { color: #0550ae; --shiki-dark: #79c0ff; }
+.shj-type { color: #0550ae; --shiki-dark: #79c0ff; }
+.shj-section { color: #0550ae; --shiki-dark: #79c0ff; }
+.shj-var { color: #0550ae; --shiki-dark: #79c0ff; }
+.shj-str { color: #0a3069; --shiki-dark: #a5d6ff; }
+.shj-func { color: #8250df; --shiki-dark: #d2a8ff; }
+.shj-insert { color: #116329; --shiki-dark: #7ee787; }
+.shj-esc { color: #1f2328; --shiki-dark: #e6edf3; }
+.dark :is(.shj-esc, .shj-kwd, .shj-oper, .shj-err, .shj-deleted, .shj-class, .shj-cmnt, .shj-bracket, .shj-num, .shj-bool, .shj-type, .shj-section, .shj-var, .shj-str, .shj-func, .shj-insert) { color: var(--shiki-dark); }
+
 /* Highlighted code (rangi). The light colour is inlined on each token and the
    dark one rides along as `--shiki-dark`, so dark mode has to win over an
    inline style. */
@@ -1234,4 +1253,36 @@
   background-size: 7px 5px;
   opacity: 0.28;
   pointer-events: none;
+}
+
+
+/* The email preview shares one card across both colour modes. */
+.weekly-preview {
+  --email-page: #f5f4f2;
+  --email-surface: #ffffff;
+  --email-border: #e7e5e4;
+  --email-borderStrong: #d6d3d1;
+  --email-text: #1c1917;
+  --email-body: #44403c;
+  --email-muted: #6b625c;
+  --email-faint: #6b625c;
+  --email-accent: #be123c;
+  --email-onAccent: #ffffff;
+  --email-quote: #fafaf9;
+  --email-mark: #fb7185;
+}
+
+.dark .weekly-preview {
+  --email-page: #14110d;
+  --email-surface: #1c1917;
+  --email-border: #3a342c;
+  --email-borderStrong: #4d453b;
+  --email-text: #ede9e4;
+  --email-body: #cdc6bd;
+  --email-muted: #9c9389;
+  --email-faint: #7a726a;
+  --email-accent: #fb7185;
+  --email-onAccent: #1c1917;
+  --email-quote: #211d18;
+  --email-mark: #fb7185;
 }
