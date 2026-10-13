@@ -10,7 +10,8 @@ describe('highlightCodeBody', () => {
 
   it('colours the badge snippet and keeps its text', () => {
     const html = highlightCodeBody(snippet, 'html')
-    expect(html).toContain('--shiki-dark:')
+    expect(html).toContain('class="shj-')
+    expect(html).not.toContain('style=')
     expect(decode(stripTags(html))).toBe(snippet)
   })
 

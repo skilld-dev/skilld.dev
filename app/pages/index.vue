@@ -79,9 +79,11 @@ const [
 ] = await Promise.all([
   withHomeDataTiming('home-updates', useFetch<RecentUpdatesResponse>('/api/feed/recent-updates', {
     key: 'home-recent-updates-v2',
+    transform: feed => ({ ...feed, items: feed.items.slice(0, 5) }),
   })),
   withHomeDataTiming('home-publishes', useFetch<RecentPublishesResponse>('/api/feed/recent-publishes', {
     key: 'home-recent-publishes-v2',
+    transform: feed => ({ ...feed, items: feed.items.slice(0, 5) }),
   })),
   // Server-rendered rather than lazy: the section is one of the few places on
   // the homepage whose content changes hourly, and the endpoint is cached at

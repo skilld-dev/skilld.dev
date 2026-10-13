@@ -11,20 +11,16 @@ import type { DigestDemoResponse } from '#layers/identity/server/api/digest/demo
 // Only the card and its row count reach the payload. The answer also carries
 // the whole email as `html`, which this preview never renders.
 const { data: demo } = await useFetch('/api/digest/demo', {
-  key: 'home-digest-demo-v1',
+  key: 'home-digest-demo-v2',
   transform: ({ card, rowCount }: DigestDemoResponse) => ({ card, rowCount }),
 })
 
 const hasDemo = computed(() => !!demo.value?.card && (demo.value?.rowCount ?? 0) > 0)
 
 /**
- * The preview follows the page's colour mode. Both cards ship in the payload,
- * so switching themes costs no request.
+ * CSS changes the card's palette. Switching themes costs no request.
  */
-const colorMode = useColorMode()
-const card = computed(() =>
-  colorMode.value === 'dark' ? demo.value?.card.dark : demo.value?.card.light,
-)
+const card = computed(() => demo.value?.card)
 </script>
 
 <template>
@@ -38,7 +34,7 @@ const card = computed(() =>
     <p class="data-label">
       Example Skill updates · real commits
     </p>
-    <div class="home-weekly-frame" aria-hidden="true" inert>
+    <div class="weekly-preview home-weekly-frame" aria-hidden="true" inert>
       <!-- eslint-disable-next-line vue/no-v-html -->
       <div class="home-weekly-card" v-html="card" />
     </div>

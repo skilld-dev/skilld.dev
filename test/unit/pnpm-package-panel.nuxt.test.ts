@@ -46,7 +46,7 @@ describe('npm package install option', () => {
   it('shows package approval and switches to skills-npm setup', async () => {
     const wrapper = await mountSuspended(SkillPnpmPackage, { props: { published } })
     expect(wrapper.find('code').text()).toBe('pnpm add @acme/kit@1.2.3')
-    expect(wrapper.find('code span[style]').exists()).toBe(true)
+    expect(wrapper.find('code span[class^="shj-"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Approval covers every Skill and later version of the package.')
     expect(wrapper.find('a').attributes('href')).toBe('https://www.npmjs.com/package/@acme/kit/v/1.2.3')
     await wrapper.findAll('button').find(button => button.text() === 'skills-npm')!.trigger('click')

@@ -5,11 +5,11 @@ import {
   publicDigestSkillSchema,
   publicDigestUpdatesSchema,
 } from '../../utils/public-digest'
-import { renderWeekly } from '../../utils/weekly-template'
+import { renderWeekly, renderWeeklyPreview } from '../../utils/weekly-template'
 
 /** A sample watch list built from real public changes, never personal subscriptions. */
 export interface DigestDemoResponse {
-  card: { light: string, dark: string }
+  card: string
   html: string
   subject: string
   windowEnd: number
@@ -49,10 +49,23 @@ export default defineCachedEventHandler(defineApiHandler({ handler: async () => 
   })
   const light = render('light')
   return {
-    card: { light: light.card, dark: render('dark').card },
+    card: renderWeeklyPreview({
+      edition: 'digest',
+      changeSource: 'watches',
+      login: null,
+      windowStart,
+      windowEnd,
+      likedChanges: changes,
+      likedOverflow: 0,
+      trackedCount: changes.length,
+      trending: [],
+      siteUrl: 'https://skilld.dev',
+      settingsUrl: 'https://skilld.dev/me',
+      unsubscribeUrl: 'https://skilld.dev/me',
+    }),
     html: light.html,
     subject: light.subject,
     windowEnd,
     rowCount: changes.length,
   }
-} }), { maxAge: 3600, swr: true, name: 'public-digest-demo-v4' })
+} }), { maxAge: 3600, swr: true, name: 'public-digest-demo-v5' })

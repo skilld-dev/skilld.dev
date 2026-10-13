@@ -69,9 +69,8 @@ license: MIT
     ].join('\n'))
 
     expect(html).toContain('class="rangi shiki shj-lang-bash"')
-    // The light colour is inlined and the dark one rides along as a variable,
-    // so one block serves both themes.
-    expect(html).toMatch(/style="color:#[0-9a-f]{3,8};--shiki-dark:#[0-9a-f]{3,8}"/i)
+    expect(html).toMatch(/class="shj-[a-z]+"/)
+    expect(html).not.toContain('--shiki-dark:')
   })
 
   it('resolves fence aliases onto their canonical grammar', async () => {

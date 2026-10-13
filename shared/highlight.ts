@@ -1,18 +1,13 @@
-import type { ShjTheme, ShjToken, ShjTokenized } from 'rangi'
+import type { ShjTokenized } from 'rangi'
 import { tokenize } from 'rangi'
 import { aliases, languages } from 'rangi/languages'
-import { githubDark, githubLight } from 'rangi/themes'
 
 // rangi ships every grammar it knows in ~13 KB min+gzip and tokenizes
 // synchronously, so there is no highlighter to construct, no WASM engine to
 // instantiate under workerd, and no per-language chunk to load. Highlighting is
 // a pure function from (code, lang) to markup.
 //
-// The markup matches what `comark/plugins/rangi` emits for Learn content: the
-// light colour is inlined and the dark one rides along as `--shiki-dark`, so a
-// single stylesheet rule covers every highlighted block on the site.
-
-const THEME = { light: githubLight, dark: githubDark } satisfies Record<'light' | 'dark', ShjTheme>
+// Token colours live in main.css. Each token carries its class once.
 
 // Fragment grammars are reached only through another grammar's `sub`; they are
 // never a fence language. `plain`/`text`/`txt` stay unresolved on purpose so an
@@ -73,16 +68,11 @@ export function escapeHtml(s: string): string {
   return s.replace(HTML_ESCAPE_RE, c => HTML_ESCAPE[c]!)
 }
 
-function tokenColor(theme: ShjTheme, type: ShjToken): string {
-  return theme.tokens[type] ?? theme.fg
-}
-
 function renderToken(token: ShjTokenized): string {
   const text = escapeHtml(token.text)
   if (!token.type)
     return text
-  const style = `color:${tokenColor(THEME.light, token.type)};--shiki-dark:${tokenColor(THEME.dark, token.type)}`
-  return `<span class="shj-${token.type}" style="${style}">${text}</span>`
+  return `<span class="shj-${token.type}">${text}</span>`
 }
 
 /**

@@ -76,6 +76,12 @@ const PALETTE: Record<WeeklyTheme, Tokens> = {
   },
 }
 
+/** One theme-aware card for the website. Email keeps its fixed inline colours. */
+export function renderWeeklyPreview(input: WeeklyRenderInput): string {
+  const tokens = Object.fromEntries(Object.keys(PALETTE.light).map(key => [key, `var(--email-${key})`])) as unknown as Tokens
+  return renderWeekly(input, tokens).card.replace(/>\s+</g, '><')
+}
+
 const SANS = `'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`
 const MONO = `'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace`
 /**
@@ -698,9 +704,9 @@ function trackedLine(count: number): string {
   return `${count} ${plural(count, 'Skill', 'Skills')} tracked, no updates this week`
 }
 
-export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
+export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyRender {
   input = { ...input, trending: input.trending.slice(0, MAX_WEEKLY_TRENDING) }
-  const t = PALETTE[input.theme ?? 'light']
+  const t = tokens ?? PALETTE[input.theme ?? 'light']
   const now = input.windowEnd
   const window = formatWindow(input.windowStart, input.windowEnd)
   const subject = subjectFor(input)

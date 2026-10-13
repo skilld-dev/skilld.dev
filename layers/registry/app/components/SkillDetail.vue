@@ -16,8 +16,8 @@ import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { headlineTrendingAward, trendingAwardBadgeLabel, trendingAwardLabel, trendingAwardPath } from '#shared/trending-award'
 import { behaviorIcon } from '../utils/skill-behaviors'
-import { resolveSkillContextChecks } from '../utils/skill-context-checks'
 import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
+import { skillDetailPayload } from '../utils/skill-detail-payload'
 import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillPageState } from '../utils/skill-page-state'
@@ -168,13 +168,7 @@ interface MissingSkillSearchResponse {
   total: number
 }
 
-const skillFetch = useFetch(
-  () => `/api/skills/${slug.value}`,
-  {
-    watch: [slug],
-    immediate: true,
-  },
-) as ReturnType<typeof useFetch<{
+interface SkillDetailResponse {
   contentHtml: string | null
   frontmatter: Record<string, unknown> | null
   raw: string | null
@@ -256,7 +250,18 @@ const skillFetch = useFetch(
     isCanonical: boolean
     siblings: DuplicateSkill[]
   } | null
-}>>
+}
+
+type SkillDetailPayload = ReturnType<typeof skillDetailPayload<SkillDetailResponse>>
+
+const skillFetch = useFetch(
+  () => `/api/skills/${slug.value}`,
+  {
+    watch: [slug],
+    immediate: true,
+    transform: (detail: SkillDetailResponse) => skillDetailPayload(detail),
+  },
+) as ReturnType<typeof useFetch<SkillDetailPayload>>
 
 interface SkillRelatedResponse {
   commits: SkillCommit[]
@@ -355,6 +360,40 @@ if (import.meta.server)
   await Promise.all([skillFetch, liveSkillFetch, runFlagFetch, ...(initialFileFetch ? [initialFileFetch] : [])])
 
 const { data, status, error, refresh } = skillFetch
+const rootSource = shallowRef<{ slug: string, sha: string | null, html: string | null, raw: string | null } | null>(null)
+const rootRaw = computed(() => data.value?.raw ?? (
+  rootSource.value?.slug === slug.value
+  && rootSource.value.sha === data.value?.sourceFacts.source.currentSha
+  && rootSource.value.html === data.value?.contentHtml
+    ? rootSource.value.raw
+    : null
+))
+let sourceRequest: { slug: string, promise: Promise<string | null> } | null = null
+
+function loadRootRaw(): Promise<string | null> {
+  if (rootRaw.value || !data.value?.sourceView.hasRaw)
+    return Promise.resolve(rootRaw.value)
+  if (sourceRequest?.slug === slug.value)
+    return sourceRequest.promise
+  const requestedSlug = slug.value
+  const promise = $fetch<SkillDetailResponse>(`/api/skills/${requestedSlug}`).then((detail) => {
+    if (slug.value !== requestedSlug)
+      return null
+    // Replace the rendered content and metadata together if the source changed.
+    data.value = skillDetailPayload(detail)
+    rootSource.value = { slug: requestedSlug, sha: detail.sourceFacts.source.currentSha, html: detail.contentHtml, raw: detail.raw }
+    if (!detail.raw)
+      throw new Error('SKILL.md not found in source repository')
+    if (docLoadError.value?.path === 'SKILL.md')
+      docLoadError.value = null
+    return detail.raw
+  }).finally(() => {
+    if (sourceRequest?.promise === promise)
+      sourceRequest = null
+  })
+  sourceRequest = { slug: requestedSlug, promise }
+  return promise
+}
 
 interface StarHistoryResponse {
   starHistory: { _tag: 'ready', approximate: boolean, points: { at: number, value: number }[] } | { _tag: string }
@@ -541,19 +580,26 @@ function downloadSkillZip() {
     })
 }
 
-const contextCost = computed(() => data.value
-  ? resolveSkillContextCost({
-      raw: data.value.raw,
-      name: data.value.name,
-      description: data.value.description,
-      files: treeAssets.value,
-    })
-  : null)
+const contextCost = computed(() => {
+  if (!data.value)
+    return null
+  const cost = resolveSkillContextCost({
+    raw: rootRaw.value,
+    name: data.value.name,
+    description: data.value.description,
+    files: treeAssets.value,
+  })
+  if (!rootRaw.value) {
+    cost.totalBytes += data.value.sourceView.bytes
+    cost.tokens.instructions = data.value.sourceView.cost.tokens.instructions
+  }
+  return cost
+})
 
-const contextChecks = computed(() => resolveSkillContextChecks({
-  raw: data.value?.raw ?? null,
-  frontmatter: data.value?.frontmatter ?? null,
-}))
+const contextChecks = computed(() => data.value?.sourceView.checks ?? {
+  checks: [],
+  claudeListing: { _tag: 'unavailable' as const },
+})
 
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 const auditOverview = computed(() => resolveSkillAuditOverview(audits.value))
@@ -567,6 +613,14 @@ const AUDIT_TONE_CLASS = {
 } as const
 
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
+async function copyCurrentMarkdown() {
+  const raw = currentRaw.value ?? await loadRootRaw().catch((error: unknown) => {
+    docLoadError.value = { path: 'SKILL.md', message: error instanceof Error ? error.message : 'Failed to render markdown' }
+    return null
+  })
+  if (raw)
+    await copyMarkdown(raw)
+}
 
 const badgeInput = computed(() => data.value
   ? {
@@ -747,8 +801,10 @@ const { data: behaviorReadings } = useAsyncData<BehaviorReading[]>(
   () => `behavior-readings:${readingsBlob.value ?? 'none'}`,
   async () => {
     const blob = readingsBlob.value
-    const raw = data.value?.raw
-    if (!blob || !raw)
+    if (!blob)
+      return []
+    const raw = await loadRootRaw()
+    if (!raw || blob !== data.value?.sourceFacts.source.currentSha)
       return []
     const answer = await $fetch<BehaviorReadingsResponse>('/api/behavior-readings', { query: { blob } })
     return readingsForSkillMd(answer.items, raw)
@@ -792,7 +848,8 @@ const activeDocPath = ref<string>(initialFile ? props.file! : '')
 const subDocHtml = ref<string | null>(initialFile && initialFileIsMarkdown ? initialFile.html : null)
 const subDocRaw = ref<string | null>(initialFile?.raw ?? null)
 const currentDocLabel = computed(() => activeDocPath.value || 'SKILL.md')
-const currentRaw = computed(() => subDocRaw.value ?? data.value?.raw ?? null)
+const currentRaw = computed(() => subDocRaw.value ?? rootRaw.value)
+const hasCurrentRaw = computed(() => !!subDocRaw.value || !!data.value?.sourceView.hasRaw)
 const rawSourceUrl = computed(() => resolveSkillRawUrl({
   rootUrl: `/api/skills-raw/${slug.value}`,
   skillFileUrl: skillFileUrl.value || null,
@@ -958,12 +1015,18 @@ watch([contentView, currentRaw], ([view, raw], previous) => {
     rawPlain.value = null
     rawError.value = null
   }
-  if (!import.meta.client || view !== 'markdown' || !raw || rawHtml.value || rawPlain.value)
+  if (!import.meta.client || view !== 'markdown' || rawHtml.value || rawPlain.value)
     return
-  renderRaw(raw)
+  if (raw) {
+    renderRaw(raw)
+    return
+  }
+  loadRootRaw().catch((error: unknown) => {
+    rawError.value = error instanceof Error ? error.message : 'Failed to render markdown'
+  })
 }, { immediate: true })
 
-const skillMdBytes = computed(() => data.value?.raw ? new TextEncoder().encode(data.value.raw).byteLength : 0)
+const skillMdBytes = computed(() => data.value?.sourceView.bytes ?? 0)
 const viewerCrumbs = computed(() => currentDocLabel.value.split('/'))
 
 // What the open file costs the Agent's context, shown beside the file itself.
@@ -2139,11 +2202,11 @@ useHead(computed(() => ({
                 <span class="sr-only sm:not-sr-only">source</span>
               </button>
               <button
-                v-if="currentRaw"
+                v-if="hasCurrentRaw"
                 type="button"
                 class="skill-viewer-action inline-flex"
                 :aria-label="markdownCopied ? `${currentDocLabel} copied` : `Copy ${currentDocLabel}`"
-                @click="copyMarkdown(currentRaw)"
+                @click="copyCurrentMarkdown"
               >
                 <UIcon
                   :name="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
@@ -2153,7 +2216,7 @@ useHead(computed(() => ({
                 <span class="hidden sm:inline">{{ markdownCopied ? 'copied' : 'copy' }}</span>
               </button>
               <a
-                v-if="currentRaw && !data.sourceGone"
+                v-if="hasCurrentRaw && !data.sourceGone"
                 :href="rawSourceUrl"
                 target="_blank"
                 rel="noopener"
@@ -2230,7 +2293,7 @@ useHead(computed(() => ({
                 </span>
               </p>
               <SkillContextChecks
-                v-if="viewerContext?._tag === 'skill' && data?.raw"
+                v-if="viewerContext?._tag === 'skill' && data?.sourceView.hasRaw"
                 :result="contextChecks"
               />
               <section
@@ -2323,7 +2386,7 @@ useHead(computed(() => ({
                       color="neutral"
                       variant="outline"
                       class="mt-3"
-                      @click="() => { if (currentRaw) renderRaw(currentRaw) }"
+                      @click="() => { if (currentRaw) renderRaw(currentRaw); else loadRootRaw().catch(error => { rawError = error.message }) }"
                     />
                   </div>
                 </div>
@@ -2357,7 +2420,7 @@ useHead(computed(() => ({
             role="region"
           >
             <SkillBehaviors
-              v-if="data.raw || behaviors.length"
+              v-if="data.sourceView.hasRaw || behaviors.length"
               :behaviors="data.sourceFacts.behaviors ?? null"
               :readings="behaviorReadings"
             />

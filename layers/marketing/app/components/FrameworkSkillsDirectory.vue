@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
+import type { FrameworkDirectoryProfile } from '../utils/framework-directory'
 
 type FrameworkDirectoryView
   = | { _tag: 'loading' }
     | { _tag: 'error' }
     | { _tag: 'empty' }
-    | { _tag: 'ready', data: TagProfile }
+    | { _tag: 'ready', data: FrameworkDirectoryProfile }
 
 const {
   data,
@@ -20,7 +20,7 @@ const {
   websiteLabel,
   syncedAgo,
 } = defineProps<{
-  data?: TagProfile | null
+  data?: FrameworkDirectoryProfile | null
   status: 'idle' | 'pending' | 'success' | 'error'
   error?: unknown
   framework: string

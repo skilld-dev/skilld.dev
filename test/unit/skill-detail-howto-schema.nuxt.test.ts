@@ -28,11 +28,11 @@ vi.stubGlobal('defineOgImage', () => {})
 mockNuxtImport('useSchemaOrg', () => (nodes: unknown) => {
   schemaNodes.current = nodes
 })
-mockNuxtImport('useFetch', () => (url: unknown) => {
+mockNuxtImport('useFetch', () => (url: unknown, options?: { transform?: (value: unknown) => unknown }) => {
   const key = typeof url === 'function' ? url() : url
 
   if (typeof key === 'string' && key.startsWith('/api/skills/'))
-    return { data: ref(payload), status: ref('success'), error: ref(null), refresh: vi.fn() }
+    return { data: ref(options?.transform ? options.transform(payload) : payload), status: ref('success'), error: ref(null), refresh: vi.fn() }
   return { data: ref(null), status: ref('success'), error: ref(null), refresh: vi.fn() }
 })
 
