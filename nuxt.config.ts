@@ -292,6 +292,9 @@ export default defineNuxtConfig({
   },
 
   aiReady: {
+    // Render marketing components so Markdown includes charts and curated Skill lists.
+    // The explicit Skill source hook still preserves original SKILL.md bodies.
+    contentSource: false,
     llmsTxt: {
       directive: { html: true },
       pages: 'sitemap',
