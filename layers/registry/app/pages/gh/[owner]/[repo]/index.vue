@@ -22,12 +22,11 @@ const repoRouteFetch = useFetch<RepoRouteResolution>(
   () => `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}/route-target`,
   {
     watch: [repoHub],
-    lazy: !isBot.value,
+    lazy: false,
     immediate: true,
   },
 ) as ReturnType<typeof useFetch<RepoRouteResolution>>
-if (isBot.value)
-  await repoRouteFetch
+await repoRouteFetch
 const { data: repoRouteResolution, status: repoRouteStatus } = repoRouteFetch
 const repoRouteTarget = computed(() => {
   const resolution = repoRouteResolution.value
@@ -35,7 +34,8 @@ const repoRouteTarget = computed(() => {
     return null
   return resolution.target
 })
-const fetchRepoDetailsOnServer = isBot.value && repoRouteTarget.value?._tag !== 'skill'
+const fetchRepoSourceOnServer = repoRouteTarget.value?._tag !== 'skill'
+const fetchRepoDetailsOnServer = isBot.value && fetchRepoSourceOnServer
 
 const repoProfileFetch = useFetch(
   () => `/api/orgs/${sourceHub.value.owner}`,
@@ -44,7 +44,7 @@ const repoProfileFetch = useFetch(
     watch: false,
     lazy: !fetchRepoDetailsOnServer,
     immediate: fetchRepoDetailsOnServer,
-    server: fetchRepoDetailsOnServer,
+    server: true,
     transform: (profile: OrgProfile) => repoPageProfile(profile, repoHub.value.repo),
   },
 )
@@ -54,9 +54,9 @@ const repoSourceFetch = useFetch<RepoSourceProfile>(
   () => `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}`,
   {
     watch: false,
-    lazy: !fetchRepoDetailsOnServer,
-    immediate: fetchRepoDetailsOnServer,
-    server: fetchRepoDetailsOnServer,
+    lazy: !fetchRepoSourceOnServer,
+    immediate: fetchRepoSourceOnServer,
+    server: fetchRepoSourceOnServer,
   },
 ) as ReturnType<typeof useFetch<RepoSourceProfile>>
 const { data: fetchedRepoSource, status: repoSourceStatus, error: repoSourceError, refresh: refreshRepoSource } = repoSourceFetch
@@ -67,15 +67,16 @@ const repoSource = computed(() => {
   return source
 })
 
-// Bots render blocking when this is a repository page. A confirmed-missing repo
-// (`/api/repos/.../....get.ts` throws 404 once GitHub itself says 404) was
-// rendering the "Source not found" card with a 200 status — a soft 404 that
-// let nonexistent owner/repo URLs (e.g. from stale tag/collection data) sit
-// in the index. Transient upstream failures don't throw there, so this only
-// fires for genuine not-found repos.
+// Read the cached source API before every public repository response. A lazy
+// browser shell must not turn a confirmed-missing repository into a soft 404.
+if (fetchRepoSourceOnServer)
+  await repoSourceFetch
 if (fetchRepoDetailsOnServer)
-  await Promise.all([repoProfileFetch, repoSourceFetch])
-if (fetchRepoDetailsOnServer && repoSourceError.value?.statusCode === 404) {
+  await repoProfileFetch
+if (fetchRepoSourceOnServer && repoSourceError.value?.statusCode === 404) {
+  // Only missing sources need the full Owner profile for alias recovery.
+  if (!fetchRepoDetailsOnServer)
+    await refreshRepo()
   // Before the tombstone, check whether the repo segment is actually a skill
   // name. `/gh/<owner>/<skill>` is what an inbound link looks like when the
   // author drops the repository. The transform decides recovery from the full
