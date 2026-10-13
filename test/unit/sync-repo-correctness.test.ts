@@ -378,6 +378,30 @@ describe('syncRepo content acknowledgement', () => {
       .toEqual({ broken_since: null, repo_skill_count: 0 })
   })
 
+  it('admits a Skill added to an indexed repository when its owner resubmits a tree the sync already saw', async () => {
+    // The scheduled sync recorded this tree but dropped the new Skill at admission.
+    insertRepo(sqlite, 'new-tree')
+    insertSkill(sqlite, 'one', 'one-sha')
+    setRendered(sqlite, 'one', 'skills/one/SKILL.md')
+    github.getTree.mockResolvedValue(tree([
+      { path: 'skills/one/SKILL.md', sha: 'one-sha' },
+      { path: 'skills/two/SKILL.md', sha: 'two-sha' },
+    ]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/two/SKILL.md', rawSkill('Two')]]),
+      unreadable: new Set(),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db, { submitted: true })
+
+    expect(result.status).toBe('indexed')
+    expect(sqlite.prepare(`SELECT name FROM skills WHERE source_resolved = 1 ORDER BY name`).pluck().all())
+      .toEqual(['one', 'two'])
+  })
+
   it('indexes a Skill added back to a repository whose rows were all retired', async () => {
     insertRepo(sqlite, 'fixture-tree')
     insertSkill(sqlite, 'seo-audit', 'fixture-sha')

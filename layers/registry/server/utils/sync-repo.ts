@@ -786,6 +786,9 @@ export interface SyncRepoOptions {
   /**
    * Admit new skills requested through the public repository URL flow without
    * claiming that the GitHub owner is verified. Trust and SEO remain computed.
+   * A submission rereads the tree even when the repo cursor marks it unchanged,
+   * because a scheduled sync may have recorded that tree after declining to admit
+   * the Skills it added.
    */
   submitted?: boolean
   /**
@@ -908,7 +911,7 @@ export async function syncRepo(
   // GraphQL gave us the head tree SHA in the same request. If it matches
   // our cached value, the repo is unchanged and we skip the REST getTree
   // call entirely. Skill-less candidates deliberately bypass this cursor.
-  const unchanged = opts.continuation || opts.forceContent
+  const unchanged = opts.continuation || opts.forceContent || opts.submitted
     ? null
     : unchangedRepoStatus({ existing: existingRepo, hasAdmittedSkills, headTreeSha, repoPushedAt })
   if (unchanged)
@@ -939,7 +942,7 @@ export async function syncRepo(
     stats.reason = 'tree_changed_during_continuation'
     return stats
   }
-  if (!opts.continuation && !opts.forceContent && hasAdmittedSkills && existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha)
+  if (!opts.continuation && !opts.forceContent && !opts.submitted && hasAdmittedSkills && existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha)
     return markUnchanged('skipped-tree-sha')
 
   // The common unchanged-repo paths above need only the single repos row.
