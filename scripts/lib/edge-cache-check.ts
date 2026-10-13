@@ -19,6 +19,9 @@
  * 7. A stored page carries an ETag, and a request that sends it back gets a
  *    304. A 304 must never be stored as the page: after a conditional request
  *    on a cold entry, the next plain request still gets the whole page.
+ *    Cloudflare removes the ETag from an HTML 200 while a zone feature that
+ *    rewrites HTML is on, such as Email Obfuscation. A 304 still carries it,
+ *    so the check reads it there and warns instead of failing.
  */
 
 import { varyKeysEdgeCache } from '../../shared/content-negotiation'
@@ -65,9 +68,17 @@ export type EdgeCacheFailure
     | { _tag: 'not-revalidated', path: string, status: number }
     | { _tag: 'stored-not-modified', path: string, status: number }
 
+/** True of production, and worth fixing, but no reason to fail a deploy. */
+export interface EdgeCacheWarning { _tag: 'etag-stripped', path: string }
+
 export type EdgeCacheCheckResult
-  = | { _tag: 'passed', checks: Array<{ path: string, cacheStatuses: string[] }> }
-    | { _tag: 'failed', failures: EdgeCacheFailure[] }
+  = | { _tag: 'passed', checks: Array<{ path: string, cacheStatuses: string[] }>, warnings: EdgeCacheWarning[] }
+    | { _tag: 'failed', failures: EdgeCacheFailure[], warnings: EdgeCacheWarning[] }
+
+interface RevalidationOutcome {
+  failure: EdgeCacheFailure | null
+  warning: EdgeCacheWarning | null
+}
 
 export interface EdgeCacheCheckDependencies {
   baseUrl: string
@@ -240,17 +251,43 @@ async function checkSessionCookie(path: string, url: string, fetch: EdgeCacheFet
  * one variant per `Accept` value, so an `Accept` that names the nonce reaches
  * a cold entry that still renders HTML.
  */
-async function checkRevalidation(path: string, url: string, fetch: EdgeCacheFetch, nonce: string): Promise<EdgeCacheFailure | null> {
-  const networkError = (message: string): EdgeCacheFailure => ({ _tag: 'network-error', path, request: 'revalidation', message })
+async function checkRevalidation(path: string, url: string, fetch: EdgeCacheFetch, nonce: string): Promise<RevalidationOutcome> {
+  const found = await findEtag(path, url, fetch)
+  if (found._tag === 'failed')
+    return { failure: found.failure, warning: null }
+  const warning: EdgeCacheWarning | null = found._tag === 'stripped' ? { _tag: 'etag-stripped', path } : null
+  return { failure: await checkConditionalRequests(path, url, fetch, nonce, found.etag), warning }
+}
+
+/**
+ * The ETag of the stored page. When the page arrives without one,
+ * `If-None-Match: *` asks for a 304, and the 304 carries the stored ETag.
+ */
+async function findEtag(path: string, url: string, fetch: EdgeCacheFetch): Promise<
+  | { _tag: 'sent' | 'stripped', etag: string }
+  | { _tag: 'failed', failure: EdgeCacheFailure }
+> {
+  const networkError = (message: string): { _tag: 'failed', failure: EdgeCacheFailure } =>
+    ({ _tag: 'failed', failure: { _tag: 'network-error', path, request: 'revalidation', message } })
 
   const stored = await request(fetch, url, BROWSER_HEADERS)
   if (stored._tag === 'error')
     return networkError(stored.message)
   if (stored.response.status !== 200)
-    return { _tag: 'status', path, request: 'revalidation', expected: 200, actual: stored.response.status }
-  const etag = stored.response.headers.get('etag')
-  if (!etag)
-    return { _tag: 'no-etag', path }
+    return { _tag: 'failed', failure: { _tag: 'status', path, request: 'revalidation', expected: 200, actual: stored.response.status } }
+  const sent = stored.response.headers.get('etag')
+  if (sent)
+    return { _tag: 'sent', etag: sent }
+
+  const probe = await request(fetch, url, { ...BROWSER_HEADERS, 'if-none-match': '*' })
+  if (probe._tag === 'error')
+    return networkError(probe.message)
+  const etag = probe.response.status === 304 ? probe.response.headers.get('etag') : null
+  return etag ? { _tag: 'stripped', etag } : { _tag: 'failed', failure: { _tag: 'no-etag', path } }
+}
+
+async function checkConditionalRequests(path: string, url: string, fetch: EdgeCacheFetch, nonce: string, etag: string): Promise<EdgeCacheFailure | null> {
+  const networkError = (message: string): EdgeCacheFailure => ({ _tag: 'network-error', path, request: 'revalidation', message })
 
   const conditional = await request(fetch, url, { ...BROWSER_HEADERS, 'if-none-match': etag })
   if (conditional._tag === 'error')
@@ -298,6 +335,7 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
   const nonce = dependencies.nonce ?? crypto.randomUUID()
 
   const failures: EdgeCacheFailure[] = []
+  const warnings: EdgeCacheWarning[] = []
   const checks: Array<{ path: string, cacheStatuses: string[] }> = []
   const identities = new Map<string | null, string[]>()
   for (const path of paths) {
@@ -310,8 +348,10 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
       checks.push({ path, cacheStatuses: anonymous.cacheStatuses })
       identities.set(anonymous.identity, [...identities.get(anonymous.identity) ?? [], path])
       const revalidation = await checkRevalidation(path, url, fetch, nonce)
-      if (revalidation)
-        failures.push(revalidation)
+      if (revalidation.failure)
+        failures.push(revalidation.failure)
+      if (revalidation.warning)
+        warnings.push(revalidation.warning)
     }
 
     // After the anonymous loop, so the apex entry is warm.
@@ -327,5 +367,5 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
       failures.push({ _tag: 'shared-cache-entry', paths: sharing, identity })
   }
 
-  return failures.length ? { _tag: 'failed', failures } : { _tag: 'passed', checks }
+  return failures.length ? { _tag: 'failed', failures, warnings } : { _tag: 'passed', checks, warnings }
 }

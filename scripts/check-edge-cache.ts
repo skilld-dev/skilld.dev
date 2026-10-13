@@ -16,6 +16,9 @@ async function main(): Promise<void> {
     baseUrl: process.env.EDGE_CACHE_BASE_URL ?? 'https://skilld.dev',
   })
   console.log(JSON.stringify(result, null, 2))
+  // A GitHub annotation, so the deploy summary shows it without failing the job.
+  for (const warning of result.warnings)
+    console.log(`::warning::Cloudflare removed the ETag from the HTML of ${warning.path}. A zone feature that rewrites HTML, such as Email Obfuscation, strips it. A 304 still carries it.`)
   if (result._tag === 'failed')
     process.exitCode = 1
 }
