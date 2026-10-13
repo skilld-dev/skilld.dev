@@ -82,7 +82,7 @@ describe('admittedSourceRequest', () => {
   }
 
   it('resolves an admitted name by its folder at the commit the Skill page names', async () => {
-    const lookup = vi.fn(async () => ({ skillPath: 'skills/taste-skill', commitSha: NEWER }))
+    const lookup = vi.fn(async () => ({ _tag: 'admitted' as const, skillPath: 'skills/taste-skill', commitSha: NEWER }))
 
     expect(await admittedSourceRequest(named, lookup)).toEqual({
       provider: 'github',
@@ -95,7 +95,7 @@ describe('admittedSourceRequest', () => {
   })
 
   it('keeps a reference the request names', async () => {
-    const lookup = vi.fn(async () => ({ skillPath: 'skills/taste-skill', commitSha: NEWER }))
+    const lookup = vi.fn(async () => ({ _tag: 'admitted' as const, skillPath: 'skills/taste-skill', commitSha: NEWER }))
     const request: SourceRequest = { ...named, ref: { type: 'branch', value: 'next' } }
 
     expect(await admittedSourceRequest(request, lookup)).toMatchObject({
@@ -105,10 +105,21 @@ describe('admittedSourceRequest', () => {
   })
 
   it('resolves the default branch when the registry knows no commit', async () => {
-    const resolved = await admittedSourceRequest(named, async () => ({ skillPath: '.', commitSha: null }))
+    const resolved = await admittedSourceRequest(named, async () => ({ _tag: 'admitted' as const, skillPath: '.', commitSha: null }))
 
     expect(resolved).toEqual({ ...named, selector: { type: 'path', path: '.' } })
     expect(resolved).not.toHaveProperty('ref')
+  })
+
+  it('answers an old Skill name with the command for its new name instead of delivering another Skill', async () => {
+    const lookup = vi.fn(async () => ({ _tag: 'renamed' as const, name: 'im-part-human' }))
+    const old: SourceRequest = { ...named, owner: 'harlan-zw', repository: 'brundlefly', selector: { type: 'named-skill', name: 'im-not-a-fly' } }
+
+    await expect(admittedSourceRequest(old, lookup)).rejects.toMatchObject({
+      statusCode: 404,
+      data: { code: 'SOURCE_NOT_FOUND' },
+      message: 'The Skill im-not-a-fly was renamed to im-part-human. Run skilld run harlan-zw/brundlefly/im-part-human.',
+    })
   })
 
   it('leaves a name the registry does not hold, and a path, as requested', async () => {

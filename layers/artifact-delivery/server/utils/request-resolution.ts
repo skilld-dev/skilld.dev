@@ -41,8 +41,10 @@ export function fetchAdmittedSkillIdentity(context?: H3EventContext): FetchAdmit
   return async ({ owner, repository, name }) => {
     // A named object passes `context`, which NitroFetchOptions does not declare.
     const options = { query: { owner, repo: repository, name }, ...(context ? { context } : {}) }
-    const answer = await $fetch<{ skillPath: string | null, commitSha: string | null }>('/api/skills/run-identity', options)
-    return answer.skillPath ? { skillPath: answer.skillPath, commitSha: answer.commitSha } : null
+    const answer = await $fetch<{ skillPath: string | null, commitSha: string | null, renamedTo: string | null }>('/api/skills/run-identity', options)
+    if (answer.skillPath)
+      return { _tag: 'admitted', skillPath: answer.skillPath, commitSha: answer.commitSha }
+    return answer.renamedTo ? { _tag: 'renamed', name: answer.renamedTo } : null
   }
 }
 

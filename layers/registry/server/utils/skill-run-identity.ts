@@ -37,7 +37,7 @@ interface IdentityRow {
  *
  * A Repository that moved keeps answering under its old name, so a run
  * command printed before the move resolves the identity the page shows now.
- * A renamed Skill does the same under its old Skill name (ADR-0017).
+ * A renamed Skill does not: `findRenamedSkill` names its new name instead.
  */
 export async function findSkillRunIdentity(
   db: D1Database,
@@ -46,9 +46,6 @@ export async function findSkillRunIdentity(
   const identity = await findAdmittedIdentity(db, query)
   if (identity)
     return identity
-  const renamed = await findSkillAlias(db, { owner: query.owner, repo: query.repository, name: query.name })
-  if (renamed)
-    return await findAdmittedIdentity(db, { owner: query.owner, repository: query.repository, name: renamed.targetName })
   const alias = await findRepositoryAlias(db, { owner: query.owner, repo: query.repository })
   if (!alias)
     return null
@@ -57,6 +54,22 @@ export async function findSkillRunIdentity(
     repository: alias.targetRepo,
     name: alias.rootSkill === query.name.toLowerCase() && alias.targetRootSkill ? alias.targetRootSkill : query.name,
   })
+}
+
+/**
+ * The name a renamed Skill now lives under, or null (ADR-0017).
+ *
+ * `skilld run` checks that the Skill it receives carries the name it asked
+ * for, so delivering the renamed Skill under its old name fails that check.
+ * Delivery answers the old name with the new one instead, and the reader
+ * runs it.
+ */
+export async function findRenamedSkill(
+  db: D1Database,
+  query: SkillRunIdentityQuery,
+): Promise<string | null> {
+  const alias = await findSkillAlias(db, { owner: query.owner, repo: query.repository, name: query.name })
+  return alias?.targetName ?? null
 }
 
 async function findAdmittedIdentity(
