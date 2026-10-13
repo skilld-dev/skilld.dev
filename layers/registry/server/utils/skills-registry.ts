@@ -19,6 +19,13 @@ import { SUPPORTED_SKILL_SQL } from './supported-sources'
 import { noteAdmissionFallback, SKILL_ADMISSIONS_POPULATED_SQL, SKILL_INDEXABLE_SQL } from './trending-admission'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
+/**
+ * A Skill that a page may link. A Skill whose source is gone upstream
+ * (`source_resolved = 0`) answers 410 (server/middleware/skill-source-gone.ts),
+ * so a link to it is a broken internal link. Listings, related Skills, and
+ * featured sections read through this one predicate.
+ */
+const LINKABLE_SKILL_SQL = `(${NOT_BROKEN_SQL} AND s.source_resolved = 1)`
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
 const FROM_SKILLS_JOIN_REPOS = `FROM skills s ${JOIN_REPOS_SQL}`
 const SELECT_SKILL_ROW_BASE = `
@@ -250,13 +257,10 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const offset = opts.offset ?? (page - 1) * limit
   const selectSkillRow = includeDependencies ? SELECT_SKILL_ROW_WITH_BODY : SELECT_SKILL_ROW
 
-  // Listings exclude skills whose source is unresolved or deleted upstream
-  // (`source_resolved = 0`): their detail pages serve 410 tombstones
-  // (server/middleware/skill-source-gone.ts), so linking them from a hub is a
-  // self-inflicted broken internal link. Same convention as community,
-  // homepage and collection queries. Tombstone pages load the skill directly,
-  // not through this query.
-  const conditions: string[] = [NOT_BROKEN_SQL, 's.source_resolved = 1']
+  // A listing links every row, so it reads linkable Skills only, like the
+  // community, homepage and collection queries. Tombstone pages load the
+  // skill directly, not through this query.
+  const conditions: string[] = [LINKABLE_SKILL_SQL]
   const params: (string | number)[] = []
 
   if (maintainerRepos && !search && !owner && !tags?.length && !official && !supportedOnly && !category && !trustTier)
@@ -524,6 +528,9 @@ export interface SkillLookup {
  * When owner is known, the exact (owner, name) row is returned. When owner
  * is missing (legacy collection entries), the highest-starred repository row
  * name wins. Result is keyed by packageName.
+ *
+ * By default only linkable Skills match. `includeBroken` also matches broken
+ * repositories and gone sources, for a name lookup that renders no link.
  */
 export async function findSkillsByLookups(
   event: H3Event,
@@ -535,7 +542,7 @@ export async function findSkillsByLookups(
   const db = getDB(event)
   const uniqueNames = [...new Set(lookups.map(l => l.packageName))]
   const placeholders = uniqueNames.map(() => '?').join(',')
-  const brokenClause = opts.includeBroken ? '' : ` AND ${NOT_BROKEN_SQL}`
+  const brokenClause = opts.includeBroken ? '' : ` AND ${LINKABLE_SKILL_SQL}`
   const supportedClause = opts.supportedOnly ? ` AND (${SUPPORTED_SKILL_SQL})` : ''
   const rows = await db
     .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.name IN (${placeholders})${brokenClause}${supportedClause}`)
@@ -703,7 +710,7 @@ export async function getFeaturedOfficialSections(
           ROW_NUMBER() OVER (PARTITION BY s.owner, s.repo ORDER BY s.modified_at DESC, s.name ASC) AS rn,
           COUNT(*) OVER (PARTITION BY s.owner, s.repo) AS repo_total
         ${FROM_SKILLS_JOIN_REPOS}
-        WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
+        WHERE (${filter.sql}) AND ${LINKABLE_SKILL_SQL}
       ) ranked WHERE rn <= ?`,
     )
     .bind(...filter.params, perOrg)
@@ -964,12 +971,12 @@ export async function findRelatedSkills(
           AND repo_skills.repo = ?2
           AND repo_skills.source_resolved = 1
       ) AS repo_skill_count FROM (
-        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name != ?3 AND s.source_resolved = 1 AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?4
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name != ?3 AND ${LINKABLE_SKILL_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?4
       ) paged ORDER BY modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
     db
       .prepare(`SELECT paged.*, ${repoSkillCountSql('paged')} FROM (
-        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND s.source_resolved = 1 AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${LINKABLE_SKILL_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?
       ) paged ORDER BY stars DESC, modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
   ])

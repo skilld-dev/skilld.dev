@@ -98,6 +98,23 @@ describe('skill-asset source gone', () => {
   })
 })
 
+describe('skill-asset Skill references', () => {
+  it('links a live sibling Skill and keeps a removed one as text', async () => {
+    fixture.raw.prepare(
+      `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved)
+       VALUES ('owner', 'repo', 'live', 'owner/live', 'Live', 1),
+              ('owner', 'repo', 'removed', 'owner/removed', 'Removed', 0)`,
+    ).run()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Run `/live`, then `/removed`.')))
+    const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
+
+    const body = await handler(event()) as { html: string }
+
+    expect([...body.html.matchAll(/href="([^"]+)"/g)].map(match => match[1])).toEqual(['/gh/owner/repo/live'])
+    expect(body.html).toContain('<code>/removed</code>')
+  })
+})
+
 function event(): H3Event {
   return {
     method: 'GET',
