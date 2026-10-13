@@ -11,8 +11,8 @@ export default defineNitroPlugin((nitroApp) => {
     const title = `Skills for ${profile.tag.label}`
     const rows = profile.skills.map(skill => [
       `- [${text(skill.name)}](${skill.registryPath})`,
-      '  ' + text(skill.authorName || skill.owner) + ' · ' + text(skill.owner + '/' + skill.repo),
-      '  ' + skill.stars.toLocaleString('en-US') + ' GitHub stars',
+      `  ${text(skill.authorName || skill.owner)} · ${text(`${skill.owner}/${skill.repo}`)}`,
+      `  ${skill.stars.toLocaleString('en-US')} GitHub stars`,
       ...(skill.description ? [`  ${text(skill.description)}`] : []),
     ].join('\n'))
     context.source = {
