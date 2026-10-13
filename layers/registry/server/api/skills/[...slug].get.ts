@@ -19,6 +19,7 @@ import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { readRepositoryLicense } from '../../utils/skill-license'
 import { parseSkillMd } from '../../utils/skill-md-render'
+import { loadLinkableRepoSkillNames } from '../../utils/skill-stored-source'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
 import { isSkillIndexable, noteAdmissionFallback, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
@@ -207,10 +208,6 @@ interface SkillDetailRow {
   latest_revision_sha: string | null
 }
 
-interface RepoSkillNameRow {
-  name: string
-}
-
 const skillDetailHandler = defineApiHandler({
   response: SkillDetailResponseSchema,
   handler: async ({ event, platform }) => {
@@ -242,14 +239,10 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const { skill, row } = found
   const curators: CuratorEndorsement[] = []
 
-  const [duplicateGroup, generated, repoSkillRows] = await Promise.all([
+  const [duplicateGroup, generated, repoSkillNames] = await Promise.all([
     findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
     getGeneratedKinds(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name }, ['faq', 'tags', 'summary']),
-    // Dependency links must only target Skills whose source still exists.
-    platform.db
-      .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1 ORDER BY name`)
-      .bind(skill.owner, skill.repo)
-      .all<RepoSkillNameRow>(),
+    loadLinkableRepoSkillNames(platform.db, skill),
   ])
   const faqRow = generated.get('faq') as { payload: FaqPayload } | undefined
   const tagRow = generated.get('tags') as { payload: TagPayload } | undefined
@@ -258,7 +251,6 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const source = resolveRepoSourceIdentityFromRow(skill, row)
   const githubUrl = `https://github.com/${source.owner}/${source.repo}`
   const branch = row.rendered_commit_sha || row.default_branch || 'main'
-  const repoSkillNames = (repoSkillRows.results ?? []).map(candidate => candidate.name)
 
   // Warm path: render is in D1. Cold path (no usable stored render): render
   // live so the page still has content. A page view never writes the render

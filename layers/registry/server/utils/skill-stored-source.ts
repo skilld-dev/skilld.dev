@@ -52,6 +52,22 @@ export async function loadStoredSkillRow(
     .first<StoredSkillRow>()
 }
 
+/**
+ * The Skill names in one repository that a rendered document may link.
+ *
+ * A Markdown render turns a `/name` mention of a sibling Skill into a link.
+ * A Skill whose SKILL.md is gone upstream answers 410, so its name stays out.
+ * The Skill page and each file page share this read, so neither can link a
+ * sibling the other keeps as text.
+ */
+export async function loadLinkableRepoSkillNames(db: D1Database, skill: RepoIdentity): Promise<string[]> {
+  const rows = await db
+    .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1 ORDER BY name`)
+    .bind(skill.owner, skill.repo)
+    .all<{ name: string }>()
+  return (rows.results ?? []).map(row => row.name)
+}
+
 export type StoredSkillMd
   = | { _tag: 'ok', body: string, source: string }
     | { _tag: 'gone' }

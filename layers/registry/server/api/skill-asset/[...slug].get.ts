@@ -4,7 +4,7 @@ import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
-import { loadStoredSkillRow, parseStoredAssets, resolveReferencedFileTarget } from '../../utils/skill-stored-source'
+import { loadLinkableRepoSkillNames, loadStoredSkillRow, parseStoredAssets, resolveReferencedFileTarget } from '../../utils/skill-stored-source'
 import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
 
@@ -20,10 +20,6 @@ interface AssetCache {
   type: 'markdown' | 'code' | 'image' | 'data' | 'other'
   branch: string
   skillPath: string | null
-}
-
-interface RepoSkillNameRow {
-  name: string
 }
 
 interface RegisteredAsset {
@@ -70,12 +66,9 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const [row, repoSkillRows] = await Promise.all([
+    const [row, repoSkillNames] = await Promise.all([
       loadStoredSkillRow(platform.db, skill),
-      platform.db
-        .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
-        .bind(skill.owner, skill.repo)
-        .all<RepoSkillNameRow>(),
+      loadLinkableRepoSkillNames(platform.db, skill),
     ])
 
     if (!row)
@@ -107,7 +100,8 @@ export default defineApiHandler({
     const branch = row.rendered_commit_sha!
     const skillMdPath = row.rendered_skill_path!
     const skillDir = skillMdPath.replace(/(?:^|\/)SKILL\.md$/i, '')
-    const cacheKey = `skills:asset:v5:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
+    // v6: v5 renders could link a sibling Skill whose source is gone.
+    const cacheKey = `skills:asset:v6:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
     const cached = await readCache<AssetCache>(useStorage('edge-cache'), cacheKey)
     if (cached) {
       if (cached.status === 'missing')
@@ -151,7 +145,7 @@ export default defineApiHandler({
         branch,
         skillDir,
         filePath,
-        skillNames: (repoSkillRows.results ?? []).map(candidate => candidate.name),
+        skillNames: repoSkillNames,
         registryOwner: skill.owner,
         registryRepo: skill.repo,
       }, await skillImagePolicyForEvent(event))
