@@ -44,6 +44,16 @@ describe('skills route policy', () => {
     expect(resolveSkillsRoute('/skills/not-a-real-outcome', '')).toEqual({
       _tag: 'not_found',
     })
+    expect(resolveSkillsRoute('/skills/not-a-real-outcome.md', '')).toEqual({
+      _tag: 'not_found',
+    })
+  })
+
+  it('passes the Markdown URL of a marketing route through to its renderer', () => {
+    // Accept negotiation sends `/skills/planning` to `/skills/planning.md`.
+    // A `not_found` here answered every track's Markdown with a JSON 404.
+    expect(resolveSkillsRoute('/skills/planning.md', '')).toEqual({ _tag: 'pass' })
+    expect(resolveSkillsRoute('/skills/trending.md', '')).toEqual({ _tag: 'pass' })
   })
 
   it('preserves redirects for legacy multi-segment skill routes', () => {
