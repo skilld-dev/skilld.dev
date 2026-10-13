@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   readRepositoryJobState,
   repositoryIndexFailureMessage,
+  submitRepositoryIndex,
 } from '../../layers/registry/server/utils/repository-index'
+
+const jobs = vi.hoisted(() => ({
+  enqueueRegistryRepoJob: vi.fn(async () => ({ jobId: 'job-1', status: 'queued' as const })),
+}))
+
+vi.mock('../../server/utils/registry-jobs-runtime', () => jobs)
 
 function jobDatabase(row: Record<string, unknown> | null): D1Database {
   return {
@@ -69,5 +76,41 @@ describe('repository indexing job state', () => {
     ['upstream unavailable', 'Repository indexing failed. Try again.'],
   ])('turns %s into a safe public failure', (reason, message) => {
     expect(repositoryIndexFailureMessage(reason)).toBe(message)
+  })
+})
+
+describe('repository index requests', () => {
+  const now = 1_800_000_000
+  const repository = { _tag: 'repository', owner: 'acme', repo: 'skills', url: 'https://github.com/acme/skills' } as const
+
+  function indexedDatabase(lastCheckedAt: number | null): D1Database {
+    return {
+      prepare: (sql: string) => ({
+        bind: () => ({
+          all: async () => ({
+            results: [{ name: 'one', slug: 'acme/one', path: 'skills/one/SKILL.md', description: 'One', likeCount: 0 }],
+          }),
+          first: async () => sql.includes('repo_meta_synced_at') ? { repo_meta_synced_at: lastCheckedAt } : null,
+        }),
+      }),
+    } as unknown as D1Database
+  }
+
+  beforeEach(() => {
+    jobs.enqueueRegistryRepoJob.mockClear()
+  })
+
+  it('queues a resubmission when an indexed repository was last checked over fifteen minutes ago', async () => {
+    const result = await submitRepositoryIndex({ db: indexedDatabase(now - 16 * 60), env: {} } as never, repository, now)
+
+    expect(result).toMatchObject({ _tag: 'indexed', skills: [{ name: 'one' }] })
+    expect(jobs.enqueueRegistryRepoJob).toHaveBeenCalledWith({}, { operation: 'submit', owner: 'acme', repo: 'skills' })
+  })
+
+  it('answers from stored Skills without queueing work when the repository was checked recently', async () => {
+    const result = await submitRepositoryIndex({ db: indexedDatabase(now - 60), env: {} } as never, repository, now)
+
+    expect(result).toMatchObject({ _tag: 'indexed', skills: [{ name: 'one' }] })
+    expect(jobs.enqueueRegistryRepoJob).not.toHaveBeenCalled()
   })
 })

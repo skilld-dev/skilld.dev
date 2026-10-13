@@ -54,27 +54,47 @@ export async function findIndexedRepositorySkills(
 }
 
 /**
+ * A request for an indexed Repository rechecks it at most this often. The
+ * scheduled sync never admits Skills added to a submitted Repository, so the
+ * owner's request is the path that brings them in. The wait keeps repeated
+ * requests from spending GitHub quota.
+ */
+export const RESUBMISSION_INTERVAL_SECONDS = 15 * 60
+
+async function repositoryLastCheckedAt(
+  db: D1Database,
+  repository: Pick<GitHubRepository, 'owner' | 'repo'>,
+): Promise<number | null> {
+  const row = await db.prepare(
+    `SELECT repo_meta_synced_at FROM repos WHERE owner = ? AND repo = ?`,
+  ).bind(repository.owner, repository.repo).first<{ repo_meta_synced_at: number | null }>()
+  return row?.repo_meta_synced_at ?? null
+}
+
+/**
  * Ask the registry to index one Repository. If it already holds Skills from
- * the Repository, the answer lists them. If not, the answer is the queued job
- * to poll. The skilld.dev search box and the public API both send requests
- * through here, so the two cannot disagree on when a Repository counts as in.
+ * the Repository, the answer lists them, and a stale Repository is resubmitted
+ * in the background so Skills added since then can enter. If not, the answer
+ * is the queued job to poll. The skilld.dev search box and the public API both
+ * send requests through here, so the two cannot disagree on when a Repository
+ * counts as in.
  */
 export async function submitRepositoryIndex(
   platform: Pick<Platform, 'db' | 'env'>,
   repository: GitHubRepository,
+  now: number = Math.floor(Date.now() / 1000),
 ): Promise<SubmitRepositoryIndexResponse> {
+  const env = platform.env as Cloudflare.Env & Record<string, unknown>
+  const submission = { operation: 'submit', owner: repository.owner, repo: repository.repo } as const
   const skills = await findIndexedRepositorySkills(platform.db, repository)
-  if (skills.length)
+  if (skills.length) {
+    const lastCheckedAt = await repositoryLastCheckedAt(platform.db, repository)
+    if (lastCheckedAt === null || now - lastCheckedAt >= RESUBMISSION_INTERVAL_SECONDS)
+      await enqueueRegistryRepoJob(env, submission)
     return { _tag: 'indexed', repository, skills }
+  }
 
-  const queued = await enqueueRegistryRepoJob(
-    platform.env as Cloudflare.Env & Record<string, unknown>,
-    {
-      operation: 'submit',
-      owner: repository.owner,
-      repo: repository.repo,
-    },
-  )
+  const queued = await enqueueRegistryRepoJob(env, submission)
   return {
     _tag: 'queued',
     repository,
