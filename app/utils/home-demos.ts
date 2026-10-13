@@ -60,7 +60,7 @@ export const HOME_DEMOS_MIN = 3
 export const HOME_DEMOS_MAX = 6
 
 /** Compare up to three recordings in one group. Landing pages lead when available. */
-export function demoPreviews(demos: readonly HomeDemoItem[]) {
+export function demoPreviews<T extends Pick<HomeDemoItem, 'makes'>>(demos: readonly T[]) {
   const groups = DEMO_GROUPS
     .map(group => ({ group, items: demos.filter(demo => demo.makes === group.makes) }))
     .filter(entry => entry.items.length >= 2)
@@ -68,11 +68,29 @@ export function demoPreviews(demos: readonly HomeDemoItem[]) {
   return entry ? { label: entry.group.label, items: entry.items.slice(0, 3) } : null
 }
 
+export type HomeDemoPreview = Pick<HomeDemoItem, 'owner' | 'repo' | 'name' | 'skillPath' | 'makes' | 'agent' | 'model' | 'effort' | 'shots' | 'video'>
+
+/** Comparison stills need recording details, not full prompts or writing documents. */
+export function homeDemoPreview(demo: HomeDemoItem): HomeDemoPreview {
+  return {
+    owner: demo.owner,
+    repo: demo.repo,
+    name: demo.name,
+    skillPath: demo.skillPath,
+    makes: demo.makes,
+    agent: demo.agent,
+    model: demo.model,
+    effort: demo.effort,
+    shots: [demoDesktopShot(demo)].filter((shot): shot is HomeDemoShot => !!shot),
+    video: demo.video,
+  }
+}
+
 /** Keep only rendered demos in the homepage payload, plus the full feed count. */
 export function homeDemoFeed(feed: { items: HomeDemoItem[] }) {
   return {
     items: feed.items.slice(0, HOME_DEMOS_MAX),
-    previews: demoPreviews(feed.items)?.items ?? [],
+    previews: (demoPreviews(feed.items)?.items ?? []).map(homeDemoPreview),
     total: feed.items.length,
   }
 }
@@ -88,12 +106,12 @@ export function demoKey(demo: Pick<HomeDemoItem, 'owner' | 'repo' | 'name'>): st
 }
 
 /** The Demo panel on the Skill page. */
-export function demoHref(demo: HomeDemoItem): string {
+export function demoHref(demo: Pick<HomeDemoItem, 'skillPath'>): string {
   return `${demo.skillPath}#demo`
 }
 
 /** The shot for wide screens: the desktop page, else whatever was recorded. */
-export function demoDesktopShot(demo: HomeDemoItem): HomeDemoShot | undefined {
+export function demoDesktopShot(demo: Pick<HomeDemoItem, 'shots'>): HomeDemoShot | undefined {
   return demo.shots.find(shot => shot.viewport === 'desktop') ?? demo.shots[0]
 }
 

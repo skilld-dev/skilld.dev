@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RecentPullRequest } from '#shared/open-source-pull-requests'
 import type { TrendingBoardRow } from '#shared/trending-range'
-import type { HomeDemoItem } from '~/utils/home-demos'
+import type { HomeDemoPreview } from '~/utils/home-demos'
 import type { WhyReasonId } from '~/utils/why-skilld'
 import WhyBehaviorsVisual from './_WhyBehaviorsVisual.vue'
 import WhyCostVisual from './_WhyCostVisual.vue'
@@ -19,7 +19,7 @@ import WhyWeightsVisual from './_WhyWeightsVisual.vue'
 const { id, trendingRow = null, demos = [], pulls = [], compact = false } = defineProps<{
   id: WhyReasonId
   trendingRow?: TrendingBoardRow | null
-  demos?: readonly HomeDemoItem[]
+  demos?: readonly HomeDemoPreview[]
   pulls?: readonly RecentPullRequest[]
   /** The fewest parts each picture can show, for a narrow column. */
   compact?: boolean
