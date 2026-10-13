@@ -97,7 +97,7 @@ minimumReleaseAgeExclude:
   - '@nuxtjs/robots@7.0.2'
   - '@nuxtjs/sitemap@9.1.0'
   - nuxt-og-image@7.0.3
-  - nuxt-ai-ready@3.2.0
+  - nuxt-ai-ready@3.3.0
   - nuxt-skew-protection@2.0.2
   - nuxt-schema-org@7.0.1
   - nuxt-seo-utils@9.0.0
@@ -249,7 +249,7 @@ packages:
   - workers/*
 
 overrides:
-  nuxt-ai-ready: 3.2.0
+  nuxt-ai-ready: 3.3.0
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.patch

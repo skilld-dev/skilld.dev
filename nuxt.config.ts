@@ -292,6 +292,7 @@ export default defineNuxtConfig({
   },
 
   aiReady: {
+    llmsTxt: { directive: { html: true } },
     database: {
       type: 'd1',
       bindingName: 'DB',
