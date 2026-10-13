@@ -262,7 +262,7 @@ const repositoryBadgeInput = computed(() => ({
   registryPath: repoHubPath(repoHub.value.owner, repoHub.value.repo),
 }))
 
-const repoSourceRequested = ref<string | null>(fetchRepoDetailsOnServer ? repoKey.value : null)
+const repoSourceRequested = ref<string | null>(fetchRepoSourceOnServer ? repoKey.value : null)
 watch([repoRouteStatus, repoRouteTarget, repoKey], ([routeStatus, routeTarget, key]) => {
   const routeSettled = routeStatus === 'error' || (routeStatus === 'success' && routeTarget !== null)
   if (import.meta.server || !routeSettled || routeTarget?._tag === 'skill' || repoSourceRequested.value === key)
