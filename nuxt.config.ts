@@ -292,7 +292,43 @@ export default defineNuxtConfig({
   },
 
   aiReady: {
-    llmsTxt: { directive: { html: true } },
+    llmsTxt: {
+      directive: { html: true },
+      pages: 'sitemap',
+      // Retired URLs remain in the search removal sitemap only.
+      sitemaps: ['pages', 'skills', 'demos'],
+      markdownLinks: true,
+      maxLength: 80_000,
+      sections: [
+        {
+          title: 'Agent setup',
+          links: [
+            { title: 'Set up skilld', href: 'https://skilld.dev/agent.md', description: 'Setup steps an Agent reads and follows: the CLI, the MCP server, or a plain URL fetch.' },
+            { title: 'OpenAPI', href: 'https://skilld.dev/api/v1/openapi.json', description: 'The public API contract.' },
+          ],
+        },
+        {
+          title: 'Indexes',
+          links: [
+            { title: 'AI sitemap', href: 'https://skilld.dev/ai-sitemap.xml', description: 'Every AI-ready page, including pages that are noindex for Google.' },
+            { title: 'Sitemap', href: 'https://skilld.dev/sitemap_index.xml', description: 'XML sitemap for search engines and crawlers.' },
+          ],
+        },
+        {
+          title: 'Skills',
+          description: 'Every Skill page and track in the skilld sitemap.',
+          sitemap: 'skills',
+          path: '/llms/skills.txt',
+        },
+        {
+          title: 'Skill Demos',
+          description: 'Each demo is one recorded run: the prompt, and what the Agent built with the Skill.',
+          sitemap: 'demos',
+          path: '/llms/demos.txt',
+        },
+      ],
+    },
+    llmsFullTxt: false,
     database: {
       type: 'd1',
       bindingName: 'DB',
@@ -305,9 +341,6 @@ export default defineNuxtConfig({
       aiInput: true,
       aiTrain: true,
     },
-    // `server/middleware/llms-txt.ts` serves /llms.txt and its nested files
-    // from the sitemaps, ahead of the module's route. The 28.5 MB
-    // llms-full.txt inline dump is retired below (routeRules).
     // The module's negotiation also reads User-Agent, which a shared cache
     // cannot key on. server/handlers/content-negotiation.ts decides from
     // Accept and Sec-Fetch-Dest instead. Explicit `.md` URLs and the
