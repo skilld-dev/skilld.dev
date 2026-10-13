@@ -69,7 +69,7 @@ jobs:
 
       # Persists + accumulates prior deploys' client chunks across builds so old
       # browser sessions still resolve their old _nuxt chunks during a rollout
-      # (nuxt-skew-protection, fs storage). Keyed on the SHA so every build saves
+      # (nuxt-skew-protection storage). Keyed on the SHA so every build saves
       # a fresh entry; the prefix restore-key restores the previous accumulated
       # set. Mirrors nuxtseo.com/apps/site.
       - name: Cache skew-protection assets
@@ -86,7 +86,6 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
           NUXT_SESSION_PASSWORD: ${{ secrets.NUXT_SESSION_PASSWORD }}
-          NUXT_OG_IMAGE_SECRET: ${{ secrets.NUXT_OG_IMAGE_SECRET }}
           NUXT_AI_READY_RUNTIME_SYNC_SECRET: ${{ secrets.NUXT_AI_READY_RUNTIME_SYNC_SECRET }}
           # Enables Sentry source-map upload + release injection so client errors
           # are un-minified and tagged with a release (fixes release: None on SKILLD-1).

@@ -6,7 +6,8 @@ NUXT_HEALTH_CHECK_NOTIFY_TO=
 NUXT_PUBLIC_SITE_URL=
 NUXT_OAUTH_GITHUB_CLIENT_ID=
 NUXT_OAUTH_GITHUB_CLIENT_SECRET=
-NUXT_OG_IMAGE_SECRET=
+# Signs OG image URLs. At least 32 characters: pnpm exec nuxt-og-image generate-secret
+NUXT_APP_SECRET=
 # Signs same-origin image proxy addresses. Keep it separate from NUXT_TOKEN_KEY.
 NUXT_IMAGE_PROXY_KEY=
 NUXT_AI_READY_RUNTIME_SYNC_SECRET=

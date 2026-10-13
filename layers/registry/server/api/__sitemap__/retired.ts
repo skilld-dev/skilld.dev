@@ -1,3 +1,4 @@
+import type { SitemapUrlInput } from '#sitemap/types'
 import { GONE_SKILLS_SQL } from '~~/server/utils/source-gone-skills'
 import { getDB } from '#server/utils/db'
 import retiredUrls from '../../data/retired-urls.json'
@@ -7,7 +8,9 @@ import { MARKETING_REDIRECTS } from '../../utils/tag-quality'
 // Temporary sitemap of retired URLs. Experiment E, remove 2026-11-11. The
 // reasons, the status guarantee and the removal steps are in
 // `../../utils/retired-sitemap.ts`.
-export default defineSitemapEventHandler(async (event) => {
+// h3 `defineEventHandler`: the helpers below read the Nitro event, and
+// `defineSitemapEventHandler` types its argument as the narrower `RequestEvent`.
+export default defineEventHandler(async (event): Promise<SitemapUrlInput[]> => {
   // Past the removal date, skip the D1 queries too.
   const now = new Date()
   if (!isRetiredSitemapActive(now))
