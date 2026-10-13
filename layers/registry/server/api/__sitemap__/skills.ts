@@ -1,3 +1,4 @@
+import type { SitemapUrlInput } from '#sitemap/types'
 import { getDB } from '#server/utils/db'
 import { cached } from '#shared/server/cache'
 import { runAfterResponse } from '../../utils/after-response'
@@ -12,7 +13,9 @@ import { listTrendingSitemapEntries } from '../../utils/trending-sitemap'
  * rule (`trending-admission.ts`) that the Skill API applies to the page. The
  * trending boards join them, so a crawler can find the admitted set.
  */
-export default defineSitemapEventHandler(async (event) => {
+// h3 `defineEventHandler`: the helpers below read the Nitro event, and
+// `defineSitemapEventHandler` types its argument as the narrower `RequestEvent`.
+export default defineEventHandler(async (event): Promise<SitemapUrlInput[]> => {
   const skills = await listAllSkillsForSitemap(event)
   const boards = await cached({
     storage: useStorage('cache'),

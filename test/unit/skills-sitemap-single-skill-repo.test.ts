@@ -10,7 +10,7 @@ vi.stubGlobal('useStorage', () => ({
     cacheMap.set(key, value)
   },
 }))
-vi.stubGlobal('defineSitemapEventHandler', (handler: unknown) => handler)
+vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
 
 let harness: SqliteD1
 let handler: (event: H3Event) => Promise<Array<{ loc: string }>>

@@ -86,12 +86,6 @@ export default defineNuxtConfig({
   modules: [
     '@harlan-zw/nuxt-checkin',
     '@harlan-zw/nuxt-cf-jobs',
-    // Before nuxt-cloudflare, on purpose. Both check each HTML response in
-    // `beforeResponse`, in module order. nuxt-skew-protection has to drop its
-    // `__nkpv` version cookie from a document a shared cache may keep before
-    // nuxt-cloudflare looks, or nuxt-cloudflare sees the cookie and marks every
-    // browser navigation `no-store`, so only crawlers would ever fill the cache.
-    'nuxt-skew-protection',
     '@harlan-zw/nuxt-cloudflare',
     '@harlan-zw/nuxt-dx',
     '@harlan-zw/nuxt-use-query',
@@ -104,7 +98,6 @@ export default defineNuxtConfig({
     '@nuxt/fonts',
     '@nuxt/scripts',
     '@nuxtjs/seo',
-    'nuxt-ai-ready',
     '@nuxtjs/mcp-toolkit',
     '@nuxt/a11y',
     '@nuxtjs/html-validator',
@@ -238,7 +231,7 @@ export default defineNuxtConfig({
 
   // Version skew protection: after a deploy, clients still running the previous
   // build fetch old hashed chunks. Instead of 404ing (Sentry SKILLD-4), prior
-  // builds' assets are retained (default `fs` storage under
+  // builds' assets are retained (default storage under
   // node_modules/.cache/nuxt-seo) and bundled into the new deployment so the
   // Worker serves them as static assets. CI persists that cache dir across
   // deploys via actions/cache (see deploy-cloudflare.yml). Mirrors
@@ -265,8 +258,8 @@ export default defineNuxtConfig({
     // same unit the cache is, which is seconds.
     //
     // The module publishes its retention window (36000s) to
-    // `@harlan-zw/nuxt-cloudflare`, which honours an HTML cache rule up to it,
-    // and drops the version cookie from any document a shared cache may keep.
+    // `@harlan-zw/nuxt-cloudflare`, which honours an HTML cache rule up to it.
+    // Nuxt SEO turns the version cookie off, so no document carries one.
     // The shell renders signed out for everyone, so `/skills/trending` has the
     // first rule. Skill, repo and category pages follow once it holds.
   },
@@ -529,15 +522,6 @@ export default defineNuxtConfig({
       tasks: true,
       wasm: true,
       asyncContext: true,
-    },
-  },
-
-  ogImage: {
-    security: {
-      // Production gets its stable key from NUXT_OG_IMAGE_SECRET. A fixed,
-      // non-sensitive local key keeps signed dev URLs valid across HMR builds.
-      secret: process.env.NUXT_OG_IMAGE_SECRET
-        || (process.env.NODE_ENV === 'development' ? 'skilld-local-development' : undefined),
     },
   },
 
