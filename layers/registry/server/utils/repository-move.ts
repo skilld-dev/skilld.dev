@@ -101,7 +101,7 @@ const ROOT_SKILL = `(SELECT name FROM skills WHERE owner = :from_owner AND repo 
 const movedSkillName = (column: string) => `CASE WHEN ${column} = ${ROOT_SKILL} THEN :root_name ELSE ${column} END`
 const movedRowName = (row = '') => `CASE WHEN ${row}rendered_skill_path = 'SKILL.md' THEN :root_name ELSE ${row}name END`
 
-interface KeyedTable {
+export interface KeyedTable {
   table: string
   repo?: string
   /** The Skill name column, for a table that holds Skills. */
@@ -121,7 +121,7 @@ const skillTable = (table: string, options: Omit<KeyedTable, 'table'> = {}): Key
  * nightly prune finds through that marker, and the missing marker under the
  * new name queues a fresh embedding.
  */
-const SKILL_TABLES: KeyedTable[] = [
+export const SKILL_TABLES: readonly KeyedTable[] = [
   skillTable('skill_likes'),
   skillTable('skill_revisions'),
   skillTable('skill_description_history'),
@@ -270,8 +270,16 @@ const TOKEN = /:([a-z_]+)/g
  * uses. D1 rejects a statement bound with more values than it names.
  */
 export function repositoryMoveStatements(move: RepositoryMove): MoveStatement[] {
-  const values = moveValues(move)
-  return MOVE_SQL.map((template) => {
+  return namedStatements(MOVE_SQL, moveValues(move))
+}
+
+/**
+ * Bind `:name` tokens to positional `?N` parameters, giving each statement
+ * exactly the values it uses. D1 rejects a statement bound with more values
+ * than it names.
+ */
+export function namedStatements(templates: readonly string[], values: Record<string, MoveSqlValue>): MoveStatement[] {
+  return templates.map((template) => {
     const order: string[] = []
     const sql = template.replace(TOKEN, (_, token: string) => {
       if (!order.includes(token))
