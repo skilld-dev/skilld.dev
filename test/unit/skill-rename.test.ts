@@ -2,7 +2,7 @@ import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { indexSkillAliases, resolveRenamedSkillRoute } from '../../layers/registry/server/utils/skill-aliases'
 import { matchSkillRenames, skillBodySimilarity } from '../../layers/registry/server/utils/skill-rename'
-import { findSkillRunIdentity } from '../../layers/registry/server/utils/skill-run-identity'
+import { findRenamedSkill, findSkillRunIdentity } from '../../layers/registry/server/utils/skill-run-identity'
 import { syncRepo } from '../../layers/registry/server/utils/sync-repo'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -208,14 +208,14 @@ describe('sync follows a renamed Skill', () => {
     expect(rows(`SELECT name FROM skill_dirty WHERE reason = 'skill_renamed'`)).toEqual([{ name: 'prose' }])
   })
 
-  it('keeps an old run command working through the alias', async () => {
+  it('answers an old run command with the new name and delivers nothing under the old one', async () => {
     seedSkill('edit', EDIT_BODY)
     serveTree({ prose: EDIT_BODY })
     await syncRepo('acme', 'skills', {}, d1.db, { submitted: true })
 
-    const identity = await findSkillRunIdentity(d1.db, { owner: 'acme', repository: 'skills', name: 'edit' })
-
-    expect(identity).toMatchObject({ skillPath: 'skills/prose' })
+    expect(await findSkillRunIdentity(d1.db, { owner: 'acme', repository: 'skills', name: 'edit' })).toBeNull()
+    expect(await findRenamedSkill(d1.db, { owner: 'acme', repository: 'skills', name: 'edit' })).toBe('prose')
+    expect(await findRenamedSkill(d1.db, { owner: 'acme', repository: 'skills', name: 'prose' })).toBeNull()
   })
 
   it('turns a tombstone into an alias when the new name is admitted after the old one was swept', async () => {
