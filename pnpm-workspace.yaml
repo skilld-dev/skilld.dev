@@ -1,4 +1,19 @@
 minimumReleaseAgeExclude:
+  - mdream@2.0.3
+  - '@mdream/js@2.0.3'
+  - '@mdream/rust-darwin-x64@2.0.3'
+  - '@mdream/rust-freebsd-x64@2.0.3'
+  - '@mdream/rust-wasm32-wasi@2.0.3'
+  - '@mdream/rust-darwin-arm64@2.0.3'
+  - '@mdream/rust-android-arm64@2.0.3'
+  - '@mdream/rust-linux-x64-gnu@2.0.3'
+  - '@mdream/rust-linux-x64-musl@2.0.3'
+  - '@mdream/rust-win32-x64-msvc@2.0.3'
+  - '@mdream/rust-linux-arm64-gnu@2.0.3'
+  - '@mdream/rust-android-arm-eabi@2.0.3'
+  - '@mdream/rust-linux-arm64-musl@2.0.3'
+  - '@mdream/rust-win32-arm64-msvc@2.0.3'
+  - '@mdream/rust-linux-arm-gnueabihf@2.0.3'
   - '@nuxt/cli@4.0.0'
   - '@harlan-zw/comark-content@0.2.0'
   - '@harlan-zw/nuxt-cf-jobs@0.3.0'
@@ -97,7 +112,7 @@ minimumReleaseAgeExclude:
   - '@nuxtjs/robots@7.0.2'
   - '@nuxtjs/sitemap@9.1.0'
   - nuxt-og-image@7.0.3
-  - nuxt-ai-ready@3.3.0
+  - nuxt-ai-ready@3.3.1
   - nuxt-skew-protection@2.0.2
   - nuxt-schema-org@7.0.1
   - nuxt-seo-utils@9.0.0
@@ -249,7 +264,9 @@ packages:
   - workers/*
 
 overrides:
-  nuxt-ai-ready: 3.3.0
+  '@mdream/js': 2.0.3
+  mdream: 2.0.3
+  nuxt-ai-ready: 3.3.1
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.patch
