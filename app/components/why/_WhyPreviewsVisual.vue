@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HomeDemoItem } from '~/utils/home-demos'
+import type { HomeDemoPreview } from '~/utils/home-demos'
 import { demoHref, demoPreviews, demoRecording } from '~/utils/home-demos'
 import WhyPanel from './_WhyPanel.vue'
 
@@ -12,12 +12,12 @@ import WhyPanel from './_WhyPanel.vue'
  * two demos in one group the picture is not drawn.
  */
 const { demos } = defineProps<{
-  demos: readonly HomeDemoItem[]
+  demos: readonly HomeDemoPreview[]
 }>()
 
 const picked = computed(() => demoPreviews(demos))
 
-function still(demo: HomeDemoItem) {
+function still(demo: HomeDemoPreview) {
   if (demo.video)
     return { src: demo.video.poster, width: demo.video.width, height: demo.video.height, alt: `A frame of the film the Agent made with /${demo.name}.` }
   const shot = demo.shots.find(candidate => candidate.viewport === 'desktop') ?? demo.shots[0]

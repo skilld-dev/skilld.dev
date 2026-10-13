@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RecentPullRequest } from '#shared/open-source-pull-requests'
 import type { TrendingBoardRow } from '#shared/trending-range'
-import type { HomeDemoItem } from '~/utils/home-demos'
+import type { HomeDemoPreview } from '~/utils/home-demos'
 import { HOME_WHY_REASONS, WHY_REASONS } from '~/utils/why-skilld'
 import WhyTrustLine from './why/_WhyTrustLine.vue'
 import WhyVisual from './why/_WhyVisual.vue'
@@ -18,7 +18,7 @@ const { trendingRow, demos, pulls } = defineProps<{
   /** The first trending row ranked by posts, for the people picture. */
   trendingRow: TrendingBoardRow | null
   /** The approved demos, for the previews picture. */
-  demos: readonly HomeDemoItem[]
+  demos: readonly HomeDemoPreview[]
   /** Recently merged pull requests, for the open source picture. */
   pulls: readonly RecentPullRequest[]
 }>()

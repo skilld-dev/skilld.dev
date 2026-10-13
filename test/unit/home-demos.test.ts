@@ -1,6 +1,6 @@
 import type { HomeDemoItem } from '../../app/utils/home-demos'
 import { describe, expect, it } from 'vitest'
-import { demoPhoneRatio, demoRecording, demoSocialPicture, formatDemoDuration, homeDemoFeed } from '../../app/utils/home-demos'
+import { demoDesktopShot, demoHref, demoPhoneRatio, demoRecording, demoSocialPicture, formatDemoDuration, homeDemoFeed } from '../../app/utils/home-demos'
 
 function demo(overrides: Partial<HomeDemoItem> = {}): HomeDemoItem {
   return {
@@ -26,11 +26,20 @@ function demo(overrides: Partial<HomeDemoItem> = {}): HomeDemoItem {
 }
 
 describe('homeDemoFeed', () => {
+  it('keeps comparison links, images, and recording details within a small payload', () => {
+    const films = Array.from({ length: 7 }, (_, index) => demo({ name: `film-${index}`, makes: 'film' }))
+    const pages = ['page-a', 'page-b'].map(name => demo({ name, makes: 'landing-page', prompt: 'Long recording prompt. '.repeat(1000) }))
+    const result = homeDemoFeed({ items: [...films, ...pages] })
+    expect(result.previews.map(item => ({ name: item.name, href: demoHref(item), shot: demoDesktopShot(item), recording: demoRecording(item).sentence }))).toEqual(pages.map(item => ({ name: item.name, href: demoHref(item), shot: demoDesktopShot(item), recording: demoRecording(item).sentence })))
+    expect(Buffer.byteLength(JSON.stringify(result.previews))).toBeLessThan(2048)
+  })
   it('keeps the teaser order, total count, and preferred comparison beyond the teaser', () => {
     const films = Array.from({ length: 7 }, (_, index) => demo({ name: `film-${index}`, makes: 'film' }))
     const pages = Array.from({ length: 4 }, (_, index) => demo({ name: `page-${index}`, makes: 'landing-page' }))
     const result = homeDemoFeed({ items: [...films, ...pages] })
-    expect(result).toEqual({ items: films.slice(0, 6), previews: pages.slice(0, 3), total: 11 })
+    expect(result.items).toEqual(films.slice(0, 6))
+    expect(result.previews.map(item => item.name)).toEqual(pages.slice(0, 3).map(item => item.name))
+    expect(result.total).toBe(11)
   })
 
   it('falls back to the first eligible group in display order', () => {
@@ -38,7 +47,10 @@ describe('homeDemoFeed', () => {
     const page = demo({ name: 'page', makes: 'landing-page' })
     const films = [demo({ name: 'film-a', makes: 'film' }), demo({ name: 'film-b', makes: 'film' })]
     const items = [component, page, ...films, demo({ name: 'other-component' })]
-    expect(homeDemoFeed({ items })).toEqual({ items, previews: films, total: 5 })
+    const result = homeDemoFeed({ items })
+    expect(result.items).toEqual(items)
+    expect(result.previews.map(item => item.name)).toEqual(films.map(item => item.name))
+    expect(result.total).toBe(5)
   })
 
   it('leaves comparison empty when no group has two recordings', () => {
