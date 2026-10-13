@@ -98,6 +98,7 @@ describe('checkEdgeCache', () => {
         { path: '/skills/trending', cacheStatuses: ['MISS', 'HIT'] },
         { path: '/skills/trending?range=all', cacheStatuses: ['MISS', 'HIT'] },
       ],
+      warnings: [],
     })
   })
 
@@ -195,6 +196,7 @@ describe('checkEdgeCache', () => {
     expect(result).toEqual({
       _tag: 'failed',
       failures: [{ _tag: 'never-served-from-cache', path: '/skills/trending', cacheStatuses: ['MISS', 'MISS', 'MISS', 'MISS'] }],
+      warnings: [],
     })
   })
 
@@ -318,9 +320,21 @@ describe('checkEdgeCache', () => {
     expect(conditional).toEqual([STORED_ETAG, STORED_ETAG])
   })
 
-  it('fails when a stored page carries no ETag', async () => {
+  // Production on 2026-10-13: zone features that rewrite HTML were on, such as
+  // Email Obfuscation. The HTML 200 lost its ETag, and `If-None-Match: *` got a
+  // 304 that carried it.
+  it('warns, and still checks the 304, when Cloudflare strips the ETag from the page', async () => {
     const result = await run(edge({
       anonymous: (_path, count) => ({ headers: { 'cf-cache-status': count === 1 ? 'MISS' : 'HIT', 'etag': '' } }),
+    }))
+
+    expect(result).toMatchObject({ _tag: 'passed', warnings: [{ _tag: 'etag-stripped', path: '/skills/trending' }] })
+  })
+
+  it('fails when neither the page nor a 304 carries an ETag', async () => {
+    const result = await run(edge({
+      anonymous: (_path, count) => ({ headers: { 'cf-cache-status': count === 1 ? 'MISS' : 'HIT', 'etag': '' } }),
+      conditional: () => ({ headers: { 'cf-cache-status': 'HIT', 'etag': '' } }),
     }))
 
     expect(result).toMatchObject({ _tag: 'failed', failures: [{ _tag: 'no-etag', path: '/skills/trending' }] })
