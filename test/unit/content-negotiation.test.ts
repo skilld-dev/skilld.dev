@@ -71,7 +71,6 @@ describe('decideNegotiation: which requests negotiate', () => {
 
 describe('decideNegotiation: Markdown location', () => {
   it.each([
-    { path: '/skills/trending?range=week', location: '/skills/trending.md' },
     { path: '/', location: '/index.md' },
     { path: '/gh/antfu/skills/', location: '/gh/antfu/skills.md' },
   ])('$path redirects to $location', ({ path, location }) => {

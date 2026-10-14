@@ -81,7 +81,7 @@ export function decideNegotiation(request: NegotiationRequest): NegotiationDecis
 
   const representation = representationFor(accept, request.secFetchDest)
   if (representation === 'markdown')
-    return { _tag: 'markdown', location: markdownPath(path) }
+    return { _tag: 'markdown', location: markdownPath(request.path) }
   if (representation === 'not-acceptable')
     return { _tag: 'not-acceptable' }
   return { _tag: 'html' }
@@ -177,8 +177,11 @@ function isPagePath(path: string): boolean {
 }
 
 function markdownPath(path: string): string {
-  const normalized = path.replace(/\/+$/, '')
-  return normalized ? `${normalized}.md` : '/index.md'
+  const index = path.indexOf('?')
+  const pathname = index === -1 ? path : path.slice(0, index)
+  const search = index === -1 ? '' : path.slice(index)
+  const normalized = pathname.replace(/\/+$/, '')
+  return `${normalized ? `${normalized}.md` : '/index.md'}${search}`
 }
 
 function withoutQuery(path: string): string {
