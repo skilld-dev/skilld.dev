@@ -20,12 +20,20 @@ const emit = defineEmits<{
   select: [path: string]
 }>()
 
-const open = ref(props.node.kind === 'dir' && props.node.initiallyOpen)
+// Mount a folder's entries on first expansion. Keep them after closing so
+// nested expansion state survives, without sending unopened files in HTML.
+const folderState = ref<'unopened' | 'open' | 'closed'>(
+  props.node.kind === 'dir' && props.node.initiallyOpen ? 'open' : 'unopened',
+)
+const open = computed(() => folderState.value === 'open')
+const renderedChildren = computed(() =>
+  props.node.kind === 'dir' && folderState.value !== 'unopened' ? props.node.children : [],
+)
 
 // Opening a file from a link or the breadcrumb reveals it in the tree.
 watch(() => props.activePath, (active) => {
   if (props.node.kind === 'dir' && active.startsWith(`${props.node.path}/`))
-    open.value = true
+    folderState.value = 'open'
 }, { immediate: true })
 
 function countFiles(node: TreeNode): number {
@@ -72,7 +80,7 @@ const inlineRenderable = computed(() =>
         :aria-expanded="open"
         :aria-controls="`${idPrefix}-${node.path}`"
         :title="node.path"
-        @click="open = !open"
+        @click="folderState = open ? 'closed' : 'open'"
       >
         <SkillFileIcon
           :name="open ? 'default-folder-opened' : 'default-folder'"
@@ -101,7 +109,7 @@ const inlineRenderable = computed(() =>
         class="tree-children"
       >
         <SkillFileTreeNode
-          v-for="child in node.children"
+          v-for="child in renderedChildren"
           :key="child.path"
           :node="child"
           :owner="owner"

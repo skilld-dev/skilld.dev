@@ -40,8 +40,10 @@ const liveUrl = computed(() => live && !demo.video && !demo.writing ? demo.liveU
     <div v-if="presentation !== 'hero'" class="demo-stage__head">
       <details v-if="showPrompt && presentation === 'compact'" class="demo-stage__task">
         <summary class="data-label">
-          <span>Prompt</span>
-          <DemoRecording :demo />
+          <h2 class="data-label inline-flex min-w-0 flex-wrap items-baseline gap-3 font-normal">
+            <span>Prompt</span>
+            <DemoRecording :demo />
+          </h2>
         </summary>
         <p v-if="recording.usage" class="data-label demo-stage__usage">
           {{ recording.usage.sentence }}
@@ -58,7 +60,9 @@ const liveUrl = computed(() => live && !demo.video && !demo.writing ? demo.liveU
     </div>
     <details v-if="showPrompt && presentation === 'full'" class="demo-stage__task demo-stage__task--full">
       <summary class="data-label">
-        Prompt
+        <h2 class="data-label font-normal">
+          Prompt
+        </h2>
       </summary>
       <p class="demo-stage__prompt">
         {{ demo.prompt }}
