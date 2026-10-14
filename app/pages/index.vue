@@ -347,7 +347,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
           <div class="mt-8">
             <ol class="editorial-ledger list-none p-0">
               <li v-for="{ row, rank } in homeTrendingRows" :key="row.key">
-                <LazyTrendingBoardItem hydrate-on-visible :row :rank surface="home-trending-row" @avatar-error="onAvatarError" />
+                <LazyTrendingBoardItem hydrate-on-visible :row :rank defer-posts surface="home-trending-row" @avatar-error="onAvatarError" />
               </li>
             </ol>
           </div>
