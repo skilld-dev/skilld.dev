@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
  */
 const OUTSIDE_CONTRACT = [
   /^layers\/artifact-delivery\//,
-  /^server\/api\/v1\/openapi\.json\.get\.ts$/,
+  /^server\/api\/v1\/openapi\.json\.(?:get|head)\.ts$/,
 ]
 
 const modules = import.meta.glob<{ default: Partial<ApiOperationHandler> }>([
