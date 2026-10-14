@@ -12,12 +12,14 @@ import TrendingStarSpark from './TrendingStarSpark.vue'
  * one; the faces open every post. The posts used to show as a card under
  * every row and tripled its height.
  */
-const { row, rank, surface = 'trending-row' } = defineProps<{
+const { row, rank, surface = 'trending-row', deferPosts = false } = defineProps<{
   row: TrendingBoardRow
   /** One-based position on the board. */
   rank: number
   /** Analytics surface for the run pill. */
   surface?: string
+  /** Homepage previews mount the post carousel only when first opened. */
+  deferPosts?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -62,7 +64,9 @@ const starLine = computed(() => row.reason._tag !== 'posts' && row.starSeries.le
  */
 const hasReason = computed(() => row.reason._tag !== 'member' || starLine.value)
 
-const open = ref(false)
+const postsState = ref<'unopened' | 'open' | 'closed'>('unopened')
+const open = computed(() => postsState.value === 'open')
+const renderPosts = computed(() => !deferPosts || postsState.value !== 'unopened')
 const postsId = useId()
 const postsLabel = computed(() => `${posts.value.length} ${posts.value.length === 1 ? 'post' : 'posts'} about /${row.name}`)
 </script>
@@ -82,7 +86,7 @@ const postsLabel = computed(() => `${posts.value.length} ${posts.value.length ==
     </template>
     <template v-if="hasReason" #meta>
       <template v-if="posts.length">
-        <TrendingPostFaces :posts :open :controls="postsId" :label="postsLabel" @toggle="() => { open = !open }" />
+        <TrendingPostFaces :posts :open :controls="postsId" :label="postsLabel" @toggle="() => { postsState = open ? 'closed' : 'open' }" />
         <!-- The first card repeats this post, so the line steps aside while the cards show. -->
         <TrendingPostQuote v-if="!open" :post="posts[0]!" :names="row.names" />
       </template>
@@ -103,10 +107,11 @@ const postsLabel = computed(() => `${posts.value.length} ${posts.value.length ==
         <span v-else-if="row.reason._tag === 'filler'">Ranked by GitHub stars</span>
       </template>
     </template>
-    <!-- In the server HTML while closed, so every post the board ranked on stays readable to a crawler. -->
+    <!-- Full boards serialize their source posts. Homepage previews defer the carousel until first opened. -->
     <template v-if="posts.length" #aside>
       <div :id="postsId" :hidden="!open">
         <TrendingPostCarousel
+          v-if="renderPosts"
           :posts="posts"
           :names="row.names"
           :label="`Posts about /${row.name}`"
