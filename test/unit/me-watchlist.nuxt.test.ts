@@ -1,6 +1,8 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
+import LikeButton from '../../layers/identity/app/components/LikeButton.vue'
+import { useLikes } from '../../layers/identity/app/composables/useLikes'
 
 const oldSyncTime = 1_755_000_000
 const newSyncTime = 1_786_000_000
@@ -64,6 +66,12 @@ vi.mock('@harlan-zw/nuxt-use-query/rpc', async (importOriginal) => {
 })
 
 mockNuxtImport('$fetch', () => requestFetch)
+
+mockNuxtImport('useAuth', () => () => ({
+  state: ref({ _tag: 'signed-in', user: { login: 'harlan', onboarded: true } }),
+  isAuthenticated: ref(true),
+  fetchSession: vi.fn(),
+}))
 
 mockNuxtImport('useNuxtRpcQuery', () => {
   return (operation: { path: string }) => {
@@ -172,6 +180,10 @@ describe('account skill watchlist', () => {
     likesStatus.value = 'success'
     refreshLikes.mockClear()
     requestFetch.mockReset()
+    useState('skill-likes').value = {}
+    useState('skill-like-counts').value = {}
+    useState('skill-likes-loaded').value = false
+    useState('skill-likes-pending').value = {}
     executeRpc.mockReset()
     queryRpc.mockReset()
 
@@ -183,7 +195,14 @@ describe('account skill watchlist', () => {
       throw new Error(`Unexpected query: ${operation.path}`)
     })
 
-    requestFetch.mockImplementation(async (path: string) => {
+    requestFetch.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (path === '/api/me/likes') {
+        if (options?.method === 'POST') {
+          serverLikes = [likedSkillFixture()]
+          return { ok: true, likeCount: 1 }
+        }
+        return { items: serverLikes.map(skill => ({ ...skill, likeCount: 1 })) }
+      }
       if (path === '/api/me/stars/sync') {
         serverAccount = accountFixture(newSyncTime)
         return {
@@ -201,7 +220,7 @@ describe('account skill watchlist', () => {
           await new Promise<void>(resolve => releaseDelete = resolve)
         serverLikes = []
         serverSubscriptions = []
-        return { ok: true }
+        return { ok: true, likeCount: 0 }
       }
       throw new Error(`Unexpected request: ${path}`)
     })
@@ -276,6 +295,32 @@ describe('account skill watchlist', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Add a skill to start watching its source.')
     expect(wrapper.text()).not.toContain('antfu/skills')
+  })
+
+  it('clears the Skill heart after account removal and lets the next click save it again', async () => {
+    const skill = likedSkillFixture()
+    await useLikes().ensureLoaded()
+    const wrapper = await mountPage()
+
+    await wrapper.get('button[aria-label="Remove nuxt from your skills"]').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+
+    const heart = await mountSuspended(LikeButton, { props: { ...skill, count: 1 } })
+    await flushPromises()
+    expect(heart.get('button').attributes('aria-pressed')).toBe('false')
+    expect(heart.get('button').text()).toBe('0')
+
+    requestFetch.mockClear()
+    await heart.get('button').trigger('click')
+    await flushPromises()
+    expect(requestFetch).toHaveBeenCalledWith('/api/me/likes', {
+      method: 'POST',
+      body: { owner: skill.owner, repo: skill.repo, name: skill.name },
+    })
+    expect(heart.get('button').attributes('aria-pressed')).toBe('true')
+    expect(serverLikes.map(item => item.name)).toEqual(['nuxt'])
+    heart.unmount()
   })
 
   it('disables skill removal while the request is pending', async () => {
