@@ -27,9 +27,14 @@ export function signupEntry(action: string, returnTo: string): SignupEntry {
 
 /** Classify a clicked sign-in link without recording its path or parameters. */
 export function signupClickEvent(href: string, origin: string): Extract<SignupBrowserEvent, { stage: 'oauth' }> | null {
-  if (!URL.canParse(href, origin))
+  let url: URL
+  try {
+    url = new URL(href, origin)
+  }
+  catch {
+    // Invalid links are outside the sign-in action.
     return null
-  const url = new URL(href, origin)
+  }
   if (url.origin !== origin || url.pathname !== '/auth/github')
     return null
   return {
