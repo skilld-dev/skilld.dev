@@ -19,6 +19,23 @@ it.each(['/login', 'https://other.example/auth/github', 'javascript:alert(1)', '
   expect(signupClickEvent(href, 'https://skilld.dev')).toBeNull()
 })
 
+it('classifies sign-in links when URL.canParse is unavailable', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(URL, 'canParse')
+  Reflect.deleteProperty(URL, 'canParse')
+  try {
+    expect(signupClickEvent('/auth/github', 'https://skilld.dev')).toEqual({
+      stage: 'oauth',
+      outcome: 'clicked',
+      entry: 'direct',
+    })
+    expect(signupClickEvent('http://[', 'https://skilld.dev')).toBeNull()
+  }
+  finally {
+    if (descriptor)
+      Object.defineProperty(URL, 'canParse', descriptor)
+  }
+})
+
 it('classifies CLI sign-in without storing its authorization parameters', () => {
   expect(signupEntry('', '/cli/authorize?user_code=SECRET')).toBe('cli')
   expect(signupEntry('like-skill', '/gh/owner/repo/skill')).toBe('like-skill')
