@@ -138,6 +138,18 @@ export function useLikes() {
     return !wasLiked
   }
 
+  /** Account removal must also update hearts already loaded in this session. */
+  async function remove(ref: SkillLikeRef): Promise<LikeMutationResponse> {
+    // An older list response must settle before it can overwrite the removal.
+    await ensureLoaded()
+    const key = likeKey(ref)
+    const path = `/api/me/likes/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${encodeURIComponent(ref.name)}`
+    const result = await $fetch<LikeMutationResponse>(path, { method: 'DELETE' })
+    liked.value = applyLiked(liked.value, key, false)
+    likeCounts.value = { ...likeCounts.value, [key]: result.likeCount }
+    return result
+  }
+
   /** Idempotent unlike `toggle`: automatic flows can only move toward liked. */
   async function ensureLiked(ref: SkillLikeRef): Promise<boolean> {
     if (!isAuthenticated.value)
@@ -184,7 +196,7 @@ export function useLikes() {
     return request
   }
 
-  return { liked, isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, ensureLiked, toggle }
+  return { liked, isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, ensureLiked, toggle, remove }
 }
 
 function applyLiked(map: Record<string, true>, key: string, next: boolean): Record<string, true> {

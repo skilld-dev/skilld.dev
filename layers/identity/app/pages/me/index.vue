@@ -42,6 +42,7 @@ const {
 const actionFailed = useActionFailure()
 const rpc = useNuxtRpc()
 const { fetchSession } = useAuth()
+const { remove: removeLike } = useLikes()
 
 async function refreshAccount() {
   me.value = await rpc.query(identityAccountQueries.me())
@@ -90,8 +91,7 @@ async function setRepoIndexing(repoIndexing: boolean) {
 
 const removeLikeMutation = useNuxtMutation<LikedSkill, { ok: true }>({
   mutation: async (skill) => {
-    const path = `/api/me/likes/${skill.owner}/${skill.repo}/${skill.name}`
-    const result = await $fetch<{ ok: true }>(path, { method: 'DELETE' })
+    const result = await removeLike(skill)
     await Promise.all([refreshLikes(), refreshSubscriptions()])
     return result
   },

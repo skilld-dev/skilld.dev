@@ -197,6 +197,33 @@ describe('likeButton toggle semantics', () => {
 })
 
 describe('useLikes hydration', () => {
+  it('keeps the heart and count when account removal fails', async () => {
+    likedItems = [{ ...skill, likeCount: 3 }]
+    const likes = useLikes()
+    await likes.ensureLoaded()
+    mutation = { _tag: 'error' }
+
+    await expect(likes.remove(skill)).rejects.toThrow('offline')
+
+    expect(likes.isLiked(skill)).toBe(true)
+    expect(likes.likeCount(skill)).toBe(3)
+  })
+
+  it('does not let an in-flight list restore a removed like', async () => {
+    likedItems = [{ ...skill, likeCount: 3 }]
+    mutation = { _tag: 'ok', likeCount: 2 }
+    const release = holdListRequest()
+    const likes = useLikes()
+    const loading = likes.ensureLoaded()
+    const removing = likes.remove(skill)
+
+    release()
+    await Promise.all([loading, removing])
+
+    expect(likes.isLiked(skill)).toBe(false)
+    expect(likes.likeCount(skill)).toBe(2)
+  })
+
   it('clears the failed like after retry without dismissing another action', async () => {
     const likes = useLikes()
     mutation = { _tag: 'error' }

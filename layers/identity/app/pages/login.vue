@@ -41,8 +41,17 @@ const actionMessage = computed(() => {
 })
 
 watchEffect(async () => {
-  if (loggedIn.value)
-    await navigateTo(returnTo.value || '/me', { replace: true })
+  if (!loggedIn.value || error.value)
+    return
+
+  // Public pages can still offer anonymous Like or Watch links after another
+  // tab signs in. Keep the intent on the sealed OAuth replay path instead of
+  // returning to the Skill without applying it. Failed replays stay retryable.
+  if (returnTo.value && ['like-skill', 'watch-skill', 'watch-collection'].includes(action.value)) {
+    await navigateTo(href.value, { external: true, replace: true })
+    return
+  }
+  await navigateTo(returnTo.value || '/me', { replace: true })
 })
 
 useSeoMeta({
