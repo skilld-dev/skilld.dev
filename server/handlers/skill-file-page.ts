@@ -11,6 +11,7 @@ import { isSkillFilePagePath } from '#shared/skill-asset-path'
  *
  * Content negotiation skips the same requests. The file is already the
  * content, so no Markdown twin exists to redirect to.
+ * The request plugin calls this before the module caches its routing decision.
  */
 export default defineEventHandler((event) => {
   if (isSkillFilePagePath(event.path))
