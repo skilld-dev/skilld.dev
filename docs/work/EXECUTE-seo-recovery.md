@@ -2,7 +2,7 @@
 
 Status: open · 2026-10-03 · recovery implementation included in deployed `1ccf98ec`; gate 2026-11-11
 
-**Next move:** Run the first weekly measurement on 2026-10-12 after 09:00 Melbourne time. Check each Checkpoint date before comparison.
+**Next move:** Read the next Monday measurement after 09:00 Melbourne time. Check each Checkpoint date before comparison.
 
 Done means: the gate table below has a decision for 2026-11-11, and every panel URL in [seo-recovery-panel.json](seo-recovery-panel.json) has a coverage state read on that date.
 
@@ -26,6 +26,31 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-10-20 NuxtSEO access succeeded after renewed browser pairing. CLI 0.5.10 read all 41 panel watches.
+  Every watch had a Checkpoint. Latest Checkpoints span `2026-10-14T21:09:21Z` to `2026-10-18T08:46:05Z`.
+  All predate Monday 19 October in Melbourne. This read cannot complete that Monday's comparison.
+  The 34 active URLs reported 33 `unknown_to_google` and one `crawled_not_indexed`.
+  The latter was `https://skilld.dev/gh/avdlee/swift-concurrency-agent-skill`, checked on 18 October.
+  Its last reported Google crawl was `2026-08-30T03:04:29Z`, so the Checkpoint proves no new crawl.
+  Active groups: `trending_sample` 19 unknown; `d_probe` two unknown; `demand` three unknown; `f_comparison` one unknown.
+  The nine active `admitted_other` URLs reported eight unknown and one crawled, not indexed.
+  Report the quality exclusion and dated Repository hub exclusion separately; each reported unknown.
+  The five retired URLs reported three crawled, not indexed, and two excluded by noindex.
+  Search Console's available seven days, 10 to 16 October, reported zero clicks and 34 impressions.
+  The previous period reported zero clicks and 30 impressions. These totals do not establish traffic recovery.
+  Google's exact retired-Sitemap read at `2026-10-19T14:51:22Z` reported 9,988 URLs, zero errors, and one warning.
+  Its last download was `2026-10-18T03:20:05Z`; `isPending` was false.
+  The Bing provider read returned `reauthorization-required`, so it supplied no current listing verdict.
+  Cloudflare's Analytics API refused the weekly Googlebot query because the credential lacked Zone Analytics Read.
+  Crawl-purpose share, a current Pages report, and a clean referring-domain count remain unavailable for this read.
+  Current content from 30 public README search results yielded 36 distinct Skill destinations.
+  This sample does not establish experiment B's ten eligible destinations or their link start dates.
+  Both experiment D probes retain outside-link evidence; neither supplies an unlinked control.
+  Live follow-up found valid reference-file URLs returning 404 despite successful asset API responses.
+  Nuxt's Markdown negotiation claimed those file URLs before their guard ran. The repair moves that guard to Nitro's request hook.
+  All five supplied avatar-image examples returned 200. The partial image action supplied five of eight reported URLs.
+  Keep the existing freeze and 11 November gate. These observations do not justify broader indexing changes.
+
 - 2026-10-20 HTTP checks covered all 41 panel URLs at `2026-10-19T14:07:51Z`.
   The 34 active, non-retired URLs returned 200, allowed indexing, and had self-canonical URLs and Sitemap entries.
   The five retired URLs returned 301. The existing quality exclusion returned `noindex,follow` and stayed outside the Skills sitemap.
@@ -35,7 +60,7 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
   The October 1 entity policy deliberately excludes these hubs. Record this URL in its group's `excluded_urls`.
   Keep all 41 original URLs, their groups, and their history. The `admitted_other` group has nine active URLs for this read.
   These reads do not establish when the hub became noindex, or what Google indexed.
-  NuxtSEO CLI 0.5.10 returned `state_error`: its saved keychain credential was unavailable.
+  The initial NuxtSEO CLI 0.5.10 attempt returned `state_error`: its saved keychain credential was unavailable.
   This HTTP and D1 read cannot complete the weekly Search Console measurement or decide experiment outcomes.
 
 - 2026-10-13 Cloudflare's GraphQL Analytics API (`httpRequestsAdaptiveGroups`, zone `skilld.dev`) counted 2,219 verified Googlebot requests from 2026-10-06 to 2026-10-12 UTC, about 317 a day.
