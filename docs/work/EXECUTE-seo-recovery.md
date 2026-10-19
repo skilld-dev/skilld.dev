@@ -2,7 +2,7 @@
 
 Status: open · 2026-10-03 · recovery implementation included in deployed `1ccf98ec`; gate 2026-11-11
 
-**Next move:** Run the first weekly measurement on 2026-10-12 after 09:00 Melbourne time. Check each Checkpoint date before comparison.
+**Next move:** Read the next Monday measurement after 09:00 Melbourne time. Check each Checkpoint date before comparison.
 
 Done means: the gate table below has a decision for 2026-11-11, and every panel URL in [seo-recovery-panel.json](seo-recovery-panel.json) has a coverage state read on that date.
 
@@ -25,6 +25,43 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 - [ ] Move this brief to `shipped/` once the gate decision is recorded
 
 ## Log
+
+- 2026-10-20 NuxtSEO access succeeded after renewed browser pairing. CLI 0.5.10 read all 41 panel watches.
+  Every watch had a Checkpoint. Latest Checkpoints span `2026-10-14T21:09:21Z` to `2026-10-18T08:46:05Z`.
+  All predate Monday 19 October in Melbourne. This read cannot complete that Monday's comparison.
+  The 34 active URLs reported 33 `unknown_to_google` and one `crawled_not_indexed`.
+  The latter was `https://skilld.dev/gh/avdlee/swift-concurrency-agent-skill`, checked on 18 October.
+  Its last reported Google crawl was `2026-08-30T03:04:29Z`, so the Checkpoint proves no new crawl.
+  Active groups: `trending_sample` 19 unknown; `d_probe` two unknown; `demand` three unknown; `f_comparison` one unknown.
+  The nine active `admitted_other` URLs reported eight unknown and one crawled, not indexed.
+  Report the quality exclusion and dated Repository hub exclusion separately; each reported unknown.
+  The five retired URLs reported three crawled, not indexed, and two excluded by noindex.
+  Search Console's available seven days, 10 to 16 October, reported zero clicks and 34 impressions.
+  The previous period reported zero clicks and 30 impressions. These totals do not establish traffic recovery.
+  Google's exact retired-Sitemap read at `2026-10-19T14:51:22Z` reported 9,988 URLs, zero errors, and one warning.
+  Its last download was `2026-10-18T03:20:05Z`; `isPending` was false.
+  The Bing provider read returned `reauthorization-required`, so it supplied no current listing verdict.
+  Cloudflare's Analytics API refused the weekly Googlebot query because the credential lacked Zone Analytics Read.
+  Crawl-purpose share, a current Pages report, and a clean referring-domain count remain unavailable for this read.
+  Current content from 30 public README search results yielded 36 distinct Skill destinations.
+  This sample does not establish experiment B's ten eligible destinations or their link start dates.
+  Both experiment D probes retain outside-link evidence; neither supplies an unlinked control.
+  Live follow-up found valid reference-file URLs returning 404 despite successful asset API responses.
+  Nuxt's Markdown negotiation claimed those file URLs before their guard ran. The repair moves that guard to Nitro's request hook.
+  All five supplied avatar-image examples returned 200. The partial image action supplied five of eight reported URLs.
+  Keep the existing freeze and 11 November gate. These observations do not justify broader indexing changes.
+
+- 2026-10-20 HTTP checks covered all 41 panel URLs at `2026-10-19T14:07:51Z`.
+  The 34 active, non-retired URLs returned 200, allowed indexing, and had self-canonical URLs and Sitemap entries.
+  The five retired URLs returned 301. The existing quality exclusion returned `noindex,follow` and stayed outside the Skills sitemap.
+  The `admitted_other` URL `https://skilld.dev/gh/axtonliu/axton-obsidian-visual-skills` rendered a multi-Skill Repository hub with `noindex,follow`.
+  Production D1 held three resolved Skills: `excalidraw-diagram`, `mermaid-visualizer`, and `obsidian-canvas-creator`.
+  Each Skill had `seo_indexable=1`. The hub had a self-canonical URL and no Skills sitemap entry.
+  The October 1 entity policy deliberately excludes these hubs. Record this URL in its group's `excluded_urls`.
+  Keep all 41 original URLs, their groups, and their history. The `admitted_other` group has nine active URLs for this read.
+  These reads do not establish when the hub became noindex, or what Google indexed.
+  The initial NuxtSEO CLI 0.5.10 attempt returned `state_error`: its saved keychain credential was unavailable.
+  This HTTP and D1 read cannot complete the weekly Search Console measurement or decide experiment outcomes.
 
 - 2026-10-13 Cloudflare's GraphQL Analytics API (`httpRequestsAdaptiveGroups`, zone `skilld.dev`) counted 2,219 verified Googlebot requests from 2026-10-06 to 2026-10-12 UTC, about 317 a day.
   By status: 200: 1,918. 403: 172. 301: 60. 404: 51. 204: 15. 524: 2. 410: 1. Unverified "Googlebot" user agents made 92 requests.
@@ -256,7 +293,7 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 | `quality_excluded` | 1 | Quality gate excludes the page | Observe coverage separately; omit from active recovery decisions |
 | `d_probe` | 2 | Two linked pages (experiment D) | Record coverage for both; this pair cannot isolate a link effect |
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
-| `admitted_other` | 10 | Trending set only | Trending-only baseline |
+| `admitted_other` | 10 retained, 9 active on 2026-10-20 | Trending set only; one intentional hub exclusion | Trending-only baseline |
 | `retired` | 5 | Retired URLs in the retired sitemap (experiment E) | Move out of "Crawled, currently not indexed" |
 | `f_comparison` | 1 | Original source comparison with contextual internal links | Indexed with impressions for relevant prose editing or comparison queries |
 | `b_linked` | 10, to fill | Outside links from README badges (experiment B) | Crawled or indexed within 14 days of the link |
@@ -295,6 +332,10 @@ Report unavailable evidence separately from a missing Sitemap. Do not submit or 
    Report `quality_excluded` separately. Exclude it from active recovery totals and experiment scale or kill decisions.
    Recheck its quality eligibility each week. If eligibility changes, record the date before changing its group.
    Keep its earlier observations in their original group. Never treat an intentional noindex as failed recovery.
+   Read each group's optional `excluded_urls`. Keep these URLs in their original group and preserve their historical observations.
+   From each entry's `observed_at`, report its URL and reason separately from active recovery totals and experiment decisions.
+   Recheck eligibility on each read. A noindex Repository hub does not establish a content or domain verdict.
+   Do not substitute a child Skill URL or backdate an exclusion without evidence.
 2. Read Search Console crawl stats in the UI. This is the leading signal.
 
    | Signal | Baseline |
