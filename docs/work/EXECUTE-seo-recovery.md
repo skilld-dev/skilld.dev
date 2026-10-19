@@ -26,6 +26,18 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-10-20 HTTP checks covered all 41 panel URLs at `2026-10-19T14:07:51Z`.
+  The 34 active, non-retired URLs returned 200, allowed indexing, and had self-canonical URLs and Sitemap entries.
+  The five retired URLs returned 301. The existing quality exclusion returned `noindex,follow` and stayed outside the Skills sitemap.
+  The `admitted_other` URL `https://skilld.dev/gh/axtonliu/axton-obsidian-visual-skills` rendered a multi-Skill Repository hub with `noindex,follow`.
+  Production D1 held three resolved Skills: `excalidraw-diagram`, `mermaid-visualizer`, and `obsidian-canvas-creator`.
+  Each Skill had `seo_indexable=1`. The hub had a self-canonical URL and no Skills sitemap entry.
+  The October 1 entity policy deliberately excludes these hubs. Record this URL in its group's `excluded_urls`.
+  Keep all 41 original URLs, their groups, and their history. The `admitted_other` group has nine active URLs for this read.
+  These reads do not establish when the hub became noindex, or what Google indexed.
+  NuxtSEO CLI 0.5.10 returned `state_error`: its saved keychain credential was unavailable.
+  This HTTP and D1 read cannot complete the weekly Search Console measurement or decide experiment outcomes.
+
 - 2026-10-13 Cloudflare's GraphQL Analytics API (`httpRequestsAdaptiveGroups`, zone `skilld.dev`) counted 2,219 verified Googlebot requests from 2026-10-06 to 2026-10-12 UTC, about 317 a day.
   By status: 200: 1,918. 403: 172. 301: 60. 404: 51. 204: 15. 524: 2. 410: 1. Unverified "Googlebot" user agents made 92 requests.
   All 172 verified 403 responses were OG image URLs under `/_og/d/…png`, refused by nuxt-og-image's signature check in the Worker.
@@ -256,7 +268,7 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 | `quality_excluded` | 1 | Quality gate excludes the page | Observe coverage separately; omit from active recovery decisions |
 | `d_probe` | 2 | Two linked pages (experiment D) | Record coverage for both; this pair cannot isolate a link effect |
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
-| `admitted_other` | 10 | Trending set only | Trending-only baseline |
+| `admitted_other` | 10 retained, 9 active on 2026-10-20 | Trending set only; one intentional hub exclusion | Trending-only baseline |
 | `retired` | 5 | Retired URLs in the retired sitemap (experiment E) | Move out of "Crawled, currently not indexed" |
 | `f_comparison` | 1 | Original source comparison with contextual internal links | Indexed with impressions for relevant prose editing or comparison queries |
 | `b_linked` | 10, to fill | Outside links from README badges (experiment B) | Crawled or indexed within 14 days of the link |
@@ -295,6 +307,10 @@ Report unavailable evidence separately from a missing Sitemap. Do not submit or 
    Report `quality_excluded` separately. Exclude it from active recovery totals and experiment scale or kill decisions.
    Recheck its quality eligibility each week. If eligibility changes, record the date before changing its group.
    Keep its earlier observations in their original group. Never treat an intentional noindex as failed recovery.
+   Read each group's optional `excluded_urls`. Keep these URLs in their original group and preserve their historical observations.
+   From each entry's `observed_at`, report its URL and reason separately from active recovery totals and experiment decisions.
+   Recheck eligibility on each read. A noindex Repository hub does not establish a content or domain verdict.
+   Do not substitute a child Skill URL or backdate an exclusion without evidence.
 2. Read Search Console crawl stats in the UI. This is the leading signal.
 
    | Signal | Baseline |

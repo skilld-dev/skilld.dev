@@ -61,6 +61,12 @@
     "admitted_other": {
       "pr": "skilld.dev#322",
       "expect": "trending-only set without other treatment",
+      "excluded_urls": {
+        "https://skilld.dev/gh/axtonliu/axton-obsidian-visual-skills": {
+          "observed_at": "2026-10-20",
+          "reason": "Multi-Skill Repository hub. Production D1 holds three resolved Skills. HTML returns noindex,follow and a self-canonical URL. The Skills sitemap omits the hub under the October 1 entity policy. Keep earlier observations in admitted_other; exclude this URL from active recovery decisions from this observation."
+        }
+      },
       "urls": [
         "https://skilld.dev/gh/agricidaniel/claude-ads/ads",
         "https://skilld.dev/gh/agricidaniel/claude-seo/seo",
