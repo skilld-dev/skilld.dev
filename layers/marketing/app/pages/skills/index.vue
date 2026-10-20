@@ -114,7 +114,7 @@ const tagBySlug = computed(() => {
  * it must never hold up the registry render or fail it. If the feed is slow or
  * errors, rows draw without flames and nothing else changes.
  *
- * The endpoint caches for 300s, so this costs a shared read rather than a
+ * The endpoint caches for 1800s, so this costs a shared read rather than a
  * per-visitor query on the site's highest-traffic surface.
  */
 const { data: trendingFeed } = useFetch('/api/feed/trending', {

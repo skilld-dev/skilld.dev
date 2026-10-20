@@ -87,7 +87,7 @@ const [
   })),
   // Server-rendered rather than lazy: the section is one of the few places on
   // the homepage whose content changes hourly, and the endpoint is cached at
-  // the edge for 5 minutes, so it costs a cache read rather than a query.
+  // the edge for 30 minutes, so it costs a cache read rather than a query.
   withHomeDataTiming('home-trending', useFetch('/api/feed/trending', {
     key: 'home-trending-v3',
     // The hero texture prints Skill names from every repo it gets, so it asks

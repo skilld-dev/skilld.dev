@@ -596,7 +596,7 @@ export default defineNuxtConfig({
     // named in Vary. The cache key includes the query string, so each `?range=`
     // board is its own entry. Browsers still get no-store and ask the edge.
     //
-    // 60s fresh: the board's feed already caches for 300s, so this adds at most
+    // 60s fresh: the board's feed already caches for 1800s, so this adds at most
     // a minute. 3600s stale: the board's inputs move every 15 minutes at most
     // (X mentions) and hourly (social mentions, engagement), so a quiet colo
     // may serve one copy up to an hour old while it refreshes in the
