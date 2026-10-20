@@ -6,7 +6,7 @@ import {
   ABSTRACTNESS_PROMPT_VERSION,
   abstractnessResponseText,
   buildAbstractnessUserPrompt,
-  countMissingEmbeddings,
+  countMissingGeneratedSkills,
   parseAbstractnessPayload,
   persistAbstractness,
   runtimeGenerationLimits,
@@ -78,24 +78,45 @@ describe('ai generation work', () => {
     sqlite.prepare('UPDATE skills SET rendered_raw = ?').run(source)
     expect(await selectMissingGeneratedSkills(db, 'abstractness', 50)).toEqual([])
     expect(await selectMissingGeneratedSkills(db, 'embedding', 50)).toEqual([])
-    expect(await countMissingEmbeddings(db)).toBe(0)
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(0)
+    expect(await countMissingGeneratedSkills(db, 'abstractness')).toBe(0)
   })
 
   it('counts only eligible sources without a current embedding', async () => {
-    expect(await countMissingEmbeddings(db)).toBe(1)
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(1)
     sqlite.prepare('UPDATE skill_generated SET sha = \'old\' WHERE name = \'paused-only\' AND kind = \'embedding\'').run()
-    expect(await countMissingEmbeddings(db)).toBe(2)
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(2)
     sqlite.prepare('UPDATE skills SET rendered_status = \'failed\' WHERE name = \'paused-only\'').run()
-    expect(await countMissingEmbeddings(db)).toBe(1)
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(1)
     sqlite.prepare('UPDATE repos SET broken_since = 1').run()
-    expect(await countMissingEmbeddings(db)).toBe(0)
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(0)
   })
 
   it('does not trim sources whose embedding is current', async () => {
     const trim = vi.fn((source: string) => source.trim())
     sqlite.function('trim', { varargs: true }, trim)
-    expect(await countMissingEmbeddings(db)).toBe(1)
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(1)
     expect(trim.mock.calls.map(([source]) => source)).toEqual(['# Embed'])
+  })
+
+  it('reports an idle catalog so the hourly submit can skip the ordered scans', async () => {
+    // Every marker row here is stale or missing, so the counts must report
+    // work: the abstractness markers carry an old prompt version even where
+    // the row exists.
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(1)
+    expect(await countMissingGeneratedSkills(db, 'abstractness')).toBe(4)
+    sqlite.prepare(`INSERT INTO skill_generated VALUES
+      ('acme', 'skills', 'needs-embedding', 'embedding', 'sha-embed', '{}', '2026-10-19T00:00:00.000Z')`).run()
+    sqlite.prepare(`INSERT INTO skill_generated VALUES
+      ('acme', 'skills', 'needs-abstractness', 'abstractness', 'sha-abstract', '{}', '2026-10-19T00:00:00.000Z')`).run()
+    sqlite.prepare(`UPDATE skill_generated SET payload = json_set(payload, '$.promptVersion', ?)
+      WHERE kind = 'abstractness'`).run(ABSTRACTNESS_PROMPT_VERSION)
+
+    expect(await countMissingGeneratedSkills(db, 'embedding')).toBe(0)
+    expect(await countMissingGeneratedSkills(db, 'abstractness')).toBe(0)
+    // A zero count is only a safe skip signal when the ordered selects agree.
+    expect(await selectMissingGeneratedSkills(db, 'embedding', 50)).toEqual([])
+    expect(await selectMissingGeneratedSkills(db, 'abstractness', 50)).toEqual([])
   })
 
   it('does not select current runtime kinds because paused batch kinds are missing', async () => {
