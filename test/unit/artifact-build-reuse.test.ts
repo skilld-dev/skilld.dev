@@ -5,7 +5,7 @@ import type {
 } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { ArtifactBuildDependencies, ArtifactBuildReuseReport } from '../../layers/artifact-delivery/server/utils/build'
 import type { ArtifactSourceFile, PublicGithubSourceClient } from '../../layers/artifact-delivery/server/utils/github-source'
-import type { ResolutionRow } from '../../layers/artifact-delivery/server/utils/state'
+import type { ReadyBuildLookup, ResolutionRow } from '../../layers/artifact-delivery/server/utils/state'
 import type { TrustedRoot } from '../../layers/artifact-delivery/server/utils/trusted-root'
 import type { ArtifactSignerBindings } from '../../workers/artifact-signer/src/handler'
 import { createHash } from 'node:crypto'
@@ -28,6 +28,7 @@ import { ARTIFACT_BUILD_QUEUE_NAME, consumeArtifactBuildBatch } from '../../laye
 import { resolveSkillPageUrl } from '../../layers/artifact-delivery/server/utils/skill-page'
 import {
   createResolution,
+  findReadyPublicBuild,
   getResolution,
   presentResolution,
   resolutionRequestIdentity,
@@ -46,6 +47,7 @@ const MIGRATIONS = [
   'migrations/0122_artifact_resolution_retry_after.sql',
   'migrations/0145_artifact_resolution_linked_files.sql',
   'migrations/0131_artifact_build_reuse.sql',
+  'migrations/0158_artifact_build_reuse_pinned.sql',
   'migrations/0144_artifact_resolution_requesters.sql',
 ]
 const COMMIT = '0123456789abcdef0123456789abcdef01234567'
@@ -401,6 +403,98 @@ describe('reusing a ready public build', () => {
   })
 })
 
+describe('the pinned reuse lookup seeks', () => {
+  // Production read every ready row of the commit per pinned lookup: the only
+  // ready-public index led with columns the pinned lookup cannot all supply.
+  const pinnedPath: ReadyBuildLookup = {
+    _tag: 'pinned',
+    owner: 'skilld-dev',
+    repository: 'skills',
+    commitSha: COMMIT,
+    selector: { type: 'path', path: 'skills/demo' },
+  }
+  const pinnedNamed: ReadyBuildLookup = {
+    _tag: 'pinned',
+    owner: 'skilld-dev',
+    repository: 'skills',
+    commitSha: COMMIT,
+    selector: { type: 'named-skill', name: 'demo' },
+  }
+
+  it('seeks a pinned Skill path through its own partial index', async () => {
+    const harness = await createReuseHarness()
+    const statement = await lookupStatement(harness, pinnedPath)
+
+    const plan = queryPlan(harness, statement)
+
+    expect(plan).toContain('idx_artifact_resolutions_ready_public_pinned_path')
+    expect(plan).toContain('skill_path=?')
+    expect(plan).not.toContain('idx_artifact_resolutions_ready_public_commit')
+    expect(plan).not.toContain('TEMP B-TREE')
+    harness.close()
+  })
+
+  it('seeks a pinned Skill name through its own partial index', async () => {
+    const harness = await createReuseHarness()
+    const statement = await lookupStatement(harness, pinnedNamed)
+
+    const plan = queryPlan(harness, statement)
+
+    expect(plan).toContain('idx_artifact_resolutions_ready_public_pinned_named')
+    expect(plan).toContain('selector_type=? AND selector_value=?')
+    expect(plan).not.toContain('idx_artifact_resolutions_ready_public_commit')
+    expect(plan).not.toContain('TEMP B-TREE')
+    harness.close()
+  })
+
+  it('keeps the resolved lookup on the migration 0131 index', async () => {
+    const harness = await createReuseHarness()
+    const statement = await lookupStatement(harness, { _tag: 'resolved', source })
+
+    const plan = queryPlan(harness, statement)
+
+    expect(plan).toContain('idx_artifact_resolutions_ready_public_commit')
+    expect(plan).toContain('repository_id=? AND skill_path=?')
+    harness.close()
+  })
+
+  it('answers a pinned lookup with the newest ready build of many on one commit', async () => {
+    const harness = await createReuseHarness()
+    seedReadyBuild(harness, { id: 'demo-revoked', createdAt: NOW + 100, state: 'revoked' })
+    seedReadyBuild(harness, { id: 'demo-private', createdAt: NOW + 200, visibility: 'private' })
+    seedReadyBuild(harness, { id: 'demo-older', createdAt: NOW + 300 })
+    seedReadyBuild(harness, { id: 'demo-newer', createdAt: NOW + 400 })
+    seedReadyBuild(harness, {
+      id: 'other-path',
+      createdAt: NOW + 500,
+      selectorValue: 'skills/other',
+      skillPath: 'skills/other',
+    })
+    seedReadyBuild(harness, {
+      id: 'demo-named',
+      createdAt: NOW + 600,
+      selectorType: 'named-skill',
+      selectorValue: 'demo',
+      skillPath: 'skills/named-demo',
+    })
+
+    const pathHit = await findReadyPublicBuild(harness.db, pinnedPath)
+    const caseHit = await findReadyPublicBuild(harness.db, { ...pinnedPath, owner: 'SKILLD-DEV' })
+    const otherHit = await findReadyPublicBuild(harness.db, {
+      ...pinnedPath,
+      selector: { type: 'path', path: 'skills/other' },
+    })
+    const namedHit = await findReadyPublicBuild(harness.db, pinnedNamed)
+
+    for (const hit of [pathHit, caseHit])
+      expect(hit?.resolutionId).toBe(seedResolutionId('demo-newer'))
+    expect(pathHit?.source.owner).toBe('skilld-dev')
+    expect(otherHit?.resolutionId).toBe(seedResolutionId('other-path'))
+    expect(namedHit?.resolutionId).toBe(seedResolutionId('demo-named'))
+    harness.close()
+  })
+})
+
 type ReuseHarness = Awaited<ReturnType<typeof createReuseHarness>>
 
 async function createReuseHarness() {
@@ -531,6 +625,108 @@ function queueBatch(resolutionIds: string[], attempts: number) {
       retry: vi.fn(),
     })),
   } as unknown as Parameters<typeof consumeArtifactBuildBatch>[1]
+}
+
+const TREE_SHA = '89abcdef0123456789abcdef0123456789abcdef'
+
+/** The row id a seeded build gets, as a fixed UUID. */
+function seedResolutionId(seed: string) {
+  const hex = [...seed.replaceAll('-', '')]
+    .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('')
+  return `00000000-0000-4000-8000-${hex.padStart(12, '0').slice(-12)}`
+}
+
+/** The SQL and bindings a lookup prepares, captured through the exported read. */
+async function lookupStatement(harness: ReuseHarness, lookup: ReadyBuildLookup) {
+  let sql: string | undefined
+  let values: unknown[] = []
+  const db = new Proxy(harness.db, {
+    get(target, property) {
+      if (property !== 'prepare')
+        return Reflect.get(target, property)
+      return (statement: string) => {
+        const prepared = target.prepare(statement)
+        if (!statement.includes('FROM artifact_resolutions r'))
+          return prepared
+        sql = statement
+        return new Proxy(prepared, {
+          get(bound, name) {
+            if (name === 'bind') {
+              return (...bound: unknown[]) => {
+                values = bound
+                return prepared.bind(...bound)
+              }
+            }
+            return Reflect.get(bound, name)
+          },
+        })
+      }
+    },
+  })
+  await findReadyPublicBuild(db, lookup)
+  if (!sql)
+    throw new Error('The lookup prepared no statement')
+  return { sql, values }
+}
+
+/** The plan SQLite will run a captured statement with. */
+function queryPlan(harness: ReuseHarness, statement: { sql: string, values: unknown[] }): string {
+  const rows = harness.raw
+    .prepare(`EXPLAIN QUERY PLAN ${statement.sql}`)
+    .all(...statement.values as never[]) as { detail: string }[]
+  return rows.map(row => row.detail).join('\n')
+}
+
+interface SeedBuild {
+  id: string
+  createdAt: number
+  state?: 'ready' | 'revoked'
+  visibility?: 'public' | 'private'
+  selectorType?: 'path' | 'named-skill'
+  selectorValue?: string
+  skillPath?: string
+}
+
+/** One build of the pinned source, as a completed build leaves it. */
+function seedReadyBuild(harness: ReuseHarness, seed: SeedBuild) {
+  const identity = seed.id.replaceAll('-', '')
+  const artifactId = `sha256:${identity.padEnd(64, '0').slice(0, 64)}`
+  const contentSha256 = identity.padEnd(64, '1').slice(0, 64)
+  const r2Key = `v1/public/${seed.id}.bin`
+  harness.raw.prepare(`INSERT INTO artifacts (id, content_sha256, content_bytes, format, r2_key)
+    VALUES (?, ?, 1024, 'skilld-tar-v1', ?)`).run(artifactId, contentSha256, r2Key)
+  harness.raw.prepare(`INSERT INTO artifact_resolutions (
+      id, request_fingerprint, state, visibility, requested_owner, requested_repository,
+      selector_type, selector_value, ref_type, ref_value, repository_id,
+      resolved_owner, resolved_repository, commit_sha, tree_sha, skill_path,
+      artifact_id, content_sha256, content_bytes, r2_key, attestation_json,
+      created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    seedResolutionId(seed.id),
+    `seed-${seed.id}`,
+    seed.state ?? 'ready',
+    seed.visibility ?? 'public',
+    'skilld-dev',
+    'skills',
+    seed.selectorType ?? 'path',
+    seed.selectorValue ?? 'skills/demo',
+    'commit',
+    COMMIT,
+    123456789,
+    'skilld-dev',
+    'skills',
+    COMMIT,
+    TREE_SHA,
+    seed.skillPath ?? 'skills/demo',
+    artifactId,
+    contentSha256,
+    1024,
+    r2Key,
+    `{"seed":"${seed.id}"}`,
+    seed.createdAt,
+    seed.createdAt,
+  )
 }
 
 async function signingKey(keyId: string) {
