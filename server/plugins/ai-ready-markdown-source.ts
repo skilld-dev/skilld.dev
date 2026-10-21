@@ -1,8 +1,10 @@
-import { getQuery } from 'h3'
+import type { SkillIndexInput } from '#layers/registry/server/utils/trending-admission'
+import { getQuery, setResponseHeader } from 'h3'
 import { composeAgentSkillMarkdown, composeSkillForkMarkdown } from '#layers/registry/server/utils/skill-agent-markdown'
+import { isSkillIndexable, SKILL_INDEX_INPUT_COLUMNS_SQL } from '#layers/registry/server/utils/trending-admission'
 import { repositoryIdentityFromGhPath, skillIdentityFromGhPath } from '#shared/skill-markdown-route'
 
-interface RenderedSkillRow {
+interface RenderedSkillRow extends SkillIndexInput {
   name: string
   rendered_status: string | null
   rendered_raw: string | null
@@ -41,10 +43,11 @@ export default defineNitroPlugin((nitroApp) => {
     // Match the resolved count that chooses the Skill page's canonical URL.
     // Two rows prove ambiguity. Do not pick an arbitrary Skill from a hub.
     const rows = await db
-      .prepare(`SELECT name, rendered_status, rendered_raw, display_name, description, rendered_at, assets
-                  FROM skills
-                 WHERE owner = ? AND repo = ? AND source_resolved = 1
-                   ${identity ? 'AND name = ?' : ''}
+      .prepare(`SELECT s.name, s.rendered_status, s.rendered_raw, s.display_name, s.description, s.rendered_at, s.assets,
+                       s.seo_indexable, ${SKILL_INDEX_INPUT_COLUMNS_SQL}
+                  FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+                 WHERE s.owner = ? AND s.repo = ? AND s.source_resolved = 1
+                   ${identity ? 'AND s.name = ?' : ''}
                  LIMIT 2`)
       .bind(...(identity ? [target.owner, target.repo, identity.name] : [target.owner, target.repo]))
       .all<RenderedSkillRow>()
@@ -62,6 +65,9 @@ export default defineNitroPlugin((nitroApp) => {
     const row = rows.results[0]!
     if (row.rendered_status !== 'ok' || !row.rendered_raw)
       return
+
+    // The source shortcut skips HTML, so repeat the same admission rule here.
+    setResponseHeader(context.event, 'x-robots-tag', isSkillIndexable(row) ? 'index,follow' : 'noindex,follow')
 
     context.source = {
       markdown: getQuery(context.event).action === 'fork'
