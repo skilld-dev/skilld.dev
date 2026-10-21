@@ -26,6 +26,15 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-10-21 Prepared ten Experiment B candidates in the [dated manifest](seo-link-experiment-candidates.json).
+  All ten canonical destinations returned 200, allowed indexing, and appeared in the Skills sitemap.
+  Each checked README contained no `skilld.dev` string; the manifest records its blob SHA.
+  Both badge themes returned 200 SVG. Source resolution and current admission passed for each Skill.
+  The retained Google checks span 20 August to 13 October; all ten reported unknown to Google.
+  These are dated pre-recruitment observations, not current Google verdicts or link start dates.
+  The [activation protocol](seo-link-experiment.md) starts each 14-day window only after a verified live link.
+  The original 41 URLs and their groups retain their history. The 11 November gate stays fixed.
+
 - 2026-10-21 Follow-up verified the deployed reference-file repair from #662.
   The huggingface `references/adapting-to-the-lora.md` link returned 200 HTML with its file title and noindex directive.
   Deployment [39320257178](https://github.com/skilld-dev/skilld.dev/actions/runs/39320257178) succeeded for `c1e3ad7a`, which contains #661 and #662.
@@ -316,7 +325,10 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 | `f_comparison` | 1 | Original source comparison with contextual internal links | Indexed with impressions for relevant prose editing or comparison queries |
 | `b_linked` | 10, to fill | Outside links from README badges (experiment B) | Crawled or indexed within 14 days of the link |
 
-The `b_linked` group is not in the panel yet. Its 10 URLs are the Skill pages that receive outside links. When the first badge links land, pick them from the top 50 Skills whose maintainers got a badge request. Then move `b_linked` from `pending_groups` to `groups` in the JSON.
+The `b_linked` group records Skill destinations with verified outside links, up to ten URLs.
+The [candidate manifest](seo-link-experiment-candidates.json) records preparation separately.
+As links land, follow the [activation protocol](seo-link-experiment.md) and add their destinations to the group.
+Preserve each URL's first live observation and the original panel history.
 
 Baseline: the Pages report of 2026-09-30. The curated URLs sit in "Discovered, currently not indexed". The retired URLs sit in "Crawled, currently not indexed". The first per-URL reading comes from gscdump Watched URLs, after gscdump 4.6.0 and gscdump.com #557 are live. Load the panel with `gscdump indexing watch add`. Add at most 50 URLs per call.
 
@@ -423,12 +435,16 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 
 - Measures: the `b_linked` group. Add it to the panel first.
 - Setup:
-  - Run a GitHub README badge program. The badge and its embed snippet already exist at `/b/<owner>/<repo>` and `/brand-kit/github-badge`. Ask the maintainers of the top 50 Skills to embed a badge that links to their Skill page.
+  - Use the [candidate manifest](seo-link-experiment-candidates.json) to prepare ten relevant README link requests.
+    Its pool is the first 50 reviewed individual Skill Repositories on the Repository leaderboard, ordered by GitHub stars.
+    The badge and embed snippet already exist at `/b/<owner>/<repo>` and `/brand-kit/github-badge`.
   - Make the skilld CLI print canonical Skill page URLs ([skilld #178](https://github.com/skilld-dev/skilld/pull/178), after [#327](https://github.com/skilld-dev/skilld.dev/pull/327)).
   - Publish one launch post on established hosts: harlanzw.com, X, HN, r/ClaudeAI. Use original data, for example "we ran the top 50 Skills across 4 Agents".
 - Never buy links. Leave the 20 spam network domains alone. Disavow only if a manual action appears.
 - Read at 14 days.
-- Scale rule: if 5 or more of the 10 linked URLs move from Discovered to Crawled or Indexed within 14 days, links are the lever. Put more effort there.
+- Scale rule: if five of ten linked URLs move from unknown or discovered to crawled or indexed, investigate further.
+  Each URL has 14 days from its own verified live link. Apply the [dated evidence rules](seo-link-experiment.md#measurement).
+  This is an observational signal; it does not establish that links caused the change.
 
 ### C. Unique value template (deferred)
 

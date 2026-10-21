@@ -1,0 +1,716 @@
+{
+  "preparedAt": "2026-10-21T06:41:23.486Z",
+  "site": "https://skilld.dev",
+  "gate": "2026-11-11",
+  "protocol": "seo-link-experiment.md",
+  "selection": {
+    "poolUrl": "https://skilld.dev/api/skills/leaderboard?page=1",
+    "pool": "First 50 reviewed individual Skill Repositories, ordered by GitHub stars",
+    "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+    "excludes": [
+      "Every Repository in the original 41-URL panel",
+      "Repositories in the 20 October public README link sample"
+    ],
+    "scope": "No skilld.dev string in each checked default-branch README. This does not establish absence of links elsewhere."
+  },
+  "baselineCaveat": "Retained checks span 20 August to 13 October. These are dated pre-recruitment evidence, not current or day-zero Google verdicts.",
+  "screenedOut": [
+    {
+      "repository": "lackeyjb/playwright-skill",
+      "url": "https://skilld.dev/gh/lackeyjb/playwright-skill",
+      "reason": "Retained baseline already Crawled - currently not indexed. Keep the planned ten on the same unknown-to-Google baseline.",
+      "checkedAt": "2026-10-01T08:45:24.000Z"
+    }
+  ],
+  "candidates": [
+    {
+      "repository": "pbakaus/impeccable",
+      "skill": "impeccable",
+      "url": "https://skilld.dev/gh/pbakaus/impeccable",
+      "selection": {
+        "reviewedRepositoryRank": 6,
+        "githubStars": 83960,
+        "fit": "frontend design and interface review"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:07.560Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/pbakaus/impeccable",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "impeccable by pbakaus · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/pbakaus/impeccable/blob/dad8dbb3aac21ad1fa236c110315ef4abece23e8/cursor-plugin/skills/impeccable/SKILL.md",
+        "sourceCommitSha": "dad8dbb3aac21ad1fa236c110315ef4abece23e8"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "8011ddf2bc35842e161cfaec07cdc7ba30dd4782",
+        "sourceUrl": "https://github.com/pbakaus/impeccable/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:07.560Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-09-05T08:37:41.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "d9a50cf4-b786-4133-ad09-8c7963b5f6fc"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/pbakaus/impeccable/blob/main/docs/DEVELOP.md",
+        "note": "Use a direction request first. docs/DEVELOP.md requires an approved issue before a pull request.",
+        "proposedRequestUrl": "https://github.com/pbakaus/impeccable/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/pbakaus/impeccable?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:19.538Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/pbakaus/impeccable?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:18.704Z"
+          }
+        ],
+        "proposedPlacement": "alongside the README installation links"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "mvanhorn/last30days-skill",
+      "skill": "last30days",
+      "url": "https://skilld.dev/gh/mvanhorn/last30days-skill",
+      "selection": {
+        "reviewedRepositoryRank": 8,
+        "githubStars": 64786,
+        "fit": "research into recent community discussions"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:08.378Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/mvanhorn/last30days-skill",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "last30days by mvanhorn · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/mvanhorn/last30days-skill/blob/13a6cc5fd1f2d8a9b8420bbba6742599b2f4a077/skills/last30days/SKILL.md",
+        "sourceCommitSha": "13a6cc5fd1f2d8a9b8420bbba6742599b2f4a077"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "07ffbea2cb945f26621d39652a54eda199467bce",
+        "sourceUrl": "https://github.com/mvanhorn/last30days-skill/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:08.378Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-10-01T09:59:24.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "24336183-8331-4b11-809f-042eb3b36d56"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/mvanhorn/last30days-skill/blob/main/CONTRIBUTING.md",
+        "note": "The contribution guide describes pull requests. Ask about the optional link before preparing a patch.",
+        "proposedRequestUrl": "https://github.com/mvanhorn/last30days-skill/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/mvanhorn/last30days-skill?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:20.652Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/mvanhorn/last30days-skill?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:19.934Z"
+          }
+        ],
+        "proposedPlacement": "beside the README installation section"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "hugohe3/ppt-master",
+      "skill": "ppt-master",
+      "url": "https://skilld.dev/gh/hugohe3/ppt-master",
+      "selection": {
+        "reviewedRepositoryRank": 9,
+        "githubStars": 64634,
+        "fit": "creating editable presentation files"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:07.261Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/hugohe3/ppt-master",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "ppt-master by hugohe3 · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/hugohe3/ppt-master/blob/cc8b722a24e9fb540e67c2d58a9ea3da534cd682/skills/ppt-master/SKILL.md",
+        "sourceCommitSha": "cc8b722a24e9fb540e67c2d58a9ea3da534cd682"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "18c4d9720a59046f602e2a89db415e90f87e3cd0",
+        "sourceUrl": "https://github.com/hugohe3/ppt-master/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:07.261Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-10-01T08:43:47.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "9bcd4e7d-9f6d-40c8-b8f0-9f8bcb165c73"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/hugohe3/ppt-master/blob/main/CONTRIBUTING.md",
+        "note": "Use an issue request. CONTRIBUTING.md asks for issues instead of tiny README pull requests.",
+        "proposedRequestUrl": "https://github.com/hugohe3/ppt-master/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/hugohe3/ppt-master?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:20.733Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/hugohe3/ppt-master?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:21.151Z"
+          }
+        ],
+        "proposedPlacement": "alongside the README project badges"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "zarazhangrui/frontend-slides",
+      "skill": "frontend-slides",
+      "url": "https://skilld.dev/gh/zarazhangrui/frontend-slides",
+      "selection": {
+        "reviewedRepositoryRank": 15,
+        "githubStars": 30938,
+        "fit": "creating HTML presentations and converting PowerPoint slides"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:12.228Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/zarazhangrui/frontend-slides",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "frontend-slides by zarazhangrui · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/zarazhangrui/frontend-slides/blob/9906a34d640d2111f724544cbc50f7f130569ae1/SKILL.md",
+        "sourceCommitSha": "9906a34d640d2111f724544cbc50f7f130569ae1"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "bd4bd929069d569e7dfbe3e8d6be77431bb50e43",
+        "sourceUrl": "https://github.com/zarazhangrui/frontend-slides/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:12.228Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-10-01T21:11:39.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "46f523f7-4ae3-47c7-937b-387130f9c2e6"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/zarazhangrui/frontend-slides/blob/main/README.md",
+        "note": "The community profile supplied no contribution guide. Use a courtesy issue request and check current issue guidance before sending.",
+        "proposedRequestUrl": "https://github.com/zarazhangrui/frontend-slides/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/zarazhangrui/frontend-slides?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:21.515Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/zarazhangrui/frontend-slides?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:21.541Z"
+          }
+        ],
+        "proposedPlacement": "beside the README installation section"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "jimliu/baoyu-skills",
+      "skill": "baoyu-image-gen",
+      "url": "https://skilld.dev/gh/jimliu/baoyu-skills/baoyu-image-gen",
+      "selection": {
+        "reviewedRepositoryRank": 17,
+        "githubStars": 26808,
+        "fit": "the baoyu-image-gen image generation Skill"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:11.713Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/jimliu/baoyu-skills/baoyu-image-gen",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "baoyu-image-gen by jimliu · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-image-gen/SKILL.md",
+        "sourceCommitSha": "1567581c26ec29f4216c6e6835415bf30343b0e3"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "eb7cdd139af53d040fb3cc047fb1e2ffa586a6b6",
+        "sourceUrl": "https://github.com/JimLiu/baoyu-skills/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:11.713Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-08-20T08:40:05.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "b1dff185-36fd-4bf6-aae1-e1cbab6c50ee"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/JimLiu/baoyu-skills/blob/main/README.md",
+        "note": "The community profile supplied no contribution guide. Link the individual Skill rather than the Repository hub.",
+        "proposedRequestUrl": "https://github.com/jimliu/baoyu-skills/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/jimliu/baoyu-skills/baoyu-image-gen?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:21.910Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/jimliu/baoyu-skills/baoyu-image-gen?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:21.626Z"
+          }
+        ],
+        "proposedPlacement": "beside baoyu-image-gen in the README Skill list"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "muratcankoylan/agent-skills-for-context-engineering",
+      "skill": "agent-skills-for-context-engineering",
+      "url": "https://skilld.dev/gh/muratcankoylan/agent-skills-for-context-engineering/agent-skills-for-context-engineering",
+      "selection": {
+        "reviewedRepositoryRank": 19,
+        "githubStars": 18174,
+        "fit": "context engineering for Agents"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:14.121Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/muratcankoylan/agent-skills-for-context-engineering/agent-skills-for-context-engineering",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "agent-skills-for-context-engineering by muratcankoylan · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering/blob/9ff0c99108b36d3b886defd825d8ac1f47dba374/SKILL.md",
+        "sourceCommitSha": "9ff0c99108b36d3b886defd825d8ac1f47dba374"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "fb93738758427603aec5a6dcfb05f0845eb53f53",
+        "sourceUrl": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:14.121Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-10-13T08:44:37.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "bc1e0bd1-b660-417d-ad00-b4d945a82501"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering/blob/main/CONTRIBUTING.md",
+        "note": "CONTRIBUTING.md directs questions to issues. Ask whether the link fits before proposing a patch.",
+        "proposedRequestUrl": "https://github.com/muratcankoylan/agent-skills-for-context-engineering/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/muratcankoylan/agent-skills-for-context-engineering/agent-skills-for-context-engineering?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:22.273Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/muratcankoylan/agent-skills-for-context-engineering/agent-skills-for-context-engineering?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:21.986Z"
+          }
+        ],
+        "proposedPlacement": "beside the README getting started links"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "parthjadhav/app-store-screenshots",
+      "skill": "app-store-screenshots",
+      "url": "https://skilld.dev/gh/parthjadhav/app-store-screenshots",
+      "selection": {
+        "reviewedRepositoryRank": 28,
+        "githubStars": 7457,
+        "fit": "building App Store and Google Play screenshots"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:14.212Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/parthjadhav/app-store-screenshots",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "app-store-screenshots by parthjadhav · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/ParthJadhav/app-store-screenshots/blob/5386f227360bddb06c8beaff920a1a34c9f01932/skills/app-store-screenshots/SKILL.md",
+        "sourceCommitSha": "5386f227360bddb06c8beaff920a1a34c9f01932"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "410f0d54ddb93a7192cdfc6838384001d55b1fe1",
+        "sourceUrl": "https://github.com/ParthJadhav/app-store-screenshots/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:14.212Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-10-01T09:59:32.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "5056f99b-18a9-40ba-b7e3-8d5e72c15691"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/ParthJadhav/app-store-screenshots/blob/main/CONTRIBUTING.md",
+        "note": "CONTRIBUTING.md requires link checks for README edits. Both badge themes and the destination were checked.",
+        "proposedRequestUrl": "https://github.com/parthjadhav/app-store-screenshots/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/parthjadhav/app-store-screenshots?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:22.633Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/parthjadhav/app-store-screenshots?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:22.334Z"
+          }
+        ],
+        "proposedPlacement": "alongside the existing README Skill badges"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "twostraws/swiftui-agent-skill",
+      "skill": "swiftui-pro",
+      "url": "https://skilld.dev/gh/twostraws/swiftui-agent-skill",
+      "selection": {
+        "reviewedRepositoryRank": 30,
+        "githubStars": 6264,
+        "fit": "SwiftUI code review with SwiftUI Pro"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:16.724Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/twostraws/swiftui-agent-skill",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "swiftui-pro by twostraws · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/twostraws/SwiftUI-Agent-Skill/blob/ce32af1693b9e78a7d22ff48001c97a304d32063/swiftui-pro/SKILL.md",
+        "sourceCommitSha": "ce32af1693b9e78a7d22ff48001c97a304d32063"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "12e282c9336a10d31c23d53a586d2049e2b77525",
+        "sourceUrl": "https://github.com/twostraws/SwiftUI-Agent-Skill/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:16.724Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-10-01T21:11:32.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "06ac4889-3f5a-4e2b-9c37-f985ee33a394"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/twostraws/SwiftUI-Agent-Skill/blob/main/README.md",
+        "note": "The README welcomes README edits. Use a courtesy request before any external pull request.",
+        "proposedRequestUrl": "https://github.com/twostraws/swiftui-agent-skill/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/twostraws/swiftui-agent-skill?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:22.724Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/twostraws/swiftui-agent-skill?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:22.724Z"
+          }
+        ],
+        "proposedPlacement": "beside the README usage section"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "leonxlnx/unlazy",
+      "skill": "unlazy",
+      "url": "https://skilld.dev/gh/leonxlnx/unlazy",
+      "selection": {
+        "reviewedRepositoryRank": 34,
+        "githubStars": 4004,
+        "fit": "completion discipline and acceptance checks for Agent work"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:39:02.258Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/leonxlnx/unlazy",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/Leonxlnx/unlazy/blob/16671491f6679ad9378f52604d3bc2415b4120c7/SKILL.md",
+        "sourceCommitSha": "16671491f6679ad9378f52604d3bc2415b4120c7"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "18f48c03dee2d60000b96249dce2b914557021c2",
+        "sourceUrl": "https://github.com/Leonxlnx/unlazy/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:39:02.258Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:39:02.258Z",
+        "checkedAt": "2026-09-26T09:56:26.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "dadd1a89-0efb-4406-98ad-55bc6e95dff5"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/Leonxlnx/unlazy/blob/main/CONTRIBUTING.md",
+        "note": "CONTRIBUTING.md requires exact evidence for claims. Keep the request about the existing page and optional link.",
+        "proposedRequestUrl": "https://github.com/leonxlnx/unlazy/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/leonxlnx/unlazy?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:23.093Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/leonxlnx/unlazy?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:22.806Z"
+          }
+        ],
+        "proposedPlacement": "beside the README installation section"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    },
+    {
+      "repository": "jakubkrehel/make-interfaces-feel-better",
+      "skill": "make-interfaces-feel-better",
+      "url": "https://skilld.dev/gh/jakubkrehel/make-interfaces-feel-better",
+      "selection": {
+        "reviewedRepositoryRank": 36,
+        "githubStars": 3730,
+        "fit": "interface polish, animation, and typography"
+      },
+      "eligibility": {
+        "checkedAt": "2026-10-21T06:30:17.084Z",
+        "status": 200,
+        "canonical": "https://skilld.dev/gh/jakubkrehel/make-interfaces-feel-better",
+        "robots": [
+          "index,follow",
+          "index,follow"
+        ],
+        "title": "make-interfaces-feel-better by jakubkrehel · skilld",
+        "sitemapUrl": "https://skilld.dev/__sitemap__/skills-0.xml",
+        "sitemapMember": true,
+        "sourceResolved": "ok",
+        "seoIndexable": true,
+        "sourceFileUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/35545ea1512ad59fa463e6b1f95ca9c052981fe6/skills/make-interfaces-feel-better/SKILL.md",
+        "sourceCommitSha": "35545ea1512ad59fa463e6b1f95ca9c052981fe6"
+      },
+      "readme": {
+        "path": "README.md",
+        "sha": "201b1b7f498864b09479be10b3421d43cefa8744",
+        "sourceUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/main/README.md",
+        "checkedAt": "2026-10-21T06:30:17.084Z",
+        "skilldDomainOccurrences": 0
+      },
+      "retainedGoogle": {
+        "source": "NuxtSEO search inspect without --fresh",
+        "snapshotReadBy": "2026-10-21T06:32:29.036Z",
+        "checkedAt": "2026-09-26T09:56:26.000Z",
+        "coverageState": "URL is unknown to Google",
+        "lastCrawlTime": null,
+        "requestId": "dd2f3edd-7e21-4ccb-a219-457d0dfeb2d9"
+      },
+      "contribution": {
+        "guideUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/blob/main/README.md",
+        "note": "The community profile supplied no contribution guide. Use a courtesy issue request and check current issue guidance before sending.",
+        "proposedRequestUrl": "https://github.com/jakubkrehel/make-interfaces-feel-better/issues/new",
+        "issuesEnabled": true
+      },
+      "badge": {
+        "checkedVariants": [
+          {
+            "theme": "dark",
+            "url": "https://skilld.dev/b/jakubkrehel/make-interfaces-feel-better?theme=dark",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:23.486Z"
+          },
+          {
+            "theme": "light",
+            "url": "https://skilld.dev/b/jakubkrehel/make-interfaces-feel-better?theme=light",
+            "status": 200,
+            "contentType": "image/svg+xml; charset=utf-8",
+            "checkedAt": "2026-10-21T06:41:23.447Z"
+          }
+        ],
+        "proposedPlacement": "alongside the existing README Skill badge"
+      },
+      "adoption": {
+        "_tag": "awaiting-link"
+      }
+    }
+  ]
+}
