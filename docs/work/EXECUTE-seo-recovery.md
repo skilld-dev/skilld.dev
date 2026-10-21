@@ -26,6 +26,24 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-10-21 Follow-up verified the deployed reference-file repair from #662.
+  The huggingface `references/adapting-to-the-lora.md` link returned 200 HTML with its file title and noindex directive.
+  Deployment [39320257178](https://github.com/skilld-dev/skilld.dev/actions/runs/39320257178) succeeded for `c1e3ad7a`, which contains #661 and #662.
+  All 41 original panel URLs were checked. The 34 active URLs comprised 33 direct 200 responses and one canonical redirect.
+  The `taste-skill/taste-skill` URL redirected to `/gh/leonxlnx/taste-skill`, which returned 200 and allowed indexing.
+  Every active URL or its redirect target appeared in the current Sitemap. The Skills sitemap listed 127 URLs.
+  Preserve the original panel URL and its observations; the redirect does not transfer its history to the target.
+  All 41 watches retained the same latest Checkpoints as the 20 October read, spanning 14 to 18 October UTC.
+  The active set still reported 33 unknown and one crawled, not indexed. These are retained verdicts, not new inspections.
+  Search Console's available 11 to 17 October window reported zero clicks and 31 impressions; the previous window reported zero and 34.
+  The site assessment was provisional: its data quality was `degraded`, with two unavailable proofs.
+  Its ranked unknown-URL action remained count-only; its source snapshot was collected on 25 August.
+  The crawled, not indexed action listed five of 5,414 reported URLs from an October 1 sample, including retired URLs.
+  Neither action identifies a new sitewide repair cause. Keep intentional exclusions and the 11 November gate.
+  Live Markdown twins for an excluded Skill and a multi-Skill Repository hub returned an index header.
+  Their HTML pages returned noindex. The repair applies the existing Skill admission rule to direct Markdown sources.
+  HTML conversion now carries the rendered robots directive into the Markdown response.
+
 - 2026-10-20 NuxtSEO access succeeded after renewed browser pairing. CLI 0.5.10 read all 41 panel watches.
   Every watch had a Checkpoint. Latest Checkpoints span `2026-10-14T21:09:21Z` to `2026-10-18T08:46:05Z`.
   All predate Monday 19 October in Melbourne. This read cannot complete that Monday's comparison.
