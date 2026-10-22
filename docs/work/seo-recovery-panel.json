@@ -97,6 +97,7 @@
       "pr": "skilld.dev#321",
       "expect": "crawled or indexed within 14 days of the outside link going live",
       "size": 10,
+      "candidate_manifest": "seo-link-experiment-candidates.json",
       "fill": "Add 10 Skill URLs when the first README badge links land, then move this group into groups."
     }
   }
