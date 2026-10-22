@@ -12,7 +12,7 @@ import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { pAll } from '#shared/server/p-all'
 import { classifyAbstractness } from '../utils/abstractness-effect'
 import {
-  countMissingEmbeddings,
+  countMissingGeneratedSkills,
   persistAbstractness,
   runtimeGenerationLimits,
   selectMissingBatchSkills,
@@ -118,14 +118,23 @@ export default defineScheduledTask({
 })
 
 async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: VectorizeBinding | undefined, apiKey: string | undefined) {
-  const runtimeLimits = runtimeGenerationLimits({
-    embedding: await countMissingEmbeddings(db),
-  })
+  // The counts answer "is there work" without the ORDER BY sort, so an idle
+  // hour skips the ordered catalog scans entirely instead of sorting the
+  // whole eligible catalog per kind before learning there was nothing to do.
+  const [missingEmbeddings, missingAbstractness] = await Promise.all([
+    countMissingGeneratedSkills(db, 'embedding'),
+    countMissingGeneratedSkills(db, 'abstractness'),
+  ])
+  const runtimeLimits = runtimeGenerationLimits({ embedding: missingEmbeddings })
   const [embeddingSkills, abstractnessSkills, batchSkills] = await Promise.all([
-    selectMissingGeneratedSkills(db, 'embedding', runtimeLimits.embedding),
-    selectMissingGeneratedSkills(db, 'abstractness', runtimeLimits.abstractness),
+    missingEmbeddings > 0
+      ? selectMissingGeneratedSkills(db, 'embedding', runtimeLimits.embedding)
+      : Promise.resolve<GenerationSkill[]>([]),
+    missingAbstractness > 0
+      ? selectMissingGeneratedSkills(db, 'abstractness', runtimeLimits.abstractness)
+      : Promise.resolve<GenerationSkill[]>([]),
     HAIKU_GENERATION_PAUSED
-      ? Promise.resolve([])
+      ? Promise.resolve<GenerationSkill[]>([])
       : selectMissingBatchSkills(db, BATCH_LIMIT),
   ])
   const scanned = new Set(
