@@ -59,7 +59,7 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
   '/skills/demos',
 ]
 
-export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
+export const PAGE_ADMISSIONS = {
   '/learn/research/skill-md-size-study': {
     targetQuery: 'SKILL.md size and description length',
     admissionBar: 'Owner-approved original research, 2026-10-09. One frozen registry study with source hashes, downloadable measurements, methods, weighting comparisons, and an authoring-guide action. Specific size queries have no DataForSEO estimate; the broader skill md seed has 720 US searches a month, KD 28. Research authority and citations are explicit goals, independent of search volume. Review indexing, relevant impressions, citations, and authoring-guide clicks at the 2026-11-11 gate. Retain useful cited research; consolidate into the authoring guide if it has no distinct use.',
@@ -96,7 +96,7 @@ export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
     targetQuery: 'context7 vs skills',
     admissionBar: 'The human-written template that experiment C rolls out to concept pages. No measured volume; kept as the control.',
   },
-}
+} satisfies Readonly<Record<string, PageAdmission>>
 
 /** True when the audit covers the path. Agent and comparison pages always count. */
 function isAudited(path: string): boolean {
