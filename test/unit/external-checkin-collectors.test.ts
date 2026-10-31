@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
@@ -144,6 +144,74 @@ it.each(['2026-10-05T09:00:00Z', '2026-10-03T10:00:00Z'])('keeps rolling X day t
 
   db.close()
   expect(report.results[0]?.result).toMatchObject({ evidence: { cost: { x_posts_24h: 3, x_verified_skills_24h: 3 } } })
+})
+
+it.each([
+  { scenario: 'later matching completion', recovery: {}, expected: 0 },
+  { scenario: 'no later attempt', recovery: null, expected: 1 },
+  { scenario: 'different owner', recovery: { owner: 'other' }, expected: 1 },
+  { scenario: 'different repo', recovery: { repo: 'other' }, expected: 1 },
+  { scenario: 'different name', recovery: { name: 'other' }, expected: 1 },
+  { scenario: 'different SHA', recovery: { content_sha: 'other' }, expected: 1 },
+  { scenario: 'earlier completion', recovery: { started_at: -10800, finished_at: -10799 }, expected: 1 },
+  { scenario: 'same start time', recovery: { started_at: -7200, finished_at: -7199 }, expected: 1 },
+  { scenario: 'later unfinished attempt', recovery: { state: 'started', finished_at: null }, expected: 1 },
+  ...['provider_failed', 'rejected', 'vector_succeeded_marker_failed'].map(state => ({
+    scenario: `later ${state} attempt`,
+    recovery: { state, provider_stage: 'ai', error_code: 'failed', error_message: 'Failed.' },
+    expected: 1,
+  })),
+  { scenario: 'exactly one hour old', age: 3600, recovery: null, expected: 0 },
+  { scenario: 'just over one hour old', age: 3601, recovery: null, expected: 1 },
+  { scenario: 'exactly seven days old', age: 604800, recovery: null, expected: 1 },
+  { scenario: 'over seven days old', age: 604801, recovery: null, expected: 0 },
+])('counts stuck embeddings with $scenario', async ({ recovery, expected, ...fixture }) => {
+  const now = new Date('2026-10-26T12:00:00Z')
+  const nowSec = now.getTime() / 1000
+  const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-embeddings-'))
+  roots.push(root)
+  await mkdir(join(root, 'shared/server'), { recursive: true })
+  await mkdir(join(root, 'migrations'))
+  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400\nconst MIN_SEARCH_PAGE_SIZE = 10')
+  const db = new Database(':memory:')
+  db.exec(await readFile(new URL('../../migrations/0071_embedding_attempts.sql', import.meta.url), 'utf8'))
+  const insert = db.prepare(`INSERT INTO embedding_attempts (
+    attempt_id, owner, repo, name, vector_id, content_sha, state, started_at,
+    finished_at, provider_stage, error_code, error_message
+  ) VALUES (
+    @attempt_id, @owner, @repo, @name, @vector_id, @content_sha, @state, @started_at,
+    @finished_at, @provider_stage, @error_code, @error_message
+  )`)
+  const attempt = {
+    attempt_id: 'original',
+    owner: 'owner',
+    repo: 'repo',
+    name: 'skill',
+    vector_id: 'vector',
+    content_sha: 'sha',
+    state: 'started',
+    started_at: nowSec - ('age' in fixture ? fixture.age! : 7200),
+    finished_at: null,
+    provider_stage: null,
+    error_code: null,
+    error_message: null,
+  }
+  insert.run(attempt)
+  if (recovery !== null) {
+    const completed = { ...attempt, attempt_id: 'retry', state: 'completed', started_at: -1800, finished_at: -1799, ...recovery }
+    insert.run({ ...completed, started_at: nowSec + completed.started_at, finished_at: completed.finished_at === null ? null : nowSec + completed.finished_at })
+  }
+  boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
+    if (command === 'git')
+      return { _tag: 'Ok', stdout: args[0] === 'rev-parse' ? 'abc' : '', stderr: '' }
+    const sql = args[args.indexOf('--command') + 1]!
+    return { _tag: 'Ok', stdout: JSON.stringify([{ success: true, results: db.prepare(sql).all() }]), stderr: '' }
+  })
+
+  const { report } = await runExternalChecks([databaseCheck], { required: [databaseCheck.id] }, { rootDir: root, env: {}, clock: () => now })
+
+  db.close()
+  expect(report.results[0]?.result).toMatchObject({ evidence: { pipeline: { embeddings_stuck: expected } } })
 })
 
 it('rejects oversized Worker analytics evidence', async () => {
