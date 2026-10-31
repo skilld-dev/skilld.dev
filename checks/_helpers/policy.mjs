@@ -1,6 +1,6 @@
 import { fail, pass, warn } from '@harlan-zw/nuxt-checkin/external'
 
-/** @returns {import('@harlan-zw/nuxt-checkin/external').CheckResult} */
+/** @returns {import('@harlan-zw/nuxt-checkin/external').CheckResult} Workflow health verdict with evidence coverage. */
 export function evaluateCI(data) {
   const incomplete = !data.workflows.length || data.workflows.some(workflow => workflow.state._tag === 'missing'
     || (workflow.state._tag === 'pending' && workflow.state.previousConclusion === null))
@@ -14,7 +14,7 @@ export function evaluateCI(data) {
   return pass(data)
 }
 
-/** @returns {import('@harlan-zw/nuxt-checkin/external').CheckResult} */
+/** @returns {import('@harlan-zw/nuxt-checkin/external').CheckResult} Database health verdict with evidence coverage. */
 export function evaluateD1(data, now, since) {
   const missingReason = data.missingExpectedTables.length
     ? 'Expected database tables are missing.'
