@@ -343,7 +343,7 @@ const readyPublicBuildRowSchema = z.object({
  * Only a `ready` Resolution matches, so a revoked, failed or blocked one never
  * does. The Artifact must still have the `available` delivery status. The
  * caller verifies the attestation and the stored bytes before it reuses them.
- * Migration 0131 indexes both lookups.
+ * Migration 0131 indexes the resolved lookup, 0158 the pinned ones.
  */
 export async function findReadyPublicBuild(
   db: D1Database,
@@ -375,11 +375,15 @@ export async function findReadyPublicBuild(
   }
 }
 
-// The first two filters repeat the WHERE clause of the migration 0131 partial
-// index word for word. SQLite uses a partial index only when they match.
-// The order is by `created_at`, not `updated_at`: without planner stats, SQLite
-// picks `idx_artifact_resolutions_state (state, updated_at)` for a pinned
-// lookup when that index can supply the order, and reads every ready row.
+// The first two filters repeat the WHERE clause of the migration 0131 and
+// 0158 partial indexes word for word. SQLite uses a partial index only when
+// they match. The order is by `created_at`, not `updated_at`: without planner
+// stats, SQLite picks `idx_artifact_resolutions_state (state, updated_at)` for
+// a pinned lookup when that index can supply the order, and reads every ready
+// row. Migration 0131 seeks the resolved lookup, whose next columns it holds.
+// Migration 0158 indexes each pinned variant after its own equality columns
+// and ends in this ORDER BY, so a pinned lookup reads the newest match first
+// instead of every ready row of the commit.
 const READY_PUBLIC_BUILD_SELECT = `SELECT r.id, r.repository_id, r.resolved_owner, r.resolved_repository,
        r.commit_sha, r.tree_sha, r.skill_path, r.artifact_id, r.content_sha256,
        r.content_bytes, r.r2_key, r.attestation_json
