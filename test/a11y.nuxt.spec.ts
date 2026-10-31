@@ -2,11 +2,12 @@ import type { AxeResults, RunOptions } from 'axe-core'
 import type { Component } from 'vue'
 import type { WeeklyDemoResponse } from '../../server/api/weekly/demo.get'
 import type { HomeDemoItem } from '../app/utils/home-demos'
+import type { RepoSourceProfile } from '../layers/registry/server/api/repos/[owner]/[repo].get'
 import type { RecentPullRequest } from '../shared/open-source-pull-requests'
 import type { TrendingBoardRow } from '../shared/trending-range'
 import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import axe from 'axe-core'
 import { defineComponent, h, nextTick, ref } from 'vue'
 
@@ -443,6 +444,22 @@ describe('accessibility: components', () => {
   })
 
   it('skillSearchRepositoryModal has no violations while indexing', async () => {
+    registerEndpoint('/api/repos/jonathanxdr/nuxt-style-readme-skill', () => ({
+      owner: 'jonathanxdr',
+      repo: 'nuxt-style-readme-skill',
+      description: null,
+      githubUrl: 'https://github.com/jonathanxdr/nuxt-style-readme-skill',
+      defaultBranch: 'main',
+      stars: 12,
+      forks: 0,
+      pushedAt: '2026-10-01T00:00:00Z',
+      createdAt: '2026-10-01T00:00:00Z',
+      archived: false,
+      fork: false,
+      skillFileScanStatus: 'ok',
+      skillFileCount: 1,
+      skillFiles: ['SKILL.md'],
+    } satisfies RepoSourceProfile))
     const container = createIsolatedContainer()
     const Modal = await loadComponent('SkillSearchRepositoryModal.client')
     const modalStub = defineComponent({
@@ -478,6 +495,9 @@ describe('accessibility: components', () => {
     await nextTick()
 
     expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Repository indexing')
+    await vi.waitFor(() => {
+      expect(container.querySelector('a[href="https://github.com/jonathanxdr/nuxt-style-readme-skill/blob/main/SKILL.md"]')).not.toBeNull()
+    })
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
@@ -912,7 +932,7 @@ describe('accessibility: components', () => {
     owner: 'acme',
     repo: 'brag',
     name: 'brag',
-    skillPath: 'SKILL.md',
+    skillPath: '/gh/acme/brag/brag',
     makes: 'film',
     authorName: 'Ada',
     sourceUrl: 'https://github.com/acme/brag/blob/main/SKILL.md',
@@ -957,6 +977,10 @@ describe('accessibility: components', () => {
     // The open source picture links each merged pull request.
     expect(container.querySelector('a[href="https://github.com/skilld-dev/skilld/pull/216"]')).not.toBeNull()
     const links = [...container.querySelectorAll('a')].map(link => link.getAttribute('href'))
+    expect([...container.querySelectorAll('.why-previews__item')].map(link => link.getAttribute('href'))).toEqual([
+      '/gh/acme/brag/brag#demo',
+      '/gh/acme/brag/brag#demo',
+    ])
     expect(links.at(-1)).toBe('/vs/skills-sh')
     wrapper.unmount()
   })
@@ -971,6 +995,12 @@ describe('accessibility: components', () => {
       const results = await runAxe(container)
       expect(results.violations, `${id}\n${formatViolations(results)}`).toHaveLength(0)
       expect(container.querySelector('.why-panel'), id).not.toBeNull()
+      if (id === 'previews') {
+        expect([...container.querySelectorAll('.why-previews__item')].map(link => link.getAttribute('href'))).toEqual([
+          '/gh/acme/brag/brag#demo',
+          '/gh/acme/brag/brag#demo',
+        ])
+      }
       wrapper.unmount()
     }
 
