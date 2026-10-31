@@ -7,7 +7,7 @@ import { findSkillsByKeys } from '../../utils/skills-registry'
 
 /**
  * Reads the trending feed in process with the exact query the trending page
- * sends, so v1 ranks the same board from the same five-minute cache, then
+ * sends, so v1 ranks the same board from the same 30-minute cache, then
  * slices it to `limit`.
  */
 export default defineApiOperation({

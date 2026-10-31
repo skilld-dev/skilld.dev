@@ -47,12 +47,15 @@ function request(route: string, query = '', deployment = 'release-a'): H3Event {
 }
 
 const routes = [
-  { route: 'recent-updates', load: () => import('../../server/api/feed/recent-updates.get') },
-  { route: 'recent-publishes', load: () => import('../../server/api/feed/recent-publishes.get') },
-  { route: 'trending', load: () => import('../../server/api/feed/trending.get') },
+  // `staleMs` is one second past the feed's fresh window; `deadMs` is one
+  // second past fresh + stale. Trending rides a 30-minute window (X posts
+  // land every 15 minutes at most), the others the 300 s default.
+  { route: 'recent-updates', load: () => import('../../server/api/feed/recent-updates.get'), staleMs: 301_000, deadMs: 3_901_000 },
+  { route: 'recent-publishes', load: () => import('../../server/api/feed/recent-publishes.get'), staleMs: 301_000, deadMs: 3_901_000 },
+  { route: 'trending', load: () => import('../../server/api/feed/trending.get'), staleMs: 1_801_000, deadMs: 5_401_000 },
 ]
 
-describe.each(routes)('$route feed cache', ({ route, load }) => {
+describe.each(routes)('$route feed cache', ({ route, load, staleMs, deadMs }) => {
   it('serves its last good response when an expired entry cannot refresh', async () => {
     const handler = (await load()).default
     const fresh = await handler(request(route))
@@ -61,9 +64,9 @@ describe.each(routes)('$route feed cache', ({ route, load }) => {
     boundary.board.mockRejectedValue(new Error('D1 DB is overloaded'))
 
     await expect(handler(request(route))).resolves.toEqual(fresh)
-    vi.advanceTimersByTime(301_000)
+    vi.advanceTimersByTime(staleMs)
     await expect(handler(request(route))).resolves.toEqual(fresh)
-    vi.advanceTimersByTime(3600_000)
+    vi.advanceTimersByTime(deadMs - staleMs)
     await expect(handler(request(route))).rejects.toThrow('D1 DB is overloaded')
   })
 
@@ -73,15 +76,26 @@ describe.each(routes)('$route feed cache', ({ route, load }) => {
     boundary.all.mockRejectedValue(new Error('D1 DB is overloaded'))
     boundary.board.mockRejectedValue(new Error('D1 DB is overloaded'))
 
-    vi.advanceTimersByTime(301_000)
+    vi.advanceTimersByTime(staleMs)
     if (route === 'trending')
       await expect(handler(request(route, '?window=24'))).rejects.toThrow('D1 DB is overloaded')
     else
       await expect(handler(request(route, '?ignored=24'))).resolves.toEqual({ items: [] })
     await expect(handler(request(route, '', 'release-b'))).rejects.toThrow('D1 DB is overloaded')
-    vi.advanceTimersByTime(3600_000)
+    vi.advanceTimersByTime(deadMs - staleMs)
     await expect(handler(request(route))).rejects.toThrow('D1 DB is overloaded')
   })
+})
+
+it('trending serves one compute across a 15-minute ingest cadence', async () => {
+  // X posts land every 15 minutes (`sync-x-mentions` runs `*/15 * * * *`), so
+  // the board's inputs cannot change inside this gap. A second compute there
+  // only repeats the full post-window scan.
+  const handler = (await import('../../server/api/feed/trending.get')).default
+  const first = await handler(request('trending'))
+  vi.advanceTimersByTime(900_000)
+  await expect(handler(request('trending'))).resolves.toEqual(first)
+  expect(boundary.board).toHaveBeenCalledTimes(1)
 })
 
 it('shares equivalent trending options without sharing a different window', async () => {

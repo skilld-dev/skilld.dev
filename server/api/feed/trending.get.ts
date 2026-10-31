@@ -7,6 +7,7 @@
  * catalog. The admin review surface reads the same loader without the filter.
  */
 
+import type { FeedCacheWindow } from '#server/utils/feed-cache'
 import type { TrendingBoard } from '#shared/server/trending-board'
 import type { FallbackSkill } from '#shared/server/trending-fallback'
 import type { TrendingRepo } from '#shared/server/trending-repos'
@@ -168,6 +169,16 @@ export interface TrendingFeedResponse {
   computedAt: number
 }
 
+/**
+ * The board's fastest input is an X post, and those land every 15 minutes at
+ * most (`sync-x-mentions` runs on a 15-minute cron). A five-minute recompute
+ * therefore reran the full post-window scan three times per cadence that
+ * could change the answer, measured at 3,196 executions and 112.9 million
+ * row reads in one week. Half an hour sits a full cadence above ingest;
+ * `staleTtl` still keeps the last good board through a bounded D1 outage.
+ */
+const TRENDING_FEED_WINDOW: FeedCacheWindow = { ttl: 1800, staleTtl: 3600 }
+
 function toSkillItem(entry: TrendingSkill, starSeries: StarPoint[]): TrendingSkillFeedItem {
   return {
     owner: entry.owner,
@@ -302,6 +313,6 @@ export default defineEventHandler(
       const fallback = fallbackSkills.map(entry => toFallbackItem(entry, seriesOf(entry)))
 
       return { items, namedSkills: skillItems, fallback, computedAt: now }
-    }, [limit, windowHours])
+    }, [limit, windowHours], TRENDING_FEED_WINDOW)
   },
 )
