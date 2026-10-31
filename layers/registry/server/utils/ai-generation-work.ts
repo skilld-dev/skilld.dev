@@ -131,13 +131,23 @@ const ELIGIBLE_SKILL_BASE_SQL = `
 const ELIGIBLE_SKILL_SQL = `${ELIGIBLE_SKILL_BASE_SQL} AND ${NONEMPTY_SOURCE_SQL}`
 
 /**
- * Count the embedding backlog so the limit can respond to it. One extra query
- * against a budget of 850 is a cheap price for not silently falling behind.
+ * Count the runtime backlog per kind. An idle hour skips the ordered catalog
+ * scans on the strength of this zero, and the embedding limit responds to its
+ * backlog. One or two extra queries against a budget of 850 is a cheap price
+ * for not silently falling behind.
  */
-export async function countMissingEmbeddings(db: D1Database): Promise<number> {
-  const row = await db.prepare(
-    // CASE evaluates the source only when its embedding needs work. Trimming
-    // every completed source cost 2.2 seconds on the live catalog.
+export async function countMissingGeneratedSkills(
+  db: D1Database,
+  kind: RuntimeGeneratedKind,
+): Promise<number> {
+  const freshnessPredicate = kind === 'abstractness'
+    ? `AND json_extract(generated.payload, '$.promptVersion') = ?2`
+    : ''
+  const statement = db.prepare(
+    // Mirrors selectMissingGeneratedSkills, minus the ORDER BY sort the skip
+    // exists to avoid. CASE evaluates the source only when its artifact needs
+    // work: trimming every completed source cost 2.2 seconds on the live
+    // catalog.
     `SELECT COUNT(*) AS pending FROM (${ELIGIBLE_SKILL_BASE_SQL}
       AND CASE WHEN NOT EXISTS (
         SELECT 1
@@ -145,10 +155,15 @@ export async function countMissingEmbeddings(db: D1Database): Promise<number> {
         WHERE generated.owner = s.owner
           AND generated.repo = s.repo
           AND generated.name = s.name
-          AND generated.kind = 'embedding'
+          AND generated.kind = ?1
           AND generated.sha = s.current_sha
+          ${freshnessPredicate}
       ) THEN ${NONEMPTY_SOURCE_SQL} ELSE 0 END
     )`,
+  )
+  const row = await (kind === 'abstractness'
+    ? statement.bind(kind, ABSTRACTNESS_PROMPT_VERSION)
+    : statement.bind(kind)
   ).first<{ pending: number }>()
   return Number(row?.pending ?? 0)
 }
