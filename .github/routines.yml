@@ -36,3 +36,17 @@ routines:
     timezone: Australia/Melbourne
     mode: propose
     enabled: true
+  - name: seo-review
+    on:
+      schedule:
+        - cron: '0 11 * * 2'
+    timezone: Australia/Sydney
+    mode: propose
+    enabled: true
+  - name: vitals-review
+    on:
+      schedule:
+        - cron: '0 12 * * 3'
+    timezone: Australia/Sydney
+    mode: propose
+    enabled: true
