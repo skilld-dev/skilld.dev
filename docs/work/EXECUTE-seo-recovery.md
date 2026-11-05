@@ -26,6 +26,36 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
+- 2026-11-05 Agent read with NuxtSEO CLI 0.5.11. This read is not a Monday measurement.
+  All 41 panel URLs matched watches. No watch was missing or extra, and no Checkpoint list was empty.
+  Forty latest Checkpoints date from `2026-10-31T10:36Z` to `10:37Z`. Their next due times are on 7 November UTC.
+  The comparison's latest Checkpoint dates from `2026-11-03T21:09Z`. Its next due time is `2026-11-10T21:09Z`.
+  No active URL changed rung from the 20 October read.
+  Active groups: `trending_sample` 19 unknown; `d_probe` two unknown; `demand` three unknown; `f_comparison` one unknown.
+  The nine active `admitted_other` URLs reported eight unknown and one crawled, not indexed. Its excluded Repository hub reported unknown.
+  The `quality_excluded` URL reported unknown.
+  The five `retired` URLs reported four crawled, not indexed, and one excluded by noindex.
+  The `opusgamelabs/game-creator/worldlabs` URL moved from noindex to crawled, not indexed, on 31 October.
+  Its last reported Google crawl stayed at 12 June, so the change records no new crawl.
+  The five last reported Google crawls date from 28 April to 12 June. The retired Sitemap has not yet prompted a recrawl of them.
+  Google's exact `retired-0.xml` read at `2026-11-05T04:02:23Z` reported 9,988 URLs, zero errors, and one warning.
+  Its last download was `2026-11-03T06:20:28Z`; `isPending` was false.
+  The served Sitemap index also lists `retired-1.xml`, with 474 URLs. Google reported no record of that exact child.
+  No Sitemap submission ran.
+  Retained URL Inspection evidence as of `2026-11-04T21:13:14Z`, with checks from 20 August, reported one indexed URL of 10,210.
+  It reported 5,220 crawled, not indexed. This retained count does not compare with the Pages report baseline of 51,962.
+  Search Console reported 2 clicks and 93 impressions from 5 October to 1 November. The previous 28 days reported zero and 85.
+  The seven days from 26 October to 1 November reported one click and 10 impressions.
+  The homepage was the only page with more than one impression.
+  The brand query `skilld` reported 6 impressions at average position 63.5.
+  NuxtSEO Googlebot edge counts stop at 26 October; that day is partial.
+  Complete days fell from 315 to 609 requests a day on 11 to 13 October to 35 to 169 a day on 22 to 25 October.
+  This read does not establish why.
+  A live check of the 224 URLs in the pages, demos, and Skills Sitemaps found a 200 response and an index robots directive for each.
+  Twelve parallel requests drew Cloudflare 429 responses with `Retry-After: 2`. Sequential retries returned 200.
+  The edge counts reported no Googlebot 429 response from 29 September to 26 October.
+  These observations name no new repair cause. They do not decide the 11 November gate.
+
 - 2026-10-21 Prepared ten Experiment B candidates in the [dated manifest](seo-link-experiment-candidates.json).
   All ten canonical destinations returned 200, allowed indexing, and appeared in the Skills sitemap.
   Each checked README contained no `skilld.dev` string; the manifest records its blob SHA.
