@@ -19,7 +19,7 @@ const phone = computed(() => demoPhoneShot(demo))
 
 <template>
   <picture v-if="desktop" class="demo-picture">
-    <source v-if="phone" :media="DEMO_PHONE_MEDIA" :srcset="phone.src" :width="phone.width" :height="phone.height">
+    <source v-if="phone" :media="DEMO_PHONE_MEDIA" :srcset="phone.src" v-bind="{ width: phone.width, height: phone.height } satisfies { width: number, height: number }">
     <img
       :src="desktop.src"
       :width="desktop.width"

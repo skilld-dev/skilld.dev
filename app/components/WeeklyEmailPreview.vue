@@ -23,7 +23,7 @@ const hasDemo = computed(() => !!demo.value?.card && (demo.value?.rowCount ?? 0)
 /**
  * CSS changes the card's palette. Switching themes costs no request.
  */
-const card = computed(() => demo.value?.card)
+const card = computed(() => demo.value?.card ?? '')
 </script>
 
 <template>

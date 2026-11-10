@@ -128,12 +128,12 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
       </div>
 
       <div class="space-y-1">
-        <UCheckbox v-model="weeklyOptIn" size="xl" :disabled="submitting" :ui="checkboxUi" label="Send me distinct trending Skills each Monday." />
+        <UCheckbox :model-value="weeklyOptIn" size="xl" :disabled="submitting" :ui="checkboxUi" label="Send me distinct trending Skills each Monday." @update:model-value="weeklyOptIn = $event === true" />
         <UButton label="Preview the weekly" color="neutral" variant="link" class="min-h-11 px-0 ms-9" trailing-icon="i-lucide-arrow-up-right" @click="openPreview('weekly')" />
       </div>
 
       <div class="space-y-1">
-        <UCheckbox v-model="optIn" size="xl" :disabled="submitting" :ui="checkboxUi" label="Send me watched changes once a month." />
+        <UCheckbox :model-value="optIn" size="xl" :disabled="submitting" :ui="checkboxUi" label="Send me watched changes once a month." @update:model-value="optIn = $event === true" />
         <UButton label="Preview Skill updates" color="neutral" variant="link" class="min-h-11 px-0 ms-9" trailing-icon="i-lucide-arrow-up-right" @click="openPreview('digest')" />
       </div>
 

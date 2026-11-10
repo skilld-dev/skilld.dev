@@ -95,7 +95,7 @@ const duration = computed(() => formatDemoDuration(video.durationSeconds))
       muted
       loop
       playsinline
-      disablepictureinpicture
+      :disablePictureInPicture="true"
       aria-hidden="true"
       tabindex="-1"
       class="demo-video__film"

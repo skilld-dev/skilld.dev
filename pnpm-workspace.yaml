@@ -262,6 +262,7 @@ trustPolicyExclude:
 
 packages:
   - workers/*
+  - tools/typecheck
 
 overrides:
   nuxt-ai-ready: 3.5.0
@@ -322,6 +323,7 @@ catalog:
   h3: 1.15.11
   happy-dom: ^20.12.0
   import-in-the-middle: ^3.4.0
+  jsonc-parser: 3.3.1
   lint-staged: ^17.4.1
   marked: ^18.0.11
   motion-v: ^2.5.1
@@ -348,6 +350,9 @@ catalogs:
   harness:
     '@cloudflare/workers-types': 5.20261002.1
     wrangler: 4.146.0
+  native:
+    '@vue/content-mapper': 4.0.0-alpha.3
+    typescript: 7.1.0-beta
 ignoredBuiltDependencies:
   - '@parcel/watcher'
   - '@tailwindcss/oxide'

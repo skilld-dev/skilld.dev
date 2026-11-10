@@ -268,7 +268,7 @@ function copyFrom(next: CommandMode) {
         </p>
       </div>
       <div
-        v-else
+        v-if="layout === 'tabs'"
         data-testid="skill-command-panel"
         class="space-y-2"
       >

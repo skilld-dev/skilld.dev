@@ -612,7 +612,7 @@ async function deleteAccount() {
                   icon="i-lucide-bell-off"
                   class="min-h-11 min-w-11 shrink-0"
                   :aria-label="`Stop watching ${source.owner}/${source.repo}`"
-                  :title="`Stop watching ${source.owner}/${source.repo}`"
+                  v-bind="{ title: `Stop watching ${source.owner}/${source.repo}` } satisfies { title: string }"
                   :disabled="removeSubscriptionMutation.pending.value"
                   :loading="removeSubscriptionMutation.pending.value && unwatchingRepository === `${source.owner}/${source.repo}`"
                   @click="unwatch(source.owner, source.repo)"

@@ -22,7 +22,7 @@
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "wrangler types --check --config wrangler.jsonc --env-file .dev.vars.example && nuxt typecheck && pnpm --filter @skilld/artifact-signer-worker typecheck",
+    "typecheck": "wrangler types --check --config wrangler.jsonc --env-file .dev.vars.example && nuxt prepare && site-typecheck --noEmit --incremental false && pnpm --filter @skilld/artifact-signer-worker typecheck",
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "pnpm build:test && playwright test",
@@ -51,7 +51,8 @@
     "checkin": "nuxt-checkin prepare && nuxt-checkin",
     "demo:record": "tsx scripts/record-skill-demo.ts",
     "sync:skills": "pnpm dlx skilld@3.6.4 sync --plain",
-    "check:skills": "pnpm dlx skilld@3.6.4 sync --check --plain"
+    "check:skills": "pnpm dlx skilld@3.6.4 sync --check --plain",
+    "typecheck:legacy": "wrangler types --check --config wrangler.jsonc --env-file .dev.vars.example && nuxt typecheck && pnpm --filter @skilld/artifact-signer-worker typecheck:legacy"
   },
   "dependencies": {
     "@comark/nuxt": "catalog:",
@@ -121,6 +122,7 @@
     "happy-dom": "catalog:",
     "lint-staged": "catalog:",
     "nuxtseo-devtools-host": "catalog:",
+    "site-typecheck": "workspace:*",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
