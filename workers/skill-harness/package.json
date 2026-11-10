@@ -7,9 +7,10 @@
     "deploy:proof": "wrangler deploy --containers-rollout immediate",
     "types": "wrangler types worker-configuration.d.ts --env-file .dev.vars.example --env-interface HarnessEnv --include-runtime=false",
     "types:check": "wrangler types worker-configuration.d.ts --env-file .dev.vars.example --env-interface HarnessEnv --include-runtime=false --check",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "site-typecheck --noEmit --incremental false",
     "test:run": "vitest run --config vitest.config.ts",
-    "lint": "eslint src test runner"
+    "lint": "eslint src test runner",
+    "typecheck:legacy": "tsc --noEmit"
   },
   "dependencies": {
     "@cloudflare/sandbox": "catalog:",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:harness",
     "eslint": "catalog:",
+    "site-typecheck": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:harness"

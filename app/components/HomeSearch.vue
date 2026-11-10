@@ -59,7 +59,7 @@ const submitLabel = computed(() => (state.value._tag === 'repository' ? 'Index r
         icon="i-lucide-search"
         placeholder="Search skills or repos"
         name="q"
-        enterkeyhint="search"
+        enterKeyHint="search"
         size="xl"
         color="neutral"
         autocomplete="off"

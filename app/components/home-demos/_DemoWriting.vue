@@ -10,7 +10,7 @@ const showDiff = ref(false)
 const document = computed(() => writing.documents.find(item => item.id === documentId.value) ?? writing.documents[0])
 const markdown = computed(() => document.value?.output ?? '')
 const html = computed(() => renderWritingMarkdown(markdown.value))
-const sourceHtml = computed(() => highlightToHtml(markdown.value, 'md'))
+const sourceHtml = computed(() => highlightToHtml(markdown.value, 'md') ?? '')
 const diff = computed(() => writingDiff(document.value?.original ?? '', document.value?.output ?? ''))
 </script>
 

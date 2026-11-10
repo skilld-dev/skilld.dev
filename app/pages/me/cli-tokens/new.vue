@@ -45,9 +45,9 @@ useSeoMeta({ title: 'New token', robots: 'noindex' })
         <USelect
           v-model="form.ttl"
           :items="[
-            { label: '30 days', value: '30' },
-            { label: '90 days', value: '90' },
-            { label: '365 days', value: '365' },
+            { label: '30 days', value: '30' as const },
+            { label: '90 days', value: '90' as const },
+            { label: '365 days', value: '365' as const },
           ]"
           :disabled="state._tag === 'creating'"
           :ui="{ base: 'min-h-11' }"

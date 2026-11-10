@@ -15,6 +15,9 @@ const { variant = 'bar' } = defineProps<{
   variant?: 'bar' | 'menu'
 }>()
 
+// Keep the signed-in menu in its own chunk without Nuxt’s hydration wrapper.
+const DropdownMenu = defineAsyncComponent(() => import('@nuxt/ui/components/DropdownMenu.vue'))
+
 const { state, logout, isLoading } = useAuth()
 
 const route = useRoute()
@@ -49,7 +52,7 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
       size="sm"
     />
     <!-- Lazy: only a signed-in visitor sees the menu, and the session loads after hydration. -->
-    <LazyUDropdownMenu
+    <DropdownMenu
       v-else
       :items="accountItems"
       :content="{ align: 'end' }"
@@ -77,7 +80,7 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
           </template>
         </ClientOnly>
       </UButton>
-    </LazyUDropdownMenu>
+    </DropdownMenu>
   </div>
 
   <div

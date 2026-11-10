@@ -2122,7 +2122,7 @@ useHead(computed(() => ({
                       v-if="commit.verified"
                       name="i-lucide-shield-check"
                       class="size-3 shrink-0"
-                      :title="`GPG-signed (${commit.verifiedReason})`"
+                      v-bind="{ title: `GPG-signed (${commit.verifiedReason})` } satisfies { title: string }"
                       aria-hidden="true"
                     />
                   </div>
@@ -2820,13 +2820,13 @@ useHead(computed(() => ({
       </div>
       <template v-else>
         <UTabs
-          v-model="relatedTab"
-          :items="relatedTabsAvailable"
+          :model-value="relatedTab" :items="relatedTabsAvailable"
           :content="false"
           color="neutral"
           variant="link"
           size="xs"
           class="mb-4"
+          @update:model-value="relatedTab = String($event)"
         />
         <SkillSourceList
           :items="currentRelatedItems"
