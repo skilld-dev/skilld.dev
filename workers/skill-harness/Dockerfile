@@ -1,4 +1,4 @@
-FROM node:24.18.0-trixie-slim
+FROM node:26.13.0-trixie-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates git ripgrep \
