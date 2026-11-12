@@ -12,8 +12,8 @@ import { runSkillRunSweep } from '../utils/run-sweep'
 
 const CRON = '7,22,37,52 * * * *'
 /**
- * At most 40 checks every 15 minutes. A Skill is checked again after a push to
- * its repository, or after a backstop (`RECHECK_AFTER_SECONDS`), so most runs
+ * At most 40 checks every 15 minutes. A Skill is checked again after a file in
+ * its folder changes, or after a backstop (`RECHECK_AFTER_SECONDS`), so most runs
  * start no checks. A settled check deletes the Resolution of the one it replaced.
  * Each check still writes a Resolution with about 60 KB of attestations, even
  * when it reuses a ready build. Checking every Skill hourly filled the 10 GB
