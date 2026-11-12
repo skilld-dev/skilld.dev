@@ -27,14 +27,11 @@ export const RESOLUTION_PRUNE_BATCH = 500
  *   reuse copies and the Artifact routes serve.
  *
  * Deleting one cascades to its attestation, check results, and requester rows.
- * The first filters repeat `idx_artifact_resolutions_state`, so the scan reads
+ * The batch prune filters by `idx_artifact_resolutions_state`, so its scan reads
  * only settled rows older than the window.
  */
-const PRUNE_CANDIDATES = `
-  SELECT r.id
-  FROM artifact_resolutions r INDEXED BY idx_artifact_resolutions_state
-  WHERE r.state IN ('ready', 'blocked', 'failed', 'revoked')
-    AND r.updated_at < ?1
+const UNNEEDED = `
+  r.state IN ('ready', 'blocked', 'failed', 'revoked')
     AND r.visibility = 'public'
     AND r.id NOT IN (
       SELECT pending_resolution_id FROM artifact_run_checks WHERE pending_resolution_id IS NOT NULL
@@ -54,6 +51,13 @@ const PRUNE_CANDIDATES = `
         WHERE own.resolution_id = r.id
       )
     )
+`
+
+const PRUNE_CANDIDATES = `
+  SELECT r.id
+  FROM artifact_resolutions r INDEXED BY idx_artifact_resolutions_state
+  WHERE r.updated_at < ?1
+    AND ${UNNEEDED}
   LIMIT ?2
 `
 
@@ -71,4 +75,18 @@ export async function pruneSettledResolutions(
     `DELETE FROM artifact_resolutions WHERE id IN (${PRUNE_CANDIDATES})`,
   ).bind(cutoff, input.limit ?? RESOLUTION_PRUNE_BATCH).run()
   return result.meta.changes ?? 0
+}
+
+/**
+ * Delete one Resolution now, when nothing needs it, without waiting for the
+ * retention window. The run sweep calls this for the check a newer check
+ * replaced. Returns whether it deleted the row.
+ */
+export async function deleteUnneededResolution(db: D1Database, id: string): Promise<boolean> {
+  const result = await db.prepare(
+    `DELETE FROM artifact_resolutions WHERE id IN (
+       SELECT r.id FROM artifact_resolutions r WHERE r.id = ?1 AND ${UNNEEDED}
+     )`,
+  ).bind(id).run()
+  return (result.meta.changes ?? 0) > 0
 }

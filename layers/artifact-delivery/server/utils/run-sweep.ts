@@ -3,6 +3,7 @@ import type { ResolutionAccess } from './request-resolution'
 import type { RecheckAfterSeconds, RunCheckColumns } from './run-check-state'
 import type { CreateResolutionResult, ResolutionRow } from './state'
 import { z } from 'zod'
+import { deleteUnneededResolution } from './resolution-retention'
 import { nextRunCheckState, RECHECK_AFTER_SECONDS, recheckDue, runCheckColumns, runCheckStateOf } from './run-check-state'
 import { ACTIVE_BUILD_STATES, getResolution, parseCheckResults } from './state'
 
@@ -11,6 +12,8 @@ export interface RunnableSkill {
   owner: string
   repository: string
   name: string
+  /** Changes whenever the repository gets a push. Null or absent when unknown. */
+  revision?: string | null
 }
 
 export interface SkillRunFailure extends RunnableSkill {
@@ -68,7 +71,9 @@ const checkRowSchema = z.object({
   failed_at: z.number().int().nullable(),
   settled_at: z.number().int().nullable(),
   pending_resolution_id: z.string().nullable(),
+  settled_resolution_id: z.string().nullable(),
   requested_at: z.number().int().nullable(),
+  checked_revision: z.string().nullable(),
 })
 
 type CheckRow = z.infer<typeof checkRowSchema>
@@ -125,7 +130,11 @@ export async function runSkillRunSweep(dependencies: SkillRunSweepDependencies):
     }
     const next = runCheckColumns(nextRunCheckState(previous, settled, now))
     await writeSettled(dependencies.db, row, next, now)
-    rows.set(skillKey(skill), { ...row, ...next, pending_resolution_id: null, settled_at: now })
+    // The new check replaces the last one. Its Resolution goes now unless it
+    // holds the newest attestation of its Artifact.
+    if (row.settled_resolution_id)
+      await deleteUnneededResolution(dependencies.db, row.settled_resolution_id)
+    rows.set(skillKey(skill), { ...row, ...next, pending_resolution_id: null, settled_resolution_id: row.pending_resolution_id, settled_at: now })
   }
 
   const runnable = await dependencies.listRunnableSkills()
@@ -140,7 +149,12 @@ export async function runSkillRunSweep(dependencies: SkillRunSweepDependencies):
       const row = rows.get(skillKey(skill))
       if (!row)
         return true
-      return !row.pending_resolution_id && recheckDue(runCheckStateOf(row), row.settled_at, now, recheckAfter)
+      return !row.pending_resolution_id && recheckDue({
+        state: runCheckStateOf(row),
+        settledAt: row.settled_at,
+        checkedRevision: row.checked_revision,
+        revision: skill.revision ?? null,
+      }, now, recheckAfter)
     })
     .sort((left, right) =>
       (rows.get(skillKey(left))?.settled_at ?? 0) - (rows.get(skillKey(right))?.settled_at ?? 0)
@@ -203,7 +217,8 @@ export function settleResolution(resolution: ResolutionRow | null, pendingSecond
 async function loadCheckRows(db: D1Database): Promise<Map<string, CheckRow>> {
   const result = await db.prepare(
     `SELECT owner, repository, name, outcome, tag, detail, retryable, failing_since,
-            failure_streak, failed_at, settled_at, pending_resolution_id, requested_at
+            failure_streak, failed_at, settled_at, pending_resolution_id, settled_resolution_id,
+            requested_at, checked_revision
      FROM artifact_run_checks`,
   ).all<Record<string, unknown>>()
   const rows = new Map<string, CheckRow>()
@@ -238,12 +253,13 @@ async function writeSettled(db: D1Database, row: CheckRow, columns: RunCheckColu
 
 async function writePending(db: D1Database, skill: RunnableSkill, resolutionId: string, now: number): Promise<void> {
   await db.prepare(
-    `INSERT INTO artifact_run_checks (owner, repository, name, pending_resolution_id, requested_at)
-     VALUES (?1, ?2, ?3, ?4, ?5)
+    `INSERT INTO artifact_run_checks (owner, repository, name, pending_resolution_id, requested_at, checked_revision)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
      ON CONFLICT (owner, repository, name) DO UPDATE SET
        pending_resolution_id = excluded.pending_resolution_id,
-       requested_at = excluded.requested_at`,
-  ).bind(skill.owner, skill.repository, skill.name, resolutionId, now).run()
+       requested_at = excluded.requested_at,
+       checked_revision = excluded.checked_revision`,
+  ).bind(skill.owner, skill.repository, skill.name, resolutionId, now, skill.revision ?? null).run()
 }
 
 function skillKey(skill: RunnableSkill): string {
