@@ -127,6 +127,7 @@ describe('private GitHub App access', () => {
     const fixture = createSqliteD1([
       'migrations/0017_users.sql',
       'migrations/0110_artifact_delivery.sql',
+      'migrations/0161_artifact_resolution_shared_attestation.sql',
       'migrations/0111_github_app_delivery.sql',
       'migrations/0112_private_artifact_keys.sql',
     ])
@@ -193,6 +194,7 @@ describe('private GitHub App access', () => {
     const fixture = createSqliteD1([
       'migrations/0017_users.sql',
       'migrations/0110_artifact_delivery.sql',
+      'migrations/0161_artifact_resolution_shared_attestation.sql',
       'migrations/0111_github_app_delivery.sql',
       'migrations/0112_private_artifact_keys.sql',
     ])

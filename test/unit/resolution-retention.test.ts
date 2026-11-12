@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { pruneSettledResolutions, RESOLUTION_RETENTION_SECONDS } from '../../layers/artifact-delivery/server/utils/resolution-retention'
+import { deleteUnneededResolution, pruneSettledResolutions, RESOLUTION_RETENTION_SECONDS } from '../../layers/artifact-delivery/server/utils/resolution-retention'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_795_000_000
@@ -17,6 +17,8 @@ interface Seed {
   at: number
   state?: 'ready' | 'blocked' | 'failed' | 'fetching'
   visibility?: 'public' | 'private'
+  /** A reused build: it names this Resolution and stores no attestation. */
+  reuses?: string
 }
 
 function seed(rows: Seed[]) {
@@ -27,17 +29,19 @@ function seed(rows: Seed[]) {
     const state = row.state ?? 'ready'
     sqlite.raw.prepare(`INSERT INTO artifact_resolutions (
         id, request_fingerprint, state, visibility, requested_owner, requested_repository,
-        selector_type, selector_value, artifact_id, attestation_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'acme', 'skills', 'named-skill', 'demo', ?, '{}', ?, ?)`).run(
+        selector_type, selector_value, artifact_id, attestation_json, attestation_resolution_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'acme', 'skills', 'named-skill', 'demo', ?, ?, ?, ?, ?)`).run(
       row.id,
       `fp-${row.id}`,
       state,
       row.visibility ?? 'public',
       state === 'ready' ? ARTIFACT : null,
+      row.reuses ? null : '{}',
+      row.reuses ?? null,
       row.at,
       row.at,
     )
-    if (state === 'ready') {
+    if (state === 'ready' && !row.reuses) {
       sqlite.raw.prepare(`INSERT INTO artifact_attestations (resolution_id, artifact_id, attestation_json, created_at)
         VALUES (?, ?, '{}', ?)`).run(row.id, ARTIFACT, row.at)
     }
@@ -77,6 +81,46 @@ describe('pruneSettledResolutions', () => {
     expect(await pruneSettledResolutions(sqlite.db, { now: NOW })).toBe(0)
 
     expect(remaining()).toEqual(['building', 'checked', 'newest', 'private', 'recent-failure'])
+  })
+
+  it('drops an old reused build, then the build it named once nothing names it', async () => {
+    seed([
+      { id: 'r1', at: OLD - 30 },
+      { id: 'reused', at: OLD - 20, reuses: 'r1' },
+      { id: 'r2', at: OLD - 10 },
+    ])
+
+    expect(await pruneSettledResolutions(sqlite.db, { now: NOW })).toBe(1)
+    expect(remaining()).toEqual(['r1', 'r2'])
+
+    expect(await pruneSettledResolutions(sqlite.db, { now: NOW })).toBe(1)
+    expect(remaining()).toEqual(['r2'])
+  })
+
+  it('keeps a build that a recent or building Resolution names', async () => {
+    seed([
+      { id: 'r1', at: OLD - 30 },
+      { id: 'r2', at: OLD - 20 },
+      { id: 'r3', at: OLD - 10 },
+      { id: 'recent', at: NOW - 60, reuses: 'r1' },
+      { id: 'publishing', at: OLD, state: 'fetching', reuses: 'r2' },
+    ])
+
+    expect(await pruneSettledResolutions(sqlite.db, { now: NOW })).toBe(0)
+    expect(remaining()).toEqual(['publishing', 'r1', 'r2', 'r3', 'recent'])
+  })
+
+  it('deletes a replaced check now, unless a reused build names it', async () => {
+    seed([
+      { id: 'named', at: NOW - 60 },
+      { id: 'reused', at: NOW - 30, reuses: 'named' },
+      { id: 'newest', at: NOW - 10 },
+    ])
+
+    expect(await deleteUnneededResolution(sqlite.db, 'named')).toBe(false)
+    expect(await deleteUnneededResolution(sqlite.db, 'reused')).toBe(true)
+    expect(await deleteUnneededResolution(sqlite.db, 'named')).toBe(true)
+    expect(remaining()).toEqual(['newest'])
   })
 
   it('deletes at most one batch per call', async () => {

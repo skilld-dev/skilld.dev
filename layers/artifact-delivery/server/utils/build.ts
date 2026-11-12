@@ -46,6 +46,7 @@ import {
   LEADING_BUILD_FRESH_SECONDS,
   parseCheckResults,
   publishArtifactRecord,
+  shareReusedAttestation,
   transitionResolution,
 } from './state'
 import { readDeterministicUstar } from './ustar'
@@ -311,6 +312,21 @@ export async function processArtifactBuild(
         if (loaded._tag === 'rejected')
           return await failWithRejection(dependencies, row, loaded.rejection)
         carried = loaded
+        if (loaded._tag === 'reused' && !reusedContentChanged(content, loaded.build)) {
+          // A reused build serves the attestation of the build it reused and
+          // stores no copy. If that attestation is gone, it signs its own.
+          const shared = await shareReusedAttestation(dependencies.db, row, {
+            attestationResolutionId: loaded.build.resolutionId,
+            r2Key: artifactR2Key(content.contentSha256),
+            now,
+          })
+          if (shared._tag === 'superseded')
+            return { _tag: 'superseded', resolutionId }
+          if (shared._tag === 'advanced') {
+            row = shared.row
+            continue
+          }
+        }
         const statement = loaded._tag === 'reused'
           ? stageReusedStatement(row, content, loaded.build)
           : await stageLoadedStatement(dependencies, row, content, loaded)
@@ -343,11 +359,12 @@ export async function processArtifactBuild(
     }
 
     if (row.state === 'publishing') {
-      const attestation = artifactAttestationSchema.parse(JSON.parse(row.attestation_json ?? 'null'))
       const published = await publishArtifactRecord(dependencies.db, {
         row,
         checks: parseCheckResults(row.check_results_json),
-        attestation,
+        attestation: row.attestation_resolution_id
+          ? { _tag: 'shared' }
+          : { _tag: 'signed', attestation: artifactAttestationSchema.parse(JSON.parse(row.attestation_json ?? 'null')) },
         now,
       })
       return published._tag === 'superseded'
@@ -444,7 +461,9 @@ async function stageLoadedStatement(
 }
 
 /**
- * Stage a new statement over bytes that R2 already holds.
+ * Stage a new statement over bytes that R2 already holds. A reused build
+ * comes here only when the build it reused no longer holds its attestation;
+ * otherwise it serves that one (see `shareReusedAttestation`).
  *
  * The statement names this Resolution's source and creation time, with the
  * files and check results of the reused build. The signer then signs it
@@ -457,13 +476,8 @@ function stageReusedStatement(
   content: { artifactId: string, contentSha256: string, contentBytes: number },
   build: ReusableBuild,
 ): StagedStatement {
-  if (
-    build.artifactId !== content.artifactId
-    || build.contentSha256 !== content.contentSha256
-    || build.contentBytes !== content.contentBytes
-  ) {
+  if (reusedContentChanged(content, build))
     return { _tag: 'content-changed' }
-  }
   const statement = createAttestationStatement({
     artifactId: content.artifactId,
     createdAt: new Date(row.created_at * 1000).toISOString(),
@@ -481,6 +495,16 @@ function stageReusedStatement(
       attestationStatementJson: encodeAttestationStatement(statement),
     },
   }
+}
+
+/** Whether a reused build holds other bytes than this Resolution recorded. */
+function reusedContentChanged(
+  content: { artifactId: string, contentSha256: string, contentBytes: number },
+  build: ReusableBuild,
+): boolean {
+  return build.artifactId !== content.artifactId
+    || build.contentSha256 !== content.contentSha256
+    || build.contentBytes !== content.contentBytes
 }
 
 /**

@@ -97,6 +97,13 @@ const resolutionRowSchema = z.object({
   check_results_json: z.string().nullable(),
   attestation_statement_json: z.string().nullable(),
   attestation_json: z.string().nullable(),
+  /**
+   * A reused build stores no attestation. It names the Resolution that signed
+   * the one it serves. See migration 0161.
+   */
+  attestation_resolution_id: z.string().nullable().optional(),
+  /** The attestation of `attestation_resolution_id`, from {@link RESOLUTION_SELECT}. */
+  shared_attestation_json: z.string().nullable().optional(),
   visibility: z.enum(['public', 'private']),
   account_id: z.number().int().positive().nullable(),
   github_installation_id: z.number().int().positive().safe().nullable(),
@@ -226,16 +233,24 @@ export async function createResolution(
     : { _tag: 'idempotency-conflict' }
 }
 
+/**
+ * A Resolution row with the attestation it serves. A reused build reads the
+ * attestation of the Resolution it names.
+ */
+const RESOLUTION_SELECT = `SELECT r.*, shared.attestation_json AS shared_attestation_json
+  FROM artifact_resolutions r
+  LEFT JOIN artifact_resolutions shared ON shared.id = r.attestation_resolution_id`
+
 async function findResolutionByRequestKey(db: D1Database, keyHash: string): Promise<ResolutionRow | null> {
   const row = await db.prepare(
-    'SELECT * FROM artifact_resolutions WHERE request_key_hash = ?1 LIMIT 1',
+    `${RESOLUTION_SELECT} WHERE r.request_key_hash = ?1 LIMIT 1`,
   ).bind(keyHash).first<Record<string, unknown>>()
   return row ? resolutionRowSchema.parse(row) : null
 }
 
 export async function getResolution(db: D1Database, resolutionId: string): Promise<ResolutionRow | null> {
   const row = await db.prepare(
-    'SELECT * FROM artifact_resolutions WHERE id = ?1 LIMIT 1',
+    `${RESOLUTION_SELECT} WHERE r.id = ?1 LIMIT 1`,
   ).bind(resolutionId).first<Record<string, unknown>>()
   return row ? resolutionRowSchema.parse(row) : null
 }
@@ -313,6 +328,7 @@ export type ReadyBuildLookup
 
 /** A ready public build as D1 stores it. Nothing here verifies its attestation. */
 export interface ReadyPublicBuild {
+  /** The Resolution that signed {@link attestationJson}. A reused build names it. */
   resolutionId: string
   source: ResolvedSource
   artifactId: string
@@ -334,7 +350,8 @@ const readyPublicBuildRowSchema = z.object({
   content_sha256: z.string(),
   content_bytes: z.number().int().positive(),
   r2_key: z.string(),
-  attestation_json: z.string(),
+  attestation_resolution_id: z.string().uuid(),
+  attestation_json: z.string().nullable(),
 })
 
 /**
@@ -355,8 +372,12 @@ export async function findReadyPublicBuild(
   if (!value)
     return null
   const row = readyPublicBuildRowSchema.parse(value)
+  // A reused build whose signed Resolution is gone serves nothing. The prune
+  // keeps every Resolution a reused build names, so this is a fault.
+  if (row.attestation_json === null)
+    return null
   return {
-    resolutionId: row.id,
+    resolutionId: row.attestation_resolution_id,
     source: resolvedSourceSchema.parse({
       provider: 'github',
       repositoryId: row.repository_id,
@@ -386,9 +407,12 @@ export async function findReadyPublicBuild(
 // instead of every ready row of the commit.
 const READY_PUBLIC_BUILD_SELECT = `SELECT r.id, r.repository_id, r.resolved_owner, r.resolved_repository,
        r.commit_sha, r.tree_sha, r.skill_path, r.artifact_id, r.content_sha256,
-       r.content_bytes, r.r2_key, r.attestation_json
+       r.content_bytes, r.r2_key,
+       COALESCE(r.attestation_resolution_id, r.id) AS attestation_resolution_id,
+       COALESCE(r.attestation_json, shared.attestation_json) AS attestation_json
      FROM artifact_resolutions r
      JOIN artifacts a ON a.id = r.artifact_id
+     LEFT JOIN artifact_resolutions shared ON shared.id = r.attestation_resolution_id
      WHERE r.state = 'ready' AND r.visibility = 'public'
        AND a.delivery_status = 'available'`
 const NEWEST_READY_BUILD = 'ORDER BY r.created_at DESC, r.id DESC LIMIT 1'
@@ -520,16 +544,57 @@ export function presentResolution(row: ResolutionRow): ResolutionResponse {
     artifact: {
       artifactId: row.artifact_id,
       visibility: row.visibility,
-      attestation: parseAttestation(row.attestation_json),
+      attestation: parseAttestation(row.attestation_json ?? row.shared_attestation_json ?? null),
     },
   }
 }
 
+/**
+ * The attestation a published Resolution serves: one it signed, or the one
+ * of the build it reused, which it does not store again.
+ */
+export type PublishedAttestation
+  = { _tag: 'signed', attestation: ArtifactAttestation }
+    | { _tag: 'shared' }
+
 export interface PublishArtifactInput {
   row: ResolutionRow
   checks: CheckResult[]
-  attestation: ArtifactAttestation
+  attestation: PublishedAttestation
   now: number
+}
+
+/**
+ * Move a signing Resolution that reuses a ready public build to `publishing`,
+ * naming the Resolution that signed the attestation it serves. It stores no
+ * attestation and asks the signer for none.
+ *
+ * The write applies only while the named Resolution still holds its
+ * attestation, so a prune between the reuse decision and this write cannot
+ * leave the Resolution naming nothing. Once written, the prune keeps the named
+ * Resolution. `attestation-missing` means the build must sign its own.
+ */
+export async function shareReusedAttestation(
+  db: D1Database,
+  row: ResolutionRow,
+  input: { attestationResolutionId: string, r2Key: string, now: number },
+): Promise<{ _tag: 'advanced', row: ResolutionRow } | { _tag: 'superseded' | 'attestation-missing' }> {
+  if (row.state !== 'signing')
+    throw new Error(`Invalid Artifact build transition: ${row.state} to publishing`)
+  const advanced = await db.prepare(
+    `UPDATE artifact_resolutions
+     SET state = 'publishing', state_version = state_version + 1, updated_at = ?1,
+         r2_key = ?2, attestation_resolution_id = ?3
+     WHERE id = ?4 AND state = 'signing' AND state_version = ?5
+       AND EXISTS (SELECT 1 FROM artifact_attestations WHERE resolution_id = ?3)
+     RETURNING *`,
+  ).bind(input.now, input.r2Key, input.attestationResolutionId, row.id, row.state_version).first<Record<string, unknown>>()
+  if (advanced)
+    return { _tag: 'advanced', row: resolutionRowSchema.parse(advanced) }
+  const current = await getResolution(db, row.id)
+  return current?.state === 'signing' && current.state_version === row.state_version
+    ? { _tag: 'attestation-missing' }
+    : { _tag: 'superseded' }
 }
 
 export async function publishArtifactRecord(
@@ -553,8 +618,10 @@ export async function publishArtifactRecord(
     }
   }
 
+  if (attestation._tag === 'shared' && (row.visibility !== 'public' || !row.attestation_resolution_id))
+    throw new Error('Only a reused public build serves a shared attestation')
   const artifactStatements: D1PreparedStatement[] = row.visibility === 'private'
-    ? privateArtifactPublishStatements(db, row, attestation, now)
+    ? privateArtifactPublishStatements(db, row, signedAttestation(attestation), now)
     : publicArtifactPublishStatements(db, row, attestation, now)
   const statements: D1PreparedStatement[] = [
     ...artifactStatements,
@@ -586,23 +653,32 @@ export async function publishArtifactRecord(
   return { _tag: 'published', row: resolutionRowSchema.parse(published) }
 }
 
+function signedAttestation(attestation: PublishedAttestation): ArtifactAttestation {
+  if (attestation._tag !== 'signed')
+    throw new Error('A private Artifact signs its own attestation')
+  return attestation.attestation
+}
+
 function publicArtifactPublishStatements(
   db: D1Database,
   row: ResolutionRow,
-  attestation: ArtifactAttestation,
+  attestation: PublishedAttestation,
   now: number,
 ): D1PreparedStatement[] {
+  const artifact = db.prepare(
+    `INSERT OR IGNORE INTO artifacts (
+       id, content_sha256, content_bytes, format, r2_key, delivery_status, created_at, updated_at
+     ) VALUES (?1, ?2, ?3, 'skilld-tar-v1', ?4, 'available', ?5, ?5)`,
+  ).bind(row.artifact_id!, row.content_sha256!, row.content_bytes!, row.r2_key!, now)
+  if (attestation._tag === 'shared')
+    return [artifact]
   return [
-    db.prepare(
-      `INSERT OR IGNORE INTO artifacts (
-         id, content_sha256, content_bytes, format, r2_key, delivery_status, created_at, updated_at
-       ) VALUES (?1, ?2, ?3, 'skilld-tar-v1', ?4, 'available', ?5, ?5)`,
-    ).bind(row.artifact_id!, row.content_sha256!, row.content_bytes!, row.r2_key!, now),
+    artifact,
     db.prepare(
       `INSERT OR REPLACE INTO artifact_attestations (
          resolution_id, artifact_id, attestation_json, created_at
        ) VALUES (?1, ?2, ?3, ?4)`,
-    ).bind(row.id, row.artifact_id!, JSON.stringify(attestation), now),
+    ).bind(row.id, row.artifact_id!, JSON.stringify(attestation.attestation), now),
   ]
 }
 

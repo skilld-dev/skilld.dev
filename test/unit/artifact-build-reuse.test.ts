@@ -42,6 +42,7 @@ const NOW = 1_787_227_200
 const MIGRATIONS = [
   'migrations/0017_users.sql',
   'migrations/0110_artifact_delivery.sql',
+  'migrations/0161_artifact_resolution_shared_attestation.sql',
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
@@ -97,8 +98,7 @@ describe('reusing a ready public build', () => {
     expect(await verifyArtifactAttestation(attestation, harness.trustedRoot(), harness.now())).toBe(true)
     expect(response.artifact.artifactId).toBe(first.row.artifact_id)
     expect(attestation.source).toEqual(source)
-    expect(attestation.createdAt).toBe(new Date(repeat.row.created_at * 1000).toISOString())
-    expect(attestation.createdAt).not.toBe(parseReady(first.row).createdAt)
+    expect(attestation).toEqual(parseReady(first.row))
     expect(harness.reports).toContainEqual({
       _tag: 'hit',
       lookup: 'pinned',
@@ -399,6 +399,109 @@ describe('reusing a ready public build', () => {
     expect(github.resolve).toHaveBeenCalledOnce()
     expect(github.load).toHaveBeenCalledOnce()
     expect(harness.reports.filter(report => report.resolutionId === resolutionId)).toEqual([])
+    harness.close()
+  })
+})
+
+describe('a reused build stores no attestation of its own', () => {
+  it('names the build it reused and serves that attestation', async () => {
+    const harness = await createReuseHarness()
+    const first = await harness.build(pinned, githubServing(source))
+    harness.advanceClock(120)
+
+    const repeat = await harness.build(pinned, githubDown())
+
+    expect(repeat.row.state).toBe('ready')
+    expect(repeat.row.attestation_json).toBeNull()
+    expect(repeat.row.attestation_statement_json).toBeNull()
+    expect(repeat.row.attestation_resolution_id).toBe(first.row.id)
+    expect(harness.raw.prepare('SELECT resolution_id FROM artifact_attestations').all())
+      .toEqual([{ resolution_id: first.row.id }])
+    expect(presentResolution(repeat.row)).toEqual({ ...presentResolution(first.row), resolutionId: repeat.row.id })
+    harness.close()
+  })
+
+  it('names the build that signed, never another reused build', async () => {
+    const harness = await createReuseHarness()
+    const first = await harness.build(pinned, githubServing(source))
+    harness.advanceClock(60)
+    await harness.build(pinned, githubDown())
+    harness.advanceClock(60)
+
+    const third = await harness.build(onBranch, githubServing(source))
+
+    expect(third.row.attestation_resolution_id).toBe(first.row.id)
+    expect(presentResolution(third.row)).toEqual({ ...presentResolution(first.row), resolutionId: third.row.id })
+    harness.close()
+  })
+
+  it('answers a replayed request key with the attestation it reused', async () => {
+    const harness = await createReuseHarness()
+    const first = await harness.build(pinned, githubServing(source))
+    harness.advanceClock(120)
+    const repeat = await harness.build(pinned, githubDown())
+    const identity = await resolutionRequestIdentity(pinned, 'reuse-test-request-2')
+
+    const replay = await createResolution(harness.db, pinned, identity, harness.now())
+
+    if (replay._tag !== 'existing')
+      throw new Error('The replay created a new Resolution')
+    expect(replay.row.id).toBe(repeat.row.id)
+    expect(presentResolution(replay.row)).toEqual({ ...presentResolution(first.row), resolutionId: repeat.row.id })
+    harness.close()
+  })
+
+  it('grants the reused build with the attestation it serves, under its own checks', async () => {
+    const harness = await createReuseHarness()
+    const first = await harness.build(pinned, githubServing(source))
+    harness.advanceClock(120)
+    const repeat = await harness.build(pinned, githubDown())
+    const grantFor = async (resolutionId: string) => await createPublicArtifactGrant({
+      db: harness.db,
+      trustedRoot: harness.trustedRoot(),
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: harness.now(),
+    }, repeat.row.artifact_id!, resolutionId)
+
+    const granted = await grantFor(repeat.row.id)
+
+    if (granted._tag !== 'granted')
+      throw new Error(`The reused build was not granted: ${JSON.stringify(granted)}`)
+    expect(granted.grant.attestation).toEqual(parseReady(first.row))
+    harness.raw.prepare(`UPDATE artifact_check_results SET outcome = 'fail', required = 1 WHERE resolution_id = ?`).run(repeat.row.id)
+    expect(await grantFor(repeat.row.id)).toEqual({ _tag: 'denied', code: 'CHECK_BLOCKED' })
+    expect((await grantFor(first.row.id))._tag).toBe('granted')
+    harness.close()
+  })
+
+  it('signs its own attestation when the build it reused lost its attestation', async () => {
+    const harness = await createReuseHarness()
+    const first = await harness.build(pinned, githubServing(source))
+    harness.raw.prepare('DELETE FROM artifact_attestations WHERE resolution_id = ?').run(first.row.id)
+    harness.advanceClock(120)
+
+    const repeat = await harness.build(pinned, githubDown())
+
+    expect(repeat.row.state).toBe('ready')
+    expect(repeat.row.attestation_resolution_id).toBeNull()
+    const attestation = parseReady(repeat.row)
+    expect(attestation.createdAt).toBe(new Date(repeat.row.created_at * 1000).toISOString())
+    expect(await verifyArtifactAttestation(attestation, harness.trustedRoot(), harness.now())).toBe(true)
+    expect(harness.raw.prepare('SELECT resolution_id FROM artifact_attestations').all())
+      .toEqual([{ resolution_id: repeat.row.id }])
+    harness.close()
+  })
+
+  it('finds the newest ready build through a reused one, with the attestation it names', async () => {
+    const harness = await createReuseHarness()
+    const first = await harness.build(pinned, githubServing(source))
+    harness.advanceClock(60)
+    await harness.build(pinned, githubDown())
+
+    const found = await findReadyPublicBuild(harness.db, { _tag: 'resolved', source })
+
+    expect(found?.resolutionId).toBe(first.row.id)
+    expect(found?.attestationJson).toBe(first.row.attestation_json)
     harness.close()
   })
 })
@@ -818,7 +921,7 @@ describe('round trips to D1 for one build', () => {
     harness.close()
   })
 
-  it('a reused build reaches ready in 11 round trips', async () => {
+  it('a reused build reaches ready in 10 round trips', async () => {
     const harness = await createReuseHarness()
     await harness.build(pinned, githubServing(source))
     const resolutionId = await harness.request(pinned)
@@ -827,7 +930,7 @@ describe('round trips to D1 for one build', () => {
     const outcome = await processArtifactBuild({ ...harness.dependencies(githubDown()), db: counted.db }, resolutionId)
 
     expect(outcome._tag).toBe('ready')
-    expect(counted.roundTrips()).toBe(11)
+    expect(counted.roundTrips()).toBe(10)
     harness.close()
   })
 })
@@ -853,7 +956,8 @@ describe('round trips to D1 for one Resolution request', () => {
 
     const replay = await createResolution(counted.db, pinned, identity, harness.now())
 
-    expect(replay).toEqual({ _tag: 'existing', row: first._tag === 'created' ? first.row : undefined })
+    // A lookup also reads the attestation a reused build names, none here.
+    expect(replay).toEqual({ _tag: 'existing', row: first._tag === 'created' ? { ...first.row, shared_attestation_json: null } : undefined })
     expect(counted.roundTrips()).toBe(2)
     harness.close()
   })

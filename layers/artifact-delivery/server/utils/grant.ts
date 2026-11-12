@@ -50,6 +50,8 @@ export interface PublicGrantDependencies {
 
 /**
  * Every grant reads current D1 check results before it reveals cached bytes.
+ * A named Resolution that reused a build is granted under its own state and
+ * checks, with the attestation of the build it names.
  * The public R2 URL is immutable. A cached object cannot create a fresh grant.
  */
 export async function createPublicArtifactGrant(
@@ -60,13 +62,13 @@ export async function createPublicArtifactGrant(
   const rowStatement = dependencies.db.prepare(
     `SELECT
        a.id, a.content_sha256, a.content_bytes, a.r2_key, a.delivery_status,
-       aa.resolution_id, aa.attestation_json,
+       r.id AS resolution_id, aa.attestation_json,
        r.state AS resolution_state
      FROM artifacts a
      JOIN artifact_attestations aa ON aa.artifact_id = a.id
-     JOIN artifact_resolutions r ON r.id = aa.resolution_id
+     JOIN artifact_resolutions r ON r.id = COALESCE(?2, aa.resolution_id)
      WHERE a.id = ?1
-       AND (?2 IS NULL OR aa.resolution_id = ?2)
+       AND aa.resolution_id = COALESCE(r.attestation_resolution_id, r.id)
      ORDER BY aa.created_at DESC, aa.resolution_id DESC
      LIMIT 1`,
   ).bind(artifactId, resolutionId ?? null)
