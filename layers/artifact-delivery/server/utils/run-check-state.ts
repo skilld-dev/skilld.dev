@@ -113,3 +113,36 @@ export function runCheckColumns(state: RunCheckState): RunCheckColumns {
       return { outcome: 'failing', tag: state.tag, detail: state.detail, retryable: 0, failing_since: state.since, failure_streak: state.streak, failed_at: state.failedAt }
   }
 }
+
+/** How long a settled check stands before the sweep checks that Skill again. */
+export interface RecheckAfterSeconds {
+  ready: number
+  failing: number
+}
+
+/**
+ * A ready Skill is checked weekly, a failing one daily. Each check writes a
+ * Resolution with its attestations, about 60 KB, so checking every Skill every
+ * hour filled the 10 GB database in November 2026.
+ */
+export const RECHECK_AFTER_SECONDS: RecheckAfterSeconds = {
+  ready: 7 * 24 * 60 * 60,
+  failing: 24 * 60 * 60,
+}
+
+/**
+ * Whether the sweep should check a Skill again now.
+ *
+ * An unchecked Skill and a transient failure, such as a spent quota, are due
+ * at once: neither says anything about the Skill yet.
+ */
+export function recheckDue(
+  state: RunCheckState,
+  settledAt: number | null,
+  now: number,
+  after: RecheckAfterSeconds,
+): boolean {
+  if (state._tag === 'unchecked' || state._tag === 'transient' || settledAt === null)
+    return true
+  return now - settledAt >= (state._tag === 'ready' ? after.ready : after.failing)
+}
