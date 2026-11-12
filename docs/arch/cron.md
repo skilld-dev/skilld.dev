@@ -2,7 +2,7 @@
 
 Generated from literal `defineScheduledTask` declarations. Run `pnpm cron:docs` after schedule changes.
 
-Tasks: 25. Unique Cloudflare triggers: 15.
+Tasks: 26. Unique Cloudflare triggers: 16.
 
 | Task | Cron | Source |
 | --- | --- | --- |
@@ -17,6 +17,7 @@ Tasks: 25. Unique Cloudflare triggers: 15.
 | `detect-star-surges` | `30 4 * * *` | `layers/registry/server/tasks/detect-star-surges.ts` |
 | `drain-skill-dirty` | `*/5 * * * *` | `layers/registry/server/tasks/drain-skill-dirty.ts` |
 | `embedding-parity-audit` | `0 21 * * *` | `layers/registry/server/tasks/embedding-parity-audit.ts` |
+| `prune-finished-jobs` | `40 * * * *` | `layers/registry/server/tasks/prune-finished-jobs.ts` |
 | `purge-personal-data` | `30 4 * * *` | `layers/identity/server/tasks/purge-personal-data.ts` |
 | `recompute-skill-scores` | `0 3 * * *` | `layers/registry/server/tasks/recompute-skill-scores.ts` |
 | `reconcile-rendered` | `20 */6 * * *` | `layers/registry/server/tasks/reconcile-rendered.ts` |
