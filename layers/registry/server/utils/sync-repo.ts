@@ -154,6 +154,17 @@ export const EXISTING_SKILL_ASSET_CHUNK = 15
  */
 export const D1_BATCH_CHAR_BUDGET = 8_000_000
 
+/**
+ * Revisions kept per Skill, newest first (ADR-0019).
+ *
+ * One sync reads a Skill's last 30 commits, and every reader wants the
+ * newest: the page shows the latest sha, the digest reads a month back, and
+ * the feed joins the revision at or before an activity row. Rows beyond
+ * that were a commit message each, 146,515 of them on 2026-11-12, and
+ * nothing deleted one.
+ */
+export const SKILL_REVISION_RETAIN = 30
+
 /** A prepared write and the bound payload size that decides which batch it joins. */
 export interface WeightedWrite {
   statement: D1PreparedStatement
@@ -1410,6 +1421,20 @@ export async function syncRepo(
             `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message],
+          ))
+        }
+        if (commits.length > 0) {
+          writes.push(weighWrite(
+            db,
+            `DELETE FROM skill_revisions
+             WHERE owner = ? AND repo = ? AND name = ?
+               AND sha NOT IN (
+                 SELECT sha FROM skill_revisions
+                 WHERE owner = ? AND repo = ? AND name = ?
+                 ORDER BY modified_at DESC, sha DESC
+                 LIMIT ?
+               )`,
+            [owner, repo, parsed.name, owner, repo, parsed.name, SKILL_REVISION_RETAIN],
           ))
         }
       }
