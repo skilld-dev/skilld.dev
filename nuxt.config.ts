@@ -777,6 +777,11 @@ export default defineNuxtConfig({
   },
 
   experimental: {
+    // compatibilityVersion 5 turns h3 and nitropack server auto-imports off.
+    // Nuxt 4.6.2 (nuxt/nuxt#36548) made that take effect. Our server code and
+    // nuxt-auth-utils 0.5 (`createError` from `#imports`) still rely on them.
+    // Remove once server code imports from `nuxt/server` and nuxt-auth-utils is on 0.6.
+    nitroAutoImports: true,
     checkOutdatedBuildInterval: 5 * 60 * 1000,
     viteEnvironmentApi: false,
   },
