@@ -7,7 +7,7 @@ import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { enqueueArtifactBuild } from '../utils/queue'
 import { fetchAdmittedSkillIdentity, requestResolution } from '../utils/request-resolution'
-import { pruneSettledResolutions } from '../utils/resolution-retention'
+import { drainSettledResolutions } from '../utils/resolution-retention'
 import { runSkillRunSweep } from '../utils/run-sweep'
 
 const CRON = '7,22,37,52 * * * *'
@@ -47,7 +47,7 @@ export default defineScheduledTask({
 
     // Prune before the observed run records its start: a full database refuses
     // that insert, and only a delete can free the space it needs.
-    const pruned = await pruneSettledResolutions(db, { now: Math.floor(Date.now() / 1000) })
+    const pruned = await drainSettledResolutions(db, { now: Math.floor(Date.now() / 1000), clockMs: Date.now })
     emitOperationalEvent(createWideEvent({ 'operation': 'prune-resolutions', 'outcome': 'completed', 'processed.count': pruned }), 'info')
 
     return await runObservedScheduledTask({

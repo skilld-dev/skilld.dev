@@ -98,3 +98,31 @@ export async function deleteUnneededResolution(db: D1Database, id: string): Prom
   ).bind(id).run()
   return (result.meta.changes ?? 0) > 0
 }
+
+/** Batches one drain may run. Eight batches clear a 100k backlog in about 6 hours of sweeps. */
+export const RESOLUTION_DRAIN_BATCHES = 8
+
+/** Time one drain may spend before it leaves the rest to the next run. */
+export const RESOLUTION_DRAIN_BUDGET_MS = 20_000
+
+/**
+ * Prune batches until one comes back short, the batch cap is hit, or the time
+ * budget runs out. Steady state stops after one short batch. Returns how many
+ * Resolutions it deleted.
+ */
+export async function drainSettledResolutions(
+  db: D1Database,
+  input: { now: number, clockMs: () => number, limit?: number, maxBatches?: number, budgetMs?: number },
+): Promise<number> {
+  const limit = input.limit ?? RESOLUTION_PRUNE_BATCH
+  const maxBatches = input.maxBatches ?? RESOLUTION_DRAIN_BATCHES
+  const deadline = input.clockMs() + (input.budgetMs ?? RESOLUTION_DRAIN_BUDGET_MS)
+  let deleted = 0
+  for (let batch = 0; batch < maxBatches && input.clockMs() < deadline; batch++) {
+    const count = await pruneSettledResolutions(db, { now: input.now, limit })
+    deleted += count
+    if (count < limit)
+      break
+  }
+  return deleted
+}
