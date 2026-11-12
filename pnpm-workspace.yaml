@@ -288,7 +288,7 @@ catalog:
   '@iconify-json/lucide': ^1.2.128
   '@iconify-json/simple-icons': ^1.2.94
   '@iconify-json/vscode-icons': ^1.2.76
-  '@modelcontextprotocol/client': 2.0.0
+  '@modelcontextprotocol/client': 2.3.0
   '@modelcontextprotocol/sdk': 1.32.0
   '@modelcontextprotocol/server': 2.3.0
   '@nuxt/a11y': 1.0.0-alpha.1
@@ -345,7 +345,7 @@ catalog:
   vue-tsc: 3.3.14
   wrangler: ^4.127.1
   yaml: ^2.9.0
-  zod: ^4.6.6
+  zod: ^4.6.7
 catalogs:
   harness:
     '@cloudflare/workers-types': 5.20261002.1
