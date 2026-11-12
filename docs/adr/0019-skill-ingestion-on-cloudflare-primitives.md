@@ -178,7 +178,7 @@ the App keeps the hourly poll. Delivery IDs stay deduplicated in
 Today a Repository with more than 250 SKILL.md files chains across queue
 deliveries through `repo_sync_progress` and a `release(1)`{lang="ts"}, and each delivery
 counts as an attempt. The sync becomes a Workflow, `SKILL_SYNC_WORKFLOW`, with
-one instance per `(owner, repo, treeSha)`{lang="ts"}:
+one instance per Repository, ID `sync:<owner>/<repo>`{lang="html"}:
 
 1. `summary`: GraphQL summary, move detection (ADR-0015), unchanged short-cut.
 2. `tree`: REST tree with ETag, truncation check.
@@ -186,12 +186,23 @@ one instance per `(owner, repo, treeSha)`{lang="ts"}:
    R2 puts, D1 writes under the 8 MB batch budget. Each step retries alone.
 4. `finish`: `repos.last_tree_sha`, missing Skills, star observation.
 
-The instance ID is the idempotency key. A second start for the same tree is
-refused by the platform, which replaces the `repo_sync_progress` claim. A step
-that throws retries with the Workflow's own backoff, and a step that reports a
-permanent failure (404, 410, truncated tree) ends the instance with that
-reason. The queue message only starts the instance, so `max_retries` goes back
-to a failure budget.
+The instance ID is the Repository claim. The platform refuses a second start
+while an instance with that ID runs, so two syncs of one Repository never
+write at once, whichever trees they saw. That replaces the `repo_sync_progress`
+claim. The tree SHA the `summary` step read is the instance's generation:
+every slice and the finish step write `WHERE repos.last_tree_sha IS NOT
+newer` through the same compare the continuation path uses today, and a
+tree that moved under a running instance ends it with `restart-required`,
+as `syncRepo` does now. The next poll or push starts a fresh instance.
+
+A step that throws retries with the Workflow's own backoff, and a step that
+reports a permanent failure (404, 410, truncated tree) ends the instance with
+that reason. The queue message only starts the instance, so `max_retries`
+goes back to a failure budget.
+
+During the rollout a Repository is on one path only: the per-pool flag
+chooses the Workflow or the queue job before anything is enqueued, so the two
+never overlap on one Repository.
 
 ### Append-only observations go to Analytics Engine
 
@@ -217,6 +228,8 @@ invariant the platform does not already hold.
 - Exactly-once effects come from keys, never from delivery counts. The Workflow
   instance ID, the job `unique_key`, the webhook delivery ID, and the
   Resolution `request_key_hash` each refuse a duplicate.
+- One writer per Repository at a time. The Workflow instance ID, or today the
+  `repo_sync_progress` claim, holds that; the tree SHA fences a stale writer.
 - A GitHub read is conditional where GitHub allows it, and a 304 serves the
   cached body. A build still pins the exact commit (ADR-0005).
 - A reader never fails because a blob moved. `readSkillSource` falls back to
