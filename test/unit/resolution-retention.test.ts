@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { deleteUnneededResolution, pruneSettledResolutions, RESOLUTION_RETENTION_SECONDS } from '../../layers/artifact-delivery/server/utils/resolution-retention'
+import { deleteUnneededResolution, drainSettledResolutions, pruneSettledResolutions, RESOLUTION_RETENTION_SECONDS } from '../../layers/artifact-delivery/server/utils/resolution-retention'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_795_000_000
@@ -133,5 +133,22 @@ describe('pruneSettledResolutions', () => {
     expect(await pruneSettledResolutions(sqlite.db, { now: NOW, limit: 2 })).toBe(2)
     expect(await pruneSettledResolutions(sqlite.db, { now: NOW, limit: 2 })).toBe(1)
     expect(remaining()).toEqual([])
+  })
+
+  it('drains batches until one comes back short', async () => {
+    seed(['f1', 'f2', 'f3', 'f4', 'f5'].map(id => ({ id, at: OLD, state: 'failed' as const })))
+
+    expect(await drainSettledResolutions(sqlite.db, { now: NOW, clockMs: () => 0, limit: 2 })).toBe(5)
+    expect(remaining()).toEqual([])
+  })
+
+  it('stops at the batch cap and when the time budget runs out', async () => {
+    seed(['f1', 'f2', 'f3', 'f4', 'f5'].map(id => ({ id, at: OLD, state: 'failed' as const })))
+
+    expect(await drainSettledResolutions(sqlite.db, { now: NOW, clockMs: () => 0, limit: 2, maxBatches: 1 })).toBe(2)
+    let clock = 0
+    const slow = () => (clock += 15_000)
+    expect(await drainSettledResolutions(sqlite.db, { now: NOW, clockMs: slow, limit: 1, budgetMs: 20_000 })).toBe(1)
+    expect(remaining()).toHaveLength(2)
   })
 })
