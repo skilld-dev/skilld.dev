@@ -12,8 +12,9 @@ import { runSkillRunSweep } from '../utils/run-sweep'
 
 const CRON = '7,22,37,52 * * * *'
 /**
- * At most 40 checks every 15 minutes. A ready Skill is checked weekly and a
- * failing one daily (`RECHECK_AFTER_SECONDS`), so most runs start few checks.
+ * At most 40 checks every 15 minutes. A Skill is checked again after a push to
+ * its repository, or after a backstop (`RECHECK_AFTER_SECONDS`), so most runs
+ * start no checks. A settled check deletes the Resolution of the one it replaced.
  * Each check still writes a Resolution with about 60 KB of attestations, even
  * when it reuses a ready build. Checking every Skill hourly filled the 10 GB
  * database on 2026-11-04. A first check loads from GitHub with about 8 REST
@@ -59,7 +60,7 @@ export default defineScheduledTask({
       const now = () => Math.floor(Date.now() / 1000)
       const report = await runSkillRunSweep({
         db,
-        listRunnableSkills: async () => (await $fetch<{ items: Array<{ owner: string, repository: string, name: string }> }>('/api/skills/runnable')).items,
+        listRunnableSkills: async () => (await $fetch<{ items: Array<{ owner: string, repository: string, name: string, revision: string | null }> }>('/api/skills/runnable')).items,
         requestResolution: input => requestResolution({
           db,
           lookupAdmitted: fetchAdmittedSkillIdentity(),

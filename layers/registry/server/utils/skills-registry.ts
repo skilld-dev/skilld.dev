@@ -742,6 +742,8 @@ export interface SkillSitemapEntry {
   repo: string
   /** Resolved-Skill total for the repo; 1 means the hub URL is canonical. */
   repoSkillCount: number
+  /** Unix seconds of the repository's last push, as the last sync read it. */
+  pushedAt: number | null
 }
 
 interface SkillDuplicateRow extends DuplicateCandidate {
@@ -899,7 +901,7 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 export function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   return cached({
     storage: useStorage('cache'),
-    key: 'skills:sitemap-all:v5',
+    key: 'skills:sitemap-all:v6',
     ttlSeconds: DUPLICATE_CANDIDATES_TTL,
     staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
     compute: () => queryAllSkillsForSitemap(getDB(event)),
@@ -946,7 +948,7 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
   const weakerSlugs = duplicateWeakerSlugSet(rows)
   const entries = rows
     .filter(row => row.repo_kind !== 'aggregator' && !weakerSlugs.has(skillSlug(row)))
-    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
+    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0, pushedAt: row.pushed_at ?? null }))
   return entries
 }
 

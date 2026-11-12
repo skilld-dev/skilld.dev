@@ -114,35 +114,45 @@ export function runCheckColumns(state: RunCheckState): RunCheckColumns {
   }
 }
 
-/** How long a settled check stands before the sweep checks that Skill again. */
+/** How long a settled check stands when its repository gets no push. */
 export interface RecheckAfterSeconds {
   ready: number
   failing: number
 }
 
 /**
- * A ready Skill is checked weekly, a failing one daily. Each check writes a
- * Resolution with its attestations, about 60 KB, so checking every Skill every
- * hour filled the 10 GB database in November 2026.
+ * Backstops for a repository that gets no push. A check of an unchanged
+ * repository still writes a Resolution with about 60 KB of attestations, and
+ * checking every Skill hourly filled the 10 GB database in November 2026. The
+ * backstop catches a change in the checks themselves.
  */
 export const RECHECK_AFTER_SECONDS: RecheckAfterSeconds = {
-  ready: 7 * 24 * 60 * 60,
-  failing: 24 * 60 * 60,
+  ready: 30 * 24 * 60 * 60,
+  failing: 7 * 24 * 60 * 60,
+}
+
+/** What the sweep knows about one Skill when it decides whether to check it. */
+export interface RecheckInput {
+  state: RunCheckState
+  settledAt: number | null
+  /** The repository revision the last check ran at. */
+  checkedRevision: string | null
+  /** The repository revision the registry holds now. */
+  revision: string | null
 }
 
 /**
  * Whether the sweep should check a Skill again now.
  *
  * An unchecked Skill and a transient failure, such as a spent quota, are due
- * at once: neither says anything about the Skill yet.
+ * at once: neither says anything about the Skill yet. Otherwise a push to the
+ * repository makes the Skill due, and the backstop covers the rest.
  */
-export function recheckDue(
-  state: RunCheckState,
-  settledAt: number | null,
-  now: number,
-  after: RecheckAfterSeconds,
-): boolean {
+export function recheckDue(input: RecheckInput, now: number, after: RecheckAfterSeconds): boolean {
+  const { state, settledAt } = input
   if (state._tag === 'unchecked' || state._tag === 'transient' || settledAt === null)
+    return true
+  if (input.revision !== null && input.revision !== input.checkedRevision)
     return true
   return now - settledAt >= (state._tag === 'ready' ? after.ready : after.failing)
 }

@@ -20,6 +20,7 @@ const MIGRATIONS = [
   'migrations/0142_artifact_run_checks.sql',
   'migrations/0143_artifact_run_check_streak.sql',
   'migrations/0144_artifact_resolution_requesters.sql',
+  'migrations/0160_artifact_run_check_revision.sql',
 ]
 const NOW = 1_791_000_000
 const archify: RunnableSkill = { owner: 'tt-a1i', repository: 'archify', name: 'archify' }
@@ -117,7 +118,7 @@ describe('skilld run sweep', () => {
     harness.close()
   })
 
-  it('checks a failing Skill again only after a day, and a spent quota at once', async () => {
+  it('checks a failing Skill again only after the backstop, and a spent quota at once', async () => {
     const harness = createHarness([archify, busy], 10, RECHECK_AFTER_SECONDS)
 
     await runSkillRunSweep(harness.dependencies)
@@ -131,9 +132,41 @@ describe('skilld run sweep', () => {
     expect(settled.started).toBe(1)
     expect(harness.requested()).toEqual(['acme/busy/busy', 'tt-a1i/archify/archify', 'acme/busy/busy'])
     harness.advance(RECHECK_AFTER_SECONDS.failing)
-    // Busy's pending check timed out over that day, so it is due again too.
+    // Busy's pending check timed out meanwhile, so it is due again too.
     expect((await runSkillRunSweep(harness.dependencies)).started).toBe(2)
     expect(harness.requested().slice(-2)).toContain('tt-a1i/archify/archify')
+    harness.close()
+  })
+
+  it('checks a settled Skill again when its repository gets a push', async () => {
+    const skills = [{ ...archify, revision: '100' }]
+    const harness = createHarness(skills, 10, RECHECK_AFTER_SECONDS)
+    const blocked: SourceRejection = { _tag: 'rejected', code: 'INVALID_SOURCE', summary: 'Too large.', findings: [] }
+
+    await runSkillRunSweep(harness.dependencies)
+    await harness.buildEach({ archify: blocked })
+    const unchanged = await runSkillRunSweep(harness.dependencies)
+    skills[0] = { ...archify, revision: '200' }
+    const pushed = await runSkillRunSweep(harness.dependencies)
+
+    expect(unchanged).toMatchObject({ settled: 1, started: 0 })
+    expect(pushed.started).toBe(1)
+    harness.close()
+  })
+
+  it('deletes the Resolution of a check a newer check replaced', async () => {
+    const harness = createHarness([archify])
+    const blocked: SourceRejection = { _tag: 'rejected', code: 'INVALID_SOURCE', summary: 'Too large.', findings: [] }
+
+    await runSkillRunSweep(harness.dependencies)
+    const [first] = harness.resolutionIds()
+    await harness.buildEach({ archify: blocked })
+    await runSkillRunSweep(harness.dependencies)
+    await harness.buildEach({ archify: blocked })
+    await runSkillRunSweep(harness.dependencies)
+
+    expect(harness.resolutionIds()).toHaveLength(2)
+    expect(harness.resolutionIds()).not.toContain(first)
     harness.close()
   })
 })
@@ -206,6 +239,7 @@ function createHarness(skills: RunnableSkill[], batchSize = 10, recheckAfter = {
     buildEach,
     requested: () => requestedRefs,
     advance: (seconds: number) => { clock += seconds },
+    resolutionIds: () => (sqlite.raw.prepare('SELECT id FROM artifact_resolutions ORDER BY created_at, id').all() as Array<{ id: string }>).map(row => row.id),
     close: () => sqlite.close(),
   }
 }
