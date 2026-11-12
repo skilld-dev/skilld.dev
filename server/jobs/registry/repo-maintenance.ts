@@ -355,17 +355,20 @@ export async function handleRegistryRepoJob(
           forceContent: true,
           maxSkillFiles: SKILL_PATHS_PER_INVOCATION,
           ...continuation,
+          sourceBucket: ctx.env.PUBLIC_ARTIFACTS,
         }
       : payload.operation === 'submit'
         ? {
             submitted: true,
             maxSkillFiles: SKILL_PATHS_PER_INVOCATION,
             ...continuation,
+            sourceBucket: ctx.env.PUBLIC_ARTIFACTS,
           }
         : {
             ownerVerified,
             maxSkillFiles: SKILL_PATHS_PER_INVOCATION,
             ...continuation,
+            sourceBucket: ctx.env.PUBLIC_ARTIFACTS,
           },
   )
   const retryAfter = await applyRateGuard(ctx.db, {

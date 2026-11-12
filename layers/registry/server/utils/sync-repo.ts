@@ -2,6 +2,7 @@
 
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { RepositoryMovePlan, RepositoryName } from './repository-move'
+import type { SkillSourceBucket } from './skill-source-store'
 import type { SkillTrustTier } from './skill-trust'
 import { selectSkillFiles } from '#shared/skill-files'
 import { canonicalSkillPaths, isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
@@ -16,6 +17,7 @@ import { parseSkillFile, registrySkillName } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { parseSkillMd } from './skill-md-render'
 import { findSkillRenames, skillRenameStatements } from './skill-rename'
+import { putSkillSource } from './skill-source-store'
 import { resolveSkillTrust } from './skill-trust'
 
 export interface SyncRepoStats {
@@ -31,6 +33,10 @@ export interface SyncRepoStats {
   skillsUnreadable: number
   revisionsInserted: number
   activityEmitted: number
+  /** SKILL.md bodies this sync put to R2, new objects only (ADR-0019). */
+  sourcesStored?: number
+  /** Bodies R2 refused. D1 still holds them; the backfill retries. */
+  sourceStoreFailures?: number
   rateLimitRemaining?: number
   /** The GitHub bucket `rateLimitRemaining` counts: `core` or `graphql`. */
   rateLimitResource?: string
@@ -810,6 +816,11 @@ export interface SyncRepoOptions {
    * synchronous full-repo behavior used outside durable jobs.
    */
   maxSkillFiles?: number
+  /**
+   * Where a changed SKILL.md body goes, keyed by its SHA-256 (ADR-0019).
+   * Omit to write D1 only, as the scripts and older tests do.
+   */
+  sourceBucket?: SkillSourceBucket
 }
 
 export async function syncRepo(
@@ -1123,6 +1134,7 @@ export async function syncRepo(
     const writes: WeightedWrite[] = []
     const revisionWriteIndexes: number[] = []
     const activityWriteIndexes: number[] = []
+    const sourceWrites: Array<{ body: string, contentSha256: string }> = []
 
     const contentFiles: SkillSnapshot[] = []
     for (const file of slice) {
@@ -1380,6 +1392,7 @@ export async function syncRepo(
         filePath: '',
       })
       const renderedRawSha256 = await skillContentSha256(raw)
+      sourceWrites.push({ body: raw, contentSha256: renderedRawSha256 })
 
       let modifiedAt = prev?.modified_at ?? null
       if (contentChanged) {
@@ -1555,6 +1568,20 @@ export async function syncRepo(
     // so a run that dies mid-repo is replayed safely rather than lost. That same
     // property lets the slice split again by payload size, which is what keeps a
     // content-heavy repository under the 32 MiB RPC ceiling.
+    // The object goes first, so a row that names a hash never points at a
+    // missing object. A put that fails leaves the row's own copy in place.
+    if (opts.sourceBucket && sourceWrites.length > 0) {
+      const results = await Promise.all(sourceWrites.map(write => putSkillSource(opts.sourceBucket!, write)))
+      for (const result of results) {
+        if (result._tag === 'stored')
+          stats.sourcesStored = (stats.sourcesStored ?? 0) + 1
+        if (result._tag === 'failed') {
+          stats.sourceStoreFailures = (stats.sourceStoreFailures ?? 0) + 1
+          console.warn(`[sync] skill source put failed for ${owner}/${repo}: ${result.reason}`)
+        }
+      }
+    }
+
     if (writes.length > 0) {
       const results = await runBoundedBatch(db, writes)
       for (const index of revisionWriteIndexes)
