@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { MdxgPage } from '../types'
 import { computed, ref } from 'vue'
-import { MarkdownDocument } from '#components'
 import { useMdxgCodeCopy } from '../composables/useMdxgCodeCopy'
 
 const props = defineProps<{
