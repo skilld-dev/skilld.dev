@@ -24,9 +24,12 @@ export const RESOLUTION_PRUNE_BATCH = 500
  * - a run check still reads it;
  * - a download grant names it;
  * - it is ready and holds the newest attestation of its Artifact, which build
- *   reuse copies and the Artifact routes serve.
+ *   reuse reads and the Artifact routes serve;
+ * - a reused build names it, because that build serves its attestation.
  *
- * Deleting one cascades to its attestation, check results, and requester rows.
+ * A reused build holds no attestation of its own, so it goes once the window
+ * passes. Deleting one cascades to its attestation, check results, and
+ * requester rows. Migration 0161 indexes the reused-build lookup.
  * The batch prune filters by `idx_artifact_resolutions_state`, so its scan reads
  * only settled rows older than the window.
  */
@@ -40,8 +43,13 @@ const UNNEEDED = `
       UNION
       SELECT resolution_id FROM artifact_download_grants
     )
+    AND NOT EXISTS (
+      SELECT 1 FROM artifact_resolutions reused
+      WHERE reused.attestation_resolution_id = r.id
+    )
     AND (
       r.state <> 'ready'
+      OR r.attestation_resolution_id IS NOT NULL
       OR EXISTS (
         SELECT 1
         FROM artifact_attestations own
