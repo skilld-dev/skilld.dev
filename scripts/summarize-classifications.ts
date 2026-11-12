@@ -121,7 +121,7 @@ function main(): void {
   lines.push('')
 
   lines.push('## Confidence distribution\n')
-  const buckets: Record<string, number> = { '<0.5': 0, '0.5-0.7': 0, '0.7-0.9': 0, '>=0.9': 0 }
+  const buckets = { '<0.5': 0, '0.5-0.7': 0, '0.7-0.9': 0, '>=0.9': 0 } satisfies Record<string, number>
   for (const r of records) {
     if (r.confidence < 0.5)
       buckets['<0.5']! += 1

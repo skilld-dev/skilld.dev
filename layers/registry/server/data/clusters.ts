@@ -608,7 +608,7 @@ export function isCategoryPinned(owner: string, repo: string, name: string): boo
   return PINNED_SKILL_KEYS.has(`${owner}/${repo}/${name}`)
 }
 
-export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
+export const RENAMED_CLUSTER_SLUGS = {
   'plan': 'planning',
   'master-agent': 'context-engineering',
   // `docs` -> `writing` was the 2026-08-12 rename. `writing` retired into
@@ -628,7 +628,7 @@ export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
   'writing': 'anti-slop',
   // Both tracks covered auth. The combined route keeps their full depth.
   'security': 'backend-data',
-}
+} satisfies Record<string, string>
 
 /**
  * Categories deleted on 2026-08-13 with no successor, as slugs.
