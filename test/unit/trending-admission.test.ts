@@ -146,6 +146,18 @@ describe('sitemap equals the indexable set', () => {
   })
 })
 
+describe('runnable Skill revision', () => {
+  it('reports the Skill folder tree SHA the last sync stored', async () => {
+    addSkill({ owner: 'o1', repo: 'r1', name: 'scored' })
+    db().raw.prepare(`UPDATE skills SET current_sha = 'tree-abc' WHERE name = 'scored'`).run()
+    db().raw.prepare('DELETE FROM skill_trending_admissions').run()
+
+    const [entry] = await queryAllSkillsForSitemap(db().db)
+
+    expect(entry).toMatchObject({ owner: 'o1', repo: 'r1', name: 'scored', revision: 'tree-abc' })
+  })
+})
+
 describe('empty admitted set', () => {
   it('lists the sitemap by the old decision, and the page agrees', async () => {
     addSkill({ owner: 'o1', repo: 'r1', name: 'scored' })

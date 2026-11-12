@@ -742,8 +742,8 @@ export interface SkillSitemapEntry {
   repo: string
   /** Resolved-Skill total for the repo; 1 means the hub URL is canonical. */
   repoSkillCount: number
-  /** Unix seconds of the repository's last push, as the last sync read it. */
-  pushedAt: number | null
+  /** Git tree SHA of the Skill folder, as the last sync read it. Null until a sync records it. */
+  revision: string | null
 }
 
 interface SkillDuplicateRow extends DuplicateCandidate {
@@ -754,6 +754,8 @@ interface SkillDuplicateRow extends DuplicateCandidate {
   // loadRepoSkillCounts in shared/server/trending-skills.ts). Drives the
   // single-Skill repo hub routing so links never point at a URL that 301s.
   repo_skill_count: number
+  /** Only the sitemap query selects it. */
+  current_sha?: string | null
 }
 
 export interface SkillDuplicateSibling {
@@ -901,7 +903,7 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 export function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   return cached({
     storage: useStorage('cache'),
-    key: 'skills:sitemap-all:v6',
+    key: 'skills:sitemap-all:v7',
     ttlSeconds: DUPLICATE_CANDIDATES_TTL,
     staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
     compute: () => queryAllSkillsForSitemap(getDB(event)),
@@ -919,6 +921,7 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
         s.display_name,
         s.description,
         s.rendered_raw_sha256,
+        s.current_sha,
         r.stars,
         r.pushed_at,
         supported_repos.support_tier,
@@ -948,7 +951,7 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
   const weakerSlugs = duplicateWeakerSlugSet(rows)
   const entries = rows
     .filter(row => row.repo_kind !== 'aggregator' && !weakerSlugs.has(skillSlug(row)))
-    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0, pushedAt: row.pushed_at ?? null }))
+    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0, revision: row.current_sha ?? null }))
   return entries
 }
 

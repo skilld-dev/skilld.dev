@@ -114,15 +114,15 @@ export function runCheckColumns(state: RunCheckState): RunCheckColumns {
   }
 }
 
-/** How long a settled check stands when its repository gets no push. */
+/** How long a settled check stands when its Skill folder does not change. */
 export interface RecheckAfterSeconds {
   ready: number
   failing: number
 }
 
 /**
- * Backstops for a repository that gets no push. A check of an unchanged
- * repository still writes a Resolution with about 60 KB of attestations, and
+ * Backstops for a Skill folder that does not change. A check of an unchanged
+ * Skill still writes a Resolution with about 60 KB of attestations, and
  * checking every Skill hourly filled the 10 GB database in November 2026. The
  * backstop catches a change in the checks themselves.
  */
@@ -135,9 +135,9 @@ export const RECHECK_AFTER_SECONDS: RecheckAfterSeconds = {
 export interface RecheckInput {
   state: RunCheckState
   settledAt: number | null
-  /** The repository revision the last check ran at. */
+  /** The Skill folder revision the last check ran at. */
   checkedRevision: string | null
-  /** The repository revision the registry holds now. */
+  /** The Skill folder revision the registry holds now. */
   revision: string | null
 }
 
@@ -145,8 +145,8 @@ export interface RecheckInput {
  * Whether the sweep should check a Skill again now.
  *
  * An unchecked Skill and a transient failure, such as a spent quota, are due
- * at once: neither says anything about the Skill yet. Otherwise a push to the
- * repository makes the Skill due, and the backstop covers the rest.
+ * at once: neither says anything about the Skill yet. Otherwise a change to the
+ * Skill folder makes the Skill due, and the backstop covers the rest.
  */
 export function recheckDue(input: RecheckInput, now: number, after: RecheckAfterSeconds): boolean {
   const { state, settledAt } = input

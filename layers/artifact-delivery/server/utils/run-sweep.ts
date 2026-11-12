@@ -12,7 +12,7 @@ export interface RunnableSkill {
   owner: string
   repository: string
   name: string
-  /** Changes whenever the repository gets a push. Null or absent when unknown. */
+  /** Git tree SHA of the Skill folder. Null or absent when unknown. */
   revision?: string | null
 }
 
