@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
 import { requestResolution } from '../../layers/artifact-delivery/server/utils/request-resolution'
 import { loadRunCheckFlags } from '../../layers/artifact-delivery/server/utils/run-check-flags'
+import { RECHECK_AFTER_SECONDS } from '../../layers/artifact-delivery/server/utils/run-check-state'
 import { runSkillRunSweep } from '../../layers/artifact-delivery/server/utils/run-sweep'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -115,9 +116,29 @@ describe('skilld run sweep', () => {
     expect(harness.requested()).toEqual(['acme/busy/busy', 'tt-a1i/archify/archify'])
     harness.close()
   })
+
+  it('checks a failing Skill again only after a day, and a spent quota at once', async () => {
+    const harness = createHarness([archify, busy], 10, RECHECK_AFTER_SECONDS)
+
+    await runSkillRunSweep(harness.dependencies)
+    await harness.buildEach({
+      archify: { _tag: 'rejected', code: 'INVALID_SOURCE', summary: 'Too large.', findings: [] },
+      busy: { _tag: 'rejected', code: 'RATE_LIMITED', summary: 'Spent.', findings: [] },
+    })
+    const settled = await runSkillRunSweep(harness.dependencies)
+
+    expect(settled.settled).toBe(2)
+    expect(settled.started).toBe(1)
+    expect(harness.requested()).toEqual(['acme/busy/busy', 'tt-a1i/archify/archify', 'acme/busy/busy'])
+    harness.advance(RECHECK_AFTER_SECONDS.failing)
+    // Busy's pending check timed out over that day, so it is due again too.
+    expect((await runSkillRunSweep(harness.dependencies)).started).toBe(2)
+    expect(harness.requested().slice(-2)).toContain('tt-a1i/archify/archify')
+    harness.close()
+  })
 })
 
-function createHarness(skills: RunnableSkill[], batchSize = 10) {
+function createHarness(skills: RunnableSkill[], batchSize = 10, recheckAfter = { ready: 0, failing: 0 }) {
   const sqlite = createSqliteD1(MIGRATIONS)
   const enqueue = vi.fn(async (_resolutionId: string) => {})
   const requestedRefs: string[] = []
@@ -138,6 +159,7 @@ function createHarness(skills: RunnableSkill[], batchSize = 10) {
     newIdempotencyKey: () => `sweep-test-key-${String(++keys).padStart(4, '0')}`,
     now: () => clock,
     batchSize,
+    recheckAfter,
   }
 
   /** Run the queued builds, each rejected by GitHub as the test names. */
@@ -183,6 +205,7 @@ function createHarness(skills: RunnableSkill[], batchSize = 10) {
     enqueue,
     buildEach,
     requested: () => requestedRefs,
+    advance: (seconds: number) => { clock += seconds },
     close: () => sqlite.close(),
   }
 }

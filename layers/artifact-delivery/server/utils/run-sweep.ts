@@ -1,9 +1,9 @@
 import type { SourceRequest } from '../schemas/contracts'
 import type { ResolutionAccess } from './request-resolution'
-import type { RunCheckColumns } from './run-check-state'
+import type { RecheckAfterSeconds, RunCheckColumns } from './run-check-state'
 import type { CreateResolutionResult, ResolutionRow } from './state'
 import { z } from 'zod'
-import { nextRunCheckState, runCheckColumns, runCheckStateOf } from './run-check-state'
+import { nextRunCheckState, RECHECK_AFTER_SECONDS, recheckDue, runCheckColumns, runCheckStateOf } from './run-check-state'
 import { ACTIVE_BUILD_STATES, getResolution, parseCheckResults } from './state'
 
 /** One Skill whose page shows `skilld run OWNER/REPOSITORY/NAME`. */
@@ -33,6 +33,8 @@ export interface SkillRunSweepDependencies {
   now: () => number
   /** How many new checks one run starts. */
   batchSize: number
+  /** How long a settled check stands. Defaults to `RECHECK_AFTER_SECONDS`. */
+  recheckAfter?: RecheckAfterSeconds
 }
 
 export interface SkillRunSweepReport {
@@ -132,8 +134,14 @@ export async function runSkillRunSweep(dependencies: SkillRunSweepDependencies):
     return row !== undefined && runCheckStateOf(row)._tag === 'failing'
   }).length
 
+  const recheckAfter = dependencies.recheckAfter ?? RECHECK_AFTER_SECONDS
   const due = runnable
-    .filter(skill => !rows.get(skillKey(skill))?.pending_resolution_id)
+    .filter((skill) => {
+      const row = rows.get(skillKey(skill))
+      if (!row)
+        return true
+      return !row.pending_resolution_id && recheckDue(runCheckStateOf(row), row.settled_at, now, recheckAfter)
+    })
     .sort((left, right) =>
       (rows.get(skillKey(left))?.settled_at ?? 0) - (rows.get(skillKey(right))?.settled_at ?? 0)
       || compareText(skillKey(left), skillKey(right)))

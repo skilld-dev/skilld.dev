@@ -7,15 +7,17 @@ import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { enqueueArtifactBuild } from '../utils/queue'
 import { fetchAdmittedSkillIdentity, requestResolution } from '../utils/request-resolution'
+import { pruneSettledResolutions } from '../utils/resolution-retention'
 import { runSkillRunSweep } from '../utils/run-sweep'
 
 const CRON = '7,22,37,52 * * * *'
 /**
- * 40 checks every 15 minutes is 3,840 a day. The registry indexed 5,949 Skills
- * on 2026-10-07, so one cycle takes about 37 hours. A ready build of the same
- * commit is reused without a GitHub read, so a repeat check of an unchanged
- * Skill costs D1 rows only. A first check loads from GitHub with about 8 REST
- * requests, so a cycle of first checks spends about 1,300 an hour.
+ * At most 40 checks every 15 minutes. A ready Skill is checked weekly and a
+ * failing one daily (`RECHECK_AFTER_SECONDS`), so most runs start few checks.
+ * Each check still writes a Resolution with about 60 KB of attestations, even
+ * when it reuses a ready build. Checking every Skill hourly filled the 10 GB
+ * database on 2026-11-04. A first check loads from GitHub with about 8 REST
+ * requests.
  */
 const BATCH_SIZE = 40
 
@@ -41,6 +43,11 @@ export default defineScheduledTask({
       emitOperationalEvent(createWideEvent({ operation: 'sweep-skill-runs', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
+
+    // Prune before the observed run records its start: a full database refuses
+    // that insert, and only a delete can free the space it needs.
+    const pruned = await pruneSettledResolutions(db, { now: Math.floor(Date.now() / 1000) })
+    emitOperationalEvent(createWideEvent({ 'operation': 'prune-resolutions', 'outcome': 'completed', 'processed.count': pruned }), 'info')
 
     return await runObservedScheduledTask({
       db,
