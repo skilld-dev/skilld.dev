@@ -1,5 +1,6 @@
 import type { ImageProxyRequest } from '#server/utils/image-proxy'
-import { describe, expect, it } from 'vitest'
+import { createApp, createRouter, toWebHandler } from 'h3'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProxiedImage,
   IMAGE_PROXY_MAX_BYTES,
@@ -10,6 +11,11 @@ import {
   verifyImageProxySignature,
 } from '#server/utils/image-proxy'
 import { avatarProxyUrl, githubAvatarProxyUrl, parseImageTarget } from '#shared/image-proxy'
+import imageProxyHandler from '../../server/routes/_img/[kind].get'
+
+vi.hoisted(() => {
+  vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
+})
 
 function queryOf(path: string): Record<string, string> {
   return Object.fromEntries(new URL(path, 'https://skilld.dev').searchParams)
@@ -186,9 +192,50 @@ describe('fetchProxiedImage', () => {
     expect(imageProxyResponse(result).status).toBe(413)
   })
 
-  it('maps a missing upstream image to 404', async () => {
-    const { fetcher } = fakeFetch({ 'https://badge.example.org/a': () => new Response('gone', { status: 404 }) })
+  it.each([404, 410])('keeps a missing signed image as 404 for upstream %s', async (status) => {
+    const { fetcher } = fakeFetch({ 'https://badge.example.org/a': () => new Response('gone', { status }) })
     expect(imageProxyResponse(await fetchProxiedImage(signed('https://badge.example.org/a'), fetcher)).status).toBe(404)
+  })
+
+  it.each([
+    ['https://pbs.twimg.com/profile_images/1/a_normal.jpg', 404],
+    ['https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:abc/bafk@jpeg', 410],
+  ])('serves a short-lived fallback for a deleted avatar at %s', async (url, status) => {
+    const { fetcher, calls } = fakeFetch({
+      [url]: () => new Response('gone', { status, headers: { 'set-cookie': 'track=1' } }),
+    })
+    const response = imageProxyResponse(await fetchProxiedImage(avatar(url), fetcher))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/svg+xml')
+    expect(response.headers.get('cache-control')).toBe('public, max-age=300')
+    expect(response.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=300')
+    expect(response.headers.get('content-security-policy')).toBe('default-src \'none\'; style-src \'unsafe-inline\'; sandbox')
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(response.headers.get('x-robots-tag')).toBe('noindex')
+    expect(response.headers.get('set-cookie')).toBeNull()
+    const body = await response.text()
+    expect(body).toMatch(/^<svg\s/)
+    expect(body).toContain('xmlns="http://www.w3.org/2000/svg"')
+    expect(Number(response.headers.get('content-length'))).toBe(new TextEncoder().encode(body).byteLength)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('serves a fallback when an allowed avatar redirect ends at a missing image', async () => {
+    const { fetcher } = fakeFetch({
+      'https://github.com/gone.png': redirect('https://avatars.githubusercontent.com/u/1'),
+      'https://avatars.githubusercontent.com/u/1': () => new Response(null, { status: 404 }),
+    })
+    expect(imageProxyResponse(await fetchProxiedImage(avatar('https://github.com/gone.png'), fetcher)).status).toBe(200)
+  })
+
+  it('keeps transient avatar failures uncached', async () => {
+    const url = 'https://pbs.twimg.com/profile_images/1/a_normal.jpg'
+    const { fetcher } = fakeFetch({ [url]: () => new Response(null, { status: 503 }) })
+    const response = imageProxyResponse(await fetchProxiedImage(avatar(url), fetcher))
+    expect(response.status).toBe(502)
+    expect(response.headers.get('cache-control')).toBe('no-store')
   })
 })
 
@@ -205,5 +252,40 @@ describe('imageProxyResponse', () => {
     expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     expect(response.headers.get('cache-control')).toMatch(/max-age=\d{5,}/)
     expect(response.headers.get('set-cookie')).toBeNull()
+  })
+})
+
+describe('image proxy route', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('stores a fallback briefly and serves the cache hit without fetching upstream', async () => {
+    const url = 'https://pbs.twimg.com/profile_images/1/a_normal.jpg'
+    const { fetcher, calls } = fakeFetch({ [url]: () => new Response(null, { status: 404 }) })
+    vi.stubGlobal('fetch', fetcher)
+    const stored = new Map<string, Response>()
+    vi.stubGlobal('caches', {
+      default: {
+        match: async (key: Request) => stored.get(key.url)?.clone(),
+        put: async (key: Request, response: Response) => { stored.set(key.url, response) },
+      },
+    })
+    const pending: Promise<unknown>[] = []
+    const app = createApp({
+      onRequest(event) {
+        event.context.cloudflare = { context: { waitUntil: (promise: Promise<unknown>) => pending.push(promise) } }
+      },
+    })
+    app.use(createRouter().get('/_img/:kind', imageProxyHandler))
+    const handle = toWebHandler(app)
+    const request = new Request(`https://skilld.dev${avatarProxyUrl(url)}`)
+    const first = await handle(request)
+    await Promise.all(pending)
+    const second = await handle(request)
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(second.headers.get('cache-control')).toBe('public, max-age=300')
+    expect(await second.text()).toBe(await first.text())
+    expect(calls).toHaveLength(1)
   })
 })

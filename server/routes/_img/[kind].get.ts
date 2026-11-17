@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
 
   const response = imageProxyResponse(result)
   const ctx = (event.context as { cloudflare?: { context?: WorkerContext } }).cloudflare?.context
-  if (cache && ctx && result._tag === 'Ok')
+  if (cache && ctx && (result._tag === 'Ok' || result._tag === 'AvatarFallback'))
     ctx.waitUntil(cache.put(cacheKey, response.clone()))
   return response
 })

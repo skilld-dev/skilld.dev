@@ -29,6 +29,9 @@ export const IMAGE_PROXY_CSP = 'default-src \'none\'; style-src \'unsafe-inline\
 const SUCCESS_CACHE_CONTROL = 'public, max-age=86400, stale-while-revalidate=604800'
 const FAILURE_CACHE_CONTROL = 'public, max-age=300'
 
+// A local silhouette keeps deleted avatars useful without another upstream request.
+const AVATAR_FALLBACK = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#e7e5e4"/><circle cx="32" cy="24" r="12" fill="#78716c"/><path d="M10 60a22 22 0 0 1 44 0" fill="#78716c"/></svg>'
+
 export type ImageProxyRequest
   = | { _tag: 'avatar', target: URL }
     | { _tag: 'signed', target: URL, signature: string }
@@ -41,6 +44,7 @@ export type ImageProxyFailure
 
 export type ImageProxyResult
   = | { _tag: 'Ok', body: ArrayBuffer, contentType: string }
+    | { _tag: 'AvatarFallback' }
     | ImageProxyFailure
 
 export type ParsedImageProxyRequest
@@ -161,6 +165,8 @@ export async function fetchProxiedImage(request: ImageProxyRequest, fetcher: typ
     }
     if (response.status === 404 || response.status === 410) {
       await response.body?.cancel()
+      if (request._tag === 'avatar')
+        return { _tag: 'AvatarFallback' }
       return { _tag: 'NotFound', reason: 'upstream-missing' }
     }
     if (!response.ok || !response.body) {
@@ -202,12 +208,14 @@ export function imageProxyResponse(result: ImageProxyResult): Response {
     'referrer-policy': 'no-referrer',
     'x-robots-tag': 'noindex',
   })
-  if (result._tag === 'Ok') {
-    headers.set('content-type', result.contentType)
-    headers.set('content-length', String(result.body.byteLength))
-    headers.set('cache-control', SUCCESS_CACHE_CONTROL)
-    headers.set('cloudflare-cdn-cache-control', SUCCESS_CACHE_CONTROL)
-    return new Response(result.body, { status: 200, headers })
+  if (result._tag === 'Ok' || result._tag === 'AvatarFallback') {
+    const body = result._tag === 'Ok' ? result.body : new TextEncoder().encode(AVATAR_FALLBACK)
+    const cacheControl = result._tag === 'Ok' ? SUCCESS_CACHE_CONTROL : FAILURE_CACHE_CONTROL
+    headers.set('content-type', result._tag === 'Ok' ? result.contentType : 'image/svg+xml')
+    headers.set('content-length', String(body.byteLength))
+    headers.set('cache-control', cacheControl)
+    headers.set('cloudflare-cdn-cache-control', cacheControl)
+    return new Response(body, { status: 200, headers })
   }
   headers.set('content-type', 'text/plain; charset=utf-8')
   const cacheControl = result._tag === 'UpstreamFailed' ? 'no-store' : FAILURE_CACHE_CONTROL
