@@ -266,14 +266,13 @@ packages:
 
 overrides:
   nuxt-ai-ready: 3.5.0
-# Key each patch by a version range, never an exact version. An exact key
-# skips any other installed version without a warning: a Nuxt bump on
-# 2026-11-12 added nitropack 2.13.6, and production shipped it unpatched.
-# A range key patches every installed copy, or the install fails.
+# Key each patch by a whole major. Any other key skips copies outside it
+# silently: on 2026-11-12 an exact key shipped nitropack 2.13.6 unpatched.
+# Every copy in the major takes the patch, or the install fails.
 patchedDependencies:
-  hookable@^5.5.3: patches/hookable@5.5.3.patch
-  hookable@^6.1.1: patches/hookable@6.patch
-  nitropack@^2.13.4: patches/nitropack@2.patch
+  hookable@5: patches/hookable@5.5.3.patch
+  hookable@6: patches/hookable@6.patch
+  nitropack@2: patches/nitropack@2.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/sandbox': 1.0.0
