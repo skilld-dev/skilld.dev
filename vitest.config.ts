@@ -1,6 +1,9 @@
 import type { ConfigEnv, TestProjectConfiguration, ViteUserConfig } from 'vitest/config'
+import { realpathSync } from 'node:fs'
+import { findPackageJSON } from 'node:module'
 import { availableParallelism } from 'node:os'
-import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { defineVitestConfig } from '@nuxt/test-utils/config'
 import { configDefaults } from 'vitest/config'
 
@@ -25,8 +28,30 @@ function isNuxtRuntimeEntry(file: string): boolean {
   return file.includes('/@nuxt/test-utils/') && file.includes('/runtime/entry')
 }
 
+/**
+ * The Nitro runtime the production build bundles: the copy `@nuxt/nitro-server`
+ * resolves, not the copy pnpm hoists.
+ *
+ * Two nitropack versions can be installed at once. On 2026-11-12 a Nuxt bump
+ * moved the build to nitropack 2.13.6 while the hoisted copy stayed on the
+ * patched 2.13.4. The cache tests kept passing against 2.13.4, and production
+ * shipped the unpatched cache (Sentry SKILLD-5A).
+ */
+function shippedNitroRuntime(): string {
+  const packageOf = (specifier: string, from: string) => realpathSync(findPackageJSON(specifier, pathToFileURL(from))!)
+  const nitroServer = packageOf('@nuxt/nitro-server', packageOf('nuxt', fileURLToPath(import.meta.url)))
+  return `${dirname(packageOf('nitropack', nitroServer))}/dist/runtime`
+}
+
 const nuxtVitestConfig = defineVitestConfig({
-  resolve: { alias: { '#checkin/checks': fileURLToPath(new URL('./test/fixtures/checkin-registry.ts', import.meta.url)) } },
+  resolve: {
+    // Keep the object form: `defineVitestConfig` merges Nuxt's own aliases
+    // (`#app`, `#imports`) into an object and drops them from an array.
+    alias: {
+      '#checkin/checks': fileURLToPath(new URL('./test/fixtures/checkin-registry.ts', import.meta.url)),
+      'nitropack/runtime': shippedNitroRuntime(),
+    },
+  },
   test: {
     globals: true,
     // A non-Nuxt default makes `defineVitestConfig` split the suite in two:

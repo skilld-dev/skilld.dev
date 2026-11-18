@@ -399,10 +399,9 @@ overrides:
   nuxt-ai-ready: 3.5.0
 
 patchedDependencies:
-  hookable@5.5.3: 3b44da13a743bfa2eab02aef7246065e4dfd56e9878c206f34b51322832cfb2c
-  hookable@6.1.1: 7530364d493fa95257cb863d105ed55a1bb4b46d5c9a178a6d64cb73028ed344
-  hookable@6.1.2: 7530364d493fa95257cb863d105ed55a1bb4b46d5c9a178a6d64cb73028ed344
-  nitropack@2.13.4: a99fd975a7a90d0358937d8bdc06a0df631a088825383710a2e3875c7cc0051a
+  hookable@^5.5.3: 3b44da13a743bfa2eab02aef7246065e4dfd56e9878c206f34b51322832cfb2c
+  hookable@^6.1.1: 7530364d493fa95257cb863d105ed55a1bb4b46d5c9a178a6d64cb73028ed344
+  nitropack@^2.13.4: a99fd975a7a90d0358937d8bdc06a0df631a088825383710a2e3875c7cc0051a
 
 importers:
 
@@ -13316,7 +13315,7 @@ snapshots:
       klona: 2.0.6
       mocked-exports: 0.1.1
       my-bad: 0.2.11(vite@8.3.7(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))
-      nitropack: 2.13.6(aws4fetch@1.0.20)(better-sqlite3@13.0.3)(drizzle-orm@1.0.0-rc.4(@cloudflare/workers-types@5.20260901.1)(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(valibot@1.4.2(typescript@6.0.3))(zod@4.6.6))(oxc-parser@0.143.0)(rolldown@1.2.18)(srvx@0.12.5)(supports-color@10.2.2)(vite@8.3.7(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))
+      nitropack: 2.13.6(patch_hash=a99fd975a7a90d0358937d8bdc06a0df631a088825383710a2e3875c7cc0051a)(aws4fetch@1.0.20)(better-sqlite3@13.0.3)(drizzle-orm@1.0.0-rc.4(@cloudflare/workers-types@5.20260901.1)(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(valibot@1.4.2(typescript@6.0.3))(zod@4.6.6))(oxc-parser@0.143.0)(rolldown@1.2.18)(srvx@0.12.5)(supports-color@10.2.2)(vite@8.3.7(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))
       nostics: 1.3.0
       nuxt: 4.6.4(6769f065876a7bcb481f3c39c213f5fd)
       ohash: 2.0.12
@@ -18998,7 +18997,7 @@ snapshots:
       - vite
       - webpack
 
-  nitropack@2.13.6(aws4fetch@1.0.20)(better-sqlite3@13.0.3)(drizzle-orm@1.0.0-rc.4(@cloudflare/workers-types@5.20260901.1)(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(valibot@1.4.2(typescript@6.0.3))(zod@4.6.6))(oxc-parser@0.143.0)(rolldown@1.2.18)(srvx@0.12.5)(supports-color@10.2.2)(vite@8.3.7(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1)):
+  nitropack@2.13.6(patch_hash=a99fd975a7a90d0358937d8bdc06a0df631a088825383710a2e3875c7cc0051a)(aws4fetch@1.0.20)(better-sqlite3@13.0.3)(drizzle-orm@1.0.0-rc.4(@cloudflare/workers-types@5.20260901.1)(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(valibot@1.4.2(typescript@6.0.3))(zod@4.6.6))(oxc-parser@0.143.0)(rolldown@1.2.18)(srvx@0.12.5)(supports-color@10.2.2)(vite@8.3.7(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1)):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.4.2
       '@rollup/plugin-alias': 6.0.1(rollup@4.68.2)
