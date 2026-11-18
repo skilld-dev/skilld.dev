@@ -62,7 +62,7 @@ Private Artifacts use the same attestation verification.
 ## Before you start
 
 Restore both new root private keys from escrow.
-Keep them outside the repository, Cloudflare, and GitHub Actions.
+Keep them outside the repository, [Cloudflare](https://cloudflare.com), and GitHub Actions.
 Prepare a complete root configuration file for each new root as a local pin file.
 Compare each file's `rootKeyId` and `rootPublicKey` with the reviewed CLI release's compiled pins.
 Stop if either differs. The tool parses each pin file as a complete root configuration.
@@ -124,13 +124,39 @@ If the ceremony date changes, use its UTC midnight for `notBefore` in both roots
 ## 2. Publish and verify both endpoints
 
 Production deployment uses `.github/workflows/deploy-cloudflare.yml` only.
-Execute secret uploads as approved configuration steps in that workflow, never as a local deployment.
-The upload step consumes the verified array, which contains public data only:
+The `Stage Artifact signing configuration` step accepts files through GitHub Actions secrets.
+An operator with production write approval must perform this step.
+This does not grant an Agent production write access.
+
+Confirm the deployed secondary slot has no key ID vars before staging its secret.
+The workflow also rejects a named secondary slot in the checked-out signer configuration.
+Upload the verified files to these repository secrets:
 
 ```sh
-pnpm exec wrangler secret put ARTIFACT_TRUSTED_ROOTS_JSON --config wrangler.jsonc < "$KEYS/roots-next.json"
+gh secret set ARTIFACT_ROTATION_ROOTS_JSON --repo skilld-dev/skilld.dev < "$KEYS/roots-next.json"
+gh secret set ARTIFACT_ROTATION_PRIMARY_PIN_JSON --repo skilld-dev/skilld.dev < "$KEYS/primary-pin.json"
+gh secret set ARTIFACT_ROTATION_BACKUP_PIN_JSON --repo skilld-dev/skilld.dev < "$KEYS/backup-pin.json"
+gh secret set ARTIFACT_ROTATION_SECONDARY_PKCS8 --repo skilld-dev/skilld.dev < "$KEYS/skilld-production-2026-11.pkcs8"
+gh variable set ARTIFACT_ROTATION_KEY_ID --repo skilld-dev/skilld.dev --body skilld-production-2026-11
+gh workflow run deploy-cloudflare.yml --repo skilld-dev/skilld.dev --ref main \
+  -f target=site -f publish_artifact_roots=true -f stage_artifact_secondary=true
 ```
 
+Use pin files checked against the released CLI, never files fetched from the live endpoints.
+The workflow checks both root signatures, matching signer coverage, and the private key before either upload.
+It publishes `ARTIFACT_TRUSTED_ROOTS_JSON`, then stages `ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8`.
+It never receives either offline root private key.
+Both dispatch inputs default to false for normal deployments.
+Secret uploads update live Worker configuration before the signer and site deployment steps.
+If a later step fails, uploaded secrets remain. Inspect the completed steps before retrying.
+
+Open the dispatched run under Actions, then wait for it:
+
+```sh
+gh run watch <run-id> --repo skilld-dev/skilld.dev --exit-status
+```
+
+Confirm both publication messages appear in the run summary and both upload commands succeeded.
 Do not upload either new root to `ARTIFACT_TRUSTED_ROOT_JSON`.
 After the route deployment, verify both live endpoints against their own independent pins:
 
@@ -149,11 +175,8 @@ Do not use an old CLI's success under the old key as proof of new root support.
 
 Confirm slot support passed the production deploy workflow.
 The free slot has no key ID vars. This rotation uses the secondary slot.
-Upload its signing secret through the approved deploy workflow before adding its vars:
-
-```sh
-pnpm --filter @skilld/artifact-signer-worker exec wrangler secret put ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8 --config wrangler.jsonc < "$KEYS/skilld-production-2026-11.pkcs8"
-```
+Step 2 stages its secret before any vars enable it.
+Do not set `stage_artifact_secondary=true` after enabling this slot.
 
 Open a pull request adding these vars to `workers/artifact-signer/wrangler.jsonc`:
 
@@ -177,7 +200,7 @@ pnpm exec wrangler d1 execute DB --remote --config wrangler.jsonc --command \
   "SELECT json_extract(attestation_json, '$.signature.keyId') AS key_id, COUNT(*) AS attestations, datetime(MAX(created_at), 'unixepoch') AS newest FROM artifact_attestations GROUP BY key_id"
 ```
 
-Check signer logs for `SIGNING_KEY_INVALID` and Sentry for `Artifact signer returned an invalid signature`.
+Check signer logs for `SIGNING_KEY_INVALID` and [Sentry](https://sentry.io) for `Artifact signer returned an invalid signature`.
 Either error requires signer rollback while the old window remains open.
 
 ## 4. Remove the old signing key
@@ -195,14 +218,23 @@ pnpm exec tsx scripts/trusted-root.ts verify \
 jq -s '.' "$KEYS/skilld-root-2026-11-after.json" "$KEYS/skilld-root-backup-2026-11-after.json" > "$KEYS/roots-after.json"
 ```
 
-Publish `roots-after.json` to `ARTIFACT_TRUSTED_ROOTS_JSON` through the same workflow configuration step.
+Publish the reduced array through the same workflow, with signer staging disabled:
+
+```sh
+gh secret set ARTIFACT_ROTATION_ROOTS_JSON --repo skilld-dev/skilld.dev < "$KEYS/roots-after.json"
+gh workflow run deploy-cloudflare.yml --repo skilld-dev/skilld.dev --ref main \
+  -f target=site -f publish_artifact_roots=true -f stage_artifact_secondary=false
+```
+
+Wait for the run and confirm its publication summary.
 Repeat the live endpoint verification from step 2.
 Preserve the legacy secret. Removing its old key cannot make old CLIs trust the new key.
 Watch the build queue and failed jobs for one hour as stored Artifacts rebuild.
 A Resolution held across removal can fail once with `SIGNING_KEY_UNKNOWN`; its next run resolves again.
 
 After November 20, remove the three primary slot vars through a pull request and regenerate signer types.
-After that deployment, delete `ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8` through the approved configuration workflow.
+After that deployment, the unused primary secret signs nothing.
+Secret deletion needs a separate approved workflow change; this workflow only uploads rotation secrets.
 Never delete a secret while vars name its slot.
 Store the new signing private key offline, or delete the local copy.
 
@@ -210,8 +242,8 @@ Store the new signing private key offline, or delete the local copy.
 
 | Change | Recovery | Limit |
 | --- | --- | --- |
-| New array, before signer activation | Restore the previous array and order. For initial activation, remove the array to restore legacy site verification. | Before any new-key attestations exist |
-| Secondary secret, before slot vars | Delete the unused secondary secret through the configuration workflow. | Before signer activation |
+| New array, before signer activation | Republish the previous two-root array with `publish_artifact_roots=true` and `stage_artifact_secondary=false`. For initial activation, retain the verified roots and leave the secondary slot disabled. | Before any new-key attestations exist |
+| Secondary secret, before slot vars | Leave the secondary slot disabled. Its unused secret signs nothing. | Before signer activation |
 | Signer activation | Revert the vars pull request. Keep the new signing key in both roots because it signed live attestations. | Old key window closes November 20 |
 | Old key removal | Republish `roots-next.json` to `ARTIFACT_TRUSTED_ROOTS_JSON`, then verify both endpoints against their pins. | Old signatures remain usable only before November 20 |
 

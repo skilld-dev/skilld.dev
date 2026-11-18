@@ -101,6 +101,47 @@ describe('trusted roots by id', () => {
     expect(roots.map(served => served.rootKeyId)).toEqual(['skilld-root-2026-11', 'skilld-root-backup-2026-11'])
   })
 
+  it('serves and selects the primary when a malformed backup repeats its ID', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('defineEventHandler', defineEventHandler)
+    vi.stubGlobal('createError', createError)
+    const { default: handler } = await import('../../layers/artifact-delivery/server/api/v1/trusted-roots/[rootKeyId].get')
+    const primary = root('primary')
+    const env = {
+      ARTIFACT_TRUSTED_ROOTS_JSON: JSON.stringify([primary, { ...primary, keys: [] }]),
+      ARTIFACT_TRUSTED_ROOT_JSON: trustedRoot(),
+    }
+    const app = createApp().use(defineEventHandler((event) => {
+      event.context.platform = { env } as never
+    }))
+    app.use(createRouter().get('/api/v1/trusted-roots/:rootKeyId', handler))
+    const response = await toWebHandler(app)(new Request('http://localhost/api/v1/trusted-roots/primary'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject(primary)
+    expect(siteTrustedRoot(env, now)).toEqual(parseTrustedRoot(JSON.stringify(primary), now))
+  })
+
+  it('rejects two valid primary roots for both publication and site verification', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const env = {
+      ARTIFACT_TRUSTED_ROOTS_JSON: JSON.stringify([root('primary'), root('primary')]),
+      ARTIFACT_TRUSTED_ROOT_JSON: trustedRoot(),
+    }
+    expect(parseTrustedRoots(env.ARTIFACT_TRUSTED_ROOTS_JSON, now)).toEqual([])
+    expect(() => siteTrustedRoot(env, now)).toThrow('The selected site trusted root is invalid')
+  })
+
+  it('keeps an invalid first entry fail-closed when a valid root repeats its ID', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const primary = root('primary')
+    const env = {
+      ARTIFACT_TRUSTED_ROOTS_JSON: JSON.stringify([{ ...primary, keys: [] }, primary]),
+      ARTIFACT_TRUSTED_ROOT_JSON: trustedRoot(),
+    }
+    expect(() => siteTrustedRoot(env, now)).toThrow('The selected site trusted root is invalid')
+    expect(parseTrustedRoots(env.ARTIFACT_TRUSTED_ROOTS_JSON, now)).toEqual([parseTrustedRoot(JSON.stringify(primary), now)])
+  })
+
   it('rejects ambiguous ids without disabling unrelated roots', () => {
     const report = vi.spyOn(console, 'error').mockImplementation(() => {})
     const backup = root('backup')

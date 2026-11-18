@@ -15,6 +15,14 @@ on:
         description: Rotate the registry GitHub fallback token
         type: boolean
         default: false
+      publish_artifact_roots:
+        description: Publish the verified Artifact trusted roots
+        type: boolean
+        default: false
+      stage_artifact_secondary:
+        description: Stage the Artifact signing secret in the unused secondary slot
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -125,6 +133,59 @@ jobs:
           printf '%s' "$REGISTRY_GITHUB_TOKEN" | pnpm exec wrangler secret put GITHUB_TOKEN --config wrangler.jsonc
         env:
           REGISTRY_GITHUB_TOKEN: ${{ secrets.REGISTRY_GITHUB_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Stage Artifact signing configuration
+        if: github.event_name == 'workflow_dispatch' && (inputs.publish_artifact_roots || inputs.stage_artifact_secondary)
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          staging=$(mktemp -d "$RUNNER_TEMP/artifact-rotation.XXXXXX")
+          trap 'rm -rf "$staging"' EXIT
+          if [ "$STAGE_ARTIFACT_SECONDARY" = true ]; then
+            jq -e '(.vars.ARTIFACT_SIGNING_SECONDARY_KEY_ID // "") == ""' "$ARTIFACT_SIGNER_CONFIG" > /dev/null
+            test -n "$ARTIFACT_ROTATION_SECONDARY_PKCS8"
+            test -n "$ARTIFACT_ROTATION_KEY_ID"
+          fi
+          printf '%s' "$ARTIFACT_ROTATION_ROOTS_JSON" > "$staging/roots.json"
+          jq -e 'type == "array" and length == 2' "$staging/roots.json" > /dev/null
+          jq '.[0]' "$staging/roots.json" > "$staging/primary.json"
+          jq '.[1]' "$staging/roots.json" > "$staging/backup.json"
+          printf '%s' "$ARTIFACT_ROTATION_PRIMARY_PIN_JSON" > "$staging/primary-pin.json"
+          printf '%s' "$ARTIFACT_ROTATION_BACKUP_PIN_JSON" > "$staging/backup-pin.json"
+          verify_args=(
+            --root "$staging/primary.json" --pin "$staging/primary-pin.json"
+            --peer-root "$staging/backup.json" --peer-pin "$staging/backup-pin.json"
+          )
+          if [ "$STAGE_ARTIFACT_SECONDARY" = true ]; then
+            printf '%s' "$ARTIFACT_ROTATION_SECONDARY_PKCS8" > "$staging/secondary.pkcs8"
+            verify_args+=(--key-id "$ARTIFACT_ROTATION_KEY_ID" --signing-key "$staging/secondary.pkcs8")
+          fi
+          # Verification can include untrusted configuration in diagnostics.
+          # Keep it private and print only the result.
+          if ! pnpm exec tsx scripts/trusted-root.ts verify "${verify_args[@]}" > "$staging/verify.log" 2>&1; then
+            echo 'Artifact signing configuration verification failed.' >&2
+            exit 1
+          fi
+          if [ "$PUBLISH_ARTIFACT_ROOTS" = true ]; then
+            pnpm exec wrangler secret put ARTIFACT_TRUSTED_ROOTS_JSON --config wrangler.jsonc < "$staging/roots.json"
+            echo 'Published the verified Artifact trusted roots.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$STAGE_ARTIFACT_SECONDARY" = true ]; then
+            pnpm --filter @skilld/artifact-signer-worker exec wrangler secret put ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8 --config wrangler.jsonc < "$staging/secondary.pkcs8"
+            echo 'Staged the secondary Artifact signing secret.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          PUBLISH_ARTIFACT_ROOTS: ${{ inputs.publish_artifact_roots }}
+          STAGE_ARTIFACT_SECONDARY: ${{ inputs.stage_artifact_secondary }}
+          ARTIFACT_SIGNER_CONFIG: workers/artifact-signer/wrangler.jsonc
+          ARTIFACT_ROTATION_ROOTS_JSON: ${{ secrets.ARTIFACT_ROTATION_ROOTS_JSON }}
+          ARTIFACT_ROTATION_PRIMARY_PIN_JSON: ${{ secrets.ARTIFACT_ROTATION_PRIMARY_PIN_JSON }}
+          ARTIFACT_ROTATION_BACKUP_PIN_JSON: ${{ secrets.ARTIFACT_ROTATION_BACKUP_PIN_JSON }}
+          ARTIFACT_ROTATION_KEY_ID: ${{ vars.ARTIFACT_ROTATION_KEY_ID }}
+          ARTIFACT_ROTATION_SECONDARY_PKCS8: ${{ secrets.ARTIFACT_ROTATION_SECONDARY_PKCS8 }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 

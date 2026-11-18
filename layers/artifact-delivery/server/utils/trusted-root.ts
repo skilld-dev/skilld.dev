@@ -38,15 +38,9 @@ function readTrustedRoots(value: string | undefined, now: number): RootResult[] 
   const configs: unknown = JSON.parse(value)
   if (!Array.isArray(configs) || configs.length === 0)
     throw new Error('Served trusted roots must be a non-empty JSON array')
-  const ids = configs.map((config: unknown) => {
-    if (typeof config === 'object' && config !== null && 'rootKeyId' in config)
-      return config.rootKeyId
-    return undefined
-  })
-  return configs.map((config: unknown, index): RootResult => {
+  // Preserve each position so an invalid primary never selects a later root.
+  const parsed = configs.map((config: unknown, index): RootResult => {
     try {
-      if (ids[index] !== undefined && ids.indexOf(ids[index]) !== ids.lastIndexOf(ids[index]))
-        throw new Error('Duplicate root ID')
       return { _tag: 'valid', root: parseTrustedRoot(JSON.stringify(config), now) }
     }
     catch {
@@ -54,6 +48,18 @@ function readTrustedRoots(value: string | undefined, now: number): RootResult[] 
       console.error(`Rejected trusted root at array index ${index}: invalid or duplicate entry`)
       return { _tag: 'invalid' }
     }
+  })
+  const counts = new Map<string, number>()
+  for (const result of parsed) {
+    if (result._tag === 'valid')
+      counts.set(result.root.rootKeyId, (counts.get(result.root.rootKeyId) ?? 0) + 1)
+  }
+  return parsed.map((result, index): RootResult => {
+    if (result._tag === 'valid' && counts.get(result.root.rootKeyId)! > 1) {
+      console.error(`Rejected trusted root at array index ${index}: duplicate valid entry`)
+      return { _tag: 'invalid' }
+    }
+    return result
   })
 }
 
