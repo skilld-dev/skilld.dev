@@ -156,9 +156,27 @@ describe('daily check-in observability', () => {
       .toEqual({ _tag: 'Ok', rows })
   })
 
+  // GraphQL sends `errors: null` beside data when a query succeeds.
+  it('returns the Worker rows of a response whose errors are null', () => {
+    const rows = [{ dimensions: { scriptName: 'skilld-dev', status: 'success' }, sum: { requests: 3 } }]
+    expect(parseWorkersResponse(200, JSON.stringify({ data: { viewer: { accounts: [{ workersInvocationsAdaptive: rows }] } }, errors: null })))
+      .toEqual({ _tag: 'Ok', rows })
+  })
+
   it('names the Analytics Engine message of a failed query', () => {
     expect(parseAnalyticsEngineResponse(422, 'unknown column: blob9'))
       .toEqual({ _tag: 'Err', reason: 'Analytics Engine returned HTTP 422: unknown column: blob9' })
+  })
+
+  it('names the API error message of a rejected Analytics Engine request', () => {
+    const body = JSON.stringify({ success: false, errors: [{ code: 10000, message: 'Authentication error' }], messages: [], result: null })
+    expect(parseAnalyticsEngineResponse(401, body))
+      .toEqual({ _tag: 'Err', reason: 'Analytics Engine returned HTTP 401: Authentication error' })
+  })
+
+  it('keeps only the status of an Analytics Engine error page', () => {
+    expect(parseAnalyticsEngineResponse(502, '<!DOCTYPE html><html><body>Bad gateway</body></html>'))
+      .toEqual({ _tag: 'Err', reason: 'Analytics Engine returned HTTP 502.' })
   })
 
   it('returns the Analytics Engine rows of a successful query', () => {
