@@ -9,6 +9,39 @@ The key `skilld-production-2026-08` closes at `2026-11-20T00:00:00.000Z`.
 This runbook replaces it with `skilld-production-2026-11` and keeps both keys trusted during an overlap.
 The daily check-in result `skilld.signing-key` warns 30 days before the last window closes.
 
+## Root keys
+
+The private key for the first root, `skilld-root-2026`, was lost in November 2026.
+CLI releases 3.0.0 to 3.6.9 pin that root and read it from `/api/v1/trusted-root`, so no new signing key can reach them.
+
+From 3.7.0, each CLI pins a primary and a backup root and fetches each one from `/api/v1/trusted-roots/{rootKeyId}`.
+The site serves those roots from the `ARTIFACT_TRUSTED_ROOTS_JSON` secret, a JSON array.
+The first root in the array lists every signing key the site accepts.
+
+| Root key | Pinned by | Where the private key lives |
+| --- | --- | --- |
+| `skilld-root-2026-11` | 3.7.0 and later, first | Harlan's password manager, and an offline USB stick |
+| `skilld-root-backup-2026-11` | 3.7.0 and later, if the primary root is not served | Harlan's password manager, and a second offline USB stick |
+
+Before every ceremony, restore each root key you need from its copy and check it with `verify --signing-key`.
+If both copies of a root key are gone, serve the other root. If both roots are gone, a new root needs a CLI release.
+
+### Start a new root
+
+`create-root` signs the first signing key under a new root key. `add-key` signs the rest.
+
+```sh
+pnpm exec tsx scripts/trusted-root.ts signing-key --key-id skilld-root-2026-11 --out "$KEYS"
+pnpm exec tsx scripts/trusted-root.ts create-root \
+  --root-key-id skilld-root-2026-11 \
+  --root-key "$KEYS/skilld-root-2026-11.pkcs8" \
+  --key-id skilld-production-2026-08 \
+  --public-key-file "$KEYS/skilld-production-2026-08.pub" \
+  --not-before 2026-08-20T00:00:00Z \
+  --not-after 2026-11-20T00:00:00Z \
+  --out "$KEYS/skilld-root-2026-11.json"
+```
+
 ## How signing works
 
 The site stages an attestation statement for a Resolution.

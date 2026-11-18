@@ -114,6 +114,14 @@ export function addTrustedKey(root: TrustedRootConfig, rootPrivateKey: KeyObject
   })
 }
 
+/**
+ * Starts a trusted root under a new root key with its first signing key. A
+ * root lists at least one key, so the root and its first key are made together.
+ */
+export function createTrustedRoot(rootKeyId: string, rootPrivateKey: KeyObject, firstKey: NewTrustedKey): TrustedRootConfig {
+  return addTrustedKey({ version: 1, rootKeyId, rootPublicKey: publicKeyOf(rootPrivateKey), keys: [] }, rootPrivateKey, firstKey)
+}
+
 /** Removes one signing key. Removal needs no root signature. */
 export function removeTrustedKey(root: TrustedRootConfig, keyId: string): TrustedRootConfig {
   if (!root.keys.some(key => key.keyId === keyId))

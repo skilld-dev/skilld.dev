@@ -10,7 +10,7 @@ import {
 import { createPublicArtifactGrant } from '../../../../../utils/grant'
 import { privateArtifactAccessEnabled } from '../../../../../utils/private-feature'
 import { createPrivateArtifactGrant } from '../../../../../utils/private-grant'
-import { parseTrustedRoot } from '../../../../../utils/trusted-root'
+import { siteTrustedRoot } from '../../../../../utils/trusted-root'
 
 export default withArtifactProblems(defineApiHandler({
   response: artifactGrantSchema,
@@ -30,7 +30,7 @@ export default withArtifactProblems(defineApiHandler({
       })
     }
     const now = Math.floor(Date.now() / 1000)
-    const trustedRoot = parseTrustedRoot(platform.env.ARTIFACT_TRUSTED_ROOT_JSON, now)
+    const trustedRoot = siteTrustedRoot(platform.env, now)
     const publicResult = await createPublicArtifactGrant({
       db: platform.db,
       trustedRoot,

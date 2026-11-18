@@ -1,12 +1,13 @@
 // The Artifact signing key ceremony. docs/runbooks/signing-key-rotation.md
 // gives the order. No command prints a private key: each one reads or writes
 // key files with mode 600.
-import type { RootPin, TrustedRootConfig } from './lib/trusted-root-ceremony'
+import type { NewTrustedKey, RootPin, TrustedRootConfig } from './lib/trusted-root-ceremony'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import {
   addTrustedKey,
+  createTrustedRoot,
   generateSigningKey,
   parseRootConfig,
   readPrivateKey,
@@ -15,12 +16,17 @@ import {
   verifyTrustedRoot,
 } from './lib/trusted-root-ceremony'
 
-const LIVE_ROOT = 'https://skilld.dev/api/v1/trusted-root'
+// The root that skilld CLI 3.7.0 and later pin first. Each root is served at
+// its own path, so CLIs pinned to an older root keep reading theirs.
+const LIVE_ROOT = 'https://skilld.dev/api/v1/trusted-roots/skilld-root-2026-11'
 
 const USAGE = `Usage: pnpm exec tsx scripts/trusted-root.ts <command> [options]
 
   signing-key --key-id <id> --out <dir>
-      Write <dir>/<id>.pkcs8 (the signer secret) and <dir>/<id>.pub.
+      Write <dir>/<id>.pkcs8 and <dir>/<id>.pub. Also makes a root key pair.
+  create-root --root-key-id <id> --root-key <file> --key-id <id> --public-key-file <file>
+          --not-before <iso> --not-after <iso> [--status active|overlapping] --out <file>
+      Start a trusted root under a new root key, with its first signing key.
   add-key --root <file|url> --root-key <file> --key-id <id> --public-key-file <file>
           --not-before <iso> --not-after <iso> [--status active|overlapping] --out <file>
       Sign the key statement with the offline root key and write the new root.
@@ -41,6 +47,7 @@ const { positionals, values } = parseArgs({
     'public-key-file': { type: 'string' },
     'root': { type: 'string' },
     'root-key': { type: 'string' },
+    'root-key-id': { type: 'string' },
     'signing-key': { type: 'string' },
     'status': { type: 'string' },
   },
@@ -70,6 +77,19 @@ function writeNew(path: string, value: string, mode: number): void {
   writeFileSync(path, value, { mode, flag: 'wx' })
 }
 
+function newKeyFromArgs(): NewTrustedKey {
+  const status = values.status ?? 'active'
+  if (status !== 'active' && status !== 'overlapping')
+    throw new Error('--status must be active or overlapping.')
+  return {
+    keyId: required('key-id'),
+    publicKey: readFileSync(required('public-key-file'), 'utf8').trim(),
+    notBefore: required('not-before'),
+    notAfter: required('not-after'),
+    status,
+  }
+}
+
 function printKeys(root: TrustedRootConfig): void {
   const now = Date.now()
   for (const key of root.keys) {
@@ -89,18 +109,16 @@ async function main(command: string | undefined): Promise<void> {
       console.log(`Wrote ${join(out, `${keyId}.pkcs8`)} (private, mode 600) and ${join(out, `${keyId}.pub`)}.`)
       return
     }
+    case 'create-root': {
+      const next = createTrustedRoot(required('root-key-id'), readPrivateKey(readFileSync(required('root-key'), 'utf8')), newKeyFromArgs())
+      writeNew(required('out'), JSON.stringify(next), 0o600)
+      console.log(`Wrote ${required('out')} for root ${next.rootKeyId}:`)
+      printKeys(next)
+      return
+    }
     case 'add-key': {
       const root = await readRoot(required('root'))
-      const status = values.status ?? 'active'
-      if (status !== 'active' && status !== 'overlapping')
-        throw new Error('--status must be active or overlapping.')
-      const next = addTrustedKey(root, readPrivateKey(readFileSync(required('root-key'), 'utf8')), {
-        keyId: required('key-id'),
-        publicKey: readFileSync(required('public-key-file'), 'utf8').trim(),
-        notBefore: required('not-before'),
-        notAfter: required('not-after'),
-        status,
-      })
+      const next = addTrustedKey(root, readPrivateKey(readFileSync(required('root-key'), 'utf8')), newKeyFromArgs())
       writeNew(required('out'), JSON.stringify(next), 0o600)
       console.log(`Wrote ${required('out')}:`)
       printKeys(next)

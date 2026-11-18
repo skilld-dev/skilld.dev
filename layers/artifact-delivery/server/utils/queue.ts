@@ -23,7 +23,7 @@ import { privateArtifactAccessEnabled } from './private-feature'
 import { putPrivateArtifact } from './private-storage'
 import { createRequesterGithubSource, forgetResolutionRequester } from './requester-github'
 import { getResolution } from './state'
-import { parseTrustedRoot } from './trusted-root'
+import { siteTrustedRoot } from './trusted-root'
 
 export const ARTIFACT_BUILD_QUEUE_NAME = 'skilld-artifact-build'
 
@@ -228,7 +228,7 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     }),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
-    trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
+    trustedRoot: siteTrustedRoot(env, Math.floor(Date.now() / 1000)),
     now: () => Math.floor(Date.now() / 1000),
     reviewBehaviors: createBehaviorReviewer({
       db: env.DB,

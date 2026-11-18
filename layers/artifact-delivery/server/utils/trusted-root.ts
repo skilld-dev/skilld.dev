@@ -21,6 +21,41 @@ export function parseTrustedRoot(value: string, now: number) {
   })
 }
 
+/**
+ * The roots served at `/api/v1/trusted-roots/{rootKeyId}`, from a JSON array.
+ * skilld CLI 3.7.0 and later fetch the root they pin by its id. Older CLIs pin
+ * `skilld-root-2026`, whose key was lost, and read `/api/v1/trusted-root`.
+ */
+export function parseTrustedRoots(value: string | undefined, now: number): TrustedRoot[] {
+  if (!value?.trim())
+    return []
+  const configs: unknown = JSON.parse(value)
+  if (!Array.isArray(configs) || configs.length === 0)
+    throw new Error('Served trusted roots must be a non-empty JSON array')
+  const roots = configs.map(config => parseTrustedRoot(JSON.stringify(config), now))
+  const seen = new Set<string>()
+  for (const root of roots) {
+    if (seen.has(root.rootKeyId))
+      throw new Error(`Trusted root ${root.rootKeyId} is served twice`)
+    seen.add(root.rootKeyId)
+  }
+  return roots
+}
+
+interface TrustedRootEnv {
+  ARTIFACT_TRUSTED_ROOTS_JSON?: string
+  ARTIFACT_TRUSTED_ROOT_JSON: string
+}
+
+/**
+ * The root whose signing keys the site verifies attestations with: the first
+ * served root, which lists every key the site accepts. Until roots are served,
+ * the legacy root.
+ */
+export function siteTrustedRoot(env: TrustedRootEnv, now: number): TrustedRoot {
+  return parseTrustedRoots(env.ARTIFACT_TRUSTED_ROOTS_JSON, now)[0] ?? parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, now)
+}
+
 function decodeCanonicalBase64Url(value: string): Uint8Array | null {
   if (value.length % 4 === 1)
     return null

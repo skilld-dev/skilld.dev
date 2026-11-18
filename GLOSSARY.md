@@ -303,6 +303,12 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 
 **Never:** signature (bare), certificate, receipt.
 
+### trusted root
+
+**Is:** the list of signing keys an Artifact attestation may use, each signed by an offline root key. Each skilld CLI release pins one root key and fetches that root by its id.
+
+**Never:** keyring, trust store, certificate chain.
+
 ### linked file
 
 **Is:** a Skill file the Artifact attestation lists by path, size, and Git blob SHA, without packing its bytes. The skilld CLI reads it from GitHub at the attested commit and checks it against that SHA. Only a CLI that sends `Skilld-Capabilities: linked-files` gets one. See ADR-0013.
