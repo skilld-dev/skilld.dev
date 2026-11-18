@@ -1,5 +1,5 @@
 import type { ConfigEnv, TestProjectConfiguration, ViteUserConfig } from 'vitest/config'
-import { realpathSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { findPackageJSON } from 'node:module'
 import { availableParallelism } from 'node:os'
 import { dirname } from 'node:path'
@@ -37,11 +37,16 @@ function isNuxtRuntimeEntry(file: string): boolean {
  * patched 2.13.4. The cache tests kept passing against 2.13.4, and production
  * shipped the unpatched cache (Sentry SKILLD-5A).
  */
-function shippedNitroRuntime(): string {
+function shippedNitropack(): string {
   const packageOf = (specifier: string, from: string) => realpathSync(findPackageJSON(specifier, pathToFileURL(from))!)
   const nitroServer = packageOf('@nuxt/nitro-server', packageOf('nuxt', fileURLToPath(import.meta.url)))
-  return `${dirname(packageOf('nitropack', nitroServer))}/dist/runtime`
+  // Without its own dependency, Node falls back to pnpm's hoisted copy, which the build may not bundle.
+  if (!JSON.parse(readFileSync(nitroServer, 'utf8')).dependencies?.nitropack)
+    throw new Error('@nuxt/nitro-server no longer depends on nitropack. Point the nitropack aliases in vitest.config.ts at the copy the build bundles.')
+  return dirname(packageOf('nitropack', nitroServer))
 }
+
+const nitropack = shippedNitropack()
 
 const nuxtVitestConfig = defineVitestConfig({
   resolve: {
@@ -49,7 +54,9 @@ const nuxtVitestConfig = defineVitestConfig({
     // (`#app`, `#imports`) into an object and drops them from an array.
     alias: {
       '#checkin/checks': fileURLToPath(new URL('./test/fixtures/checkin-registry.ts', import.meta.url)),
-      'nitropack/runtime': shippedNitroRuntime(),
+      // A prefix alias also matches `nitropack/runtime/meta`, a separate export, so map it first.
+      'nitropack/runtime/meta': `${nitropack}/runtime-meta.mjs`,
+      'nitropack/runtime': `${nitropack}/dist/runtime`,
     },
   },
   test: {
