@@ -954,7 +954,9 @@ export default defineNuxtConfig({
     release: { name: sentryRelease() },
     sourcemaps: {
       disable: !hasSentryAuthToken,
-      filesToDeleteAfterUpload: ['**/*.map'],
+      // Name `.output` explicitly: `**` skips dot folders, so the old glob
+      // deleted nothing and every client map was served from `/_nuxt/`.
+      filesToDeleteAfterUpload: ['.output/**/*.map'],
     },
     bundleSizeOptimizations: {
       excludeDebugStatements: true,
