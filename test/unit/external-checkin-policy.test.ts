@@ -1,6 +1,30 @@
 import { expect, it } from 'vitest'
 import { summarizeWorkflowRuns } from '../../checks/_helpers/observability.mjs'
-import { evaluateCI, evaluateD1 } from '../../checks/_helpers/policy.mjs'
+import { evaluateCI, evaluateD1, evaluateWorkers } from '../../checks/_helpers/policy.mjs'
+
+const wholeWindow = { _tag: 'whole', since: '2026-11-17T00:00:00.000Z', until: '2026-11-18T00:00:00.000Z' }
+const clampedWindow = { _tag: 'clamped', since: '2026-10-17T00:00:00.000Z', until: '2026-11-18T00:00:00.000Z', requestedSince: '2026-10-11T00:00:00.000Z' }
+
+it('passes Worker outcomes read over the whole window', () => {
+  expect(evaluateWorkers({ window: wholeWindow, outcomes: { success: 10 }, nonOk: [] })._tag).toBe('Pass')
+})
+it('warns on Worker outcomes other than success', () => {
+  expect(evaluateWorkers({ window: wholeWindow, outcomes: { exceededCpu: 2 }, nonOk: [{ status: 'exceededCpu', requests: 2 }] })._tag).toBe('Warn')
+})
+it('keeps Worker outcomes from a clamped window incomplete', () => {
+  expect(evaluateWorkers({ window: clampedWindow, outcomes: { success: 10 }, nonOk: [] })).toMatchObject({
+    _tag: 'Warn',
+    coverage: 'incomplete',
+    reason: 'Worker analytics cover only 2026-10-17T00:00:00.000Z onward; the window started 2026-10-11T00:00:00.000Z.',
+  })
+})
+it('keeps non-success outcomes visible in a clamped window', () => {
+  expect(evaluateWorkers({ window: clampedWindow, outcomes: { exceededCpu: 2 }, nonOk: [{ status: 'exceededCpu', requests: 2 }] })).toMatchObject({
+    _tag: 'Warn',
+    coverage: 'incomplete',
+    reason: 'Worker requests have non-success outcomes. Worker analytics cover only 2026-10-17T00:00:00.000Z onward; the window started 2026-10-11T00:00:00.000Z.',
+  })
+})
 
 const now = new Date('2026-09-14T00:00:00Z')
 const since = new Date(now.getTime() - 86_400_000)

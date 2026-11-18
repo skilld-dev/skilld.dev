@@ -49,6 +49,33 @@ export function buildWorkersQuery(sinceIso, untilIso) {
   return `query { viewer { accounts(filter: {accountTag: "5904138d55ca25d5670dca6adf99894e"}) { workersInvocationsAdaptive(limit: 100, filter: {scriptName: "skilld-dev", datetime_geq: ${JSON.stringify(sinceIso)}, datetime_leq: ${JSON.stringify(untilIso)}}) { dimensions { scriptName status } sum { requests } } } } }`
 }
 
+// Cloudflare refuses a Workers analytics range wider than 32 days ("4w4d").
+// Measured 2026-11-18: 32 days passed, 32 days and 1 second failed.
+const WORKERS_MAX_RANGE_MS = 32 * 86_400_000
+
+/**
+ * The Worker analytics window: the whole baseline window, or its newest 32
+ * days. A stale baseline can ask for more than Cloudflare serves, and the
+ * query then returns no rows at all.
+ */
+export function workersWindow(sinceIso, untilIso) {
+  const earliest = Date.parse(untilIso) - WORKERS_MAX_RANGE_MS
+  if (Date.parse(sinceIso) >= earliest)
+    return { _tag: 'whole', since: sinceIso, until: untilIso }
+  return { _tag: 'clamped', since: new Date(earliest).toISOString(), until: untilIso, requestedSince: sinceIso }
+}
+
+/** The failure a Workers analytics response reports, or null when it carries data. */
+export function workersQueryFailure(status, body) {
+  const messages = (body?.errors ?? []).map(error => error?.message).filter(Boolean)
+  if (status >= 200 && status < 300 && !messages.length)
+    return null
+  // GraphQL reports query errors with HTTP 200, so the status alone hid the cause.
+  return messages.length
+    ? `Cloudflare GraphQL returned HTTP ${status}: ${messages.join('; ')}`
+    : `Cloudflare GraphQL returned HTTP ${status}.`
+}
+
 // The archive records `since` but until #195 nothing derived a gap from it, so
 // a run that skipped six days read as an ordinary overnight window and every
 // rate in the report was compared across unequal windows. The routine targets
