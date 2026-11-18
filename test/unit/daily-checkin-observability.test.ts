@@ -6,13 +6,14 @@ import {
   buildWorkersQuery,
   collectWorkflowRuns,
   deriveBaselineFlag,
+  parseAnalyticsEngineResponse,
+  parseWorkersResponse,
   parseWorkflowName,
   readMigrationState,
   refreshProductionRef,
   runListArgs,
   summarizeCopies,
   summarizeWorkflowRuns,
-  workersQueryFailure,
   workersWindow,
 } from '../../checks/_helpers/observability.mjs'
 
@@ -130,16 +131,39 @@ describe('daily check-in observability', () => {
   })
 
   it('names the GraphQL error that a 200 response carries', () => {
-    expect(workersQueryFailure(200, { errors: [{ message: 'cannot request a time range wider than 4w4d' }] }))
-      .toBe('Cloudflare GraphQL returned HTTP 200: cannot request a time range wider than 4w4d')
+    expect(parseWorkersResponse(200, JSON.stringify({ errors: [{ message: 'cannot request a time range wider than 4w4d' }] })))
+      .toEqual({ _tag: 'Err', reason: 'Cloudflare GraphQL returned HTTP 200: cannot request a time range wider than 4w4d' })
   })
 
-  it('names the status of a failed response without errors', () => {
-    expect(workersQueryFailure(403, {})).toBe('Cloudflare GraphQL returned HTTP 403.')
+  it('fails a response whose errors carry no message', () => {
+    expect(parseWorkersResponse(200, JSON.stringify({ errors: [{}], data: null })))
+      .toEqual({ _tag: 'Err', reason: 'Cloudflare GraphQL returned HTTP 200.' })
   })
 
-  it('accepts a 200 response without errors', () => {
-    expect(workersQueryFailure(200, { data: {} })).toBeNull()
+  it('keeps the status of a response that is not JSON', () => {
+    expect(parseWorkersResponse(502, '<html>Bad gateway</html>'))
+      .toEqual({ _tag: 'Err', reason: 'Cloudflare GraphQL returned HTTP 502.' })
+  })
+
+  it('bounds the length of a failure reason', () => {
+    const result = parseWorkersResponse(200, JSON.stringify({ errors: [{ message: 'x'.repeat(5_000) }] }))
+    expect(result._tag === 'Err' && result.reason.length).toBeLessThanOrEqual(400)
+  })
+
+  it('returns the Worker rows of a successful response', () => {
+    const rows = [{ dimensions: { scriptName: 'skilld-dev', status: 'success' }, sum: { requests: 3 } }]
+    expect(parseWorkersResponse(200, JSON.stringify({ data: { viewer: { accounts: [{ workersInvocationsAdaptive: rows }] } } })))
+      .toEqual({ _tag: 'Ok', rows })
+  })
+
+  it('names the Analytics Engine message of a failed query', () => {
+    expect(parseAnalyticsEngineResponse(422, 'unknown column: blob9'))
+      .toEqual({ _tag: 'Err', reason: 'Analytics Engine returned HTTP 422: unknown column: blob9' })
+  })
+
+  it('returns the Analytics Engine rows of a successful query', () => {
+    expect(parseAnalyticsEngineResponse(200, JSON.stringify({ data: [{ copies: 2 }] })))
+      .toEqual({ _tag: 'Ok', rows: [{ copies: 2 }] })
   })
 
   // The exact shape from issue #195: the routine ran on 2026-09-09 and not

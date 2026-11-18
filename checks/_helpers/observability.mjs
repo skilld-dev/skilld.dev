@@ -65,15 +65,54 @@ export function workersWindow(sinceIso, untilIso) {
   return { _tag: 'clamped', since: new Date(earliest).toISOString(), until: untilIso, requestedSince: sinceIso }
 }
 
-/** The failure a Workers analytics response reports, or null when it carries data. */
-export function workersQueryFailure(status, body) {
-  const messages = (body?.errors ?? []).map(error => error?.message).filter(Boolean)
-  if (status >= 200 && status < 300 && !messages.length)
-    return null
-  // GraphQL reports query errors with HTTP 200, so the status alone hid the cause.
-  return messages.length
-    ? `Cloudflare GraphQL returned HTTP ${status}: ${messages.join('; ')}`
-    : `Cloudflare GraphQL returned HTTP ${status}.`
+// The reason lands in the archive and the published report, so keep it short.
+const FAILURE_DETAIL_LIMIT = 300
+
+function failure(service, status, detail) {
+  const text = detail.trim()
+  if (!text)
+    return { _tag: 'Err', reason: `${service} returned HTTP ${status}.` }
+  const bounded = text.length > FAILURE_DETAIL_LIMIT ? `${text.slice(0, FAILURE_DETAIL_LIMIT)}…` : text
+  return { _tag: 'Err', reason: `${service} returned HTTP ${status}: ${bounded}` }
+}
+
+function parseJson(text) {
+  try {
+    return { _tag: 'Ok', value: JSON.parse(text) }
+  }
+  catch {
+    // A proxy error page is HTML. The caller reports the status instead.
+    return { _tag: 'Err' }
+  }
+}
+
+const isSuccess = status => status >= 200 && status < 300
+
+/**
+ * Parse a Workers analytics response into its rows, or the reason it failed.
+ * GraphQL reports query errors inside an HTTP 200 body, so any `errors` entry
+ * fails the read, and its messages become the reason.
+ */
+export function parseWorkersResponse(status, text) {
+  const json = parseJson(text)
+  const errors = json._tag === 'Ok' ? json.value?.errors : undefined
+  const hasErrors = errors != null && (!Array.isArray(errors) || errors.length > 0)
+  if (!isSuccess(status) || json._tag === 'Err' || hasErrors) {
+    const messages = Array.isArray(errors) ? errors.map(error => error?.message).filter(message => typeof message === 'string') : []
+    return failure('Cloudflare GraphQL', status, messages.join('; '))
+  }
+  const rows = json.value?.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive
+  return Array.isArray(rows) ? { _tag: 'Ok', rows } : { _tag: 'Err', reason: 'Cloudflare Worker evidence is unavailable.' }
+}
+
+/** Parse an Analytics Engine SQL response into its rows, or the reason it failed. */
+export function parseAnalyticsEngineResponse(status, text) {
+  // The SQL API answers a rejected query with a plain-text message.
+  if (!isSuccess(status))
+    return failure('Analytics Engine', status, text)
+  const json = parseJson(text)
+  const rows = json._tag === 'Ok' ? json.value?.data : undefined
+  return Array.isArray(rows) ? { _tag: 'Ok', rows } : { _tag: 'Err', reason: 'Analytics Engine copy evidence is unavailable.' }
 }
 
 // The archive records `since` but until #195 nothing derived a gap from it, so

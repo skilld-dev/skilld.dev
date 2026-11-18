@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
-import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildCopyTotalsQuery, buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns, workersQueryFailure, workersWindow } from './observability.mjs'
+import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildCopyTotalsQuery, buildWorkersQuery, collectWorkflowRuns, parseAnalyticsEngineResponse, parseWorkersResponse, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns, workersWindow } from './observability.mjs'
 import { buildSignupQuery, summarizeSignupEvents } from './signup-analytics.ts'
 
 const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers', 'analytics'].map(key => [key, {}]))
@@ -323,15 +323,11 @@ export function collectWorkers(context) {
       throw new Error('Cloudflare token is unavailable.')
     const window = workersWindow(context.since.toISOString(), context.now.toISOString())
     const response = await fetch('https://api.cloudflare.com/client/v4/graphql', { method: 'POST', redirect: 'error', signal: context.signal, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: buildWorkersQuery(window.since, window.until) }) })
-    const body = JSON.parse(await readBoundedResponseText(response, 2_097_152))
-    const failure = workersQueryFailure(response.status, body)
-    if (failure)
-      throw new Error(failure)
-    const rows = body.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive
-    if (!Array.isArray(rows))
-      throw new Error('Cloudflare Worker evidence is unavailable.')
+    const parsed = parseWorkersResponse(response.status, await readBoundedResponseText(response, 2_097_152))
+    if (parsed._tag === 'Err')
+      throw new Error(parsed.reason)
     const outcomes = {}
-    for (const row of rows) {
+    for (const row of parsed.rows) {
       if (row.dimensions.scriptName === 'skilld-dev')
         outcomes[row.dimensions.status] = (outcomes[row.dimensions.status] ?? 0) + row.sum.requests
     }
@@ -356,13 +352,10 @@ export function collectAnalytics(context) {
       throw new Error('Cloudflare token is unavailable.')
     const readRows = async (query) => {
       const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ANALYTICS_ACCOUNT_TAG}/analytics_engine/sql`, { method: 'POST', redirect: 'error', signal: context.signal, headers: { Authorization: `Bearer ${token}` }, body: query })
-      const text = await readBoundedResponseText(response, 2_097_152)
-      if (!response.ok)
-        throw new Error(`Analytics Engine returned HTTP ${response.status}.`)
-      const rows = JSON.parse(text).data
-      if (!Array.isArray(rows))
-        throw new Error('Analytics Engine copy evidence is unavailable.')
-      return rows
+      const parsed = parseAnalyticsEngineResponse(response.status, await readBoundedResponseText(response, 2_097_152))
+      if (parsed._tag === 'Err')
+        throw new Error(parsed.reason)
+      return parsed.rows
     }
     const [totalsRows, topRows, signupRows] = await Promise.all([
       readRows(buildCopyTotalsQuery(context.since.toISOString(), context.now.toISOString())),

@@ -13,6 +13,7 @@ Interpret this site evidence:
    - Any stable non-200 \`skilld.dev\` front door response is RED. A retry flap is a note.
    - Read every \`ci.workflows\` state. \`failure\` means the gate is broken. \`pending\` after a prior failure must be followed until complete. \`missing\` is an observability gap. Never infer overall CI health from only the deploy workflow.
    - Any \`workers.nonOk\`, new Sentry issue, failed digest, failed job, stale reserved job, stale scheduled task, or missing expected table needs an explicit verdict.
+   - Worker counts cover \`workers.window\`, which is at most 32 days. If its \`_tag\` is \`clamped\`, compute Worker rates over \`workers.window.since\` to \`workers.window.until\`, never over \`gapHours\`.
    - \`d1.migrations.localHead !== d1.migrations.prodHead\` is migration drift. Never assume deployment applied D1 migrations.
    - \`skilld.baseline\` result evidence records the window against the daily cadence. \`stale\` means the saved baseline is old; report the \`gapHours\` figure and compare rates per day, never as overnight step changes. The shared CLI rejects invalid or future state before collecting evidence. Repair the state or supply an explicit \`--since\` boundary.
    - Use failed-job \`first_failed_at\` and \`last_failed_at\`, plus \`d1.recentJobBatches\` and \`d1.registryMaintenance\`, to distinguish an active incident from a recovered burst. Do not call a window clean because the latest batch passed, or active because an older batch failed.
