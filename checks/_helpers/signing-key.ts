@@ -6,7 +6,7 @@ import { fail, pass, readBoundedResponseText, warn } from '@harlan-zw/nuxt-check
 import { z } from 'zod'
 import { ARTIFACT_SIGNING_KEY_SLOTS, selectSigningKey } from '../../workers/artifact-signer/src/slots'
 
-export const TRUSTED_ROOT_URL = 'https://skilld.dev/api/v1/trusted-root'
+export const TRUSTED_ROOT_URL = 'https://skilld.dev/api/v1/trusted-roots/skilld-root-2026-11'
 export const SIGNING_KEY_WARN_DAYS = 30
 export const SIGNING_KEY_FAIL_DAYS = 7
 const DAY_SECONDS = 86_400

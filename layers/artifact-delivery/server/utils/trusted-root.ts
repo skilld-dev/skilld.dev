@@ -21,6 +21,67 @@ export function parseTrustedRoot(value: string, now: number) {
   })
 }
 
+/**
+ * The roots served at `/api/v1/trusted-roots/{rootKeyId}`, from a JSON array.
+ * skilld CLI 3.7.0 and later fetch the root they pin by its id. Older CLIs pin
+ * `skilld-root-2026`, whose key was lost, and read `/api/v1/trusted-root`.
+ */
+export function parseTrustedRoots(value: string | undefined, now: number): TrustedRoot[] {
+  return readTrustedRoots(value, now).flatMap(result => result._tag === 'valid' ? [result.root] : [])
+}
+
+type RootResult = { _tag: 'valid', root: TrustedRoot } | { _tag: 'invalid' }
+
+function readTrustedRoots(value: string | undefined, now: number): RootResult[] {
+  if (!value?.trim())
+    return []
+  const configs: unknown = JSON.parse(value)
+  if (!Array.isArray(configs) || configs.length === 0)
+    throw new Error('Served trusted roots must be a non-empty JSON array')
+  // Preserve each position so an invalid primary never selects a later root.
+  const parsed = configs.map((config: unknown, index): RootResult => {
+    try {
+      return { _tag: 'valid', root: parseTrustedRoot(JSON.stringify(config), now) }
+    }
+    catch {
+      // Config can contain secrets or untrusted text. Report only its array position.
+      console.error(`Rejected trusted root at array index ${index}: invalid or duplicate entry`)
+      return { _tag: 'invalid' }
+    }
+  })
+  const counts = new Map<string, number>()
+  for (const result of parsed) {
+    if (result._tag === 'valid')
+      counts.set(result.root.rootKeyId, (counts.get(result.root.rootKeyId) ?? 0) + 1)
+  }
+  return parsed.map((result, index): RootResult => {
+    if (result._tag === 'valid' && counts.get(result.root.rootKeyId)! > 1) {
+      console.error(`Rejected trusted root at array index ${index}: duplicate valid entry`)
+      return { _tag: 'invalid' }
+    }
+    return result
+  })
+}
+
+interface TrustedRootEnv {
+  ARTIFACT_TRUSTED_ROOTS_JSON?: string
+  ARTIFACT_TRUSTED_ROOT_JSON: string
+}
+
+/**
+ * The root whose signing keys the site verifies attestations with: the first
+ * served root, which lists every key the site accepts. Until roots are served,
+ * the legacy root.
+ */
+export function siteTrustedRoot(env: TrustedRootEnv, now: number): TrustedRoot {
+  const selected = readTrustedRoots(env.ARTIFACT_TRUSTED_ROOTS_JSON, now)[0]
+  if (!selected)
+    return parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, now)
+  if (selected._tag === 'invalid')
+    throw new Error('The selected site trusted root is invalid')
+  return selected.root
+}
+
 function decodeCanonicalBase64Url(value: string): Uint8Array | null {
   if (value.length % 4 === 1)
     return null

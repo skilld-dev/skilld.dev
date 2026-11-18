@@ -1,9 +1,11 @@
 import type { TrustedRootConfig } from '../../scripts/lib/trusted-root-ceremony'
-import { generateKeyPairSync } from 'node:crypto'
+import { generateKeyPairSync, sign } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { parseTrustedRoot } from '../../layers/artifact-delivery/server/utils/trusted-root'
+import { completeAttestation, createAttestationSignaturePayload, createAttestationStatement, encodeAttestationStatement, verifyArtifactAttestation } from '../../layers/artifact-delivery/server/utils/attestation'
+import { parseTrustedRoot, siteTrustedRoot } from '../../layers/artifact-delivery/server/utils/trusted-root'
 import {
   addTrustedKey,
+  createTrustedRoot,
   generateSigningKey,
   parseRootConfig,
   publicKeyOf,
@@ -129,5 +131,92 @@ describe('trusted root ceremony', () => {
 
     expect(signingKeyMatches(current, 'skilld-production-2026-08', readPrivateKey(oldKey.privateKeyPkcs8))).toBe(true)
     expect(signingKeyMatches(current, 'skilld-production-2026-08', readPrivateKey(newKey.privateKeyPkcs8))).toBe(false)
+  })
+
+  it.each(['publicKey', 'status', 'notBefore', 'notAfter', 'keyId'] as const)('rejects rollout roots with different %s coverage', (field) => {
+    const { current } = ceremony()
+    const { privateKey } = generateKeyPairSync('ed25519')
+    const original = current.keys[0]!
+    const changes = {
+      publicKey: generateSigningKey().publicKey,
+      status: 'overlapping' as const,
+      notBefore: '2026-08-21T00:00:00.000Z',
+      notAfter: '2026-11-19T00:00:00.000Z',
+      keyId: 'other-key',
+    }
+    const backup = createTrustedRoot('backup', privateKey, { ...original, status: 'active', [field]: changes[field] })
+    expect(verifyTrustedRoot(backup, backup, NOW)).toEqual({ _tag: 'valid' })
+    expect(verifyTrustedRoot(current, current, NOW, [{ root: backup, pin: backup }])._tag).toBe('invalid')
+  })
+
+  it('verifies the same attestation after publishing matching roots and removing the primary', async () => {
+    const { current, oldKey } = ceremony()
+    const { privateKey } = generateKeyPairSync('ed25519')
+    const backup = createTrustedRoot('backup', privateKey, { ...current.keys[0]!, status: 'active' })
+    expect(verifyTrustedRoot(current, current, NOW, [{ root: backup, pin: backup }])).toEqual({ _tag: 'valid' })
+    const statement = encodeAttestationStatement(createAttestationStatement({
+      artifactId: `sha256:${'a'.repeat(64)}`,
+      createdAt: new Date(NOW * 1000).toISOString(),
+      source: {
+        provider: 'github',
+        repositoryId: 1,
+        owner: 'skilld-dev',
+        repository: 'skills',
+        visibility: 'public',
+        commitSha: 'a'.repeat(40),
+        treeSha: 'b'.repeat(40),
+        skillPath: 'skills/demo',
+      },
+      contentSha256: 'a'.repeat(64),
+      contentBytes: 1,
+      files: [{ path: 'SKILL.md', mode: 420, size: 1, sha256: 'b'.repeat(64) }],
+      checkResults: [{ name: 'path-policy', version: '1', outcome: 'pass', required: true }],
+    }))
+    const payload = await createAttestationSignaturePayload(new TextEncoder().encode(statement))
+    const attestation = completeAttestation(statement, {
+      algorithm: 'Ed25519',
+      keyId: current.keys[0]!.keyId,
+      value: Buffer.from(sign(null, payload, readPrivateKey(oldKey.privateKeyPkcs8))).toString('base64url'),
+    })
+    for (const roots of [[current, backup], [backup]]) {
+      const selected = siteTrustedRoot({ ARTIFACT_TRUSTED_ROOTS_JSON: JSON.stringify(roots), ARTIFACT_TRUSTED_ROOT_JSON: '' }, NOW)
+      expect(await verifyArtifactAttestation(attestation, selected, NOW)).toBe(true)
+    }
+  })
+})
+
+// The root key for `skilld-root-2026` was lost, so the next root starts from a
+// new root key and re-signs every signing key it still trusts.
+describe('new trusted root', () => {
+  it('creates a root that the CLI rules accept under its own root key', () => {
+    const { privateKey: rootPrivateKey } = generateKeyPairSync('ed25519')
+    const signingKey = generateSigningKey()
+
+    const root = createTrustedRoot('skilld-root-2026-11', rootPrivateKey, {
+      keyId: 'skilld-production-2026-08',
+      publicKey: signingKey.publicKey,
+      notBefore: '2026-08-20T00:00:00.000Z',
+      notAfter: '2026-11-20T00:00:00.000Z',
+      status: 'active',
+    })
+
+    const pin = { rootKeyId: 'skilld-root-2026-11', rootPublicKey: publicKeyOf(rootPrivateKey) }
+    expect(verifyTrustedRoot(root, pin, NOW)).toEqual({ _tag: 'valid' })
+    expect(parseTrustedRoot(JSON.stringify(root), NOW).keys.map(key => key.keyId)).toEqual(['skilld-production-2026-08'])
+  })
+
+  it('fails a CLI that pins the previous root', () => {
+    const { pin: previousPin } = ceremony()
+    const { privateKey: rootPrivateKey } = generateKeyPairSync('ed25519')
+
+    const root = createTrustedRoot('skilld-root-2026-11', rootPrivateKey, {
+      keyId: 'skilld-production-2026-11',
+      publicKey: generateSigningKey().publicKey,
+      notBefore: '2026-11-18T00:00:00Z',
+      notAfter: '2027-05-20T00:00:00Z',
+      status: 'active',
+    })
+
+    expect(verifyTrustedRoot(root, previousPin, NOW)._tag).toBe('invalid')
   })
 })

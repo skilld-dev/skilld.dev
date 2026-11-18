@@ -36,6 +36,9 @@ ARTIFACT_KEY_WRAP_KEY_SECONDARY=
 ARTIFACT_GRANT_IDEMPOTENCY_KEY=
 # Public verification material. The signer keeps private keys in its Worker.
 ARTIFACT_TRUSTED_ROOT_JSON=
+# A JSON array of trusted roots, served by root key id. The first one lists
+# every signing key the site accepts. skilld CLI 3.7.0 and later read these.
+ARTIFACT_TRUSTED_ROOTS_JSON=
 ANTHROPIC_API_KEY=
 VOYAGE_API_KEY=
 X_BEARER_KEY=
