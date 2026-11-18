@@ -69,11 +69,18 @@ export function workersWindow(sinceIso, untilIso) {
 const FAILURE_DETAIL_LIMIT = 300
 
 function failure(service, status, detail) {
-  const text = detail.trim()
-  if (!text)
+  // Cut by code point, so the limit never splits a surrogate pair.
+  const characters = Array.from(detail.trim())
+  if (!characters.length)
     return { _tag: 'Err', reason: `${service} returned HTTP ${status}.` }
-  const bounded = text.length > FAILURE_DETAIL_LIMIT ? `${text.slice(0, FAILURE_DETAIL_LIMIT)}…` : text
+  const bounded = characters.length > FAILURE_DETAIL_LIMIT ? `${characters.slice(0, FAILURE_DETAIL_LIMIT).join('')}…` : characters.join('')
   return { _tag: 'Err', reason: `${service} returned HTTP ${status}: ${bounded}` }
+}
+
+function errorMessages(errors) {
+  return Array.isArray(errors)
+    ? errors.map(error => error?.message).filter(message => typeof message === 'string')
+    : []
 }
 
 function parseJson(text) {
@@ -98,8 +105,7 @@ export function parseWorkersResponse(status, text) {
   const errors = json._tag === 'Ok' ? json.value?.errors : undefined
   const hasErrors = errors != null && (!Array.isArray(errors) || errors.length > 0)
   if (!isSuccess(status) || json._tag === 'Err' || hasErrors) {
-    const messages = Array.isArray(errors) ? errors.map(error => error?.message).filter(message => typeof message === 'string') : []
-    return failure('Cloudflare GraphQL', status, messages.join('; '))
+    return failure('Cloudflare GraphQL', status, errorMessages(errors).join('; '))
   }
   const rows = json.value?.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive
   return Array.isArray(rows) ? { _tag: 'Ok', rows } : { _tag: 'Err', reason: 'Cloudflare Worker evidence is unavailable.' }
@@ -107,10 +113,15 @@ export function parseWorkersResponse(status, text) {
 
 /** Parse an Analytics Engine SQL response into its rows, or the reason it failed. */
 export function parseAnalyticsEngineResponse(status, text) {
-  // The SQL API answers a rejected query with a plain-text message.
-  if (!isSuccess(status))
-    return failure('Analytics Engine', status, text)
   const json = parseJson(text)
+  if (!isSuccess(status)) {
+    // A rejected SQL query answers in plain text, the API gateway in a JSON
+    // envelope, and a proxy in HTML, whose markup says nothing useful.
+    const detail = json._tag === 'Ok'
+      ? errorMessages(json.value?.errors).join('; ')
+      : text.trimStart().startsWith('<') ? '' : text
+    return failure('Analytics Engine', status, detail)
+  }
   const rows = json._tag === 'Ok' ? json.value?.data : undefined
   return Array.isArray(rows) ? { _tag: 'Ok', rows } : { _tag: 'Err', reason: 'Analytics Engine copy evidence is unavailable.' }
 }
