@@ -33,8 +33,10 @@ const USAGE = `Usage: pnpm exec tsx scripts/trusted-root.ts <command> [options]
   remove-key --root <file|url> --key-id <id> --out <file>
       Write the root without that key. Removal needs no root key.
   verify --root <file|url> [--pin <file|url>] [--key-id <id> --signing-key <file>]
+          [--peer-root <file|url> --peer-pin <file|url>]
       Check the root as every released skilld CLI does. --pin defaults to ${LIVE_ROOT}.
-      With --signing-key, also check the private key matches that key ID.`
+      With --signing-key, also check the private key matches that key ID.
+      With --peer-root and --peer-pin, verify both roots and require matching signing key coverage.`
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -44,6 +46,8 @@ const { positionals, values } = parseArgs({
     'not-before': { type: 'string' },
     'out': { type: 'string' },
     'pin': { type: 'string' },
+    'peer-root': { type: 'string' },
+    'peer-pin': { type: 'string' },
     'public-key-file': { type: 'string' },
     'root': { type: 'string' },
     'root-key': { type: 'string' },
@@ -135,7 +139,13 @@ async function main(command: string | undefined): Promise<void> {
       const root = await readRoot(required('root'))
       const pinRoot = await readRoot(values.pin ?? LIVE_ROOT)
       const pin: RootPin = { rootKeyId: pinRoot.rootKeyId, rootPublicKey: pinRoot.rootPublicKey }
-      const result = verifyTrustedRoot(root, pin, Math.floor(Date.now() / 1000))
+      const peers = []
+      if (values['peer-root'] || values['peer-pin']) {
+        const peerRoot = await readRoot(required('peer-root'))
+        const peerPin = await readRoot(required('peer-pin'))
+        peers.push({ root: peerRoot, pin: peerPin })
+      }
+      const result = verifyTrustedRoot(root, pin, Math.floor(Date.now() / 1000), peers)
       const problems = result._tag === 'invalid' ? [...result.problems] : []
       if (values['signing-key']) {
         const keyId = required('key-id')

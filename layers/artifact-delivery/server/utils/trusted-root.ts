@@ -27,19 +27,34 @@ export function parseTrustedRoot(value: string, now: number) {
  * `skilld-root-2026`, whose key was lost, and read `/api/v1/trusted-root`.
  */
 export function parseTrustedRoots(value: string | undefined, now: number): TrustedRoot[] {
+  return readTrustedRoots(value, now).flatMap(result => result._tag === 'valid' ? [result.root] : [])
+}
+
+type RootResult = { _tag: 'valid', root: TrustedRoot } | { _tag: 'invalid' }
+
+function readTrustedRoots(value: string | undefined, now: number): RootResult[] {
   if (!value?.trim())
     return []
   const configs: unknown = JSON.parse(value)
   if (!Array.isArray(configs) || configs.length === 0)
     throw new Error('Served trusted roots must be a non-empty JSON array')
-  const roots = configs.map(config => parseTrustedRoot(JSON.stringify(config), now))
-  const seen = new Set<string>()
-  for (const root of roots) {
-    if (seen.has(root.rootKeyId))
-      throw new Error(`Trusted root ${root.rootKeyId} is served twice`)
-    seen.add(root.rootKeyId)
-  }
-  return roots
+  const ids = configs.map((config: unknown) => {
+    if (typeof config === 'object' && config !== null && 'rootKeyId' in config)
+      return config.rootKeyId
+    return undefined
+  })
+  return configs.map((config: unknown, index): RootResult => {
+    try {
+      if (ids[index] !== undefined && ids.indexOf(ids[index]) !== ids.lastIndexOf(ids[index]))
+        throw new Error('Duplicate root ID')
+      return { _tag: 'valid', root: parseTrustedRoot(JSON.stringify(config), now) }
+    }
+    catch {
+      // Config can contain secrets or untrusted text. Report only its array position.
+      console.error(`Rejected trusted root at array index ${index}: invalid or duplicate entry`)
+      return { _tag: 'invalid' }
+    }
+  })
 }
 
 interface TrustedRootEnv {
@@ -53,7 +68,12 @@ interface TrustedRootEnv {
  * the legacy root.
  */
 export function siteTrustedRoot(env: TrustedRootEnv, now: number): TrustedRoot {
-  return parseTrustedRoots(env.ARTIFACT_TRUSTED_ROOTS_JSON, now)[0] ?? parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, now)
+  const selected = readTrustedRoots(env.ARTIFACT_TRUSTED_ROOTS_JSON, now)[0]
+  if (!selected)
+    return parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, now)
+  if (selected._tag === 'invalid')
+    throw new Error('The selected site trusted root is invalid')
+  return selected.root
 }
 
 function decodeCanonicalBase64Url(value: string): Uint8Array | null {

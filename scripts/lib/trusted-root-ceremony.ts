@@ -136,8 +136,26 @@ export function removeTrustedKey(root: TrustedRootConfig, keyId: string): Truste
  * Checks a root by the rules every released skilld CLI applies, then by the
  * site's own parser. Each failed rule is one problem.
  */
-export function verifyTrustedRoot(root: TrustedRootConfig, pin: RootPin, now: number): VerifyResult {
+export function verifyTrustedRoot(
+  root: TrustedRootConfig,
+  pin: RootPin,
+  now: number,
+  peers: { root: TrustedRootConfig, pin: RootPin }[] = [],
+): VerifyResult {
   const problems: string[] = []
+  const coverage = (config: TrustedRootConfig) => canonicalJson(config.keys.map(({ statement: _statement, rootSignature: _signature, ...key }) => key)
+    .sort((a, b) => a.keyId.localeCompare(b.keyId)))
+  const seenRoots = new Set([root.rootKeyId])
+  for (const peer of peers) {
+    if (seenRoots.has(peer.root.rootKeyId))
+      problems.push('A rollout root ID appears twice.')
+    seenRoots.add(peer.root.rootKeyId)
+    const result = verifyTrustedRoot(peer.root, peer.pin, now)
+    if (result._tag === 'invalid')
+      problems.push(...result.problems)
+    if (coverage(root) !== coverage(peer.root))
+      problems.push('Rollout roots have different signing key coverage.')
+  }
   if (root.rootKeyId !== pin.rootKeyId || root.rootPublicKey !== pin.rootPublicKey)
     problems.push('The root key differs from the pin the released CLIs carry.')
   const rootKey = attempt(() => decodePublicKey(root.rootPublicKey))

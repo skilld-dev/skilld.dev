@@ -1,314 +1,231 @@
 # Signing key rotation
 
-Every Artifact attestation carries an Ed25519 signature from the Artifact signer.
-Each signing key has a validity window.
-When the last usable window closes, the signer refuses to sign and the site stops trusting stored attestations.
-After that, every `skilld run` fails.
-
+Rotate the Artifact signing key before its validity window closes.
 The key `skilld-production-2026-08` closes at `2026-11-20T00:00:00.000Z`.
-This runbook replaces it with `skilld-production-2026-11` and keeps both keys trusted during an overlap.
-The daily check-in result `skilld.signing-key` warns 30 days before the last window closes.
+This rotation adds `skilld-production-2026-11`, with both keys trusted during the overlap.
+The `skilld.signing-key` check-in warns 30 days before the last window closes.
 
 ## Root keys
 
-The private key for the first root, `skilld-root-2026`, was lost in November 2026.
-CLI releases 3.0.0 to 3.6.9 pin that root and read it from `/api/v1/trusted-root`, so no new signing key can reach them.
+The private key for `skilld-root-2026` was lost in November 2026.
+Do not use it for this ceremony.
+Preserve `ARTIFACT_TRUSTED_ROOT_JSON` unchanged for `/api/v1/trusted-root`.
+CLI releases 3.0.0 through 3.6.9 pin that root and cannot trust the new signing key.
+Those users must upgrade to a release carrying the new pins before the signer switches keys.
+Even without a switch, their old key expires on November 20.
 
-From 3.7.0, each CLI pins a primary and a backup root and fetches each one from `/api/v1/trusted-roots/{rootKeyId}`.
-The site serves those roots from the `ARTIFACT_TRUSTED_ROOTS_JSON` secret, a JSON array.
-The first root in the array lists every signing key the site accepts.
+The CLI 3.7.0 rollout pins these two roots independently:
 
-| Root key | Pinned by | Where the private key lives |
+| Root key | Selection | Private key escrow |
 | --- | --- | --- |
-| `skilld-root-2026-11` | 3.7.0 and later, first | Harlan's password manager, and an offline USB stick |
-| `skilld-root-backup-2026-11` | 3.7.0 and later, if the primary root is not served | Harlan's password manager, and a second offline USB stick |
+| `skilld-root-2026-11` | Primary | Harlan's password manager and an offline USB stick |
+| `skilld-root-backup-2026-11` | Backup when the primary is absent | Harlan's password manager and a second offline USB stick |
 
-Before every ceremony, restore each root key you need from its copy and check it with `verify --signing-key`.
-If both copies of a root key are gone, serve the other root. If both roots are gone, a new root needs a CLI release.
+Confirm that the released CLI contains both exact public keys before activation.
+A matching root ID alone does not establish a pin.
+Never generate replacement root keys for IDs already pinned by a released CLI.
+If one root key is lost, serve the other root. If both are lost, release new CLI pins.
 
-### Start a new root
-
-`create-root` signs the first signing key under a new root key. `add-key` signs the rest.
-
-```sh
-pnpm exec tsx scripts/trusted-root.ts signing-key --key-id skilld-root-2026-11 --out "$KEYS"
-pnpm exec tsx scripts/trusted-root.ts create-root \
-  --root-key-id skilld-root-2026-11 \
-  --root-key "$KEYS/skilld-root-2026-11.pkcs8" \
-  --key-id skilld-production-2026-08 \
-  --public-key-file "$KEYS/skilld-production-2026-08.pub" \
-  --not-before 2026-08-20T00:00:00Z \
-  --not-after 2026-11-20T00:00:00Z \
-  --out "$KEYS/skilld-root-2026-11.json"
-```
+`ARTIFACT_TRUSTED_ROOTS_JSON` holds a JSON array, primary first, backup second.
+The site verifies attestations with the first entry, without automatic failover from an invalid entry.
+Each `/api/v1/trusted-roots/{rootKeyId}` endpoint serves its own valid entry independently.
+An invalid entry logs its array index without logging its contents.
+Both roots must contain identical signing key IDs, public keys, statuses, algorithms, and validity windows.
+Their root public keys, statements, and root signatures differ by design.
 
 ## How signing works
 
 The site stages an attestation statement for a Resolution.
-The signer Worker `workers/artifact-signer` loads that statement from D1, checks the R2 bytes, and signs a digest of the statement.
+The signer Worker checks its D1 state and R2 bytes, then signs a digest of the statement.
+It signs only a Resolution in `signing` state with fresh check results.
 
-The signer has two key slots. Each slot is three vars in `workers/artifact-signer/wrangler.jsonc` and one secret.
+The signer has two slots in `workers/artifact-signer/wrangler.jsonc`:
 
 | Slot | Vars | Secret |
 | --- | --- | --- |
 | primary | `ARTIFACT_SIGNING_KEY_ID`, `ARTIFACT_SIGNING_KEY_NOT_BEFORE`, `ARTIFACT_SIGNING_KEY_NOT_AFTER` | `ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8` |
 | secondary | `ARTIFACT_SIGNING_SECONDARY_KEY_ID`, `ARTIFACT_SIGNING_SECONDARY_KEY_NOT_BEFORE`, `ARTIFACT_SIGNING_SECONDARY_KEY_NOT_AFTER` | `ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8` |
 
-A slot counts only when its vars name a key ID.
-A secret with no vars signs nothing, so you can put a secret before the deploy that names it.
-If a named slot has no valid secret, the signer refuses every request with `SIGNING_KEY_INVALID`.
+A secret with no slot vars signs nothing.
+If a named slot lacks a valid secret, every signing request fails with `SIGNING_KEY_INVALID`.
+The signer selects the newest key covering both the statement's `createdAt` and the current time.
+The site requires the same coverage and an `active` or `overlapping` status.
+The CLI checks the statement's time and the root signature against its compiled pin.
+The site parser checks statement consistency but does not verify root signatures.
+The ceremony verification below therefore gates publication.
 
-For each statement, the signer uses the newest key whose window holds both the statement's `createdAt` and the current time.
-A Resolution created before a new window opens still gets the old key.
-
-The trusted root is the `ARTIFACT_TRUSTED_ROOT_JSON` secret on the public Worker.
-It holds the root key ID, the root public key, and one entry per signing key.
-Each entry carries a statement that the offline root key signed.
-The site serves it at `/api/v1/trusted-root` with a five-minute cache.
-
-Each verifier applies these rules to a signing key:
-
-| Rule | Signer | Site | skilld CLI |
-| --- | --- | --- | --- |
-| The trusted root names the key with status `active` or `overlapping` | no | yes | yes |
-| The root key signed the key entry | no | no | yes |
-| The window holds the statement's `createdAt` | yes | yes | yes |
-| The window holds the current time | yes | yes | no |
-
-The CLI fetches the trusted root on every run and keeps no copy.
-It checks the root against a root key compiled into each release.
-Every release from 3.0.0 through 3.6.4 carries the root key `skilld-root-2026` and no signing key.
-A signing key rotation needs no CLI release. Only a root key change needs one.
-
-## What happens to stored Artifacts
-
-Once a key window closes, the site stops trusting every attestation that key signed.
-The next request for that Skill commit misses the reuse check with `attestation-untrusted` and builds again.
-The new build signs under the current key.
-The bytes match, so the Artifact ID and the R2 object stay the same. Only a new attestation row is added.
-
-The signer cannot sign a stored statement again. It signs only a Resolution in `signing` state with fresh check results.
-A rebuild is the only way to sign an Artifact again.
-
-The CLI keeps no attestation on disk. A lockfile names a commit, so `skilld install` resolves again and gets the new attestation.
-
-Private Artifacts follow the same path through `verifyArtifactAttestation`.
+When a key expires or leaves the roots, stored attestations lose site trust.
+The next request builds again and signs with the current key.
+Matching bytes keep the Artifact ID and R2 object. A new attestation row records the signature.
+Private Artifacts use the same attestation verification.
 
 ## Before you start
 
-You need the offline root private key for `skilld-root-2026`, in PKCS8 PEM or base64url DER form.
-Never copy it into the repository, [Cloudflare](https://cloudflare.com), or GitHub Actions.
+Restore both new root private keys from escrow.
+Keep them outside the repository, Cloudflare, and GitHub Actions.
+Prepare a complete root configuration file for each new root as a local pin file.
+Compare each file's `rootKeyId` and `rootPublicKey` with the reviewed CLI release's compiled pins.
+Stop if either differs. The tool parses each pin file as a complete root configuration.
+Do not obtain pins from the endpoint being tested.
+Save them as `$KEYS/primary-pin.json` and `$KEYS/backup-pin.json`.
 
-Work in a private directory outside the repository, for example on an encrypted volume.
-Set `KEYS` to that directory. Run every command from the repository root.
+Use a private directory on an encrypted volume. Run commands from the repository root:
 
 ```sh
 export KEYS=/path/to/private/dir
 ```
 
-`scripts/trusted-root.ts` runs the ceremony. It never prints a private key.
-It writes new files with mode 600 and refuses to overwrite a file.
-
-## Timeline
-
-All times are UTC. Each date is the latest safe date. Earlier is better.
-
-| Step | Action | Latest safe date |
-| --- | --- | --- |
-| 1 | Deploy slot support | 2026-11-02 |
-| 2 | Run the ceremony | 2026-11-06 |
-| 3 | Put the new trusted root on the site | 2026-11-09 |
-| 4 | Put the new private key in the free slot | 2026-11-09 |
-| 5 | Name the new key in the signer vars | 2026-11-13 |
-| 6 | Remove the old key from the trusted root | 2026-11-19 |
-| 7 | Empty the old slot | after 2026-11-20 |
-
-Step 3 must reach production at least 10 minutes before step 5, so that cached roots expire.
-If step 5 slips past 2026-11-13, a failed deploy has less than a week to recover.
-If step 5 does not deploy before `2026-11-20T00:00:00.000Z`, every `skilld run` fails until it does.
-
-## 1. Deploy slot support
-
-Confirm that `workers/artifact-signer/src/slots.ts` exists on `main`.
-Confirm that the last `Deploy to Cloudflare` run on `main` passed after that file arrived.
+The ceremony tool writes new files without overwriting existing files.
+Private key and root files use mode 600.
+The commands below assume escrowed roots already contain the old signing key.
+For initial activation, create those roots first with each escrowed private key:
 
 ```sh
-git fetch origin main
-git log -1 --format='%H %cs' origin/main -- workers/artifact-signer/src/slots.ts
-gh run list --repo skilld-dev/skilld.dev --workflow deploy-cloudflare.yml --branch main --limit 3
+for ROOT in skilld-root-2026-11 skilld-root-backup-2026-11; do
+  pnpm exec tsx scripts/trusted-root.ts create-root \
+    --root-key-id "$ROOT" --root-key "$KEYS/$ROOT.pkcs8" \
+    --key-id skilld-production-2026-08 \
+    --public-key-file "$KEYS/skilld-production-2026-08.pub" \
+    --not-before 2026-08-20T00:00:00Z --not-after 2026-11-20T00:00:00Z \
+    --out "$KEYS/$ROOT-before.json"
+done
 ```
 
-## 2. Run the ceremony
+Use the old public key and window from the preserved legacy root.
+For later rotations, save both current endpoints as the `*-before.json` files instead.
+Retain the exact previous array and its order as `$KEYS/roots-before.json` for rollback.
+For initial activation, record that the array was absent instead.
 
-Save the live root. It is the rollback value and the pin for the checks below.
+## 1. Prepare and verify both roots
 
-```sh
-curl -fsS https://skilld.dev/api/v1/trusted-root | jq -c 'del(.fetchedAt)' > "$KEYS/root-before.json"
-```
-
-Generate the new signing key.
+Generate one signing key, then sign the same entry under both root keys:
 
 ```sh
 pnpm exec tsx scripts/trusted-root.ts signing-key --key-id skilld-production-2026-11 --out "$KEYS"
+for ROOT in skilld-root-2026-11 skilld-root-backup-2026-11; do
+  pnpm exec tsx scripts/trusted-root.ts add-key \
+    --root "$KEYS/$ROOT-before.json" --root-key "$KEYS/$ROOT.pkcs8" \
+    --key-id skilld-production-2026-11 \
+    --public-key-file "$KEYS/skilld-production-2026-11.pub" \
+    --not-before 2026-11-18T00:00:00Z --not-after 2027-05-20T00:00:00Z \
+    --status active --out "$KEYS/$ROOT-next.json"
+done
+pnpm exec tsx scripts/trusted-root.ts verify \
+  --root "$KEYS/skilld-root-2026-11-next.json" --pin "$KEYS/primary-pin.json" \
+  --peer-root "$KEYS/skilld-root-backup-2026-11-next.json" --peer-pin "$KEYS/backup-pin.json" \
+  --key-id skilld-production-2026-11 --signing-key "$KEYS/skilld-production-2026-11.pkcs8"
+jq -s '.' "$KEYS/skilld-root-2026-11-next.json" "$KEYS/skilld-root-backup-2026-11-next.json" > "$KEYS/roots-next.json"
 ```
 
-Sign its statement with the root key.
-Set `--not-before` to the ceremony day at 00:00. Set `--not-after` six months later.
-A longer window means fewer ceremonies. A shorter one limits the damage of a leaked key.
+Stop unless verification prints `OK`.
+It checks both pins, both sets of root signatures, matching signer coverage, and the new signing private key.
+If the ceremony date changes, use its UTC midnight for `notBefore` in both roots and signer vars.
+
+## 2. Publish and verify both endpoints
+
+Production deployment uses `.github/workflows/deploy-cloudflare.yml` only.
+Execute secret uploads as approved configuration steps in that workflow, never as a local deployment.
+The upload step consumes the verified array, which contains public data only:
 
 ```sh
-pnpm exec tsx scripts/trusted-root.ts add-key \
-  --root "$KEYS/root-before.json" \
-  --root-key /path/to/root-private-key \
-  --key-id skilld-production-2026-11 \
-  --public-key-file "$KEYS/skilld-production-2026-11.pub" \
-  --not-before 2026-10-14T00:00:00Z \
-  --not-after 2027-05-20T00:00:00Z \
-  --status active \
-  --out "$KEYS/root-next.json"
+pnpm exec wrangler secret put ARTIFACT_TRUSTED_ROOTS_JSON --config wrangler.jsonc < "$KEYS/roots-next.json"
 ```
 
-Use `active`. The verifiers treat `overlapping` the same way, and the status is part of the signed statement.
-
-Check the new root by the rules every released CLI applies, and check that the private key matches the entry:
+Do not upload either new root to `ARTIFACT_TRUSTED_ROOT_JSON`.
+After the route deployment, verify both live endpoints against their own independent pins:
 
 ```sh
 pnpm exec tsx scripts/trusted-root.ts verify \
-  --root "$KEYS/root-next.json" \
-  --pin "$KEYS/root-before.json" \
-  --key-id skilld-production-2026-11 \
-  --signing-key "$KEYS/skilld-production-2026-11.pkcs8"
+  --root https://skilld.dev/api/v1/trusted-roots/skilld-root-2026-11 --pin "$KEYS/primary-pin.json" \
+  --peer-root https://skilld.dev/api/v1/trusted-roots/skilld-root-backup-2026-11 --peer-pin "$KEYS/backup-pin.json"
 ```
 
-Stop unless it prints `OK`.
+Stop unless it prints `OK` and lists both signing keys.
+Wait at least 10 minutes after publication before switching the signer, so five-minute endpoint caches expire.
+Confirm a released CLI with both new pins can run a Skill before proceeding.
+Do not use an old CLI's success under the old key as proof of new root support.
 
-## 3. Put the new trusted root on the site
+## 3. Activate the signer
 
-```sh
-pnpm exec wrangler secret put ARTIFACT_TRUSTED_ROOT_JSON --config wrangler.jsonc < "$KEYS/root-next.json"
-```
-
-The put deploys a new public Worker version at once.
-
-Verify the live root:
-
-```sh
-pnpm exec tsx scripts/trusted-root.ts verify --root https://skilld.dev/api/v1/trusted-root --pin "$KEYS/root-before.json"
-```
-
-It must list both keys and print `OK`.
-
-Run the oldest and newest released CLIs. Each run checks every root signature as shipped:
-
-```sh
-npx -y skilld@3.0.0 run skilld-dev/skills/find-skill > /dev/null && echo ok
-npx -y skilld@latest run skilld-dev/skills/find-skill > /dev/null && echo ok
-```
-
-If either run fails with a `TRUSTED_ROOT_` code, roll back this step at once.
-
-## 4. Put the new private key in the free slot
-
-The free slot is the one whose vars name no key. For this rotation it is the secondary slot.
+Confirm slot support passed the production deploy workflow.
+The free slot has no key ID vars. This rotation uses the secondary slot.
+Upload its signing secret through the approved deploy workflow before adding its vars:
 
 ```sh
 pnpm --filter @skilld/artifact-signer-worker exec wrangler secret put ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8 --config wrangler.jsonc < "$KEYS/skilld-production-2026-11.pkcs8"
-pnpm --filter @skilld/artifact-signer-worker exec wrangler secret list --config wrangler.jsonc
 ```
 
-The list must name `ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8`.
-The signer still signs with the old key, because no vars name the secondary slot.
-
-## 5. Name the new key in the signer vars
-
-Open a pull request that adds these vars to `workers/artifact-signer/wrangler.jsonc`.
-Use the same window as the trusted root entry, or a window inside it.
+Open a pull request adding these vars to `workers/artifact-signer/wrangler.jsonc`:
 
 ```jsonc
 {
   "vars": {
     "ARTIFACT_SIGNING_SECONDARY_KEY_ID": "skilld-production-2026-11",
-    "ARTIFACT_SIGNING_SECONDARY_KEY_NOT_BEFORE": "2026-10-14T00:00:00.000Z",
+    "ARTIFACT_SIGNING_SECONDARY_KEY_NOT_BEFORE": "2026-11-18T00:00:00.000Z",
     "ARTIFACT_SIGNING_SECONDARY_KEY_NOT_AFTER": "2027-05-20T00:00:00.000Z"
   }
 }
 ```
 
-Regenerate the signer types in the same pull request:
-
-```sh
-pnpm --filter @skilld/artifact-signer-worker types
-```
-
-Before you merge, confirm step 3 is live and step 4 lists the secret.
-The merge runs `Deploy to Cloudflare`. It deploys the signer first.
-From that deploy, each new build signs with `skilld-production-2026-11`.
-
-Count attestations per key. New builds must show the new key ID:
+Run `pnpm --filter @skilld/artifact-signer-worker types` in that pull request.
+Before merging, confirm both live root checks passed and the secondary secret exists.
+The deploy workflow deploys the signer first. New statements then use the new key.
+Inspect new attestation key IDs with a read-only D1 query:
 
 ```sh
 pnpm exec wrangler d1 execute DB --remote --config wrangler.jsonc --command \
   "SELECT json_extract(attestation_json, '$.signature.keyId') AS key_id, COUNT(*) AS attestations, datetime(MAX(created_at), 'unixepoch') AS newest FROM artifact_attestations GROUP BY key_id"
 ```
 
-Check [Sentry](https://sentry.io) for `Artifact signer returned an invalid signature` and the signer logs for `SIGNING_KEY_INVALID`.
-Either one means the signer and the trusted root disagree. Roll back this step.
+Check signer logs for `SIGNING_KEY_INVALID` and Sentry for `Artifact signer returned an invalid signature`.
+Either error requires signer rollback while the old window remains open.
 
-## 6. Remove the old key from the trusted root
+## 4. Remove the old signing key
 
-Do this at a time you can watch, at least one day before the old window closes.
-Every stored Artifact that the old key signed then builds again on its next request.
-The same rebuilds happen at `2026-11-20T00:00:00.000Z` anyway. Before that time, you can still roll back.
-
-Removal needs no root key.
+After confirming new signatures work, remove the old entry from both new roots:
 
 ```sh
-pnpm exec tsx scripts/trusted-root.ts remove-key --root "$KEYS/root-next.json" --key-id skilld-production-2026-08 --out "$KEYS/root-after.json"
-pnpm exec tsx scripts/trusted-root.ts verify --root "$KEYS/root-after.json" --pin "$KEYS/root-before.json"
-pnpm exec wrangler secret put ARTIFACT_TRUSTED_ROOT_JSON --config wrangler.jsonc < "$KEYS/root-after.json"
-pnpm exec tsx scripts/trusted-root.ts verify --root https://skilld.dev/api/v1/trusted-root --pin "$KEYS/root-before.json"
+for ROOT in skilld-root-2026-11 skilld-root-backup-2026-11; do
+  pnpm exec tsx scripts/trusted-root.ts remove-key \
+    --root "$KEYS/$ROOT-next.json" --key-id skilld-production-2026-08 --out "$KEYS/$ROOT-after.json"
+done
+pnpm exec tsx scripts/trusted-root.ts verify \
+  --root "$KEYS/skilld-root-2026-11-after.json" --pin "$KEYS/primary-pin.json" \
+  --peer-root "$KEYS/skilld-root-backup-2026-11-after.json" --peer-pin "$KEYS/backup-pin.json"
+jq -s '.' "$KEYS/skilld-root-2026-11-after.json" "$KEYS/skilld-root-backup-2026-11-after.json" > "$KEYS/roots-after.json"
 ```
 
-Watch the build queue, failed jobs, and [GitHub](https://github.com) read quota in the daily check-in for one hour.
-A CLI that held a Resolution across the change fails once with `SIGNING_KEY_UNKNOWN`. Its next run passes.
+Publish `roots-after.json` to `ARTIFACT_TRUSTED_ROOTS_JSON` through the same workflow configuration step.
+Repeat the live endpoint verification from step 2.
+Preserve the legacy secret. Removing its old key cannot make old CLIs trust the new key.
+Watch the build queue and failed jobs for one hour as stored Artifacts rebuild.
+A Resolution held across removal can fail once with `SIGNING_KEY_UNKNOWN`; its next run resolves again.
 
-## 7. Empty the old slot
-
-After `2026-11-20T00:00:00.000Z`, open a pull request that removes the three primary slot vars from `workers/artifact-signer/wrangler.jsonc`.
-Regenerate the signer types in it.
-After its deploy, delete the old secret:
-
-```sh
-pnpm --filter @skilld/artifact-signer-worker exec wrangler secret delete ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8 --config wrangler.jsonc
-```
-
-Never delete a secret while vars still name its slot. The signer then refuses every request.
-
-Store the new private key file offline, or delete it. Cloudflare holds the only copy the signer needs.
-
-## Next rotation
-
-The next rotation uses the slot this one emptied, so the slots alternate.
-Repeat steps 2 to 7 with the slot names swapped.
-`skilld.signing-key` warns 30 days before `skilld-production-2026-11` closes.
+After November 20, remove the three primary slot vars through a pull request and regenerate signer types.
+After that deployment, delete `ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8` through the approved configuration workflow.
+Never delete a secret while vars name its slot.
+Store the new signing private key offline, or delete the local copy.
 
 ## Roll back
 
-| Step | Roll back | Valid until |
+| Change | Recovery | Limit |
 | --- | --- | --- |
-| 3 | Put `$KEYS/root-before.json` back as `ARTIFACT_TRUSTED_ROOT_JSON`. | step 5 deploys |
-| 4 | Delete `ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8`. | step 5 deploys |
-| 5 | Revert the vars pull request. The signer signs with the old key again. Keep the new key in the trusted root, because it signed live attestations. | `2026-11-20T00:00:00.000Z` |
-| 6 | Put `$KEYS/root-next.json` back as `ARTIFACT_TRUSTED_ROOT_JSON`. | `2026-11-20T00:00:00.000Z` |
+| New array, before signer activation | Restore the previous array and order. For initial activation, remove the array to restore legacy site verification. | Before any new-key attestations exist |
+| Secondary secret, before slot vars | Delete the unused secondary secret through the configuration workflow. | Before signer activation |
+| Signer activation | Revert the vars pull request. Keep the new signing key in both roots because it signed live attestations. | Old key window closes November 20 |
+| Old key removal | Republish `roots-next.json` to `ARTIFACT_TRUSTED_ROOTS_JSON`, then verify both endpoints against their pins. | Old signatures remain usable only before November 20 |
 
-Never remove a key from the trusted root while the signer still names it.
-The site then rejects every new signature, and every build fails.
+Do not restore legacy-only verification after the new key signs live attestations.
+After the old window closes, recover forward with a valid new signing key in both roots and the signer.
+All recovery deployments use the production workflow. Never overwrite the legacy secret with a new root.
 
-## Rules for every released CLI
+For root failover, validate matching coverage first, then serve only the backup root in the array.
+Verify its endpoint against the backup pin. Removing the primary lets clients select the backup.
+The backup becomes the site's first entry. Do not leave an invalid primary in that position.
 
-- Never change the root key without a CLI release. Each release compiles in the root key and refuses any other root.
-- Never add a field to a trusted root key entry or statement. The CLI rejects unknown fields there.
-- Use only the statuses `active`, `overlapping`, `retired`, and `revoked`.
-- A status change needs a new root signature. Remove a key instead of retiring it.
-- Run `scripts/trusted-root.ts verify` before every `wrangler secret put ARTIFACT_TRUSTED_ROOT_JSON`.
-  The site never checks a root signature. A bad one stops every CLI with an upgrade message that no upgrade fixes.
+## Next rotation
+
+Alternate signer slots. Repeat the ceremony for both roots and compare coverage before every publication.
+Never add fields to key entries or statements, because released CLIs reject unknown fields.
+Use only `active`, `overlapping`, `retired`, and `revoked` statuses.
+A status change requires a new root signature. Removal needs no root private key.
