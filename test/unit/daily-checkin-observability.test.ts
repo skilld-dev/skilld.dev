@@ -12,6 +12,8 @@ import {
   runListArgs,
   summarizeCopies,
   summarizeWorkflowRuns,
+  workersQueryFailure,
+  workersWindow,
 } from '../../checks/_helpers/observability.mjs'
 
 function run(
@@ -105,6 +107,39 @@ describe('daily check-in observability', () => {
       '2026-08-20T02:28:50.987Z',
       '2026-08-21T02:53:53.726Z',
     )).toContain('filter: {scriptName: "skilld-dev"')
+  })
+
+  // On 2026-11-18 a run asked for the 38 days since its baseline. Cloudflare
+  // refuses a range wider than 32 days, so the check read nothing and said
+  // only "Cloudflare GraphQL returned HTTP 200."
+  it('reads the newest 32 days of a longer Worker analytics window', () => {
+    expect(workersWindow('2026-10-11T00:30:48.064Z', '2026-11-18T03:54:12.024Z')).toEqual({
+      _tag: 'clamped',
+      since: '2026-10-17T03:54:12.024Z',
+      until: '2026-11-18T03:54:12.024Z',
+      requestedSince: '2026-10-11T00:30:48.064Z',
+    })
+  })
+
+  it('reads a Worker analytics window of exactly 32 days whole', () => {
+    expect(workersWindow('2026-10-17T03:54:12.024Z', '2026-11-18T03:54:12.024Z')).toEqual({
+      _tag: 'whole',
+      since: '2026-10-17T03:54:12.024Z',
+      until: '2026-11-18T03:54:12.024Z',
+    })
+  })
+
+  it('names the GraphQL error that a 200 response carries', () => {
+    expect(workersQueryFailure(200, { errors: [{ message: 'cannot request a time range wider than 4w4d' }] }))
+      .toBe('Cloudflare GraphQL returned HTTP 200: cannot request a time range wider than 4w4d')
+  })
+
+  it('names the status of a failed response without errors', () => {
+    expect(workersQueryFailure(403, {})).toBe('Cloudflare GraphQL returned HTTP 403.')
+  })
+
+  it('accepts a 200 response without errors', () => {
+    expect(workersQueryFailure(200, { data: {} })).toBeNull()
   })
 
   // The exact shape from issue #195: the routine ran on 2026-09-09 and not

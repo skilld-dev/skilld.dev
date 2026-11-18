@@ -39,3 +39,13 @@ export function evaluateD1(data, now, since) {
     || data.syncJobs?.some(job => job.last_status === 'partial' && job.last_run_at >= since.getTime() / 1000)
   return warning ? warn('Database evidence needs attention.', data) : pass(data)
 }
+
+/** @returns {import('@harlan-zw/nuxt-checkin/external').CheckResult} Worker outcome verdict with window coverage. */
+export function evaluateWorkers(data) {
+  const outcome = data.nonOk.length ? 'Worker requests have non-success outcomes.' : null
+  if (data.window._tag === 'whole')
+    return outcome ? warn(outcome, data) : pass(data)
+  // The oldest part of the window went unread, so a clean read proves nothing about it.
+  const gap = `Worker analytics cover only ${data.window.since} onward; the window started ${data.window.requestedSince}.`
+  return { _tag: 'Warn', reason: outcome ? `${outcome} ${gap}` : gap, evidence: data, coverage: 'incomplete' }
+}
