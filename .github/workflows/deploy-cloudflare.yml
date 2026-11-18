@@ -92,6 +92,18 @@ jobs:
           # are un-minified and tagged with a release (fixes release: None on SKILLD-1).
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
+      # Sentry deletes source maps only after it uploads them. Skew storage
+      # restores earlier releases' maps into `.output/public`, so a build
+      # without the token would serve them. Stop before production changes.
+      - name: Refuse public source maps
+        run: |
+          maps=$(find .output/public -name '*.map')
+          if [ -n "$maps" ]; then
+            echo "::error::Source map files in .output/public: $(printf '%s\n' "$maps" | wc -l). Production would serve them."
+            printf '%s\n' "$maps" | sed -n '1,5p'
+            exit 1
+          fi
+
       - name: Apply D1 migrations
         run: pnpm db:migrations:prod
         env:
