@@ -967,6 +967,6 @@ export default defineNuxtConfig({
 
   sourcemap: {
     client: hasSentryAuthToken ? 'hidden' : false,
-    server: false,
+    server: hasSentryAuthToken ? 'hidden' : false,
   },
 })
