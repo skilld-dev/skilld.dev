@@ -121,6 +121,10 @@ jobs:
       - name: Deploy Artifact signer
         run: pnpm production:deploy-signer
         env:
+          # The newest slot's secret is required, even before its window opens.
+          # Older secrets are optional. Every supplied key must match the root.
+          ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8: ${{ secrets.ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8 }}
+          ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8: ${{ secrets.ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8 }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
