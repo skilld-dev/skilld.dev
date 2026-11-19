@@ -207,22 +207,9 @@ Regenerate the signer types in the same pull request:
 pnpm --filter @skilld/artifact-signer-worker types
 ```
 
-Before you merge, confirm step 3 is live.
-Supply `ARTIFACT_SIGNING_SECONDARY_PRIVATE_KEY_PKCS8` as a repository Actions secret for this rotation.
-Use the same private key file as the ceremony.
-The newest slot always requires its Actions secret, even before its window opens.
-The older slot's Actions secret is optional; Wrangler preserves omitted Worker secrets.
-A Worker secret listing proves only that a secret exists.
-
+Before you merge, confirm step 3 is live and step 4 lists the secret.
 The merge runs `Deploy to Cloudflare`. It deploys the signer first.
-The deployment preflight checks configured windows and statuses against `/api/v1/trusted-roots/skilld-root-2026-11`.
-It checks root signatures and matches every supplied private key, including the future key.
-If the newest key is missing or any supplied key mismatches, deployment stops.
-Wrangler uploads the checked keys with the signer version through `--secrets-file`.
-The deployment removes its temporary key file when the command finishes.
-
-New builds use `skilld-production-2026-11` only after its window opens.
-After `2026-11-19T20:00:00Z`, verify a fresh build reaches `ready` with that key ID.
+From that deploy, each new build signs with `skilld-production-2026-11`.
 
 Count attestations per key. New builds must show the new key ID:
 
