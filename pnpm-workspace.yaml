@@ -290,6 +290,7 @@ catalog:
   '@iconify-json/lucide': ^1.2.128
   '@iconify-json/simple-icons': ^1.2.94
   '@iconify-json/vscode-icons': ^1.2.76
+  '@jridgewell/trace-mapping': 0.3.31
   '@modelcontextprotocol/client': 2.0.0
   '@modelcontextprotocol/sdk': 1.32.0
   '@modelcontextprotocol/server': 2.3.0
@@ -327,6 +328,7 @@ catalog:
   import-in-the-middle: ^3.4.0
   jsonc-parser: 3.3.1
   lint-staged: ^17.4.1
+  magic-string: 1.2.3
   marked: ^18.0.11
   motion-v: ^2.5.1
   nuxt: ^4.6.3
