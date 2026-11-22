@@ -91,34 +91,36 @@ export default defineNuxtPlugin({
     // Nuxt installs only push, hooks, render and install before the shell activates.
     installClientHead(nuxtApp, installableHead as unknown as Parameters<typeof installClientHead>[1])
 
+    const connection = (navigator as Navigator & { connection?: { rtt?: number } }).connection
+    const rtt = connection?.rtt
+    if (!rtt || rtt >= 150) {
+      const warm = () => {
+        if (loading)
+          return
+        performance.mark('skilld-head-warm')
+        for (const file of assets.content.split(' ')) {
+          const link = document.createElement('link')
+          link.rel = 'modulepreload'
+          link.setAttribute('fetchpriority', 'low')
+          link.crossOrigin = ''
+          link.href = buildAssetsURL(file)
+          document.head.appendChild(link)
+        }
+      }
+      // Hydration can last until the first click on a slow connection.
+      if ('requestIdleCallback' in globalThis)
+        requestIdleCallback(warm, { timeout: 500 })
+      else
+        setTimeout(warm)
+    }
+    assets.remove()
+
     nuxtApp.hook('app:suspense:resolve', () => {
       if (hydrated)
         return
       head.finishHydration()
       hydrated = true
       performance.mark('skilld-head-hydrated')
-      const connection = (navigator as Navigator & { connection?: { rtt?: number } }).connection
-      const rtt = connection?.rtt
-      if (!rtt || rtt >= 150) {
-        const warm = () => {
-          if (loading)
-            return
-          performance.mark('skilld-head-warm')
-          for (const file of assets.content.split(' ')) {
-            const link = document.createElement('link')
-            link.rel = 'modulepreload'
-            link.setAttribute('fetchpriority', 'low')
-            link.crossOrigin = ''
-            link.href = buildAssetsURL(file)
-            document.head.appendChild(link)
-          }
-        }
-        if ('requestIdleCallback' in globalThis)
-          requestIdleCallback(warm, { timeout: 1000 })
-        else
-          setTimeout(warm)
-      }
-      assets.remove()
     })
     nuxtApp.hook('app:created', () => {
       nuxtApp.$router.beforeEach((to, from) => {

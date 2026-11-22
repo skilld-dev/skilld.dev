@@ -4,7 +4,9 @@ import assets from '#skilld-head-assets'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('render:html', (html, { event, streaming }) => {
-    if (!streaming && event.path.split('?')[0] === '/') {
+    const [path, query] = event.path.split('?', 2)
+    const pilot = path === '/' && new URLSearchParams(query).get('head') === 'lazy'
+    if (!streaming && pilot) {
       html.head.push(`<meta name="skilld-head-assets" content="${assets.runtime} ${assets.options}">`)
     }
     else {
