@@ -1,0 +1,1285 @@
+diff --git a/dist/chunks/devCheck.mjs b/dist/chunks/devCheck.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f4d8fb2deaab586dde51057d9c0dec9e4ffc14d4
+--- /dev/null
++++ b/dist/chunks/devCheck.mjs
+@@ -0,0 +1,134 @@
++import { c as createUnhead, r as resolveTags, H as HasElementTags, i as isMetaArrayDupeKey, t as tagWeight, n as normalizeProps, d as dedupeKey, h as hashTag } from '../shared/unhead.QUR5kIxs.mjs';
++import 'unhead/utils';
++
++const WARNED = "unhead:lazy-warned";
++function readWarned(view) {
++  try {
++    return new Set(JSON.parse(view?.sessionStorage.getItem(WARNED) || "[]"));
++  } catch {
++    return /* @__PURE__ */ new Set();
++  }
++}
++function saveWarned(view, warned) {
++  try {
++    view?.sessionStorage.setItem(WARNED, JSON.stringify([...warned]));
++  } catch {
++  }
++}
++const FIX = `It applies when the framework loads the head. Push the same input on the server and the client, or call head.load().`;
++function attr(value) {
++  if (value === false || value == null || typeof value === "function")
++    return void 0;
++  if (value === true)
++    return "";
++  if (value instanceof Set)
++    return [...value].join(" ");
++  if (value instanceof Map)
++    return [...value].map(([k, v]) => `${k}:${v}`).join(";");
++  return String(value);
++}
++function label(tag) {
++  if (tag.tag === "htmlAttrs")
++    return "<html>";
++  if (tag.tag === "bodyAttrs")
++    return "<body>";
++  const p = tag.props;
++  const id = ["name", "property", "http-equiv", "charset", "rel", "src", "id"].filter((k) => p[k] != null && p[k] !== false).map((k) => `${k}="${attr(p[k])}"`);
++  if (p.rel && p.href)
++    id.push(`href="${p.href}"`);
++  return `<${[tag.tag, ...id].join(" ")}>`;
++}
++function indexDocument(document) {
++  const index = /* @__PURE__ */ new Map();
++  for (const el of [...document.head.children, ...document.body.children]) {
++    const tag = el.tagName.toLowerCase();
++    if (!HasElementTags.has(tag))
++      continue;
++    const props = { innerHTML: el.innerHTML };
++    for (const n of el.getAttributeNames())
++      props[n] = el.getAttribute(n);
++    const next = normalizeProps({ tag, props: {} }, props);
++    next.key = el.getAttribute("data-hid") || void 0;
++    const dedupe = dedupeKey(next) || hashTag(next);
++    let k = dedupe;
++    let c = 1;
++    while (index.has(k))
++      k = `${dedupe}:${c++}`;
++    index.set(k, el);
++  }
++  return index;
++}
++function differences(tag, el) {
++  const out = [];
++  const props = tag.props;
++  for (const k in props) {
++    const v = props[k];
++    if (k === "class" && v instanceof Set) {
++      if ([...v].some((c) => !el.classList.contains(c)))
++        out.push("class");
++    } else if (k === "style" && v instanceof Map) {
++      if ([...v].some(([sk, sv]) => el.style.getPropertyValue(sk) !== sv))
++        out.push("style");
++    } else if (!(k[0] === "o" && k[1] === "n")) {
++      const value = attr(v);
++      if (value !== void 0 && el.getAttribute(k) !== value)
++        out.push(k);
++    }
++  }
++  if (tag.textContent != null && tag.textContent !== "" && String(tag.textContent) !== el.textContent)
++    out.push("textContent");
++  if (tag.innerHTML != null && tag.innerHTML !== "" && String(tag.innerHTML) !== el.innerHTML)
++    out.push("innerHTML");
++  return out;
++}
++function checkHydratedHead(options, queue) {
++  const document = options.document ?? globalThis.document;
++  if (!document || options.lazyPlugins || options.plugins?.length || queue.plugins.length)
++    return;
++  const head = createUnhead(() => false, { document, propResolvers: options.propResolvers, _tagWeight: tagWeight });
++  const sources = {};
++  for (const [id, entry] of queue.entries) {
++    if (!entry.disposed) {
++      head.push(entry.input, { ...entry.options, _index: id });
++      sources[id] = entry.source;
++    }
++  }
++  const tags = resolveTags(head);
++  const index = indexDocument(document);
++  const counter = {};
++  const warned = readWarned(document.defaultView);
++  for (const tag of tags) {
++    let problem;
++    if (tag.tag === "title") {
++      if (String(tag.textContent ?? "") !== document.title)
++        problem = `differs from the server head: "${tag.textContent}" on the client, "${document.title}" in the document`;
++    } else if (tag.tag === "htmlAttrs" || tag.tag === "bodyAttrs") {
++      const diff = differences(tag, tag.tag === "htmlAttrs" ? document.documentElement : document.body);
++      if (diff.length)
++        problem = `differs from the server head in ${diff.join(", ")}`;
++    } else if (HasElementTags.has(tag.tag)) {
++      const count = counter[tag._d] || 0;
++      const id = (count ? `${tag._d}:${count}` : tag._d) || tag._h;
++      if (tag.tag === "meta" && tag._d && isMetaArrayDupeKey(tag._d))
++        counter[tag._d] = count + 1;
++      const el = index.get(id);
++      const diff = el && differences(tag, el);
++      if (!el)
++        problem = "is missing from the server head";
++      else if (diff.length)
++        problem = `differs from the server head in ${diff.join(", ")}`;
++    }
++    if (!problem)
++      continue;
++    const entry = tag._p === void 0 ? void 0 : tag._p >> 10;
++    const source = entry === void 0 ? "" : ` Pushed by ${sources[entry] || `entry ${entry}`}.`;
++    const key = label(tag) + source;
++    if (warned.has(key))
++      continue;
++    warned.add(key);
++    console.warn(`[unhead] ${label(tag)} ${problem}.${source} ${FIX}`);
++  }
++  saveWarned(document.defaultView, warned);
++}
++
++export { checkHydratedHead };
+diff --git a/dist/chunks/runtime.mjs b/dist/chunks/runtime.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8dee38e034af5bbc856501cdf9fe41ea40766e29
+--- /dev/null
++++ b/dist/chunks/runtime.mjs
+@@ -0,0 +1,543 @@
++import { a as callHook, r as resolveTags, i as isMetaArrayDupeKey, H as HasElementTags, n as normalizeProps, d as dedupeKey, h as hashTag, c as createUnhead, t as tagWeight } from '../shared/unhead.QUR5kIxs.mjs';
++import { HookableCore } from 'hookable';
++import { c as copyInput } from '../shared/unhead.CyNMusnl.mjs';
++import 'unhead/utils';
++
++function createClientHeadAdapter(core, hooks, render) {
++  const corePush = core.push;
++  const head = core;
++  head.ssr = false;
++  head.hooks = hooks;
++  head.dirty = !!head.dirty;
++  head.render = () => render(head);
++  function notify() {
++    head.dirty = true;
++    hooks.callHook("entries:updated", head);
++    if (!head._b)
++      head.render();
++  }
++  head.invalidate = () => {
++    for (const entry of head.entries.values())
++      delete entry._tags;
++    notify();
++  };
++  head.push = (input, entryOptions) => {
++    const unhook = entryOptions?.onRendered ? hooks.hook("dom:rendered", entryOptions.onRendered) : void 0;
++    const active = corePush(input, entryOptions);
++    const entry = core.entries.get(active._i);
++    if (entry)
++      entry._o = input;
++    notify();
++    return {
++      _i: active._i,
++      patch(input2) {
++        active.patch(input2);
++        notify();
++      },
++      dispose() {
++        unhook?.();
++        if (core.entries.has(active._i)) {
++          active.dispose();
++          head.invalidate();
++        }
++      }
++    };
++  };
++  return head;
++}
++
++const WHITESPACE_RE = /\s+/;
++function hasPendingEntries(head) {
++  for (const entry of head.entries.values()) {
++    if (entry._pending !== void 0)
++      return true;
++  }
++  return false;
++}
++function createDomState(head, dom) {
++  const state = { _d: dom, _t: dom.title, _e: /* @__PURE__ */ new Map([["htmlAttrs", dom.documentElement], ["bodyAttrs", dom.body]]), _p: {}, _s: {}, _l: /* @__PURE__ */ new Map() };
++  for (const entry of head.entries.values()) {
++    for (const t of ["bodyAttrs", "htmlAttrs"]) {
++      const cls = entry._o?.[t]?.class;
++      if (typeof cls === "string") {
++        const $el = state._e.get(t);
++        for (const c of cls.split(WHITESPACE_RE)) {
++          if (c)
++            state._p[`${t}:attr:class:${c}`] = () => $el.classList.remove(c);
++        }
++      }
++    }
++  }
++  return state;
++}
++function _renderDOMHead(head, options = {}, adoption) {
++  const dom = options.document || head.resolvedOptions.document;
++  const activeState = head._dom;
++  if (!dom || head._du || activeState && activeState._d === dom && !head.dirty && !hasPendingEntries(head))
++    return false;
++  const defaultView = dom.defaultView;
++  head._du = true;
++  let didRender = false;
++  try {
++    let track = function(key, fn, fresh) {
++      if (keepEffects && renderState._s[key])
++        return;
++      renderState._s[key] = !fresh && previous[key] || fn;
++      delete previous[key];
++    }, trackEvent = function(id, k, ev, source, $el, target) {
++      const key = `${id}:event:${k}`;
++      const prev = renderState._l.get(key);
++      if (prev && prev[0] === target && prev[1] === source) {
++        track(key, prev[3]);
++        return;
++      }
++      prev?.[3]();
++      const dk = `data-${k}`;
++      const handler = ((e) => source.call($el, e));
++      const cleanup = () => {
++        target.removeEventListener(ev, handler);
++        if ($el.getAttribute(dk) === "")
++          $el.removeAttribute(dk);
++        if (renderState._l.get(key)?.[2] === handler)
++          renderState._l.delete(key);
++      };
++      target.addEventListener(ev, handler);
++      renderState._l.set(key, [target, source, handler, cleanup]);
++      $el.setAttribute(dk, "");
++      track(key, cleanup, true);
++    }, trackCtx = function({ id, $el, tag }) {
++      renderState._e.set(id, $el);
++      if (!tag.tag.endsWith("Attrs")) {
++        const text = tag.textContent;
++        if (text != null && text !== "") {
++          if (!adoption && text !== $el.textContent)
++            $el.textContent = text;
++          track(`${id}:text`, () => {
++            if ($el.textContent === text)
++              $el.textContent = "";
++          }, true);
++        }
++        const html = tag.innerHTML;
++        if (html != null && html !== "") {
++          if (!adoption && html !== $el.innerHTML)
++            $el.innerHTML = html;
++          track(`${id}:html`, () => {
++            if ($el.innerHTML === html)
++              $el.innerHTML = "";
++          }, true);
++        }
++        const elKey = `${id}:el`;
++        track(elKey, previous[elKey] || (() => {
++          $el?.remove();
++          renderState._e.delete(id);
++        }));
++      }
++      for (const k in tag.props) {
++        const v = tag.props[k];
++        if (k[0] === "o" && k[1] === "n" && typeof v === "function") {
++          if (adoption)
++            continue;
++          const ev = k.slice(2);
++          if ($el?.dataset?.[`${k}fired`])
++            v.call($el, new (defaultView?.Event || Event)(ev));
++          trackEvent(id, k, ev, v, $el, tag.tag === "bodyAttrs" && defaultView ? defaultView : $el);
++          continue;
++        }
++        const ck = `${id}:attr:${k}`;
++        if (k === "class" && v) {
++          for (const c of v) {
++            const key = `${ck}:${c}`;
++            track(key, previous[key] || (() => $el.classList.remove(c)));
++            if (!adoption && !$el.classList.contains(c))
++              $el.classList.add(c);
++          }
++        } else if (k === "style" && v) {
++          for (const [sk, sv] of v) {
++            const key = `${ck}:${sk}`;
++            track(key, previous[key] || (() => $el.style.removeProperty(sk)));
++            if (!adoption)
++              $el.style.setProperty(sk, sv);
++          }
++        } else if (v !== false && v !== null) {
++          if (!adoption && $el.getAttribute(k) !== v)
++            $el.setAttribute(k, v === true ? "" : String(v));
++          track(ck, previous[ck] || (() => $el.removeAttribute(k)));
++        }
++      }
++    };
++    const beforeRenderCtx = { shouldRender: true, tags: [] };
++    callHook(head, "dom:beforeRender", beforeRenderCtx);
++    if (!beforeRenderCtx.shouldRender)
++      return false;
++    let state = activeState;
++    if (state?._d !== dom) {
++      if (state) {
++        for (const k in state._s) state._s[k]();
++        for (const k in state._p) state._p[k]();
++        state._s = state._p = {};
++        state._e.clear();
++        state._l.clear();
++      }
++      state = void 0;
++    }
++    const keepEffects = adoption && !!state;
++    if (!state) {
++      state = createDomState(head, dom);
++    } else {
++      state._p = keepEffects ? {} : state._s;
++    }
++    if (!keepEffects)
++      state._s = {};
++    const renderState = state;
++    const previous = renderState._p;
++    const pending = [];
++    const frag = {};
++    head.dirty = false;
++    const rawTags = resolveTags(head, options, adoption);
++    const tags = [];
++    const dupeKeyCounter = {};
++    for (const tag of rawTags) {
++      const count = dupeKeyCounter[tag._d] || 0;
++      const id = (count ? `${tag._d}:${count}` : tag._d) || tag._h;
++      const ctx = { tag, id, shouldRender: true };
++      if (tag.tag === "meta" && tag._d && isMetaArrayDupeKey(tag._d))
++        dupeKeyCounter[tag._d] = count + 1;
++      tags.push(ctx);
++      if (tag.tag === "title") {
++        if (!adoption)
++          dom.title = tag.textContent;
++        track("title:", () => dom.title = renderState._t);
++        continue;
++      }
++      ctx.$el = renderState._e.get(id);
++      if (ctx.$el)
++        trackCtx(ctx);
++      else if (HasElementTags.has(tag.tag))
++        pending.push(ctx);
++    }
++    if (pending.length) {
++      const tracked = /* @__PURE__ */ new Set();
++      for (const [key, $el] of renderState._e) {
++        const trackedKey = `${key}:el`;
++        if (renderState._s[trackedKey] === void 0 && previous[trackedKey] === void 0 && !$el.isConnected)
++          renderState._e.delete(key);
++        else
++          tracked.add($el);
++      }
++      for (const el of [...dom.body.children, ...dom.head.children]) {
++        const elTag = el.tagName.toLowerCase();
++        if (!HasElementTags.has(elTag) || tracked.has(el))
++          continue;
++        const props = { innerHTML: el.innerHTML };
++        for (const n of el.getAttributeNames())
++          props[n] = el.getAttribute(n);
++        const next = normalizeProps({ tag: elTag, props: {} }, props);
++        next.key = el.getAttribute("data-hid") || void 0;
++        const dedupe = dedupeKey(next) || hashTag(next);
++        let k = dedupe;
++        let c = 1;
++        while (renderState._e.has(k))
++          k = `${dedupe}:${c++}`;
++        renderState._e.set(k, el);
++      }
++    }
++    for (const ctx of pending) {
++      const found = renderState._e.get(ctx.id);
++      if (adoption && !found)
++        continue;
++      ctx.$el = found || dom.createElement(ctx.tag.tag);
++      trackCtx(ctx);
++      if (!found)
++        (frag[ctx.tag.tagPosition || "head"] ??= dom.createDocumentFragment()).appendChild(ctx.$el);
++    }
++    if (frag.head)
++      dom.head.appendChild(frag.head);
++    if (frag.bodyOpen)
++      dom.body.insertBefore(frag.bodyOpen, dom.body.firstChild);
++    if (frag.bodyClose)
++      dom.body.appendChild(frag.bodyClose);
++    for (const k in previous)
++      previous[k]();
++    head._dom = renderState;
++    didRender = true;
++    if (!adoption)
++      callHook(head, "dom:rendered", { renders: tags });
++  } catch (e) {
++    head.dirty = true;
++    throw e;
++  } finally {
++    head._du = false;
++  }
++  if (!adoption && didRender && (head.dirty || hasPendingEntries(head)))
++    _renderDOMHead(head, options);
++  return didRender;
++}
++
++function attachStreamHead(queue, head, push = (input) => head.push(input)._i) {
++  const backlog = queue._q;
++  const previousHead = queue._head;
++  const previousPush = queue.push;
++  let attaching = true;
++  queue._q = [];
++  queue._head = head;
++  let pending;
++  const streamPush = (entries) => {
++    if (pending) {
++      pending.push(entries);
++      return;
++    }
++    pending = [entries];
++    const batching = head._b;
++    head._b = true;
++    try {
++      for (const batch of pending) {
++        for (const input of batch) {
++          const id = push(input);
++          const entry = id === void 0 ? void 0 : head.entries.get(id);
++          if (entry)
++            entry._streamed = true;
++        }
++      }
++    } catch (error) {
++      if (attaching && queue.push === streamPush)
++        queue._q = pending;
++      throw error;
++    } finally {
++      pending = void 0;
++      head._b = batching;
++      if (!batching) {
++        head.dirty = true;
++        head.render();
++      }
++    }
++  };
++  queue.push = streamPush;
++  try {
++    if (backlog.length)
++      queue.push(backlog.flat());
++  } catch (error) {
++    if (queue.push === streamPush) {
++      queue.push = previousPush;
++    }
++    queue._head = previousHead;
++    throw error;
++  } finally {
++    attaching = false;
++  }
++}
++
++function createHooks(hooks) {
++  const instance = new HookableCore();
++  for (const key in {}) {
++    instance.hook(key, hooks[key]);
++  }
++  return instance;
++}
++
++function connectStream(head, stream, queue, replayShell) {
++  const live = head.entries;
++  const wasDiscarded = () => queue.closeStream === false;
++  const discard = () => {
++    stream._q.length = 0;
++    stream.push = () => {
++    };
++    let removed = false;
++    for (const [id, entry] of live) {
++      if (entry._streamed) {
++        live.delete(id);
++        removed = true;
++      }
++    }
++    if (removed)
++      head.invalidate();
++  };
++  if (wasDiscarded()) {
++    discard();
++    return;
++  }
++  queue.closeStream = discard;
++  let index = -1048576;
++  attachStreamHead(stream, head, (input) => {
++    if (wasDiscarded())
++      return;
++    const entry = head.push(input, { _index: index++ });
++    replayShell();
++    if (wasDiscarded())
++      entry.dispose();
++    return entry._i;
++  });
++}
++function adoptHydratedEntries(head, adoption) {
++  const live = head.entries;
++  const get = adoption.get.bind(adoption);
++  adoption.get = (id) => get(id) || live.get(id);
++  adoption.has = (id) => !!adoption.get(id);
++  head.entries = adoption;
++  head.dirty = true;
++  try {
++    return _renderDOMHead(head, {}, true);
++  } finally {
++    head.entries = live;
++    head.dirty = true;
++  }
++}
++function resolveStream(document, streamKey) {
++  const view = document?.defaultView;
++  const stream = view?.[streamKey];
++  if (!Array.isArray(stream?._q) || typeof stream.push !== "function")
++    throw new Error("[unhead] Lazy head requires the server bootstrap for this streamKey.");
++  return stream;
++}
++async function activate(options, queue, shell, connect) {
++  const document = shell.resolvedOptions.document;
++  const resolveQueue = () => {
++    if (options.streamKey === void 0)
++      return;
++    const stream2 = resolveStream(document, options.streamKey);
++    if (stream2._head)
++      throw new Error("[unhead] This stream already has a client head.");
++    return stream2;
++  };
++  let stream = resolveQueue();
++  const lazyPlugins = options.lazyPlugins ? await options.lazyPlugins() : void 0;
++  if (options.lazyPlugins)
++    stream = resolveQueue();
++  let render = () => false;
++  const core = createUnhead((head2) => render(head2), { document, propResolvers: options.propResolvers, _tagWeight: tagWeight });
++  const hooks = shell.hooks ??= createHooks();
++  const head = createClientHeadAdapter(core, hooks, (head2) => render(head2));
++  head._b = true;
++  const hydrated = /* @__PURE__ */ new Map();
++  function preserveHydrationOrder(active) {
++    const live = head.entries.get(active._i);
++    if (stream && active._i >= 0 && live && live._order === void 0) {
++      live._order = -2097152 + active._i;
++      const patch = active.patch;
++      active.patch = (input) => {
++        if (!queue.hydrating)
++          delete live._order;
++        patch(input);
++      };
++    }
++  }
++  const clientPush = head.push;
++  head.push = (input, entryOptions) => {
++    const baseline = queue.hydrating && !options.render && (entryOptions?._index ?? 0) >= 0 ? { input: copyInput(input) } : void 0;
++    const active = clientPush(input, entryOptions);
++    if (baseline) {
++      hydrated.set(active._i, {
++        _i: active._i,
++        input: baseline.input,
++        _o: baseline.input,
++        options: head.entries.get(active._i)?.options
++      });
++    }
++    if (queue.hydrating)
++      preserveHydrationOrder(active);
++    return active;
++  };
++  Object.defineProperty(head, "_entryCount", {
++    get: () => queue.index,
++    set: (index) => queue.index = index,
++    configurable: true
++  });
++  Object.defineProperty(head, "_scripts", {
++    get: () => shell._scripts,
++    set: (scripts) => shell._scripts = scripts
++  });
++  Object.defineProperty(shell, "_dom", {
++    get: () => queue.head?._dom,
++    configurable: true
++  });
++  const previousCloseStream = queue.closeStream;
++  const unhooks = [];
++  const hook = hooks.hook;
++  hooks.hook = (name, callback) => {
++    const off = hook.call(hooks, name, callback);
++    unhooks.push(off);
++    return off;
++  };
++  queue.head = head;
++  try {
++    for (const name in options.hooks)
++      hooks.hook(name, options.hooks[name]);
++    for (const plugin of options.plugins ?? [])
++      head.use(plugin);
++    for (const plugin of lazyPlugins ?? [])
++      head.use(plugin);
++    let pluginIndex = 0;
++    const registerQueuedPlugins = () => {
++      while (pluginIndex < queue.plugins.length)
++        head.use(queue.plugins[pluginIndex++]);
++    };
++    registerQueuedPlugins();
++    const replayShell = () => {
++      registerQueuedPlugins();
++      for (const [_i, entry] of queue.entries) {
++        if (entry.active)
++          continue;
++        const input = entry.input;
++        const active = entry.active = head.push(input, { ...entry.options, _index: _i });
++        if (entry.hydrated)
++          preserveHydrationOrder(active);
++        if (entry.baseline) {
++          hydrated.set(_i, {
++            _i,
++            input: entry.baseline.input,
++            _o: entry.baseline.input,
++            options: head.entries.get(_i)?.options
++          });
++        }
++        if (entry.disposed)
++          active.dispose();
++        else if (entry.input !== input)
++          active.patch(entry.input);
++        registerQueuedPlugins();
++      }
++    };
++    replayShell();
++    if (stream)
++      connectStream(head, stream, queue, replayShell);
++  } catch (error) {
++    for (const off of unhooks)
++      off();
++    queue.head = void 0;
++    for (const entry of queue.entries.values())
++      entry.active = void 0;
++    if (queue.closeStream !== false)
++      queue.closeStream = previousCloseStream;
++    throw error;
++  } finally {
++    hooks.hook = hook;
++    head._b = false;
++  }
++  let renderId = 0;
++  render = options.render || (() => {
++    const id = ++renderId;
++    setTimeout(() => {
++      if (id !== renderId)
++        return;
++      if (hydrated.size) {
++        const adoption = new Map(hydrated);
++        try {
++          if (!adoptHydratedEntries(head, adoption))
++            return;
++        } catch (error) {
++          console.warn("[unhead] Failed to adopt hydrated entries.", error);
++        }
++        for (const [id2, snapshot] of adoption) {
++          if (hydrated.get(id2) === snapshot)
++            hydrated.delete(id2);
++        }
++      }
++      _renderDOMHead(head);
++    });
++    return false;
++  });
++  Object.defineProperty(head, "_entryCount", { value: queue.index, writable: true });
++  connect(head);
++  head.render();
++  return head;
++}
++
++export { activate };
+diff --git a/dist/lazy.d.mts b/dist/lazy.d.mts
+new file mode 100644
+index 0000000000000000000000000000000000000000..fbbd9a669075dffa8f6632ddb600c886cc01322a
+--- /dev/null
++++ b/dist/lazy.d.mts
+@@ -0,0 +1,15 @@
++import type { ClientUnhead, CreateClientHeadOptions } from './client.mjs';
++import type { HeadPluginInput, ResolvableHead } from './types.mjs';
++
++export interface LazyHeadOptions extends CreateClientHeadOptions {
++  lazyPlugins?: () => Promise<HeadPluginInput[]>;
++  hookable?: ClientUnhead['hooks'];
++}
++
++export interface LazyUnhead<T = ResolvableHead> extends Pick<ClientUnhead<T>, 'ssr' | 'push' | 'use' | 'resolvedOptions' | '_scripts' | '_dom' | 'render' | 'entries'> {
++  hooks?: ClientUnhead<T>['hooks'];
++  finishHydration: () => void;
++  load: () => Promise<ClientUnhead<T>>;
++}
++
++export declare function createHead<T = ResolvableHead>(options?: LazyHeadOptions): LazyUnhead<T>;
+diff --git a/dist/lazy.mjs b/dist/lazy.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..61fc8f3ef08d66316c72e4cb50d0ecf95456a809
+--- /dev/null
++++ b/dist/lazy.mjs
+@@ -0,0 +1,2 @@
++// Skilld homepage pilot, pinned to unjs/unhead@4c2f65ae436e87fb5e13748d63b1138dce765e15 (MIT).
++export { a as createHead } from './shared/unhead.CyNMusnl.mjs';
+diff --git a/dist/shared/unhead.CyNMusnl.mjs b/dist/shared/unhead.CyNMusnl.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..b842bc2df3afed5ffe291e1aec3d1ff7174bf42b
+--- /dev/null
++++ b/dist/shared/unhead.CyNMusnl.mjs
+@@ -0,0 +1,105 @@
++function isFunctionValue(key) {
++  return key === "titleTemplate" || !!key?.startsWith("on");
++}
++function copyInput(value, key) {
++  if (key === "_resolver")
++    return value;
++  if (typeof value === "function" && !isFunctionValue(key)) {
++    try {
++      const resolved = value();
++      const snapshot = typeof resolved === "function" ? resolved : copyInput(resolved);
++      return (() => snapshot);
++    } catch {
++      return value;
++    }
++  }
++  if (!value || typeof value !== "object" || !Array.isArray(value) && value.constructor !== Object)
++    return value;
++  const out = Array.isArray(value) ? [] : {};
++  for (const k in value)
++    out[k] = copyInput(value[k], k);
++  return out;
++}
++
++// @__NO_SIDE_EFFECTS__
++function createHead(options = {}) {
++  const queue = { index: 1, hydrating: true, entries: /* @__PURE__ */ new Map(), plugins: [] };
++  let active;
++  let loading;
++  let emptyEntries;
++  const shell = {
++    ssr: false,
++    hooks: options.hookable,
++    resolvedOptions: { document: options.document ?? globalThis.document },
++    get entries() {
++      return queue.head?.entries ?? (emptyEntries ||= /* @__PURE__ */ new Map());
++    },
++    finishHydration() {
++      if (!queue.hydrating)
++        return;
++      queue.hydrating = false;
++      if (process.env.NODE_ENV !== "production" && !loading && options.streamKey === void 0) {
++        import('../chunks/devCheck.mjs').then(({ checkHydratedHead }) => !loading && checkHydratedHead(options, queue)).catch((error) => console.warn("[unhead] The lazy head dev check failed.", error));
++      }
++    },
++    discardStream() {
++      const close = queue.closeStream;
++      queue.closeStream = false;
++      if (close)
++        close();
++    },
++    use(plugin) {
++      if (active)
++        active.use(plugin);
++      else
++        queue.plugins.push(plugin);
++    },
++    render: () => active?.render() ?? false,
++    push(input, entryOptions) {
++      if (active)
++        return active.push(input, entryOptions);
++      const _i = entryOptions?._index ?? queue.index++;
++      const entry = { input, options: entryOptions, hydrated: queue.hydrating };
++      if (queue.hydrating && !options.render)
++        entry.baseline = { input: copyInput(input) };
++      if (process.env.NODE_ENV !== "production")
++        entry.source = options._entrySource?.();
++      queue.entries.set(_i, entry);
++      return {
++        _i,
++        patch(next) {
++          if (!queue.hydrating)
++            entry.hydrated = false;
++          const baseline = entry.baseline;
++          if (baseline && queue.hydrating && next === entry.input) {
++            queueMicrotask(() => {
++              if (entry.input === next && !entry.disposed && !entry.active)
++                baseline.input = copyInput(next);
++            });
++          }
++          entry.input = next;
++          entry.disposed = false;
++          entry.active?.patch(next);
++        },
++        dispose() {
++          entry.disposed = true;
++          entry.active?.dispose();
++        }
++      };
++    },
++    load() {
++      return loading ||= active ? Promise.resolve(active) : import('../chunks/runtime.mjs').then(({ activate }) => activate(options, queue, shell, (head) => {
++        active = head;
++        queue.entries.clear();
++        queue.plugins.length = 0;
++      })).catch((error) => {
++        loading = void 0;
++        throw error;
++      });
++    }
++  };
++  options.init?.forEach((input) => input && shell.push(input));
++  return shell;
++}
++
++export { createHead as a, copyInput as c };
+diff --git a/dist/shared/unhead.QUR5kIxs.mjs b/dist/shared/unhead.QUR5kIxs.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..bae556a6d2ef5f800381def3e7efeb8bc025163e
+--- /dev/null
++++ b/dist/shared/unhead.QUR5kIxs.mjs
+@@ -0,0 +1,435 @@
++import { walkResolver } from 'unhead/utils';
++
++const DupeableTags = /* @__PURE__ */ new Set(["link", "style", "script", "noscript"]);
++const TagsWithInnerContent = /* @__PURE__ */ new Set(["title", "titleTemplate", "script", "style", "noscript"]);
++const HasElementTags = /* @__PURE__ */ new Set(["base", "meta", "link", "style", "script", "noscript"]);
++const ValidHeadTags = /* @__PURE__ */ new Set(["title", "base", "htmlAttrs", "bodyAttrs", "meta", "link", "style", "script", "noscript"]);
++const UniqueTags = /* @__PURE__ */ new Set(["base", "title", "titleTemplate", "bodyAttrs", "htmlAttrs", "templateParams"]);
++const TagConfigKeys = /* @__PURE__ */ new Set(["key", "tagPosition", "tagPriority", "tagDuplicateStrategy", "innerHTML", "textContent", "processTemplateParams"]);
++const UsesMergeStrategy = /* @__PURE__ */ new Set(["templateParams", "htmlAttrs", "bodyAttrs"]);
++const MetaTagsArrayable = /* @__PURE__ */ new Set([
++  "theme-color",
++  "google-site-verification",
++  "author",
++  "og:locale:alternate",
++  "og:image",
++  "og:video",
++  "og:audio",
++  "article:author",
++  "article:tag",
++  "book:author",
++  "book:tag",
++  "twitter:image"
++]);
++const TagPriorityAliases = { critical: -8, high: -1, low: 2 };
++const hasContent = (value) => typeof value === "number" ? Number.isFinite(value) : value;
++
++const tagWeight = (tag) => typeof tag.tagPriority === "number" ? tag.tagPriority : 100 + (TagPriorityAliases[tag.tagPriority] || 0);
++
++function registerPlugin(head, p) {
++  if (typeof p === "function" && p.key && head.plugins.has(p.key))
++    return;
++  const plugin = typeof p === "function" ? p(head) : p;
++  const key = plugin.key || String(head.plugins.size + 1);
++  if (!head.plugins.get(key)) {
++    head.plugins.set(key, plugin);
++    for (const k in plugin.hooks || {})
++      head.hooks?.hook(k, plugin.hooks[k]);
++  }
++}
++// @__NO_SIDE_EFFECTS__
++function createUnhead(renderer, resolvedOptions = {}) {
++  const ssr = !resolvedOptions.document;
++  const entries = /* @__PURE__ */ new Map();
++  const plugins = /* @__PURE__ */ new Map();
++  const head = {
++    _entryCount: 1,
++    _h: 0,
++    plugins,
++    resolvedOptions,
++    ssr,
++    entries,
++    // adapters decorate this same object; reserve the slot to keep its shape stable
++    hooks: void 0,
++    render: () => renderer(head),
++    use: (p) => registerPlugin(head, p),
++    push(input, _options) {
++      const { head: _head, onRendered: _onRendered, _index, ...options } = _options || {};
++      const _i = _index ?? head._entryCount++;
++      const entry = { _i, input, options };
++      entries.set(_i, entry);
++      const active = {
++        _i,
++        dispose() {
++          entries.delete(_i);
++        },
++        patch(input2) {
++          if (ssr) {
++            entry.input = input2;
++            delete entry._tags;
++          } else {
++            entry._pending = input2;
++          }
++          if (!entries.has(_i))
++            entries.set(_i, entry);
++        }
++      };
++      return active;
++    }
++  };
++  resolvedOptions.init?.forEach((e) => e && head.push(e));
++  return head;
++}
++
++const META_NOREWRITE_RE = /^(?:viewport|description|keywords|robots)$/;
++const META_KEY_ATTRS = ["name", "property", "http-equiv"];
++function isMetaArrayDupeKey(v) {
++  const i = v.indexOf(":");
++  if (i === -1)
++    return false;
++  const key = v.slice(i + 1);
++  return MetaTagsArrayable.has(key) || key.startsWith("og:image:") || key.startsWith("og:video:") || key.startsWith("og:audio:") || key.startsWith("twitter:image:");
++}
++function dedupeKey(tag) {
++  const { props, tag: t, key } = tag;
++  if (UniqueTags.has(t))
++    return t;
++  if (t === "link") {
++    if (props.rel === "canonical")
++      return "canonical";
++    if (props.rel === "alternate" && props.hreflang)
++      return `alternate:${props.hreflang}`;
++  }
++  if (props.charset)
++    return "charset";
++  if (t === "meta") {
++    for (const n of META_KEY_ATTRS) {
++      const v = props[n];
++      if (v !== void 0)
++        return `meta:${v}${(typeof v !== "string" || !v.includes(":")) && !META_NOREWRITE_RE.test(v) && key ? `:key:${key}` : ""}`;
++    }
++  }
++  if (key)
++    return `${t}:key:${key}`;
++  if (props.id)
++    return `${t}:id:${props.id}`;
++  if (t === "link" && props.rel && props.href)
++    return `link:${props.rel}:${props.href}`;
++  return TagsWithInnerContent.has(t) && (tag.textContent || tag.innerHTML) ? `${t}:content:${tag.textContent || tag.innerHTML}` : void 0;
++}
++function hashTag(tag) {
++  const identity = tag._h || tag._d || tag.textContent || tag.innerHTML;
++  if (identity)
++    return String(identity);
++  const keys = Object.keys(tag.props).sort();
++  let hash = `${tag.tag}:`;
++  let separator = "";
++  for (const key of keys) {
++    hash += `${separator}${key}:${String(tag.props[key])}`;
++    separator = ",";
++  }
++  return hash;
++}
++
++const INVALID_ATTR_NAME_RE = /[\s"'<>/=\x00-\x1F\x7F]/;
++
++// @__NO_SIDE_EFFECTS__
++function isUnsafeKey(key) {
++  return key === "__proto__" || key === "constructor" || key === "prototype";
++}
++
++const ASCII_UPPER_RE = /[A-Z]/g;
++function normalizeStyleClassProps(key, value) {
++  const isStyle = key === "style";
++  const store = isStyle ? /* @__PURE__ */ new Map() : /* @__PURE__ */ new Set();
++  const add = (v) => {
++    if (!v)
++      return;
++    if (isStyle) {
++      const i = v.indexOf(":");
++      i > 0 && store.set(v.slice(0, i).trim(), v.slice(i + 1).trim());
++    } else {
++      v.split(" ").forEach((c) => c && store.add(c));
++    }
++  };
++  if (typeof value === "string") {
++    (isStyle ? value.split(";") : [value]).forEach(add);
++  } else if (Array.isArray(value)) {
++    value.forEach(add);
++  } else if (value && typeof value === "object") {
++    for (const k in value) {
++      const v = value[k];
++      v && v !== "false" && (isStyle ? store.set(k.trim(), String(v)) : add(k));
++    }
++  }
++  return store;
++}
++function normalizeProps(tag, input) {
++  tag.props = tag.props || {};
++  if (!input)
++    return tag;
++  if (tag.tag === "templateParams") {
++    tag.props = input;
++    return tag;
++  }
++  const isHtmlTag = HasElementTags.has(tag.tag) || tag.tag === "htmlAttrs" || tag.tag === "bodyAttrs";
++  for (const prop in input) {
++    if (isUnsafeKey(prop))
++      continue;
++    const isData = prop.startsWith("data-");
++    const isHtmlAttr = isHtmlTag && !TagConfigKeys.has(prop);
++    const key = isHtmlAttr && !isData ? prop.replace(ASCII_UPPER_RE, (letter) => letter.toLowerCase()) : prop;
++    if (isHtmlAttr && (!key || INVALID_ATTR_NAME_RE.test(key)))
++      continue;
++    const value = input[prop];
++    if (value === null) {
++      tag.props[key] = null;
++    } else if (prop === "class" || prop === "style") {
++      tag.props[prop] = normalizeStyleClassProps(prop, value);
++    } else if (TagConfigKeys.has(prop)) {
++      if ((prop === "textContent" || prop === "innerHTML") && typeof value === "object") {
++        const type = input.type || "application/json";
++        if (type.endsWith("json") || type === "speculationrules" || type === "importmap") {
++          tag.props.type = type;
++          tag[prop] = JSON.stringify(value);
++        }
++      } else {
++        tag[prop] = value;
++      }
++    } else if (value !== void 0) {
++      const str = String(value);
++      const preserveString = isData || tag.tag === "meta" && key === "content" || tag.tag === "script" && typeof value === "string" && (key === "type" || key === "language");
++      tag.props[key] = str === "true" || str === "" ? preserveString ? str : true : !value && isData && str === "false" ? "false" : value;
++    }
++  }
++  return tag;
++}
++function resolveHeadInput(input, propResolvers) {
++  let resolve;
++  if (propResolvers.length) {
++    resolve = (key, val) => {
++      for (let i = 0; i < propResolvers.length; i++)
++        val = propResolvers[i](key, val);
++      return val;
++    };
++    input = resolve(void 0, input);
++  }
++  return walkResolver(input, resolve);
++}
++function normalizeTag(tags, tagName, _input) {
++  const input = typeof _input === "object" && typeof _input !== "function" ? _input : { [tagName === "script" || tagName === "noscript" || tagName === "style" ? "innerHTML" : "textContent"]: _input };
++  const tag = normalizeProps({ tag: tagName, props: {} }, input);
++  if (tag.key && DupeableTags.has(tag.tag))
++    tag.props["data-hid"] = tag._h = tag.key;
++  if (Array.isArray(tag.props.content)) {
++    for (const content of tag.props.content)
++      tags.push({ ...tag, props: { ...tag.props, content } });
++  } else {
++    tags.push(tag);
++  }
++}
++function normalizeEntryToTags(input, propResolvers) {
++  if (!input)
++    return [];
++  if (typeof input === "function")
++    input = input();
++  input = resolveHeadInput(input, propResolvers);
++  const tags = [];
++  for (const key in input) {
++    const value = input[key];
++    if (value !== void 0) {
++      if (Array.isArray(value)) {
++        for (const v of value) normalizeTag(tags, key, v);
++      } else {
++        normalizeTag(tags, key, value);
++      }
++    }
++  }
++  return tags;
++}
++
++function callHook(head, hook, ctx) {
++  const hooks = head.hooks?._hooks?.[hook];
++  if (!hooks?.length)
++    return;
++  return head.hooks?.callHook(hook, ctx);
++}
++
++const LT_RE = /</g;
++const SCRIPT_END_RE = /<\/script/g;
++const sortTags = (a, b) => a._w === b._w ? a._p - b._p : a._w - b._w;
++const DEFAULT_TAG_WEIGHT = () => 100;
++function isEmptyProps(props) {
++  for (const _ in props)
++    return false;
++  return true;
++}
++const TAG_MUTATING_HOOK_RE = /^tags:|:render/;
++function syncEntryHookCache(head, hooks) {
++  const count = (hooks["entries:resolve"]?.length || 0) + (hooks["entries:normalize"]?.length || 0);
++  if (head._h !== count) {
++    head._h = count;
++    for (const entry of head.entries.values())
++      delete entry._tags;
++  }
++}
++function cloneTagsInPlace(tags) {
++  for (let i = 0; i < tags.length; i++) {
++    const t = tags[i];
++    const props = { ...t.props };
++    if (props.class instanceof Set)
++      props.class = new Set(props.class);
++    if (props.style instanceof Map)
++      props.style = new Map(props.style);
++    tags[i] = { ...t, props };
++  }
++}
++function valuesToTags(ctx, sortFlatMeta) {
++  const tags = ctx.tags;
++  let w = 0;
++  for (const value of ctx.tagMap.values()) {
++    if (Array.isArray(value)) {
++      for (const tag of value) tags[w++] = tag;
++    } else {
++      tags[w++] = value;
++    }
++  }
++  tags.length = w;
++  if (sortFlatMeta)
++    tags.sort(sortTags);
++}
++function dedupeTags(ctx) {
++  let hasFlatMeta = false;
++  for (const next of ctx.tags.sort(sortTags)) {
++    const k = next._d || hashTag(next);
++    if (!k)
++      continue;
++    const prev = ctx.tagMap.get(k);
++    if (!prev) {
++      ctx.tagMap.set(k, next);
++      continue;
++    }
++    const strategy = next.tagDuplicateStrategy || (UsesMergeStrategy.has(next.tag) ? "merge" : null) || (next.key && next.key === prev.key ? "merge" : null);
++    if (strategy === "merge") {
++      const props = { ...prev.props };
++      for (const p in next.props) {
++        props[p] = p === "style" ? new Map([...prev.props.style || [], ...next.props[p]]) : p === "class" ? /* @__PURE__ */ new Set([...prev.props.class || [], ...next.props[p]]) : next.props[p];
++      }
++      ctx.tagMap.set(k, { ...next, props });
++    } else if (next._p >> 10 === prev._p >> 10 && next.tag === "meta" && isMetaArrayDupeKey(k)) {
++      ctx.tagMap.set(k, Object.assign([...Array.isArray(prev) ? prev : [prev], next], next));
++      hasFlatMeta = true;
++    } else if (next._w === prev._w ? next._p > prev._p : next._w < prev._w) {
++      ctx.tagMap.set(k, next);
++    }
++  }
++  return hasFlatMeta;
++}
++function resolveTitleTemplate(ctx, head, adoption = false) {
++  const title = ctx.tagMap.get("title");
++  const tpl = ctx.tagMap.get("titleTemplate");
++  head._title = title?.textContent;
++  if (!tpl)
++    return;
++  const fn = tpl.textContent;
++  head._titleTemplate = fn;
++  if (!fn)
++    return;
++  let v = adoption ? head.resolvedOptions.document?.title : typeof fn === "function" ? fn(title?.textContent) : fn;
++  if (typeof v === "string" && !head.plugins.has("template-params"))
++    v = v.replace("%s", title?.textContent || "");
++  if (title) {
++    v === null ? ctx.tagMap.delete("title") : ctx.tagMap.set("title", { ...title, textContent: v });
++  } else {
++    ctx.tagMap.set("titleTemplate", { ...tpl, tag: "title", textContent: v });
++  }
++}
++function sanitizeTagsInPlace(tags) {
++  let w = 0;
++  for (let t of tags) {
++    const { innerHTML, tag, props } = t;
++    if (!ValidHeadTags.has(tag) || isEmptyProps(props) && !hasContent(innerHTML) && !hasContent(t.textContent))
++      continue;
++    if (tag === "meta") {
++      if (!hasContent(props.content) && !props["http-equiv"] && !props.charset)
++        continue;
++    }
++    if (tag === "script" && (innerHTML || t.textContent)) {
++      const type = String(props.type);
++      const isJsonLike = type.endsWith("json") || type === "importmap" || type === "speculationrules";
++      const escape = (content) => isJsonLike ? (typeof content === "string" ? content : JSON.stringify(content)).replace(LT_RE, "\\u003C") : typeof content === "string" ? content.replace(SCRIPT_END_RE, "<\\/script") : content;
++      t = { ...t };
++      if (innerHTML)
++        t.innerHTML = escape(innerHTML);
++      if (t.textContent)
++        t.textContent = escape(t.textContent);
++      t._d = dedupeKey(t);
++    }
++    tags[w++] = t;
++  }
++  tags.length = w;
++  return tags;
++}
++function resolveTags(head, options, adoption = false) {
++  const weightFn = options?.tagWeight ?? head.resolvedOptions._tagWeight ?? DEFAULT_TAG_WEIGHT;
++  const ctx = { tagMap: /* @__PURE__ */ new Map(), tags: [] };
++  const hooks = head.hooks?._hooks || {};
++  syncEntryHookCache(head, hooks);
++  for (const e of head.entries.values()) {
++    if (e._pending !== void 0) {
++      e.input = e._pending;
++      delete e._pending;
++      delete e._tags;
++      delete e._precomputedTags;
++    }
++  }
++  let entries;
++  if (head._h) {
++    entries = [...head.entries.values()];
++    callHook(head, "entries:resolve", { entries, ...ctx });
++  }
++  syncEntryHookCache(head, hooks);
++  for (const e of entries || head.entries.values()) {
++    let tags = e._tags;
++    if (!tags) {
++      tags = head.resolvedOptions._precomputed?.(e, weightFn, hooks);
++      if (!tags) {
++        tags = normalizeEntryToTags(e.input, head.resolvedOptions.propResolvers || []);
++        if (e.options && !isEmptyProps(e.options)) {
++          for (const t of tags)
++            Object.assign(t, e.options);
++        }
++        if (hooks["entries:normalize"]?.length) {
++          const normalizeCtx = { tags, entry: e };
++          callHook(head, "entries:normalize", normalizeCtx);
++          tags = normalizeCtx.tags;
++        }
++        for (let i = 0; i < tags.length; i++) {
++          const t = tags[i];
++          t._w = weightFn(t);
++          t._p = ((e._order ?? e._i) << 10) + i;
++          t._d = dedupeKey(t);
++          if (!t._d)
++            t._h = hashTag(t);
++        }
++        e._tags = tags;
++      }
++    }
++    ctx.tags.push(...tags);
++  }
++  for (const name in hooks) {
++    if (hooks[name]?.length && TAG_MUTATING_HOOK_RE.test(name)) {
++      cloneTagsInPlace(ctx.tags);
++      break;
++    }
++  }
++  const hasFlatMeta = dedupeTags(ctx);
++  resolveTitleTemplate(ctx, head, adoption);
++  valuesToTags(ctx, hasFlatMeta);
++  callHook(head, "tags:beforeResolve", ctx);
++  callHook(head, "tags:resolve", ctx);
++  callHook(head, "tags:afterResolve", ctx);
++  return sanitizeTagsInPlace(ctx.tags);
++}
++
++export { HasElementTags as H, callHook as a, createUnhead as c, dedupeKey as d, hashTag as h, isMetaArrayDupeKey as i, normalizeProps as n, resolveTags as r, tagWeight as t };
+diff --git a/package.json b/package.json
+index dff8efd4206eb7181448dda0f4cc46050d9d3433..9f0d8534a442030272266b0dec03a9f3c992c5e0 100644
+--- a/package.json
++++ b/package.json
+@@ -45,6 +45,10 @@
+       "types": "./dist/server.d.ts",
+       "default": "./dist/server.mjs"
+     },
++    "./lazy": {
++      "types": "./dist/lazy.d.mts",
++      "default": "./dist/lazy.mjs"
++    },
+     "./client": {
+       "types": "./dist/client.d.ts",
+       "default": "./dist/client.mjs"

@@ -82,6 +82,7 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@nuxt/fonts',
     '@nuxt/scripts',
+    './modules/homepage-head/module.ts',
     '@nuxtjs/seo',
     '@nuxtjs/mcp-toolkit',
     '@nuxt/a11y',

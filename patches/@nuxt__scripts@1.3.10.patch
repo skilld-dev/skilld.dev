@@ -1,0 +1,13 @@
+diff --git a/dist/runtime/registry/cloudflare-web-analytics.js b/dist/runtime/registry/cloudflare-web-analytics.js
+index 8deda48f1a57cc86890d8569d4f785e74a3c8458..2452bf75f13d33c7374d704155cc9c1c92c0b0e5 100644
+--- a/dist/runtime/registry/cloudflare-web-analytics.js
++++ b/dist/runtime/registry/cloudflare-web-analytics.js
+@@ -11,7 +11,7 @@ export function useScriptCloudflareWebAnalytics(_options) {
+     schema: import.meta.dev ? CloudflareWebAnalyticsOptions : void 0,
+     scriptOptions: {
+       // we want to load earlier so that the web vitals reports are correct
+-      trigger: "client",
++      trigger: options.scriptOptions?.trigger ?? "client",
+       use() {
+         return { __cfBeacon: window.__cfBeacon };
+       }
