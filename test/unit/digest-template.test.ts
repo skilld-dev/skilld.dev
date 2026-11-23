@@ -39,7 +39,7 @@ describe('digest commit content', () => {
       expect(content).toContain('feat: check dialog labels')
       expect(content).not.toContain('A generated sentence')
       expect(content).not.toContain(skill.description)
-      expect(content).toContain('https://github.com/acme/skills/commits/main/review/SKILL.md')
+      expect(content).toContain('https://skilld.dev/gh/acme/skills/review#history-heading')
     }
   })
   it('explains missing commit details without substituting a Skill description', () => {
