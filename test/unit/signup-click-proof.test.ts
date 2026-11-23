@@ -91,6 +91,37 @@ describe('anonymous click proof', () => {
     expect(limit).toHaveBeenLastCalledWith({ key: 'signup-click:192.0.2.1' })
   })
 
+  // SKILLD-42 and SKILLD-5H: D1 does not retry a write, so one lost connection failed the request.
+  it.each([
+    { lost: 'before the batch ran', commits: false },
+    { lost: 'after the batch committed', commits: true },
+  ])('issues one usable proof when D1 loses the connection $lost', async ({ commits }) => {
+    let failed = false
+    const db = new Proxy(d1.db, {
+      get(target, property, receiver) {
+        if (property !== 'batch')
+          return Reflect.get(target, property, receiver)
+        return async (statements: D1PreparedStatement[]) => {
+          if (failed)
+            return target.batch(statements)
+          failed = true
+          if (commits)
+            await target.batch(statements)
+          throw new Error('D1_ERROR: Network connection lost.')
+        }
+      },
+    })
+    const request = event()
+    request.context.platform.db = db
+
+    const issued = issueSignupClickProof(request)
+    await vi.runAllTimersAsync()
+    const nonce = await issued
+
+    expect(d1.raw.prepare('SELECT nonce FROM signup_click_proofs').all()).toEqual([{ nonce }])
+    await expect(consumeSignupClickProof(event({ 'x-signup-proof': nonce! }))).resolves.toBe(true)
+  })
+
   it('removes expired nonce rows when preparing the next page', async () => {
     const old = await issueSignupClickProof(event())
     vi.advanceTimersByTime(300_000)

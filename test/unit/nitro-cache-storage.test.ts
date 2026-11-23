@@ -14,9 +14,9 @@ vi.mock('@harlan-zw/nuxt-wide-events/standalone', () => ({
   },
 }))
 
-function kvNamespace(put: KVNamespace['put']): KVNamespace {
+function kvNamespace(put: KVNamespace['put'], get: KVNamespace['get'] = vi.fn(async () => null) as unknown as KVNamespace['get']): KVNamespace {
   return {
-    get: vi.fn(async () => null),
+    get,
     put,
     delete: vi.fn(async () => {}),
   } as unknown as KVNamespace
@@ -45,6 +45,26 @@ describe('kv-cache-storage driver', () => {
       'outcome': 'failed',
       'cache.writeFailed': true,
       'reason': 'KV PUT failed: 429 Too Many Requests',
+    }])
+
+    vi.unstubAllGlobals()
+  })
+
+  it('reads a KV outage as a miss and reports it as a failed cache read', async () => {
+    const get = vi.fn(async () => {
+      throw new Error('KV GET failed: 500 Internal Server Error')
+    })
+    vi.stubGlobal('KV_CACHE_TEST', kvNamespace(vi.fn(async () => {}), get as unknown as KVNamespace['get']))
+
+    const storage = createStorage()
+    storage.mount('cache', kvCacheDriver({ binding: 'KV_CACHE_TEST', defaultTtl: 120 }))
+
+    await expect(storage.getItem('cache:nitro:handlers:repo:tag-network.json')).resolves.toBeNull()
+    expect(emitted).toEqual([{
+      'operation': 'cache-read',
+      'outcome': 'failed',
+      'cache.readFailed': true,
+      'reason': 'KV GET failed: 500 Internal Server Error',
     }])
 
     vi.unstubAllGlobals()

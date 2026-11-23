@@ -1,8 +1,8 @@
 import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupRecommendation } from './skill-duplicate-canonical'
 import type { RegistrySkill } from './skills-registry'
-import { createError } from 'h3'
 import { getDB } from '#server/utils/db'
+import { dependencyOutageError } from '#shared/server/dependency-outage'
 import {
   canonicalTrustFirstSort,
   duplicateRankingSignals,
@@ -382,8 +382,9 @@ export async function hybridSkillSearch(
     semantic && expansion ? semanticSkillSearch(event, expansion, SEMANTIC_TOP_K) : Promise.resolve(null),
   ])
 
+  // Each lane already recorded its own failure as a wide event.
   if (lexicalKeys === null && semanticHits === null && expansionHits === null)
-    throw createError({ statusCode: 503, statusMessage: 'Search is temporarily unavailable.' })
+    throw dependencyOutageError({ dependency: 'D1 and Vectorize', statusMessage: 'Search is temporarily unavailable.' })
 
   const semanticKeys = semanticHits?.map(skillKey) ?? []
   const expansionKeys = expansionHits?.map(skillKey) ?? []

@@ -1,4 +1,5 @@
 import { readCache, writeCache } from '#shared/server/cache'
+import { dependencyOutageError } from '#shared/server/dependency-outage'
 import { defineApiHandler } from '#shared/server/handler'
 import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
@@ -130,7 +131,7 @@ export default defineApiHandler({
       // reads as deleted for the rest of the cache window.
       emitOperationalEvent(createWideEvent({ 'operation': 'skill-asset-fetch', 'outcome': 'failed', 'upstream.status': upstream.status ?? 0, 'attempt': upstream.attempts }))
       setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
-      throw createError({ statusCode: 503, message: 'Asset source is unavailable upstream' })
+      throw dependencyOutageError({ dependency: 'raw.githubusercontent.com', message: 'Asset source is unavailable upstream' })
     }
 
     const raw = upstream.body

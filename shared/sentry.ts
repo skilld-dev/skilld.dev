@@ -1,4 +1,5 @@
-import type { Breadcrumb, Event } from '@sentry/nuxt'
+import type { Breadcrumb, Event, EventHint } from '@sentry/nuxt'
+import { isTransientError } from '@harlan-zw/nuxt-sentry/server'
 
 export const SENTRY_DSN = 'https://b275b367f8096d04db8c2ebcfadc3aba@o4510507748163584.ingest.us.sentry.io/4511781692506112'
 
@@ -77,24 +78,6 @@ export function isBestEffortCacheWriteError(error: unknown): boolean {
 }
 
 /**
- * The suffix shared by the intended upstream-outage 503s the registry handlers
- * raise after `fetchUpstreamTree` or `fetchUpstreamText` reports the outage as
- * an operational wide event ('Skill source is unavailable upstream',
- * 'SKILL.md source is unavailable upstream', 'Asset source is unavailable
- * upstream', Sentry SKILLD-11 and SKILLD-1E). Nitro forwards the thrown
- * `createError` to Sentry as unhandled, so the capture duplicates a failure
- * class the wide event already records. The server Sentry config drops that
- * signature in `beforeSend`; every other error still reaches Sentry.
- *
- * The gone-source 410 ('Skill source is gone upstream') is a permanent
- * verdict, not an outage, and does not carry the suffix, so it still lands.
- */
-export function isExpectedUpstreamOutageError(error: unknown): boolean {
-  const message = sentryExceptionMessage(error)
-  return typeof message === 'string' && message.endsWith('unavailable upstream')
-}
-
-/**
  * The message Chrome rejects a `postMessage` on a closed `BroadcastChannel`
  * with (`InvalidStateError`, Sentry SKILLD-12). nuxt-skew-protection's
  * multi-tab plugin closes its channel on `app:error`, and a version update
@@ -106,6 +89,67 @@ export function isExpectedUpstreamOutageError(error: unknown): boolean {
 export function isClosedBroadcastChannelError(error: unknown): boolean {
   const message = sentryExceptionMessage(error)
   return message === 'Failed to execute \'postMessage\' on \'BroadcastChannel\': Channel is closed'
+}
+
+const CLIENT_NOISE_MESSAGE = /ResizeObserver loop|AsyncData request cancelled by |signal is aborted without reason|\/builds\/meta\/[\w-]+\.json": 404 /
+
+/**
+ * Browser reports that name no site defect.
+ *
+ * - `ResizeObserver loop ...`: a browser layout notice that `window.onerror`
+ *   delivers as an error (SKILLD-5B).
+ * - A cancelled request: Nuxt aborts an AsyncData fetch that a newer call or an
+ *   unmount replaced (SKILLD-4Q, SKILLD-4S, SKILLD-59). `isTransientError` is
+ *   the rule every site using `@harlan-zw/nuxt-sentry` already applies.
+ * - A retired build's meta: a tab older than the skew protection window asks
+ *   for its own build meta and gets 404 (SKILLD-4Y), the stale-deploy class
+ *   `ignoreErrors` already drops for chunks.
+ */
+function isClientNoiseError(error: unknown): boolean {
+  if (isTransientError(error))
+    return true
+  const message = sentryExceptionMessage(error)
+  return typeof message === 'string' && CLIENT_NOISE_MESSAGE.test(message)
+}
+
+function isClientDroppedSignature(error: unknown): boolean {
+  return isClosedBroadcastChannelError(error) || isClientNoiseError(error)
+}
+
+/**
+ * The kind of value a messageless error was thrown with, never its content.
+ *
+ * Nuxt wraps a thrown non-Error, such as a load `Event`, in an H3 error with
+ * an empty message, so the report reads "No error message" and loses the one
+ * fact that explains it (SKILLD-54).
+ */
+function describeThrownCause(error: unknown): string | undefined {
+  if (!(error instanceof Error) || error.message !== '' || error.cause === undefined)
+    return undefined
+  const cause = error.cause
+  if (typeof globalThis.Event === 'function' && cause instanceof globalThis.Event) {
+    const target = cause.target as { tagName?: unknown } | null
+    return typeof target?.tagName === 'string' ? `Event:${cause.type}:${target.tagName}` : `Event:${cause.type}`
+  }
+  if (cause instanceof Error)
+    return cause.name
+  if (typeof cause !== 'object' || cause === null)
+    return typeof cause
+  return Object.prototype.toString.call(cause).slice(8, -1)
+}
+
+/**
+ * The browser `beforeSend`: drops the signatures above, tags what a
+ * messageless error was thrown with, and scrubs everything it keeps.
+ */
+export function filterClientReport<T extends Event>(event: T, hint: EventHint): T | null {
+  const values = event.exception?.values ?? []
+  if (isClientDroppedSignature(hint.originalException) || values.some(isClientDroppedSignature))
+    return null
+  const thrownCause = describeThrownCause(hint.originalException)
+  if (thrownCause)
+    event.tags = { ...event.tags, 'thrown.cause': thrownCause }
+  return scrubSentryEvent(event)
 }
 
 /**

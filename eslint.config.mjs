@@ -11,6 +11,26 @@ export default antfu({
     'ts/no-redeclare': 'off',
   },
 }, ...harlanzw({ base: { type: 'app' } }), {
+  // Browsers that load the client still lack the ES2023 array copies, and one
+  // call broke the homepage there (Sentry SKILLD-4P). The first five entries
+  // repeat antfu's defaults, since a rule override replaces the whole list.
+  files: ['app/**', 'layers/*/app/**'],
+  name: 'skilld/client-array-copies',
+  rules: {
+    'no-restricted-properties': [
+      'error',
+      { property: '__proto__', message: 'Use `Object.getPrototypeOf` or `Object.setPrototypeOf` instead.' },
+      { property: '__defineGetter__', message: 'Use `Object.defineProperty` instead.' },
+      { property: '__defineSetter__', message: 'Use `Object.defineProperty` instead.' },
+      { property: '__lookupGetter__', message: 'Use `Object.getOwnPropertyDescriptor` instead.' },
+      { property: '__lookupSetter__', message: 'Use `Object.getOwnPropertyDescriptor` instead.' },
+      ...['toSorted', 'toReversed', 'toSpliced'].map(property => ({
+        property,
+        message: 'Older browsers that load the client lack this ES2023 method. Copy the array first, for example `[...items].sort()`.',
+      })),
+    ],
+  },
+}, {
   // The isolated proof needs Container 1.0 tooling. The site keeps its version.
   files: ['pnpm-workspace.yaml'],
   rules: {
