@@ -145,7 +145,7 @@ const homeTrendingRows = computed(() => {
     .map((row, index) => ({ row, rank: index + 1 }))
     .filter(({ row }) => !missingAvatars.value.has(row.owner))
   const positions = new Map(trendingOrder.value.map((key, index) => [key, index]))
-  return rows.toSorted((a, b) => (positions.get(a.row.key) ?? a.rank) - (positions.get(b.row.key) ?? b.rank))
+  return rows.sort((a, b) => (positions.get(a.row.key) ?? a.rank) - (positions.get(b.row.key) ?? b.rank))
 })
 
 /**

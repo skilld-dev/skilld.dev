@@ -513,9 +513,9 @@ export default defineNuxtConfig({
         binding: 'KV_DATA',
       },
       'cache': {
-        // Best-effort route-cache writes over KV_CACHE: the driver wraps
+        // Best-effort route-cache reads and writes over KV_CACHE: the driver wraps
         // unstorage's cloudflare-kv-binding, floors every TTL at Cloudflare's
-        // 60-second minimum, and turns write rejections into wide events
+        // 60-second minimum, and turns read and write rejections into wide events
         // instead of propagating them to Nitro's `captureError` (issue #156).
         driver: fileURLToPath(new URL('./server/runtime/kv-cache-storage.ts', import.meta.url)),
         binding: 'KV_CACHE',

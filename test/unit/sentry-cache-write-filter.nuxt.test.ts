@@ -1,5 +1,7 @@
+import { createError } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isBestEffortCacheWriteError, isClosedBroadcastChannelError, isExpectedUpstreamOutageError, isMcpAcceptProbeError } from '../../shared/sentry'
+import { isBestEffortCacheWriteError, isClosedBroadcastChannelError, isMcpAcceptProbeError } from '../../shared/sentry'
+import { dependencyOutageError, isDependencyOutageError } from '../../shared/server/dependency-outage'
 
 describe('isClosedBroadcastChannelError', () => {
   const closed = 'Failed to execute \'postMessage\' on \'BroadcastChannel\': Channel is closed'
@@ -56,29 +58,25 @@ describe('isBestEffortCacheWriteError', () => {
   })
 })
 
-describe('isExpectedUpstreamOutageError', () => {
-  it('matches the three upstream-outage 503 signatures the handlers throw', () => {
-    expect(isExpectedUpstreamOutageError(new Error('Skill source is unavailable upstream'))).toBe(true)
-    expect(isExpectedUpstreamOutageError(new Error('SKILL.md source is unavailable upstream'))).toBe(true)
-    expect(isExpectedUpstreamOutageError(new Error('Asset source is unavailable upstream'))).toBe(true)
+describe('isDependencyOutageError', () => {
+  it('matches the 503 a handler raises for a dependency outage it already recorded', () => {
+    expect(isDependencyOutageError(dependencyOutageError({ dependency: 'raw.githubusercontent.com', message: 'Package details are unavailable. Try again later.' }))).toBe(true)
+    expect(isDependencyOutageError(dependencyOutageError({ dependency: 'search lanes', statusMessage: 'Search is temporarily unavailable.' }))).toBe(true)
   })
 
-  it('matches the Sentry-serialized exception, whose message arrives as value', () => {
-    expect(isExpectedUpstreamOutageError({
-      type: 'Error',
-      value: 'SKILL.md source is unavailable upstream',
-      mechanism: { handled: false, type: 'auto.function.nuxt.nitro' },
-    })).toBe(true)
+  it('answers 503 and keeps the message the client reads', () => {
+    expect(dependencyOutageError({ dependency: 'raw.githubusercontent.com', message: 'Asset source is unavailable upstream' }))
+      .toMatchObject({ statusCode: 503, message: 'Asset source is unavailable upstream' })
   })
 
-  it('ignores the gone-source 410, a permanent verdict rather than an outage', () => {
-    expect(isExpectedUpstreamOutageError(new Error('Skill source is gone upstream'))).toBe(false)
+  it('ignores a 503 without the mark, whatever its message says', () => {
+    expect(isDependencyOutageError(createError({ statusCode: 503, message: 'Asset source is unavailable upstream' }))).toBe(false)
+    expect(isDependencyOutageError(createError({ statusCode: 503, message: 'Check-in bindings or deployment identity are missing.' }))).toBe(false)
   })
 
-  it('ignores unrelated errors and values that are not errors', () => {
-    expect(isExpectedUpstreamOutageError(new Error('KV PUT failed: 429 Too Many Requests'))).toBe(false)
-    expect(isExpectedUpstreamOutageError('Skill source is unavailable upstream')).toBe(false)
-    expect(isExpectedUpstreamOutageError(undefined)).toBe(false)
+  it('ignores values that are not errors', () => {
+    expect(isDependencyOutageError({ type: 'Error', value: 'Package details are unavailable. Try again later.' })).toBe(false)
+    expect(isDependencyOutageError(undefined)).toBe(false)
   })
 })
 
@@ -151,19 +149,18 @@ describe('sentry beforeSend cache-write filter', () => {
     expect(beforeSend(event, {})).toBeNull()
   })
 
-  it('drops the intended upstream-outage 503 the handler already reported as a wide event', () => {
-    const event: SentryEventFixture = {
-      exception: { values: [{ type: 'Error', value: 'Skill source is unavailable upstream' }] },
-    }
-    expect(beforeSend(event, { originalException: new Error('Skill source is unavailable upstream') }))
-      .toBeNull()
+  it.each([
+    { issue: 'SKILLD-44', dependency: 'raw.githubusercontent.com', message: 'Package details are unavailable. Try again later.' },
+    { issue: 'SKILLD-11', dependency: 'raw.githubusercontent.com', message: 'Asset source is unavailable upstream' },
+  ])('drops the dependency outage 503 a handler already recorded ($issue)', ({ dependency, message }) => {
+    const event: SentryEventFixture = { exception: { values: [{ type: 'Error', value: message }] } }
+    expect(beforeSend(event, { originalException: dependencyOutageError({ dependency, message }) })).toBeNull()
   })
 
-  it('drops the outage on the serialized exception alone, when the original error is absent', () => {
-    const event: SentryEventFixture = {
-      exception: { values: [{ type: 'Error', value: 'Asset source is unavailable upstream' }] },
-    }
-    expect(beforeSend(event, {})).toBeNull()
+  it('keeps a 503 that carries no outage mark, such as missing deployment bindings', () => {
+    const message = 'Check-in bindings or deployment identity are missing.'
+    const event: SentryEventFixture = { exception: { values: [{ type: 'Error', value: message }] } }
+    expect(beforeSend(event, { originalException: createError({ statusCode: 503, message }) })).toBe(event)
   })
 
   it('drops the intended MCP 406 the transport already answered to the probe', () => {

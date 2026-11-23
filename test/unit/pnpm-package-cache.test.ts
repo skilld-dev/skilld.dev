@@ -1,13 +1,15 @@
 import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { isDependencyOutageError } from '../../shared/server/dependency-outage'
 import { tarGzFixture } from '../fixtures/tar-archive'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 describe('package detection cache', () => {
   let harness: SqliteD1
   let handler: (event: H3Event) => Promise<unknown>
-  let failure: 'oversized' | 'upstream' | null
+  let failure: 'oversized' | 'upstream' | 'rate-limited' | null
+  let emitOperationalEvent: ReturnType<typeof vi.fn>
   let archiveReads: number
   let manifestReads: number
 
@@ -19,6 +21,9 @@ describe('package detection cache', () => {
     vi.stubGlobal('getUserSession', () => Promise.resolve(null))
     vi.stubGlobal('getQuery', () => ({}))
     vi.stubGlobal('getRouterParam', () => 'acme/kit/auth')
+    emitOperationalEvent = vi.fn()
+    vi.stubGlobal('emitOperationalEvent', emitOperationalEvent)
+    vi.stubGlobal('createWideEvent', (fields: Record<string, unknown>) => fields)
     const entries = new Map<string, unknown>()
     vi.stubGlobal('useStorage', () => ({
       getItem: async (key: string) => entries.get(key) ?? null,
@@ -35,6 +40,8 @@ describe('package detection cache', () => {
       const url = String(input)
       if (url.includes('raw.githubusercontent.com')) {
         manifestReads++
+        if (failure === 'rate-limited')
+          return new Response(null, { status: 429 })
         return Response.json({ name: 'kit', version: '1.0.0' })
       }
       if (url.endsWith('/latest')) {
@@ -80,6 +87,15 @@ describe('package detection cache', () => {
     vi.setSystemTime(Date.now() + 1_000)
     await handler(event())
     expect(manifestReads).toBe(3)
+  })
+
+  it('answers a GitHub rate limit as a recorded dependency outage (SKILLD-44)', async () => {
+    failure = 'rate-limited'
+    const error: unknown = await handler(event()).catch((thrown: unknown) => thrown)
+
+    expect(error).toMatchObject({ statusCode: 503 })
+    expect(isDependencyOutageError(error)).toBe(true)
+    expect(emitOperationalEvent).toHaveBeenCalledWith({ operation: 'skill-package-detect', outcome: 'failed' })
   })
 
   it('caches a Skill outside the package layout for one hour', async () => {

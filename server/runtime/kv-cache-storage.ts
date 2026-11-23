@@ -27,8 +27,13 @@ export interface KvCacheStorageOptions {
  *
  * So a rejected write resolves and reports as a `cache-write` wide event
  * instead. This is not a silent catch: a KV outage stays visible as a rise in
- * failed cache writes, and reads are untouched, so a failed read still behaves
- * as a miss.
+ * failed cache writes.
+ *
+ * Reads follow the same rule. Nitro already treats a rejected read as a miss,
+ * then forwards the rejection to `captureError` too, so each `KV GET failed:
+ * 500` became an unhandled Sentry issue on a request that was still served
+ * (SKILLD-28). A rejected read resolves to a miss here and reports as a
+ * `cache-read` wide event, the event `readCache` already records.
  *
  * Every write carries a TTL of at least 60 seconds, the floor Cloudflare KV
  * enforces, matching the guarantee `@harlan-zw/nuxt-cloudflare`'s own cache
@@ -40,7 +45,7 @@ export default defineDriver((options: KvCacheStorageOptions) => {
     throw new Error(`[kv-cache-storage] defaultTtl must be an integer of at least ${MIN_TTL_SECONDS} seconds, received ${options.defaultTtl}`)
 
   const driver = cloudflareKvBinding(options)
-  const { setItem } = driver
+  const { getItem, setItem } = driver
   if (!setItem)
     throw new Error('[kv-cache-storage] cloudflare-kv-binding driver must implement setItem')
 
@@ -49,6 +54,17 @@ export default defineDriver((options: KvCacheStorageOptions) => {
     options,
     name: 'cloudflare-kv-cache',
     flags: { ...driver.flags, ttl: true },
+    getItem(key, transactionOptions) {
+      return Promise.resolve(getItem(key, transactionOptions)).catch((error: unknown) => {
+        emitOperationalEvent(createWideEvent({
+          'operation': 'cache-read',
+          'outcome': 'failed',
+          'cache.readFailed': true,
+          'reason': error instanceof Error ? error.message : String(error),
+        }))
+        return null
+      })
+    },
     setItem(key, value, transactionOptions = {}) {
       const requestedTtl = Number(transactionOptions.ttl)
       const ttl = Number.isFinite(requestedTtl) && requestedTtl > 0

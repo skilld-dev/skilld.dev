@@ -1,5 +1,6 @@
 import type { ReadThroughCache } from '#shared/server/cache'
 import { readThroughCache } from '#shared/server/cache'
+import { dependencyOutageError } from '#shared/server/dependency-outage'
 import { defineApiHandler } from '#shared/server/handler'
 import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { loadStoredSkillRow, readReferencedFile, readStoredSkillMd, resolveReferencedFileTarget } from '../../utils/skill-stored-source'
@@ -94,7 +95,7 @@ export default defineApiHandler({
             throw createError({ statusCode: 404, message: 'Referenced file not found in repository' })
           if (raw._tag === 'unavailable') {
             emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'failed', 'upstream.status': raw.status ?? 0, 'attempt': raw.attempts }))
-            throw createError({ statusCode: 503, message: 'Referenced file source is unavailable upstream' })
+            throw dependencyOutageError({ dependency: 'raw.githubusercontent.com', message: 'Referenced file source is unavailable upstream' })
           }
           return { body: raw.body, source: target.source } satisfies ReferencedFile
         },

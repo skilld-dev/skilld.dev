@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { retryIdempotentD1Write } from '@harlan-zw/nuxt-cloudflare/d1'
 import { getHeader, getRequestURL, setHeader, useSession } from 'h3'
 import { useRuntimeConfig } from 'nitropack/runtime'
 
@@ -54,10 +55,15 @@ export async function issueSignupClickProof(event: H3Event): Promise<string | nu
   const expiresAt = now + PROOF_SECONDS
   const session = await proofSession(event)
   const db = event.context.platform.db
-  await db.batch([
-    db.prepare('DELETE FROM signup_click_proofs WHERE expires_at <= ?1').bind(now),
-    db.prepare('INSERT INTO signup_click_proofs (nonce, expires_at) VALUES (?1, ?2)').bind(nonce, expiresAt),
-  ])
+  // D1 never retries a write, and every page with a sign-up link runs this one (SKILLD-42).
+  // OR IGNORE makes a replay after a lost but committed batch a no-op.
+  await retryIdempotentD1Write({
+    safety: { _tag: 'replay-safe' },
+    run: () => db.batch([
+      db.prepare('DELETE FROM signup_click_proofs WHERE expires_at <= ?1').bind(now),
+      db.prepare('INSERT OR IGNORE INTO signup_click_proofs (nonce, expires_at) VALUES (?1, ?2)').bind(nonce, expiresAt),
+    ]),
+  })
   await session.update({ nonce, page, client: clientKey(event), expiresAt })
   return nonce
 }

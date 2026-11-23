@@ -1,4 +1,5 @@
 import { readThroughCache } from '#shared/server/cache'
+import { dependencyOutageError } from '#shared/server/dependency-outage'
 import { defineApiHandler } from '#shared/server/handler'
 import { presentPnpmPackage } from '../../presenters/pnpm-package'
 import { pnpmPackageQuery, pnpmPackageSlug } from '../../schemas/pnpm-package'
@@ -36,7 +37,10 @@ export default defineApiHandler({
         if (!row.rendered_skill_path || row.source_resolved === 0)
           return { _tag: 'Absent' } as const
         const source = resolveRepoSourceIdentityFromRow({ owner: row.owner, repo: row.repo }, row)
-        return detectPnpmPackage({ ...source, ref: row.rendered_commit_sha ?? row.default_branch ?? 'HEAD', skillPath: row.rendered_skill_path! }, fetch)
+        const detected = await detectPnpmPackage({ ...source, ref: row.rendered_commit_sha ?? row.default_branch ?? 'HEAD', skillPath: row.rendered_skill_path! }, fetch)
+        if (detected._tag === 'Unavailable')
+          emitOperationalEvent(createWideEvent({ operation: 'skill-package-detect', outcome: 'failed' }))
+        return detected
       },
       {
         ttl: 3600,
@@ -45,7 +49,7 @@ export default defineApiHandler({
       },
     )
     if (result._tag === 'Unavailable')
-      throw createError({ statusCode: 503, message: 'Package details are unavailable. Try again later.' })
+      throw dependencyOutageError({ dependency: 'GitHub or npm', message: 'Package details are unavailable. Try again later.' })
     return result
   },
   presenter: presentPnpmPackage,
