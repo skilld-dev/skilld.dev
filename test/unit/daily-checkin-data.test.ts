@@ -55,7 +55,7 @@ it('archives the identities behind the skill sync failure count', async () => {
       output = args[0] === 'ls-tree' ? 'migrations/001.sql' : args[0] === 'branch' ? 'main' : args[0] === 'rev-parse' ? 'abc' : ''
       return { _tag: 'Ok', stdout: output, stderr: '' }
     }
-    const sql = args[args.indexOf('--command') + 1]!
+    const sql = args[args.indexOf('--sql') + 1]!
     let rows: unknown[] = []
     if (sql.includes('sqlite_master'))
       rows = ['skills', 'repos', 'owners', 'users', 'activity', 'sync_jobs', 'jobs', 'failed_jobs', 'd1_migrations'].map(name => ({ name }))
