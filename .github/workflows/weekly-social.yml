@@ -49,6 +49,7 @@ jobs:
       # Persist before sending. An uncertain send keeps its claim and cannot
       # be retried automatically, including after a cancelled runner.
       - name: Claim destination and week
+        id: claim
         if: steps.prepare.outputs.eligible == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -60,6 +61,7 @@ jobs:
         if: steps.prepare.outputs.eligible == 'true'
         run: pnpm exec tsx scripts/weekly-social.ts publish ${{ matrix.destination }}
         env:
+          SKILLD_WEEKLY_CLAIM_ARTIFACT_ID: ${{ steps.claim.outputs.artifact-id }}
           GH_TOKEN: ${{ github.token }}
           SKILLD_WEEKLY_X_API_KEY: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_API_KEY || '' }}
           SKILLD_WEEKLY_X_API_SECRET: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_API_SECRET || '' }}

@@ -101,6 +101,8 @@ describe('weekly social posts', () => {
 
 describe('posting identity', () => {
   const credentials = { consumerKey: 'key', consumerSecret: 'secret', accessToken: 'token', accessSecret: 'token-secret' }
+  const claim = { id: 14861832971, name: 'skilld-weekly-discord-2026-11-23', expired: false, workflow_run: { id: 45264333491 } }
+  const expectedClaim = { artifactId: String(claim.id), name: claim.name, runId: String(claim.workflow_run.id) }
   it('signs the RFC 5849 reference request', () => {
     const header = oauthHeader('GET', 'http://photos.example.net/photos?file=vacation.jpg&size=original', {
       consumerKey: 'dpf43f3p2l4k3l03',
@@ -122,10 +124,11 @@ describe('posting identity', () => {
     await expect(verifySocialDestination({ _tag: 'discord', webhookUrl: 'https://discord.com/api/webhooks/1/token', channelId: '2' }, fetchImpl)).rejects.toThrow('Discord webhook belongs to another server or channel')
   })
 
-  it('publishes to the checked Discord channel and returns its confirmed message ID', async () => {
+  it('publishes with the uploaded claim and returns the checked Discord channel message ID', async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ guild_id: '931135234261532713', channel_id: '2' }))
       .mockResolvedValueOnce(Response.json({ id: '123' }))
+    assertWeeklyClaim(claim, expectedClaim)
     const result = await publishWeeklySocial({ _tag: 'discord', webhookUrl: 'https://discord.com/api/webhooks/1/token', channelId: '2' }, buildWeeklySocial([skill], now), fetchImpl)
     expect(result).toEqual({ _tag: 'sent', id: '123' })
     expect(fetchImpl.mock.calls[1]?.[0]).toBe('https://discord.com/api/webhooks/1/token?wait=true')
@@ -140,9 +143,12 @@ describe('posting identity', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
-  it('requires a persisted claim owned by this run before sending', () => {
-    expect(() => assertWeeklyClaim({ total_count: 0, artifacts: [] }, '42')).toThrow('This run does not own the weekly claim')
-    expect(() => assertWeeklyClaim({ total_count: 1, artifacts: [{ workflow_run: { id: 41 } }] }, '42')).toThrow('This run does not own the weekly claim')
-    assertWeeklyClaim({ total_count: 1, artifacts: [{ workflow_run: { id: 42 } }] }, '42')
+  it.each([
+    { ...claim, id: 14861832972 },
+    { ...claim, name: 'skilld-weekly-x-2026-11-23' },
+    { ...claim, expired: true },
+    { ...claim, workflow_run: { id: 45264333490 } },
+  ])('rejects a claim that does not match the upload, week, destination, or run: %j', (artifact) => {
+    expect(() => assertWeeklyClaim(artifact, expectedClaim)).toThrow('This run does not own the weekly claim')
   })
 })
