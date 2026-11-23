@@ -28,12 +28,14 @@ const detailSchema = z.object({
 export const socialSkillSchema = feedRow.extend({ evidence: evidenceSchema, sourceUrl: detailSchema.shape.sourceUrl, runCommand: detailSchema.shape.runCommand })
 export type SocialSkill = z.infer<typeof socialSkillSchema>
 
-export function assertWeeklyClaim(value: unknown, runId: string): void {
-  const claims = z.object({
-    total_count: z.number().int().nonnegative(),
-    artifacts: z.array(z.object({ workflow_run: z.object({ id: z.number().int() }) })),
+export function assertWeeklyClaim(value: unknown, expected: { artifactId: string, name: string, runId: string }): void {
+  const claim = z.object({
+    id: z.number().int().positive(),
+    name: z.string(),
+    expired: z.boolean(),
+    workflow_run: z.object({ id: z.number().int() }),
   }).parse(value)
-  if (claims.total_count !== 1 || claims.artifacts.length !== 1 || String(claims.artifacts[0]?.workflow_run.id) !== runId)
+  if (String(claim.id) !== expected.artifactId || claim.name !== expected.name || claim.expired || String(claim.workflow_run.id) !== expected.runId)
     throw new Error('This run does not own the weekly claim')
 }
 

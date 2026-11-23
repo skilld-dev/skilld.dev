@@ -4,10 +4,11 @@ import { z } from 'zod'
 import { assertWeeklyClaim, buildWeeklySocial, loadWeeklySocial, parseSocialDestination, publishWeeklySocial, socialSkillSchema, verifySocialDestination, weekOf } from './lib/weekly-social'
 
 /** GitHub's artifact service persists the claim before any public send. */
-async function weeklyClaims(name: string): Promise<unknown> {
+async function weeklyClaims(query: { name: string } | { artifactId: string }): Promise<unknown> {
   const repository = z.string().regex(/^[\w.-]+\/[\w.-]+$/).parse(process.env.GITHUB_REPOSITORY)
   const token = z.string().min(1).parse(process.env.GH_TOKEN)
-  const response = await fetch(`https://api.github.com/repos/${repository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=100`, {
+  const path = 'artifactId' in query ? `/${query.artifactId}` : `?name=${encodeURIComponent(query.name)}&per_page=100`
+  const response = await fetch(`https://api.github.com/repos/${repository}/actions/artifacts${path}`, {
     headers: { 'authorization': `Bearer ${token}`, 'accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
     redirect: 'error',
     signal: AbortSignal.timeout(30_000),
@@ -37,7 +38,14 @@ async function run() {
     const saved = z.object({ week: z.string(), computedAt: z.number(), skills: z.array(socialSkillSchema) }).parse(JSON.parse(await readFile(path, 'utf8')))
     if (saved.week !== weekOf(now) || now.getTime() / 1000 - saved.computedAt > 3600)
       throw new Error('Prepare a fresh weekly post before publishing')
-    assertWeeklyClaim(await weeklyClaims(`skilld-weekly-${destinationName}-${saved.week}`), z.string().regex(/^\d+$/).parse(process.env.GITHUB_RUN_ID))
+    // The prepare lookup can remain cached for 60 seconds after upload.
+    // Read the uploaded artifact directly instead of repeating that list request.
+    const artifactId = z.string().regex(/^\d+$/).parse(process.env.SKILLD_WEEKLY_CLAIM_ARTIFACT_ID)
+    assertWeeklyClaim(await weeklyClaims({ artifactId }), {
+      artifactId,
+      name: `skilld-weekly-${destinationName}-${saved.week}`,
+      runId: z.string().regex(/^\d+$/).parse(process.env.GITHUB_RUN_ID),
+    })
     const result = await publishWeeklySocial(parseSocialDestination(destinationName, process.env), buildWeeklySocial(saved.skills, now))
     console.log(JSON.stringify(result))
     await writeFile(join(directory, 'receipt.json'), `${JSON.stringify(result, null, 2)}\n`)
@@ -56,7 +64,7 @@ async function run() {
     await appendFile(process.env.GITHUB_STEP_SUMMARY, `### ${destinationName}: ${post.week}\n\n\`\`\`json\n${preview}\n\`\`\`\n`)
 
   let eligible = post._tag === 'ready' && publishing
-  if (eligible && z.object({ total_count: z.number().int().nonnegative() }).parse(await weeklyClaims(claim)).total_count > 0) {
+  if (eligible && z.object({ total_count: z.number().int().nonnegative() }).parse(await weeklyClaims({ name: claim })).total_count > 0) {
     eligible = false
     console.log('This destination already has a weekly delivery claim. Inspect its previous run before retrying.')
   }
