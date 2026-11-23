@@ -9,6 +9,7 @@ import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallth
 import { externalCheckin } from './shared/checkin-external.ts'
 import { iconifyCollections } from './shared/icon-collections.ts'
 import { REGISTRY_SKILL } from './shared/llms-txt.ts'
+import { CLOUDFLARE_WEB_ANALYTICS_TOKEN } from './shared/rum-beacon.ts'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry.ts'
 import { SESSION_NAME } from './shared/server/session-access.ts'
 import { CLI_INSTALL_SCRIPTS } from './shared/skill-commands.ts'
@@ -249,6 +250,9 @@ export default defineNuxtConfig({
     // first rule. Skill, repo and category pages follow once it holds.
   },
 
+  // Keep the beacon in the production HTML and its registration out of the client bundle.
+  plugins: process.env.NODE_ENV === 'production' ? ['~/cloudflare-analytics.server.ts'] : [],
+
   scripts: {
     // Bundling a registry script downloads it at build time. When
     // static.cloudflareinsights.com is unreachable, that download threw and
@@ -263,17 +267,17 @@ export default defineNuxtConfig({
       // static.cloudflareinsights.com at transform time, so every vitest file
       // fails on the network-less CI runner (#204). Telemetry serves no test,
       // and vitest sets NODE_ENV=test before nuxt.config.ts is evaluated.
-      ...(process.env.NODE_ENV === 'test'
-        ? {}
-        : {
+      ...(process.env.NODE_ENV === 'development'
+        ? {
             cloudflareWebAnalytics: {
-              token: 'fefd4b7eafe04d5f81621e43e5d5ef80',
+              token: CLOUDFLARE_WEB_ANALYTICS_TOKEN,
               // RUM cannot collect Worker subrequests. Send events from the browser.
               // https://developers.cloudflare.com/web-analytics/faq/#can-i-use-real-user-monitoring-rum-with-cloudflare-workers
               proxy: false,
-              trigger: 'server',
+              trigger: 'client',
             },
-          }),
+          }
+        : {}),
     },
   },
 

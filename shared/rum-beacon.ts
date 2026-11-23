@@ -1,3 +1,5 @@
+export const CLOUDFLARE_WEB_ANALYTICS_TOKEN = 'fefd4b7eafe04d5f81621e43e5d5ef80'
+
 /**
  * Timing entries carry their page or resource URL in `name`, so it scrubs
  * like any other URL key at every nesting depth.
