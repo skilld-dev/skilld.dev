@@ -212,6 +212,9 @@ catalogs:
     '@iconify-json/vscode-icons':
       specifier: ^1.2.76
       version: 1.2.76
+    '@jridgewell/trace-mapping':
+      specifier: 0.3.31
+      version: 0.3.31
     '@modelcontextprotocol/client':
       specifier: 2.0.0
       version: 2.0.0
@@ -323,6 +326,9 @@ catalogs:
     lint-staged:
       specifier: ^17.4.1
       version: 17.4.1
+    magic-string:
+      specifier: 1.2.3
+      version: 1.2.3
     marked:
       specifier: ^18.0.11
       version: 18.0.11
@@ -555,6 +561,9 @@ importers:
       '@harlan-zw/nuxt-sentry':
         specifier: 'catalog:'
         version: 0.3.0(b93fac6eb0b0b351150aa811e6a25c50)
+      '@jridgewell/trace-mapping':
+        specifier: 'catalog:'
+        version: 0.3.31
       '@nuxt/a11y':
         specifier: 'catalog:'
         version: 1.0.0-alpha.1(@nuxt/schema@4.6.4)(confbox@0.3.1)(dotenv@17.4.2)(giget@3.3.1)(jiti@2.7.0)(magic-string@1.2.3)(mlly@1.8.2)(oxc-parser@0.143.0)(rolldown@1.2.18)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.18)(rollup@4.62.4)(vite@8.3.7(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1)))(vite@8.3.7(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))
@@ -600,6 +609,9 @@ importers:
       lint-staged:
         specifier: 'catalog:'
         version: 17.4.1
+      magic-string:
+        specifier: 'catalog:'
+        version: 1.2.3
       nuxtseo-devtools-host:
         specifier: 'catalog:'
         version: 1.0.2(425548db53b25e6d3b784d445012cc81)
