@@ -291,7 +291,7 @@ catalog:
   '@iconify-json/simple-icons': ^1.2.94
   '@iconify-json/vscode-icons': ^1.2.76
   '@jridgewell/trace-mapping': 0.3.31
-  '@modelcontextprotocol/client': 2.0.0
+  '@modelcontextprotocol/client': 2.3.0
   '@modelcontextprotocol/sdk': 1.32.0
   '@modelcontextprotocol/server': 2.3.0
   '@nuxt/a11y': 1.0.0-alpha.1
