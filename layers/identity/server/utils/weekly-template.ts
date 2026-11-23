@@ -14,7 +14,7 @@
 import type { EmailPlacement } from './email-clicks'
 import { brailleSpark, SPARK_BARS, sparkCount, sparkLevels, sparkWeek } from '#shared/braille-spark'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
-import { canonicalRepoSkillPath } from '#shared/skill-routes'
+import { canonicalRepoSkillPath, repoSkillPath } from '#shared/skill-routes'
 import { countedEmailUrl } from './email-clicks'
 
 export type WeeklyTheme = 'light' | 'dark'
@@ -447,6 +447,19 @@ function skillUrl(
   })}`
 }
 
+/** The Skill's SKILL.md in the skilld.dev file view, under its exact address. */
+function skillFileUrl(siteUrl: string, skill: { owner: string, repo: string, name: string }): string {
+  return `${siteUrl}${repoSkillPath(skill.owner, skill.repo, skill.name)}/-/SKILL.md`
+}
+
+/** The History section of the Skill page, which lists its recent commits. */
+function skillHistoryUrl(
+  siteUrl: string,
+  skill: { owner: string, repo: string, name: string, repoSkillCount?: number },
+): string {
+  return `${skillUrl(siteUrl, skill)}#history-heading`
+}
+
 function sectionLabel(t: Tokens, text: string): string {
   return `<tr><td style="padding:28px 0 10px;"><h2 style="margin:0;font-family:${MONO};font-size:14px;line-height:1.5;letter-spacing:0.08em;text-transform:uppercase;color:${t.faint};">${esc(text)}</h2></td></tr>`
 }
@@ -723,15 +736,15 @@ export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyR
 
   const likedRows = input.likedChanges.map((change) => {
     const subjects = commitSubjects(change.commitMessages)
-    // Liked rows point at SKILL.md on GitHub, which is where a reader judges a
-    // change. Those clicks are counted too: the destination path is rewritten,
-    // never a whole URL.
-    const sourceUrl = track(change.sourceUrl ?? skillUrl(input.siteUrl, change), 'liked')
+    // Every Skill link stays on skilld.dev: the page, its SKILL.md, and the
+    // History section that lists the change. Clicks count as site paths.
+    const pageUrl = track(skillUrl(input.siteUrl, change), 'liked')
+    const historyUrl = track(skillHistoryUrl(input.siteUrl, change), 'liked')
     return row(t, {
       siteUrl: input.siteUrl,
       owner: change.owner,
       title: change.name,
-      href: sourceUrl,
+      href: pageUrl,
       // A watched change must explain its commits or disclose missing details.
       description: subjects.length ? null : input.changeSource === 'watches' ? 'Commit details are unavailable.' : change.description,
       body: commitList(t, change.commitMessages),
@@ -742,9 +755,9 @@ export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyR
       ]),
       links: rowLinks(t, [
         ...(input.changeSource === 'watches'
-          ? [{ href: sourceUrl.replace('/blob/', '/commits/'), label: 'View commits' }]
-          : change.changeUrl ? [{ href: track(change.changeUrl, 'liked'), label: 'View change' }] : []),
-        { href: sourceUrl, label: 'Open SKILL.md' },
+          ? [{ href: historyUrl, label: 'View commits' }]
+          : change.changeUrl ? [{ href: historyUrl, label: 'View change' }] : []),
+        { href: track(skillFileUrl(input.siteUrl, change), 'liked'), label: 'Open SKILL.md' },
       ]),
     })
   }).join('')
@@ -772,12 +785,12 @@ export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyR
     : ''
 
   const trendingRows = input.trending.map((skill) => {
-    const sourceUrl = track(skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug }), 'trending')
+    const pageUrl = track(skillUrl(input.siteUrl, { ...skill, name: skill.slug }), 'trending')
     return trendingRow(t, {
       siteUrl: input.siteUrl,
       owner: skill.owner,
       title: skill.canonicalName,
-      href: sourceUrl,
+      href: pageUrl,
       description: skill.description,
       meta: trendingMeta(skill, now),
       evidence: skill.evidence,
@@ -896,11 +909,12 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
           lines.push(`  ${description}`)
       }
       lines.push(`  ${change.owner}/${change.repo}, ${change.changeCount} ${plural(change.changeCount, 'change', 'changes')}, ${relativeDay(change.changedAt, now)}`)
+      lines.push(`  Skill: ${skillUrl(input.siteUrl, change)}`)
       if (input.changeSource === 'watches')
-        lines.push(`  Commits: ${(change.sourceUrl ?? skillUrl(input.siteUrl, change)).replace('/blob/', '/commits/')}`)
+        lines.push(`  Commits: ${skillHistoryUrl(input.siteUrl, change)}`)
       else if (change.changeUrl)
-        lines.push(`  Change: ${change.changeUrl}`)
-      lines.push(`  Source: ${change.sourceUrl ?? skillUrl(input.siteUrl, change)}`)
+        lines.push(`  Change: ${skillHistoryUrl(input.siteUrl, change)}`)
+      lines.push(`  SKILL.md: ${skillFileUrl(input.siteUrl, change)}`)
       lines.push('')
     }
     if (input.likedOverflow) {
@@ -921,7 +935,7 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
       lines.push(`  ${trendingMeta(skill, now)}`)
       if (skill.evidence)
         lines.push(`  “${trimQuote(skill.evidence.text)}” from @${skill.evidence.authorHandle}: ${skill.evidence.url}`)
-      lines.push(`  Source: ${skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug })}`)
+      lines.push(`  Skill: ${skillUrl(input.siteUrl, { ...skill, name: skill.slug })}`)
       lines.push('')
     }
     if (!trendsOnly && !input.trackedCount)

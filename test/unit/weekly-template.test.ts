@@ -108,21 +108,45 @@ describe('weekly template', () => {
     expect(html).not.toContain('1 accounts')
   })
 
-  it('links exact source and shows the owner avatar through the skilld.dev image proxy', () => {
-    const { html } = renderWeekly(input({ likedChanges: [likedChange()] }))
-    const avatars = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('img[width="36"]')]
-      .map(img => new URL(img.getAttribute('src')!))
+  it('keeps every Skill link on skilld.dev and shows the owner avatar through the image proxy', () => {
+    const { html } = renderWeekly(input({ likedChanges: [likedChange()], trending: [trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
+    const parsed = new DOMParser().parseFromString(html, 'text/html')
+    const links = [...parsed.querySelectorAll('a')].map(a => a.getAttribute('href')!)
+    const avatars = [...parsed.querySelectorAll('img[width="36"]')].map(img => new URL(img.getAttribute('src')!))
 
-    expect(html).toContain('https://github.com/antfu/skills/blob/sha/SKILL.md')
+    expect(links).toEqual(expect.arrayContaining([
+      'https://skilld.dev/gh/antfu/skills/vitest',
+      'https://skilld.dev/gh/antfu/skills/vitest/-/SKILL.md',
+      'https://skilld.dev/gh/antfu/skills/vitest#history-heading',
+      'https://skilld.dev/gh/antfu/skills/tdd',
+    ]))
+    expect(links.filter(href => href.startsWith('https://github.com/'))).toEqual([])
     expect(avatars.map(url => [url.origin, url.pathname, url.searchParams.get('url')])).toEqual([
       ['https://skilld.dev', '/_img/avatar', 'https://github.com/antfu.png?size=80'],
     ])
   })
 
-  it('sends the reader to SKILL.md in the plain-text half', () => {
-    const { text } = renderWeekly(input({ likedChanges: [likedChange()] }))
+  it('sends the reader to skilld.dev in the plain-text half', () => {
+    const { text } = renderWeekly(input({ likedChanges: [likedChange()], trending: [trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
 
-    expect(text).toContain('https://github.com/antfu/skills/blob/sha/SKILL.md')
+    expect(text).toContain('Skill: https://skilld.dev/gh/antfu/skills/vitest\n')
+    expect(text).toContain('SKILL.md: https://skilld.dev/gh/antfu/skills/vitest/-/SKILL.md')
+    expect(text).toContain('Skill: https://skilld.dev/gh/antfu/skills/tdd\n')
+    expect(text).not.toContain('https://github.com/antfu/skills')
+  })
+
+  it('counts Skill clicks as skilld.dev paths, never as GitHub hand-offs', () => {
+    const { html } = renderWeekly(input({ countClicks: true, likedChanges: [likedChange()], trending: [trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
+    const counted = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('a')]
+      .map(a => new URL(a.getAttribute('href')!))
+      .filter(url => url.searchParams.has('p'))
+
+    expect(counted.map(url => url.searchParams.get('to'))).toEqual(expect.arrayContaining([
+      '/gh/antfu/skills/vitest',
+      '/gh/antfu/skills/vitest/-/SKILL.md',
+      '/gh/antfu/skills/tdd',
+    ]))
+    expect(counted.filter(url => url.searchParams.has('g'))).toEqual([])
   })
 
   it('lists up to three commit subjects on a changed skill', () => {
