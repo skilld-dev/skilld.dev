@@ -84,6 +84,7 @@ export default defineScheduledTask({
         vanished: result.vanished,
         stayedHot: result.promotedToHot,
         frozen: result.frozen,
+        frozenUnlinked: result.unlinked,
         postsRead: result.postsRead,
         snapshotsPruned: result.snapshotsPruned,
         trackedHot: tiers.hot,
