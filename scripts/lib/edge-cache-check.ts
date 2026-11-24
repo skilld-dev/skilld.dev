@@ -11,8 +11,8 @@
  * 3. An agent that asks for Markdown still gets the 307 to the `.md` URL.
  * 4. A request that carries a session cookie gets the anonymous render, and
  *    the page tells the browser to load the session itself.
- * 5. www answers a 301 to the apex, also once the apex entry is warm: the
- *    cache key has no hostname, so `Vary: Host` must keep the variants apart.
+ * 5. www answers a 301 to the apex after the apex entry is warm. Its wildcard
+ *    `Vary` prevents storing the redirect under another host's cache key.
  * 6. Every board is stored under its own key: boards that differ only by query
  *    string render a different title or canonical URL. The bare path and the
  *    default range are one board, so they may share both.
@@ -63,6 +63,7 @@ export type EdgeCacheFailure
     | { _tag: 'markdown-location', path: string, actual: string | null }
     | { _tag: 'rendered-for-session', path: string, reason: string }
     | { _tag: 'www-redirect', path: string, status: number | null, location: string | null, message?: string }
+    | { _tag: 'www-cache-policy', path: string, cacheStatus: string | null, vary: string | null, cacheControl: string | null }
     | { _tag: 'shared-cache-entry', paths: string[], identity: string | null }
     | { _tag: 'no-etag', path: string }
     | { _tag: 'not-revalidated', path: string, status: number }
@@ -198,7 +199,7 @@ async function checkAnonymous(
     if (cookies.length)
       return { _tag: 'failed', failure: { _tag: 'sets-cookie', path, request: 'anonymous', cookies } }
     const vary = response.headers.get('vary')
-    if (!varyKeysEdgeCache(vary))
+    if (!varyKeysEdgeCache(vary, path))
       return { _tag: 'failed', failure: { _tag: 'vary', path, request: 'anonymous', actual: vary } }
 
     const status = (response.headers.get('cf-cache-status') ?? 'NONE').toUpperCase()
@@ -222,7 +223,7 @@ async function checkMarkdown(path: string, url: string, fetch: EdgeCacheFetch): 
   if (!location || new URL(location, url).pathname !== markdownPath(path))
     return { _tag: 'markdown-location', path, actual: location }
   const vary = response.headers.get('vary')
-  if (!varyKeysEdgeCache(vary))
+  if (!varyKeysEdgeCache(vary, path))
     return { _tag: 'vary', path, request: 'markdown', actual: vary }
   return null
 }
@@ -320,9 +321,15 @@ async function checkWww(path: string, wwwBaseUrl: string, baseUrl: string, fetch
     return { _tag: 'www-redirect', path, status: null, location: null, message: fetched.message }
   const { response } = fetched
   const location = response.headers.get('location')
-  if (response.status === 301 && location === new URL(path, baseUrl).href)
-    return null
-  return { _tag: 'www-redirect', path, status: response.status, location }
+  if (response.status !== 301 || location !== new URL(path, baseUrl).href)
+    return { _tag: 'www-redirect', path, status: response.status, location }
+
+  const cacheStatus = response.headers.get('cf-cache-status')
+  const vary = response.headers.get('vary')
+  const cacheControl = response.headers.get('cache-control')
+  if (vary !== '*' || !cacheControl?.includes('no-store') || SERVED_FROM_CACHE.has(cacheStatus ?? ''))
+    return { _tag: 'www-cache-policy', path, cacheStatus, vary, cacheControl }
+  return null
 }
 
 export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): Promise<EdgeCacheCheckResult> {

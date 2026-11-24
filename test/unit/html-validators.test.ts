@@ -8,7 +8,10 @@ import { createTestEvent } from './helpers/event'
 vi.hoisted(() => {
   vi.stubGlobal('defineNitroPlugin', (plugin: unknown) => plugin)
 })
-vi.mock('nitropack/runtime', () => ({ useRuntimeConfig: () => ({ app: { buildId: 'build-1' } }) }))
+vi.mock('nuxt/server', () => ({
+  getRouteRules: (event: H3Event) => event.context.routeRules ?? {},
+  useRuntimeConfig: () => ({ app: { buildId: 'build-1' } }),
+}))
 
 const EDGE = 'public, max-age=300, stale-while-revalidate=3600'
 const HTML = '<!DOCTYPE html><html><head><title>skill-creator</title></head><body><h1>skill-creator</h1></body></html>'
@@ -159,5 +162,17 @@ describe('html validators plugin', () => {
 
     expect(signedIn.headers.get('etag')).toBeNull()
     expect(rendered).toEqual({ body: HTML, statusCode: 200 })
+  })
+
+  it('tags a shared page before Nitro has applied its route headers', async () => {
+    const { event: request, headers } = event({ 'if-none-match': '*' })
+    headers.set('cloudflare-cdn-cache-control', 'private, no-store')
+    request.context.routeRules = { headers: { 'cloudflare-cdn-cache-control': EDGE } }
+    const rendered: RenderResponse = { body: HTML, statusCode: 200 }
+
+    await renderHook()(rendered, { event: request })
+
+    expect(headers.get('etag')).toMatch(/^W\/"build-1-/)
+    expect(rendered).toEqual({ body: '', statusCode: 304, statusMessage: 'Not Modified' })
   })
 })

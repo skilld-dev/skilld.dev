@@ -53,7 +53,7 @@ function edge(overrides: Partial<Record<'anonymous' | 'markdown' | 'session' | '
     if (new URL(url).hostname.startsWith('www.')) {
       return response(overrides.www?.(path, 0) ?? {
         status: 301,
-        headers: { 'location': `${BASE}${path}`, 'cache-control': 'private, no-store', 'vary': '' },
+        headers: { 'location': `${BASE}${path}`, 'cache-control': 'private, no-store', 'vary': '*' },
         body: '',
       }, path)
     }
@@ -237,6 +237,19 @@ describe('checkEdgeCache', () => {
     expect(result).toMatchObject({
       _tag: 'failed',
       failures: [{ _tag: 'www-redirect', path: '/skills/trending', status: 200, location: null }],
+    })
+  })
+
+  it('fails when the correct www redirect can enter the shared cache', async () => {
+    const result = await run(edge({ www: path => ({
+      status: 301,
+      headers: { 'location': `${BASE}${path}`, 'cache-control': 'private, no-store', 'cf-cache-status': 'HIT' },
+      body: '',
+    }) }))
+
+    expect(result).toMatchObject({
+      _tag: 'failed',
+      failures: [{ _tag: 'www-cache-policy', path: '/skills/trending', cacheStatus: 'HIT' }],
     })
   })
 

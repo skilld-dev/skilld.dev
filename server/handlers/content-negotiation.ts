@@ -1,4 +1,4 @@
-import { AI_READY_INTERNAL_HEADER, decideNegotiation, NEGOTIATION_VARY } from '#shared/content-negotiation'
+import { AI_READY_INTERNAL_HEADER, decideNegotiation, negotiationVary } from '#shared/content-negotiation'
 
 /**
  * Send a page request that asks for Markdown to the page's `.md` URL.
@@ -19,7 +19,7 @@ export default defineEventHandler((event) => {
   if (decision._tag === 'skip')
     return
 
-  appendResponseHeader(event, 'vary', NEGOTIATION_VARY)
+  appendResponseHeader(event, 'vary', negotiationVary(event.path))
   if (decision._tag === 'html')
     return
 

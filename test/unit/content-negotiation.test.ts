@@ -92,4 +92,9 @@ describe('nEGOTIATION_VARY', () => {
   ])('varyKeysEdgeCache($vary) is $expected', ({ vary, expected }) => {
     expect(varyKeysEdgeCache(vary)).toBe(expected)
   })
+
+  it.each(['/gh/anthropics', '/gh/anthropics/skills?sort=stars'])('separates browser and crawler renders on %s', (path) => {
+    expect(varyKeysEdgeCache(NEGOTIATION_VARY, path)).toBe(false)
+    expect(varyKeysEdgeCache(`${NEGOTIATION_VARY}, User-Agent`, path)).toBe(true)
+  })
 })

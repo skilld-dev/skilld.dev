@@ -634,10 +634,11 @@ export default defineNuxtConfig({
     // 2026-10-01. nuxt-cloudflare refuses to store any non-200, so a 404 or a
     // 503 from a D1 blip never reaches the cache.
     //
-    // Nitro matches route rules with radix3, which treats trailing params as
-    // optional, so this rule also covers the owner and repo hubs. They render
-    // signed out too, and the post-deploy proof checks one of each. File deep
-    // links (`/gh/o/r/s/-/...`) have more segments and stay uncached.
+    // Owner and repository hubs render signed out and vary on User-Agent for
+    // crawler renders. Nitro 3 matches the hub segments explicitly.
+    // File links (`/gh/o/r/s/-/...`) stay uncached.
+    '/gh/:owner': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
+    '/gh/:owner/:repo': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     '/gh/:owner/:repo/:name': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     // Raw markdown and the typeahead index deliberately keep browser caching
     // too: both are large, identical for everyone, and only change when the

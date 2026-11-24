@@ -5,9 +5,8 @@
  * Workers Cache answers a hit without running the Worker, and it keys a stored
  * response on the URL plus the request headers named in `Vary`. A decision
  * that read `User-Agent` needed `Vary: User-Agent`, which splits the cache per
- * browser build and still let an agent and a browser that sent the same two
- * headers see each other's answer. Reading only the headers we vary on keeps
- * a stored response correct for every request that can match it.
+ * browser build. Only owner and repository hubs need that split because their
+ * HTML still depends on bot detection.
  *
  * The rules follow nuxt-ai-ready's own negotiation, minus its User-Agent step.
  * A bare wildcard Accept and a missing Accept both admit HTML, so they get
@@ -25,14 +24,24 @@
  * canonical-host redirect never runs.
  */
 const NEGOTIATION_VARY_FIELDS = ['Accept', 'Sec-Fetch-Dest', 'Host']
+const HUB_VARY_FIELDS = [...NEGOTIATION_VARY_FIELDS, 'User-Agent']
+const HUB_PATH_RE = /^\/gh\/[^/]+(?:\/[^/]+)?\/?$/
 
 export const NEGOTIATION_VARY = NEGOTIATION_VARY_FIELDS.join(', ')
 
-/** True when `vary` names exactly the negotiation fields, in any order or case. */
-export function varyKeysEdgeCache(vary: string | null | undefined): boolean {
+function varyFields(path: string): string[] {
+  return HUB_PATH_RE.test(withoutQuery(path)) ? HUB_VARY_FIELDS : NEGOTIATION_VARY_FIELDS
+}
+
+export function negotiationVary(path: string): string {
+  return varyFields(path).join(', ')
+}
+
+/** True when `vary` names exactly the fields that can change this page. */
+export function varyKeysEdgeCache(vary: string | null | undefined, path = '/'): boolean {
   const fields = new Set((vary ?? '').split(',').map(field => field.trim().toLowerCase()).filter(Boolean))
-  return fields.size === NEGOTIATION_VARY_FIELDS.length
-    && NEGOTIATION_VARY_FIELDS.every(field => fields.has(field.toLowerCase()))
+  const expected = varyFields(path)
+  return fields.size === expected.length && expected.every(field => fields.has(field.toLowerCase()))
 }
 
 /** Set by nuxt-ai-ready when it fetches a page's HTML to convert it. */
