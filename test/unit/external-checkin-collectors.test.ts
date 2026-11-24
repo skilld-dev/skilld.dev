@@ -217,7 +217,9 @@ it.each([
 // A repository `.env` can carry a deploy-time CLOUDFLARE_API_TOKEN, and `cf`
 // loads `.env` from its working directory. Run inside the checkout, a stale
 // token there shadowed the operator's valid `cf` login (2026-11-24).
-it('reads Cloudflare through cf from the home directory, not the checkout', async () => {
+// The binary is the checkout's own: the scheduled Agent sandbox mounts the
+// workspace but not the operator's global pnpm bin, where `cf` was a symlink.
+it('reads Cloudflare through the checkout’s cf from the home directory', async () => {
   const now = new Date('2026-11-24T00:00:00Z')
   const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-cf-'))
   roots.push(root)
@@ -238,7 +240,7 @@ it('reads Cloudflare through cf from the home directory, not the checkout', asyn
 
   expect(report.results.find(check => check.id === 'skilld.deploy')?.result).toMatchObject({ evidence: { latest: { versionId: 'release-1' } } })
   expect(cloudflareCalls.length).toBeGreaterThan(1)
-  expect(cloudflareCalls.every(call => call.command === 'cf' && call.cwd === '/home/operator')).toBe(true)
+  expect(cloudflareCalls.every(call => call.command === join(root, 'node_modules/.bin/cf') && call.cwd === '/home/operator')).toBe(true)
 })
 
 it('names the missing Worker analytics token instead of falling back to another CLI', async () => {
@@ -275,7 +277,7 @@ it('totals command copies from an untruncated rollup, not the capped top page', 
   const topRows = Array.from({ length: 50 }, (_, index) => ({ mode: 'run', kind: 'skill', slug: `owner/skill-${index}`, copies: 1 }))
   const totalsRows = [{ mode: 'run', copies: 50 }, { mode: 'install', copies: 10 }]
   boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
-    if (command !== 'cf' || args.slice(0, 3).join(' ') !== 'analytics-engine sql query')
+    if (!command.endsWith('/node_modules/.bin/cf') || args.slice(0, 3).join(' ') !== 'analytics-engine sql query')
       return { _tag: 'Err', reason: 'Unexpected command.' }
     const body = args[args.indexOf('--body') + 1]!
     return { _tag: 'Ok', stdout: JSON.stringify({ data: body.includes('blob3 = \'signup\'')

@@ -49,9 +49,14 @@ const PRODUCTION_D1_DATABASE_ID = 'a5e53f35-f5e5-4987-8c67-c0175addc7cc'
  * carries a deploy-time CLOUDFLARE_API_TOKEN. On 2026-11-24 a stale one there
  * shadowed a valid `cf` login and blinded five checks, so `cf` runs from the
  * home directory. A check-in token still reaches it through the environment.
+ *
+ * The binary is the checkout's own pinned `cf`, as wrangler was. The scheduled
+ * Agent sandbox mounts the workspace but not the operator's global pnpm bin,
+ * where a global `cf` lives behind a symlink.
  */
 function cloudflare(context, args) {
-  return run({ ...context, rootDir: context.env.HOME || homedir(), env: { ...context.env, CLOUDFLARE_ACCOUNT_ID: ANALYTICS_ACCOUNT_TAG } }, 'cf', args)
+  const binary = join(context.rootDir, 'node_modules/.bin/cf')
+  return run({ ...context, rootDir: context.env.HOME || homedir(), env: { ...context.env, CLOUDFLARE_ACCOUNT_ID: ANALYTICS_ACCOUNT_TAG } }, binary, args)
 }
 export function collectProduction(context) {
   return collect(context, 'production-ref', async (context) => {
