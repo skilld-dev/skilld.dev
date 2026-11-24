@@ -9,23 +9,13 @@ const { owner, repo, name, count = 0, variant = 'detail' } = defineProps<{
 
 const route = useRoute()
 const { state } = useAuth()
-const { isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, toggle } = useLikes()
+const { isLiked, isPending, likeCount, ensureLoaded, toggle } = useLikes()
 
 const skillRef = computed(() => ({ owner, repo, name }))
 const liked = computed(() => isLiked(skillRef.value))
 const busy = computed(() => isPending(skillRef.value))
 
-/**
- * The server count ships in cached HTML, so it never includes the viewer's own
- * like. Offsetting locally keeps the number honest between the click and the
- * next recompute drain without re-rendering the page.
- */
-const baseline = ref(count)
-watch(() => count, (next) => {
-  baseline.value = next
-  observeLikeCount(skillRef.value, next)
-}, { immediate: true })
-const displayCount = computed(() => likeCount(skillRef.value) ?? baseline.value)
+const displayCount = computed(() => likeCount(skillRef.value) ?? count)
 
 // Anonymous clicks bounce through OAuth carrying the intent, and the callback
 // replays it via watch-actions.ts, so the user lands back on a liked skill.
@@ -74,7 +64,7 @@ function dismissNudge() {
 async function onToggle() {
   if (busy.value)
     return
-  await toggle(skillRef.value)
+  await toggle(skillRef.value, count)
 }
 
 /**

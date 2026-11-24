@@ -47,6 +47,7 @@ export function useLikes() {
   const fail = useActionFailure()
 
   const liked = useState<Record<string, true>>('skill-likes', () => ({}))
+  // Only account data and mutations belong here. Public counts can be cached.
   const likeCounts = useState<Record<string, number>>('skill-like-counts', () => ({}))
   const loaded = useState<boolean>('skill-likes-loaded', () => false)
   const pending = useState<Record<string, true>>('skill-likes-pending', () => ({}))
@@ -61,13 +62,6 @@ export function useLikes() {
 
   function likeCount(ref: SkillLikeRef): number | undefined {
     return likeCounts.value[likeKey(ref)]
-  }
-
-  /** Cached page counts are a baseline only. A live mutation always wins. */
-  function observeLikeCount(ref: SkillLikeRef, count: number): void {
-    const key = likeKey(ref)
-    if (likeCounts.value[key] === undefined)
-      likeCounts.value = { ...likeCounts.value, [key]: count }
   }
 
   /**
@@ -104,18 +98,19 @@ export function useLikes() {
   }
 
   /** Returns the state the heart settled on, so the caller can trust it after a rollback. */
-  async function toggle(ref: SkillLikeRef): Promise<boolean> {
+  async function toggle(ref: SkillLikeRef, publicCount?: number): Promise<boolean> {
     await ensureLoaded()
     const key = likeKey(ref)
     const wasLiked = !!liked.value[key]
     fail.clear('save your like', `like:${key}`)
     const previousCount = likeCounts.value[key]
+    const count = previousCount ?? publicCount
 
     liked.value = applyLiked(liked.value, key, !wasLiked)
-    if (previousCount !== undefined) {
+    if (count !== undefined) {
       likeCounts.value = {
         ...likeCounts.value,
-        [key]: Math.max(0, previousCount + (wasLiked ? -1 : 1)),
+        [key]: Math.max(0, count + (wasLiked ? -1 : 1)),
       }
     }
     pending.value = { ...pending.value, [key]: true }
@@ -130,8 +125,8 @@ export function useLikes() {
 
     if (!res) {
       liked.value = applyLiked(liked.value, key, wasLiked)
-      if (previousCount !== undefined)
-        likeCounts.value = { ...likeCounts.value, [key]: previousCount }
+      const { [key]: _optimisticCount, ...counts } = likeCounts.value
+      likeCounts.value = previousCount === undefined ? counts : { ...counts, [key]: previousCount }
       return wasLiked
     }
     likeCounts.value = { ...likeCounts.value, [key]: res.likeCount }
@@ -196,7 +191,7 @@ export function useLikes() {
     return request
   }
 
-  return { liked, isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, ensureLiked, toggle, remove }
+  return { liked, isLiked, isPending, likeCount, ensureLoaded, ensureLiked, toggle, remove }
 }
 
 function applyLiked(map: Record<string, true>, key: string, next: boolean): Record<string, true> {

@@ -43,6 +43,14 @@ const tagMode = ref<'and' | 'or'>(((route.query.mode as 'and' | 'or') === 'or' ?
 // Stars stays the default order; likes only ever order this surface when the
 // visitor asks for them in the URL (ADR-0003).
 const sort = ref<'stars' | 'likes'>((route.query.sort as string) === 'likes' ? 'likes' : 'stars')
+const { isAuthenticated } = useAuth()
+const { likeCount, ensureLoaded } = useLikes()
+const showLiveLikes = computed(() => isAuthenticated.value && sort.value === 'likes')
+watch(showLiveLikes, (enabled) => {
+  if (enabled)
+    void ensureLoaded()
+}, { immediate: true })
+
 const debouncedSearch = refDebounced(search, 300)
 // AI runs only for an explicitly submitted query, not on every keystroke.
 const searchIntent = ref<{ _tag: 'keywords' } | { _tag: 'ai', query: string }>(
@@ -513,7 +521,7 @@ function selectOwner(next: string) {
             >
               <li v-for="skill in registryView.data.items" :key="skill.slug">
                 <SkillCard
-                  :skill
+                  :skill="showLiveLikes ? { ...skill, likeCount: likeCount(skill) ?? skill.likeCount } : skill"
                   layout="row"
                   :metric="sort"
                   :trending="trendingKeys.has(trendingSkillKey(skill.owner, skill.repo, skill.name))"
