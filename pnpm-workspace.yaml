@@ -251,7 +251,7 @@ catalog:
   '@harlan-zw/jev': 0.3.0
   '@harlan-zw/nuxt-cf-jobs': 0.3.0
   '@harlan-zw/nuxt-checkin': 0.4.1
-  '@harlan-zw/nuxt-cloudflare': 0.5.3
+  '@harlan-zw/nuxt-cloudflare': 0.6.0
   '@harlan-zw/nuxt-dx': 0.3.0
   '@harlan-zw/nuxt-sentry': 0.3.0
   '@harlan-zw/nuxt-use-query': 0.3.0
