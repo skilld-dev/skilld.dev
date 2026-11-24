@@ -42,6 +42,20 @@ export const MIN_INDEXABLE_ROWS = 8
 export const DEMOTED_STARRED_REPOSITORIES = 20
 
 /**
+ * The sentence that says what orders the `week` and `month` boards.
+ *
+ * The demotion reorders rows, so a line that leaves it out overclaims
+ * (ADR-0004). The trending page and the weekly email both read this one
+ * sentence, so the two cannot describe different rules.
+ */
+export function trendingRankingLine(withStarRows: boolean): string {
+  const demoted = `Skills from the ${DEMOTED_STARRED_REPOSITORIES} most-starred repositories rank lower, so lesser-known skills lead.`
+  return withStarRows
+    ? `Ranked by how many separate devs talked about each one. GitHub stars rank the rest of the board. ${demoted}`
+    : `Ranked by how many separate devs talked about each one. ${demoted}`
+}
+
+/**
  * The range a bare `/skills/trending` serves.
  *
  * A month, not a week. A week of social evidence routinely returns fewer than

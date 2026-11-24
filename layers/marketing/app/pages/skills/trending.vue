@@ -5,7 +5,6 @@ import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skil
 import type { TrendingBoardRow } from '#shared/trending-range'
 import { setResponseHeaders } from 'h3'
 import {
-  DEMOTED_STARRED_REPOSITORIES,
   feedBoardRows,
   isEvidenced,
   leaderboardBoardRows,
@@ -19,6 +18,7 @@ import {
   trendingRangeHeading,
   trendingRangeMeta,
   trendingRangeTitle,
+  trendingRankingLine,
 } from '#shared/trending-range'
 import BoardRangeSwitch from '../../components/BoardRangeSwitch.vue'
 import BoardRankedList from '../../components/BoardRankedList.vue'
@@ -251,13 +251,8 @@ const headerDescription = computed(() => {
     return 'Repositories from individual creators publishing reusable agent skills, reviewed for eligibility and ranked by GitHub stars.'
   // Neither the noun nor the period, both of which the heading above now
   // states. Repeating them cost the line its only job, which is the ranking
-  // rule, and "say it once" is the brand's own instruction. The demotion is
-  // part of that rule: it reorders rows, so a line that leaves it out
-  // overclaims (ADR-0004).
-  const demoted = `Skills from the ${DEMOTED_STARRED_REPOSITORIES} most-starred repositories rank lower, so lesser-known skills lead.`
-  return fillerTotal.value
-    ? `Ranked by how many separate devs talked about each one. GitHub stars rank the rest of the board. ${demoted}`
-    : `Ranked by how many separate devs talked about each one. ${demoted}`
+  // rule, and "say it once" is the brand's own instruction.
+  return trendingRankingLine(Boolean(fillerTotal.value))
 })
 
 const heading = computed(() => trendingRangeHeading(range.value, clock.value))

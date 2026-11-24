@@ -12,9 +12,10 @@
  */
 
 import type { EmailPlacement } from './email-clicks'
-import { brailleSpark, SPARK_BARS, sparkCount, sparkLevels, sparkWeek } from '#shared/braille-spark'
+import { brailleSpark, sparkCount, sparkLevels, sparkWeek } from '#shared/braille-spark'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { canonicalRepoSkillPath, repoSkillPath } from '#shared/skill-routes'
+import { trendingRankingLine } from '#shared/trending-range'
 import { countedEmailUrl } from './email-clicks'
 
 export type WeeklyTheme = 'light' | 'dark'
@@ -39,8 +40,6 @@ interface Tokens {
   accent: string
   onAccent: string
   quote: string
-  /** The brand rule above the footer. Same rose in both themes; it reads on each. */
-  mark: string
 }
 
 const PALETTE: Record<WeeklyTheme, Tokens> = {
@@ -56,7 +55,6 @@ const PALETTE: Record<WeeklyTheme, Tokens> = {
     accent: '#be123c',
     onAccent: '#ffffff',
     quote: '#fafaf9',
-    mark: '#fb7185',
   },
   dark: {
     page: '#14110d',
@@ -72,24 +70,28 @@ const PALETTE: Record<WeeklyTheme, Tokens> = {
     accent: '#fb7185',
     onAccent: '#1c1917',
     quote: '#211d18',
-    mark: '#fb7185',
   },
 }
 
-/** One theme-aware card for the website. Email keeps its fixed inline colours. */
+/**
+ * One theme-aware card for the website. Email keeps its fixed inline colours.
+ *
+ * The card carries both lockups, and the site's CSS shows the one that matches
+ * the page, because an image cannot read a colour variable.
+ */
 export function renderWeeklyPreview(input: WeeklyRenderInput): string {
   const tokens = Object.fromEntries(Object.keys(PALETTE.light).map(key => [key, `var(--email-${key})`])) as unknown as Tokens
-  return renderWeekly(input, tokens).card.replace(/>\s+</g, '><')
+  return renderWeekly(input, tokens, ['light', 'dark']).card.replace(/>\s+</g, '><')
 }
 
 const SANS = `'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`
 const MONO = `'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace`
+
 /**
- * Faces that carry braille, one per platform: Apple Mail and iOS, Windows,
- * Android, then Linux. IBM Plex Mono has none, and a mail client rarely loads
- * it anyway.
+ * The lockup's display size. `pnpm brand:assets` writes each PNG at three
+ * times this width, on its email's surface colour.
  */
-const BRAILLE = `'Apple Braille','Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans Mono',ui-monospace,monospace`
+const LOCKUP = { width: 122, height: 20 } as const
 
 /**
  * Why a skill is on the trending list, as one value rather than a bag of
@@ -315,17 +317,27 @@ function joinMeta(parts: Array<string | null>): string {
   return parts.filter(Boolean).join(' \u00B7 ')
 }
 
+/** Below this a star count reads as a weakness of the row, so the meta line leaves it out. */
+const MIN_SHOWN_STARS = 100
+
 /**
  * The quiet line under a trending skill.
  *
  * `popular` already says the star count in its own sentence, so appending the
  * count again produced rows reading "47k stars, no posts this week \u00B7 47k stars".
+ * A row that draws a spark already shows its mentions, so the mention claim
+ * drops out and only a star surge stays.
  */
-function trendingMeta(skill: WeeklyTrendingSkill, now: number): string {
-  const stars = skill.stars === null || skill.reason._tag === 'popular'
+function trendingMeta(skill: WeeklyTrendingSkill, now: number, sparked: boolean): string {
+  const stars = skill.stars === null || skill.stars < MIN_SHOWN_STARS || skill.reason._tag === 'popular'
     ? null
     : `${compactCount(skill.stars)} stars`
-  return joinMeta([`${skill.owner}/${skill.repo}`, reasonLine(skill.reason, now), stars])
+  const reason = !sparked
+    ? reasonLine(skill.reason, now)
+    : skill.reason._tag === 'named-and-stars'
+      ? `+${compactCount(skill.reason.gain)} stars ${relativeDay(skill.reason.day, now)}`
+      : null
+  return joinMeta([`${skill.owner}/${skill.repo}`, reason, stars])
 }
 
 /**
@@ -346,23 +358,35 @@ function sparkTotal(days: readonly number[]): string {
   return sparkCount(days.reduce((sum, count) => sum + count, 0))
 }
 
+/** Dots per day: one per spark level, as on the site's `SparkDots`. */
+const SPARK_HEIGHT = 4
+
 /**
- * The braille spark for the HTML half, in stone.
+ * The spark for the HTML half: seven columns of stone dots, drawn as table cells.
  *
- * The site draws today in rose. The email spends its rose on the button and
- * the footer rule, so seven rose cells would break the one-rose budget. A day
- * with no count draws the lowest bar faintly as a track, as the site does, so
- * a lone bar still reads as one day of seven.
+ * Braille glyphs fell back to whatever braille face the reader had, so the
+ * width changed between clients and some showed boxes. Cells need no font and
+ * no image, so the dots survive images-off. Outlook for Windows ignores
+ * `border-radius` and draws them square.
  *
- * The label carries the numbers and the bars are hidden from screen readers,
- * because a braille cell read aloud is noise.
+ * The site draws today in rose. The email spends its rose on the button, so
+ * every dot stays stone. A day with no count draws one faint dot as a track,
+ * so a lone column still reads as one day of seven.
+ *
+ * The label carries the numbers and the cells are hidden from screen readers.
  */
 function sparkHtml(t: Tokens, days: readonly number[]): string {
   const label = `${sparkTotal(days)} in 7 days. Per day, oldest first: ${days.join(', ')}.`
-  const bars = sparkLevels(days)
-    .map(level => level === 0 ? `<span style="color:${t.borderStrong};">${SPARK_BARS[1]}</span>` : SPARK_BARS[level])
-    .join('')
-  return `<span role="img" aria-label="${esc(label)}" style="white-space:nowrap;font-family:${MONO};font-size:14px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;"><span aria-hidden="true" style="font-family:${BRAILLE};">${bars}</span> <span aria-hidden="true">${esc(sparkTotal(days))}</span></span>`
+  const levels = sparkLevels(days)
+  const dot = (fill: string) => `<td width="4" height="4" style="width:4px;height:4px;padding:0;border-radius:2px;background:${fill};font-size:0;line-height:0;">&nbsp;</td>`
+  const blank = '<td width="4" height="4" style="width:4px;height:4px;padding:0;font-size:0;line-height:0;">&nbsp;</td>'
+  const rows = Array.from({ length: SPARK_HEIGHT }, (_, index) => {
+    const height = SPARK_HEIGHT - index
+    return `<tr>${levels.map(level => level >= height ? dot(t.body) : level === 0 && height === 1 ? dot(t.borderStrong) : blank).join('')}</tr>`
+  }).join('')
+  return `<span role="img" aria-label="${esc(label)}" style="white-space:nowrap;font-family:${MONO};font-size:14px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;">`
+    + `<table role="presentation" aria-hidden="true" cellpadding="0" cellspacing="2" border="0" style="display:inline-table;vertical-align:middle;margin-right:6px;">${rows}</table>`
+    + `<span aria-hidden="true" style="vertical-align:middle;">${esc(sparkTotal(days))}</span></span>`
 }
 
 /**
@@ -522,15 +546,21 @@ function trendingRow(t: Tokens, options: {
   evidence: WeeklyEvidence | null
   /** Seven days of mentions, or null for a row nobody posted about. */
   spark: number[] | null
+  /** Board position, shown only where the section states what orders it. */
+  rank?: number
 }): string {
   const description = trimDescription(options.description)
   const evidence = options.evidence
     ? ` · <a href="${esc(options.evidence.url)}" style="color:${t.muted};text-decoration:underline;text-underline-offset:3px;">@${esc(options.evidence.authorHandle)} ${options.evidence.platform === 'x' ? 'on X' : 'on Bluesky'}</a>`
     : ''
+  const rank = options.rank
+    ? `<td class="weekly-rank" valign="top" width="30" style="width:30px;padding-top:5px;font-family:${MONO};font-size:13px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;">#${options.rank}</td>`
+    : ''
   return `
 <tr><td class="weekly-border" style="padding:10px 0;border-top:1px solid ${t.border};">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr>
+      ${rank}
       <td valign="top" width="36" style="width:36px;padding-right:10px;">
         <img class="weekly-border" src="${esc(avatarUrl(options.siteUrl, options.owner))}" width="28" height="28" alt=""
              style="width:28px;height:28px;border-radius:14px;display:block;border:1px solid ${t.border};background:${t.quote};" />
@@ -682,11 +712,40 @@ function preheader(input: WeeklyRenderInput): string {
   return input.trackedCount ? `${trackedLine(input.trackedCount)}.` : 'No updates this week.'
 }
 
+interface WeeklyOpening {
+  heading: string
+  /** The Skill the heading names, linked in the HTML half. */
+  leader: WeeklyTrendingSkill | null
+  lede: string | null
+  /** What orders the rows, or null when there are none. */
+  ranking: string | null
+}
+
+/**
+ * The weekly's opening: what led the board, then why, then what orders it.
+ *
+ * "This week’s trending Skills" over "Here are this week’s trending Skills."
+ * said one thing twice and never said what happened. A first row ranked by
+ * stars alone has no news to lead with, so the board's own heading stays.
+ * The rows carry their board position, so the opening states the ranking rule
+ * the trending page states.
+ */
+function weeklyOpening(input: WeeklyRenderInput): WeeklyOpening {
+  const ranking = input.trending.length
+    ? trendingRankingLine(input.trending.some(skill => skill.reason._tag === 'popular'))
+    : null
+  const leader = input.trending[0]
+  if (!leader || leader.reason._tag === 'popular')
+    return { heading: 'Trending skills this week', leader: null, lede: null, ranking }
+  const lede = leader.reason._tag === 'named' || leader.reason._tag === 'named-and-stars'
+    ? `${leader.reason.authorCount} ${plural(leader.reason.authorCount, 'account', 'accounts')} mentioned it this week.`
+    : null
+  return { heading: `${leader.canonicalName} is #1 trending this week`, leader, lede, ranking }
+}
+
 function greeting(input: WeeklyRenderInput): string {
   if (input.changeSource === 'watches')
     return input.likedChanges.length ? 'Recent commits from repos you watch.' : 'No source changes this week.'
-  if ((input.edition ?? 'weekly') === 'weekly')
-    return 'Here are this week’s trending Skills.'
   const liked = input.likedChanges.length + input.likedOverflow
   const trending = input.trending.length
   // With no recipient there is nothing true to say about what they like.
@@ -717,7 +776,13 @@ function trackedLine(count: number): string {
   return `${count} ${plural(count, 'Skill', 'Skills')} tracked, no updates this week`
 }
 
-export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyRender {
+/**
+ * The email, its plain-text half, and the bare card.
+ *
+ * `tokens` and `lockups` exist for the site preview, which colours the card
+ * with CSS variables and carries both lockups. A send uses neither.
+ */
+export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens, lockups?: readonly WeeklyTheme[]): WeeklyRender {
   input = { ...input, trending: input.trending.slice(0, MAX_WEEKLY_TRENDING) }
   const t = tokens ?? PALETTE[input.theme ?? 'light']
   const now = input.windowEnd
@@ -784,23 +849,43 @@ export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyR
        </td></tr>`
     : ''
 
-  const trendingRows = input.trending.map((skill) => {
+  const trendingRows = input.trending.map((skill, index) => {
     const pageUrl = track(skillUrl(input.siteUrl, { ...skill, name: skill.slug }), 'trending')
+    const spark = sparkDays(skill.reason)
     return trendingRow(t, {
       siteUrl: input.siteUrl,
       owner: skill.owner,
       title: skill.canonicalName,
       href: pageUrl,
       description: skill.description,
-      meta: trendingMeta(skill, now),
+      meta: trendingMeta(skill, now, spark !== null),
       evidence: skill.evidence,
-      spark: sparkDays(skill.reason),
+      spark,
+      // Only the weekly states what orders its rows, so only the weekly numbers them.
+      rank: trendsOnly ? index + 1 : undefined,
     })
   }).join('')
 
+  const opening = trendsOnly ? weeklyOpening(input) : null
+  const heading = opening
+    ? opening.leader
+      ? `<a href="${esc(track(skillUrl(input.siteUrl, { ...opening.leader, name: opening.leader.slug }), 'trending'))}" style="color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:4px;">${esc(opening.leader.canonicalName)}</a> is #1 trending this week`
+      : esc(opening.heading)
+    : input.changeSource === 'watches' ? 'Skill updates' : input.recipientName ? `Hi ${esc(input.recipientName)},` : 'Your Skill updates'
+  const intro = opening
+    ? `${opening.lede ? `<div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(opening.lede)}</div>` : ''}${
+      opening.ranking ? `<div style="margin-top:6px;font-family:${SANS};font-size:13px;line-height:1.55;color:${t.muted};">${esc(opening.ranking)}</div>` : ''}`
+    : `<div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(greeting(input))}</div>`
+
+  // The masthead is the lockup as one hosted PNG, because Gmail strips SVG and
+  // the lockup is one drawing. Its alt text carries the name when images are off.
+  const lockup = (lockups ?? [input.theme ?? 'light']).map((theme, index) =>
+    `<img class="weekly-lockup-${theme}" src="${esc(input.siteUrl)}/logo-email-${theme}.png" width="${LOCKUP.width}" height="${LOCKUP.height}" alt="skilld" style="display:${index === 0 ? 'block' : 'none'};width:${LOCKUP.width}px;height:${LOCKUP.height}px;border:0;" />`,
+  ).join('')
+
   const body = trendsOnly
     ? input.trending.length
-      ? `${sectionLabel(t, 'Trending this week')}${trendingRows}`
+      ? trendingRows
       : `<tr><td class="weekly-border" style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">No new trending Skills this week.</td></tr>`
     : empty
       ? `<tr><td class="weekly-border" style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
@@ -819,19 +904,17 @@ export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyR
 
         <table class="weekly-border" role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid ${t.border};padding-bottom:14px;">
           <tr>
-            <!-- The mark is a hosted PNG because Gmail strips SVG. The nearby
-                 wordmark carries the name when images are blocked. -->
-            <td valign="middle" style="font-family:${MONO};font-size:14px;font-weight:600;color:${t.text};letter-spacing:-0.01em;">
-              <a href="${esc(track(input.siteUrl, 'footer'))}" style="display:inline-block;padding:11px 0;color:${t.text};text-decoration:none;"><img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="" style="display:inline-block;width:22px;height:22px;margin-right:9px;border:0;border-radius:5px;vertical-align:middle;" /><span style="vertical-align:middle;">skilld <span style="color:${t.faint};font-weight:400;">${edition === 'weekly' ? 'weekly' : 'Skill updates'}</span></span></a>
+            <td valign="middle">
+              <a href="${esc(track(input.siteUrl, 'footer'))}" style="display:inline-block;padding:10px 0;text-decoration:none;">${lockup}</a>
             </td>
-            <td align="right" valign="middle" style="font-family:${MONO};font-size:14px;color:${t.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
+            <td align="right" valign="middle" style="font-family:${MONO};font-size:14px;color:${t.faint};font-variant-numeric:tabular-nums;">${edition === 'weekly' ? 'weekly' : 'Skill updates'} · ${esc(window)}</td>
           </tr>
         </table>
 
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-          <tr><td style="padding:22px 0 8px;">
-            <h1 style="margin:0;font-family:${SANS};font-size:20px;font-weight:600;line-height:1.35;color:${t.text};">${trendsOnly ? 'This week’s trending Skills' : input.changeSource === 'watches' ? 'Skill updates' : input.recipientName ? `Hi ${esc(input.recipientName)},` : 'Your Skill updates'}</h1>
-            <div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(greeting(input))}</div>
+          <tr><td style="padding:22px 0 ${opening ? 14 : 8}px;">
+            <h1 style="margin:0;font-family:${SANS};font-size:20px;font-weight:600;line-height:1.35;color:${t.text};">${heading}</h1>
+            ${intro}
           </td></tr>
           ${body}
         </table>
@@ -840,14 +923,11 @@ export function renderWeekly(input: WeeklyRenderInput, tokens?: Tokens): WeeklyR
         ${input.trending.length ? `<div style="font-family:${MONO};font-size:14px;line-height:20px;"><a href="${esc(shareUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Share this week’s board</a></div>` : ''}
 
       </td></tr>
-      <tr><td style="height:3px;background:${t.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
       <tr><td class="weekly-border" style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
-        ${edition === 'weekly'
+        <div>${edition === 'weekly'
           ? 'Your account is set to receive the weekly email.'
-          : 'You get this because you enabled Skill updates.'}
-        <a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
-        &middot;
-        <a href="${esc(input.unsubscribeUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Unsubscribe</a>
+          : 'You get this because you enabled Skill updates.'}</div>
+        <div><a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a> &middot; <a href="${esc(input.unsubscribeUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Unsubscribe</a></div>
       </td></tr>
     </table>`
 
@@ -885,11 +965,18 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
   const now = input.windowEnd
   const trendsOnly = (input.edition ?? 'weekly') === 'weekly'
   const changeLabel = input.changeSource === 'watches' ? 'RECENT COMMITS' : 'SKILLS YOU LIKE'
+  const opening = trendsOnly ? weeklyOpening(input) : null
   const lines: string[] = [
     `skilld ${input.edition === 'digest' ? 'Skill updates' : 'weekly'}  ${formatWindow(input.windowStart, input.windowEnd)}`,
     '',
-    ...(!trendsOnly && input.recipientName ? [`Hi ${input.recipientName},`] : []),
-    greeting(input),
+    ...(opening
+      ? [
+          opening.heading,
+          ...(opening.lede ? [opening.lede] : []),
+          ...(opening.ranking ? [opening.ranking] : []),
+          ...(input.trending.length ? [] : ['No new trending Skills this week.']),
+        ]
+      : [...(input.recipientName ? [`Hi ${input.recipientName},`] : []), greeting(input)]),
   ]
 
   if (!trendsOnly && !input.likedChanges.length && input.trackedCount)
@@ -925,14 +1012,15 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
   }
 
   if (input.trending.length) {
-    lines.push('', 'TRENDING THIS WEEK', '')
-    for (const skill of input.trending) {
+    // The weekly's opening already frames the rows, so only the digest labels them.
+    lines.push('', ...(trendsOnly ? [] : ['TRENDING THIS WEEK', '']))
+    for (const [index, skill] of input.trending.entries()) {
       const spark = sparkDays(skill.reason)
-      lines.push(`- ${skill.owner}/${skill.repo} ${skill.canonicalName}${spark ? `  ${brailleSpark(spark)} ${sparkTotal(spark)}` : ''}`)
+      lines.push(`${trendsOnly ? `#${index + 1}` : '-'} ${skill.owner}/${skill.repo} ${skill.canonicalName}${spark ? `  ${brailleSpark(spark)} ${sparkTotal(spark)}` : ''}`)
       const description = trimDescription(skill.description)
       if (description)
         lines.push(`  ${description}`)
-      lines.push(`  ${trendingMeta(skill, now)}`)
+      lines.push(`  ${trendingMeta(skill, now, spark !== null)}`)
       if (skill.evidence)
         lines.push(`  “${trimQuote(skill.evidence.text)}” from @${skill.evidence.authorHandle}: ${skill.evidence.url}`)
       lines.push(`  Skill: ${skillUrl(input.siteUrl, { ...skill, name: skill.slug })}`)
