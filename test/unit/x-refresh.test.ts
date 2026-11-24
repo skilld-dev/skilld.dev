@@ -12,10 +12,12 @@ const MIGRATIONS = [
   // 0103 rebuilds discovery_ledger and copies the columns 0101 added, so it
   // cannot be applied without it.
   'migrations/0101_discovery_ledger_size_guard.sql',
+  // `x_post_skills`: a post linked to a Skill is one trending reads.
+  'migrations/0102_x_post_skills.sql',
   // Adds `platform`, which the claim query filters on so this task can never
   // send a Bluesky AT-URI to the X lookup endpoint.
   'migrations/0103_bluesky_discovery.sql',
-  // Adds `author_avatar`, which the refresh now fills from paid lookups.
+  // Adds `author_avatar`, which a refresh must leave as discovery stored it.
   'migrations/0116_x_posts_author_avatar.sql',
 ]
 const NOW = 1_760_000_000
@@ -33,7 +35,12 @@ afterEach(() => {
   harness = null
 })
 
-/** Insert a tracked post directly, bypassing discovery. */
+/**
+ * Insert a tracked post directly, bypassing discovery.
+ *
+ * Linked to a repository by default, because trending reads only linked
+ * posts and so refresh pays only for them.
+ */
 function seedPost(input: {
   id: string
   postedAt?: number
@@ -41,7 +48,9 @@ function seedPost(input: {
   tier?: 'hot' | 'warm' | 'frozen'
   nextRefreshAt?: number
   metricsUpdatedAt?: number
+  linked?: 'repo' | 'skill' | false
 }) {
+  const linked = input.linked ?? 'repo'
   db().raw.prepare(
     `INSERT INTO x_posts (
        post_id, author_id, author_handle, author_followers, text_extract, lang,
@@ -58,6 +67,14 @@ function seedPost(input: {
     input.tier ?? 'hot',
     input.nextRefreshAt ?? NOW - 1,
   )
+  if (linked === 'repo')
+    db().raw.prepare(`INSERT INTO x_post_repos (post_id, owner, repo, match_kind) VALUES (?, 'antfu', 'skills', 'link')`).run(input.id)
+  if (linked === 'skill') {
+    db().raw.prepare(
+      `INSERT INTO x_post_skills (post_id, owner, repo, slug, canonical_name, skill_path, detection, matched_on, verified_at)
+       VALUES (?, 'antfu', 'skills', 'vitest', 'vitest', 'skills/vitest', 'slash', 'registry', ?)`,
+    ).run(input.id, NOW - HOUR)
+  }
 }
 
 function freshPost(id: string, favourites: number, postedAt = NOW - HOUR): XPost {
@@ -122,19 +139,32 @@ describe('refreshXEngagement', () => {
     expect(requested).toEqual([])
   })
 
-  it('fills the author avatar from a lookup the run already paid for', async () => {
-    seedPost({ id: '1' })
-    const { client } = stubClient([freshPost('1', 5)])
-    // The lookup response carries the profile image the discovery read dropped.
-    client.lookupPosts = async () => ({
-      _tag: 'ok',
-      value: { posts: [{ ...freshPost('1', 5), authorAvatar: 'https://pbs.twimg.com/profile_images/1/someone_normal.jpg' }], newestId: null, nextToken: null, postsRead: 1 },
-    })
+  // Trending reads engagement only for posts linked to a repository or a
+  // Skill. Half of discovered posts link neither, and each refresh that
+  // crossed midnight UTC billed them again for a number nothing read.
+  it('freezes a post that links no repository or Skill without paying to read it', async () => {
+    seedPost({ id: 'linked' })
+    seedPost({ id: 'loose', linked: false })
+    const { client, requested } = stubClient([freshPost('linked', 5), freshPost('loose', 5)])
+
+    const summary = await refreshXEngagement({ db: db().db, client, now: NOW })
+
+    expect(requested).toEqual([['linked']])
+    expect(summary.postsRead).toBe(1)
+    expect(summary.unlinked).toBe(1)
+    expect(db().raw.prepare('SELECT post_id, refresh_tier FROM x_posts ORDER BY post_id').all()).toEqual([
+      { post_id: 'linked', refresh_tier: 'hot' },
+      { post_id: 'loose', refresh_tier: 'frozen' },
+    ])
+  })
+
+  it('still refreshes a post linked only to a Skill', async () => {
+    seedPost({ id: 'skill', linked: 'skill' })
+    const { client, requested } = stubClient([freshPost('skill', 5)])
 
     await refreshXEngagement({ db: db().db, client, now: NOW })
 
-    const row = db().raw.prepare('SELECT author_avatar FROM x_posts').get()
-    expect(row).toEqual({ author_avatar: 'https://pbs.twimg.com/profile_images/1/someone_normal.jpg' })
+    expect(requested).toEqual([['skill']])
   })
 
   it('keeps a held avatar when the lookup returns none', async () => {

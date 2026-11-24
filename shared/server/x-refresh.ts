@@ -11,12 +11,19 @@
  * Discovery is the expensive half: every post the search matches is a first
  * read at $0.005. Its budget lives in `x-ingest.ts`.
  *
- * Two guards remain here:
+ * Measured 17 to 23 Nov 2026, refresh still read posts on 1,003 later UTC
+ * days in a week, about 143 a day, and 478 of those were posts that link no
+ * repository or Skill. Trending never reads their engagement. Each lookup
+ * also carried the author, a User read billed at $0.010, twice a Post.
+ *
+ * Three guards remain here:
  *
  *   1. `maxPostsPerRun` bounds work per run, so a backlog cannot blow the
  *      Worker CPU budget. It is no longer a spend control.
  *   2. Posts the API no longer returns are frozen immediately. A deleted post
  *      would otherwise be re-requested on its schedule forever.
+ *   3. Posts that link no repository or Skill are frozen without a read.
+ *      Discovery scans for links as it ingests, so a link never arrives later.
  */
 
 import type { RefreshPolicyConfig } from '#shared/x-refresh-policy'
@@ -49,6 +56,8 @@ export interface XRefreshSummary {
   vanished: number
   promotedToHot: number
   frozen: number
+  /** Frozen without a read, because the post links no repository or Skill. */
+  unlinked: number
   postsRead: number
   snapshotsPruned: number
   error: XError | null
@@ -64,6 +73,8 @@ interface ClaimedRow {
   quote_count: number
   bookmark_count: number
   metrics_updated_at: number
+  /** 1 when trending reads this post: it links a repository or a Skill. */
+  linked: number
 }
 
 const FROZEN_SENTINEL_SECONDS = 365 * 24 * 60 * 60
@@ -80,6 +91,7 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
     vanished: 0,
     promotedToHot: 0,
     frozen: 0,
+    unlinked: 0,
     postsRead: 0,
     snapshotsPruned: 0,
     error: null,
@@ -89,7 +101,9 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
   const claimed = await db
     .prepare(
       `SELECT post_id, posted_at, favourite_count, repost_count, reply_count,
-              quote_count, bookmark_count, metrics_updated_at
+              quote_count, bookmark_count, metrics_updated_at,
+              (EXISTS (SELECT 1 FROM x_post_repos r WHERE r.post_id = x_posts.post_id)
+                OR EXISTS (SELECT 1 FROM x_post_skills s WHERE s.post_id = x_posts.post_id)) AS linked
        FROM x_posts
        -- Platform predicate is load-bearing, not defensive. This task posts
        -- claimed ids to the X lookup endpoint, where every returned object is
@@ -103,8 +117,19 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
     .bind(now, budget)
     .all<ClaimedRow>()
 
-  const rows = claimed.results ?? []
-  summary.claimed = rows.length
+  const claimedRows = claimed.results ?? []
+  summary.claimed = claimedRows.length
+
+  const unlinked = claimedRows.filter(row => !row.linked)
+  if (unlinked.length > 0) {
+    summary.unlinked = unlinked.length
+    summary.frozen += unlinked.length
+    await db.batch(unlinked.map(row => db.prepare(
+      `UPDATE x_posts SET refresh_tier = 'frozen', next_refresh_at = ?2 WHERE post_id = ?1`,
+    ).bind(row.post_id, now + FROZEN_SENTINEL_SECONDS)))
+  }
+
+  const rows = claimedRows.filter(row => row.linked)
   if (rows.length === 0) {
     summary.elapsedMs = Date.now() - startedAt
     return summary
@@ -163,8 +188,7 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
           `UPDATE x_posts SET
              favourite_count = ?2, repost_count = ?3, reply_count = ?4,
              quote_count = ?5, bookmark_count = ?6, impression_count = ?7,
-             metrics_updated_at = ?8, refresh_tier = ?9, next_refresh_at = ?10,
-             author_avatar = COALESCE(?11, author_avatar)
+             metrics_updated_at = ?8, refresh_tier = ?9, next_refresh_at = ?10
            WHERE post_id = ?1`,
         ).bind(
           fresh.id,
@@ -177,7 +201,6 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
           now,
           plan.tier,
           plan.nextRefreshAt,
-          fresh.authorAvatar,
         ),
       )
     }

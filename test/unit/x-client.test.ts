@@ -273,6 +273,20 @@ describe('createXClient lookup', () => {
     const result = await client.lookupPosts(ids)
     expect(result._tag === 'err' && result.error._tag).toBe('malformed-response')
   })
+
+  // X bills each User object a response carries, at twice the price of a
+  // Post. Discovery already stored the author, so a refresh that asked for it
+  // again paid for nothing it used.
+  it('asks a refresh lookup for post metrics only, never the author', async () => {
+    const { client, calls } = clientReturning({ data: [] })
+    await client.lookupPosts(['1', '2'])
+    const url = new URL(calls[0]!)
+
+    expect(url.pathname).toBe('/2/tweets')
+    expect(url.searchParams.get('ids')).toBe('1,2')
+    expect(url.searchParams.has('expansions')).toBe(false)
+    expect(url.searchParams.has('user.fields')).toBe(false)
+  })
 })
 
 describe('createXClient usage', () => {
