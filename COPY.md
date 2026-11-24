@@ -25,6 +25,10 @@ Preview labels are "Preview the welcome", "Preview the weekly", and "Preview Ski
 The welcome preview footer says "Email preferences" and links to `/me`.
 Preview loading says "Loading email preview". Failure says "Could not load the email preview. Try again."
 The weekly footer says "Your account is set to receive the weekly email."
+The email masthead pairs the lockup with "weekly · {window}" or "Skill updates · {window}".
+The weekly heading names the board's first Skill: "{name} is #1 trending this week". When that Skill ranks by stars alone, the heading is "Trending skills this week".
+When accounts mentioned the first Skill, the line under the heading says "{n} accounts mentioned it this week."
+The weekly states its order with the Trending header string from Ranked boards, and numbers its rows "#1" to "#7".
 The Skill updates email uses "Skill updates" in its subject prefix, branding, and plain-text heading.
 Account settings use "Monthly Skill updates" and "Send me monthly Skill updates".
 Its heading is "Skill updates". Its introduction is "Recent commits from repos you watch."

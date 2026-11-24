@@ -60,6 +60,16 @@ The report must match the deployed Worker and be less than five minutes old.
 The daily health email cron and X API failure emails are removed. Customer digests remain unchanged.
 Historical email records stay in D1, but checks no longer depend on them.
 
+## Cloudflare reads
+
+The collector reads [Cloudflare](https://cloudflare.com) through the `cf` CLI, never wrangler.
+It runs `cf` from the home directory, pinned to the production account.
+The checkout's `.env` token therefore cannot shadow the `cf` login.
+A `CLOUDFLARE_API_TOKEN` in the check-in environment still takes precedence.
+The `cf` CLI has no [GraphQL](https://graphql.org) command, so `skilld.workers` needs an environment token.
+If `CLOUDFLARE_USAGE_TOKEN` is absent, `skilld.workers` reads Unavailable.
+Give that token Account Analytics read access.
+
 ## Artifact signing key
 
 The `skilld.signing-key` check reads the signer key windows from `workers/artifact-signer/wrangler.jsonc` and the live trusted root.

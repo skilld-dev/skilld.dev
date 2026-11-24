@@ -59,12 +59,13 @@ describe('weekly email improvement contract', () => {
     expect(quote).toMatch(/\w…$/)
   })
 
-  it('links exact source and change destinations', () => {
+  it('links the Skill page, its SKILL.md, and its history on skilld.dev', () => {
     const rendered = renderWeekly(input())
 
-    expect(rendered.html).toContain('https://github.com/antfu/skills/blob/new-sha/skills/vitest/SKILL.md')
-    expect(rendered.html).toContain('https://github.com/antfu/skills/compare/old-sha...new-sha')
-    expect(rendered.text).toContain('https://github.com/antfu/skills/blob/new-sha/skills/vitest/SKILL.md')
+    expect(rendered.html).toContain('href="https://skilld.dev/gh/antfu/skills/vitest/-/SKILL.md"')
+    expect(rendered.html).toContain('href="https://skilld.dev/gh/antfu/skills/vitest#history-heading"')
+    expect(rendered.html).not.toContain('https://github.com/antfu/skills')
+    expect(rendered.text).toContain('https://skilld.dev/gh/antfu/skills/vitest/-/SKILL.md')
   })
 
   it('keeps the weekly distinct and renders seven rows at most', () => {

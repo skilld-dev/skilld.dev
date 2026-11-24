@@ -260,7 +260,7 @@ catalog:
   '@iconify-json/simple-icons': ^1.2.94
   '@iconify-json/vscode-icons': ^1.2.76
   '@jridgewell/trace-mapping': 0.3.31
-  '@modelcontextprotocol/client': 2.0.0
+  '@modelcontextprotocol/client': 2.3.0
   '@modelcontextprotocol/sdk': 1.32.0
   '@modelcontextprotocol/server': 2.3.0
   '@nuxt/a11y': 1.0.0-alpha.1
@@ -287,6 +287,7 @@ catalog:
   agents: ^0.24.0
   axe-core: ^4.13.0
   better-sqlite3: ^13.0.3
+  cf: 1.0.0-beta.32
   comark: 0.7.0
   diff: ^9.0.0
   drizzle-orm: 1.0.0-rc.4

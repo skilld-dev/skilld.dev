@@ -43,11 +43,11 @@ it.each([
       output = args[0] === 'ls-tree' ? 'migrations/001.sql' : args[0] === 'branch' ? 'main' : args[0] === 'rev-parse' ? 'abc' : ''
       return { _tag: 'Ok', stdout: output, stderr: '' }
     }
-    if (args[0] === 'deployments') {
-      output = [{ id: 'deployment', created_on: now.toISOString(), versions: [{ percentage: 100, version_id: 'release-1' }] }]
+    if (args[1] === 'deployments') {
+      output = { deployments: [{ id: 'deployment', created_on: now.toISOString(), versions: [{ percentage: 100, version_id: 'release-1' }] }] }
     }
     else {
-      const sql = args[args.indexOf('--command') + 1]!
+      const sql = args[args.indexOf('--sql') + 1]!
       let rows: unknown[] = []
       if (sql.includes('sqlite_master'))
         rows = ['skills', 'repos', 'owners', 'users', 'activity', 'install_events', 'sync_jobs', 'jobs', 'failed_jobs', 'daily_health_checks', 'd1_migrations'].map(name => ({ name }))
@@ -100,7 +100,7 @@ it('counts only X Posts observed within the UTC day at the check time', async ()
   boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
     if (command === 'git')
       return { _tag: 'Ok', stdout: args[0] === 'rev-parse' ? 'abc' : '', stderr: '' }
-    const sql = args[args.indexOf('--command') + 1]!
+    const sql = args[args.indexOf('--sql') + 1]!
     const rows = db.prepare(sql).all()
     return { _tag: 'Ok', stdout: JSON.stringify([{ success: true, results: rows }]), stderr: '' }
   })
@@ -136,7 +136,7 @@ it.each(['2026-10-05T09:00:00Z', '2026-10-03T10:00:00Z'])('keeps rolling X day t
   boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
     if (command === 'git')
       return { _tag: 'Ok', stdout: args[0] === 'rev-parse' ? 'abc' : '', stderr: '' }
-    const sql = args[args.indexOf('--command') + 1]!
+    const sql = args[args.indexOf('--sql') + 1]!
     return { _tag: 'Ok', stdout: JSON.stringify([{ success: true, results: db.prepare(sql).all() }]), stderr: '' }
   })
 
@@ -204,7 +204,7 @@ it.each([
   boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
     if (command === 'git')
       return { _tag: 'Ok', stdout: args[0] === 'rev-parse' ? 'abc' : '', stderr: '' }
-    const sql = args[args.indexOf('--command') + 1]!
+    const sql = args[args.indexOf('--sql') + 1]!
     return { _tag: 'Ok', stdout: JSON.stringify([{ success: true, results: db.prepare(sql).all() }]), stderr: '' }
   })
 
@@ -212,6 +212,46 @@ it.each([
 
   db.close()
   expect(report.results[0]?.result).toMatchObject({ evidence: { pipeline: { embeddings_stuck: expected } } })
+})
+
+// A repository `.env` can carry a deploy-time CLOUDFLARE_API_TOKEN, and `cf`
+// loads `.env` from its working directory. Run inside the checkout, a stale
+// token there shadowed the operator's valid `cf` login (2026-11-24).
+// The binary is the checkout's own: the scheduled Agent sandbox mounts the
+// workspace but not the operator's global pnpm bin, where `cf` was a symlink.
+it('reads Cloudflare through the checkout’s cf from the home directory', async () => {
+  const now = new Date('2026-11-24T00:00:00Z')
+  const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-cf-'))
+  roots.push(root)
+  await mkdir(join(root, 'shared/server'), { recursive: true })
+  await mkdir(join(root, 'migrations'))
+  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400\nconst MIN_SEARCH_PAGE_SIZE = 10')
+  const cloudflareCalls: { command: string, cwd: string }[] = []
+  boundary.command.mockImplementation(async (context: { rootDir: string }, command: string, args: string[]) => {
+    if (command === 'git')
+      return { _tag: 'Ok', stdout: args[0] === 'rev-parse' ? 'abc' : '', stderr: '' }
+    cloudflareCalls.push({ command, cwd: context.rootDir })
+    if (args[1] === 'deployments')
+      return { _tag: 'Ok', stdout: JSON.stringify({ deployments: [{ id: 'deployment', created_on: now.toISOString(), versions: [{ percentage: 100, version_id: 'release-1' }] }] }), stderr: '' }
+    return { _tag: 'Ok', stdout: JSON.stringify([{ success: true, results: [] }]), stderr: '' }
+  })
+
+  const { report } = await runExternalChecks([deployCheck, databaseCheck], { required: [deployCheck.id, databaseCheck.id] }, { rootDir: root, env: { HOME: '/home/operator' }, clock: () => now })
+
+  expect(report.results.find(check => check.id === 'skilld.deploy')?.result).toMatchObject({ evidence: { latest: { versionId: 'release-1' } } })
+  expect(cloudflareCalls.length).toBeGreaterThan(1)
+  expect(cloudflareCalls.every(call => call.command === join(root, 'node_modules/.bin/cf') && call.cwd === '/home/operator')).toBe(true)
+})
+
+it('names the missing Worker analytics token instead of falling back to another CLI', async () => {
+  const fetch = vi.fn()
+  vi.stubGlobal('fetch', fetch)
+
+  const { report } = await runExternalChecks([workersCheck], { required: [workersCheck.id] }, { env: {} })
+
+  expect(report.results[0]?.result).toMatchObject({ _tag: 'Unavailable', reason: expect.stringContaining('CLOUDFLARE_USAGE_TOKEN') })
+  expect(boundary.command).not.toHaveBeenCalled()
+  expect(fetch).not.toHaveBeenCalled()
 })
 
 it('rejects oversized Worker analytics evidence', async () => {
@@ -236,13 +276,16 @@ it('archives the collector failure cause instead of the generic throw message', 
 it('totals command copies from an untruncated rollup, not the capped top page', async () => {
   const topRows = Array.from({ length: 50 }, (_, index) => ({ mode: 'run', kind: 'skill', slug: `owner/skill-${index}`, copies: 1 }))
   const totalsRows = [{ mode: 'run', copies: 50 }, { mode: 'install', copies: 10 }]
-  vi.stubGlobal('fetch', vi.fn(async (_url: string | URL, init?: { body?: string }) => {
-    return Response.json({ data: init?.body?.includes('blob3 = \'signup\'')
+  boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
+    if (!command.endsWith('/node_modules/.bin/cf') || args.slice(0, 3).join(' ') !== 'analytics-engine sql query')
+      return { _tag: 'Err', reason: 'Unexpected command.' }
+    const body = args[args.indexOf('--body') + 1]!
+    return { _tag: 'Ok', stdout: JSON.stringify({ data: body.includes('blob3 = \'signup\'')
       ? [{ stage: 'email', outcome: 'failed', entry: 'onboarding', choice: '', events: '2' }]
-      : init?.body?.includes('LIMIT 50') ? topRows : totalsRows })
-  }))
+      : body.includes('LIMIT 50') ? topRows : totalsRows }), stderr: '' }
+  })
 
-  const { report } = await runExternalChecks([analyticsCheck], { required: [analyticsCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })
+  const { report } = await runExternalChecks([analyticsCheck], { required: [analyticsCheck.id] }, { env: { HOME: '/home/operator' } })
 
   expect(report.results.find(check => check.id === 'skilld.analytics')?.result).toMatchObject({
     _tag: 'Pass',

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
 import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildCopyTotalsQuery, buildWorkersQuery, collectWorkflowRuns, parseAnalyticsEngineResponse, parseWorkersResponse, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns, workersWindow } from './observability.mjs'
@@ -36,6 +37,27 @@ async function run(context, command, args) {
 async function commandJson(context, command, args) {
   return JSON.parse(await run(context, command, args))
 }
+
+// Production identities, as `wrangler.jsonc` names them.
+const PRODUCTION_WORKER = 'skilld-dev'
+const PRODUCTION_D1_DATABASE_ID = 'a5e53f35-f5e5-4987-8c67-c0175addc7cc'
+
+/**
+ * Read Cloudflare through the `cf` CLI, pinned to the production account.
+ *
+ * `cf` loads `.env` from its working directory, and this checkout's `.env`
+ * carries a deploy-time CLOUDFLARE_API_TOKEN. On 2026-11-24 a stale one there
+ * shadowed a valid `cf` login and blinded five checks, so `cf` runs from the
+ * home directory. A check-in token still reaches it through the environment.
+ *
+ * The binary is the checkout's own pinned `cf`, as wrangler was. The scheduled
+ * Agent sandbox mounts the workspace but not the operator's global pnpm bin,
+ * where a global `cf` lives behind a symlink.
+ */
+function cloudflare(context, args) {
+  const binary = join(context.rootDir, 'node_modules/.bin/cf')
+  return run({ ...context, rootDir: context.env.HOME || homedir(), env: { ...context.env, CLOUDFLARE_ACCOUNT_ID: ANALYTICS_ACCOUNT_TAG } }, binary, args)
+}
 export function collectProduction(context) {
   return collect(context, 'production-ref', async (context) => {
     await run(context, 'git', ['fetch', 'origin', 'main'])
@@ -55,7 +77,7 @@ export function collectGit(context) {
 export function collectDeploy(context) {
   return collect(context, 'deploy', async (context) => {
     const production = await collectProduction(context)
-    const deployments = await commandJson(context, join(context.rootDir, 'node_modules/.bin/wrangler'), ['deployments', 'list', '--json', '--config', 'wrangler.jsonc'])
+    const { deployments } = JSON.parse(await cloudflare(context, ['workers', 'deployments', 'list', '--worker', PRODUCTION_WORKER]))
     const latest = [...deployments].sort((a, b) => String(b.created_on).localeCompare(String(a.created_on)))[0]
     return { latest: latest ? { id: latest.id, createdOn: latest.created_on, versionId: latest.versions?.find(version => version.percentage === 100)?.version_id ?? latest.versions?.[0]?.version_id ?? null, message: latest.annotations?.['workers/message'] ?? null, approxDeployedSha: latest.created_on ? await run(context, 'git', ['rev-list', '-1', `--before=${latest.created_on}`, production.ref]) : null } : null }
   })
@@ -111,7 +133,7 @@ export function collectD1(context) {
     const dayAgoSec = nowSec - 24 * 60 * 60
     const utcDay = now.toISOString().slice(0, 10)
     async function d1Query(sql) {
-      const output = await commandJson(context, join(root, 'node_modules/.bin/wrangler'), ['d1', 'execute', 'DB', '--remote', '--json', '--config', 'wrangler.jsonc', '--command', sql])
+      const output = JSON.parse(await cloudflare(context, ['d1', 'query', PRODUCTION_D1_DATABASE_ID, '--sql', sql]))
       if (!output[0]?.success)
         throw new Error('D1 query did not succeed.')
       return output[0].results ?? []
@@ -318,9 +340,11 @@ export function collectD1(context) {
 }
 export function collectWorkers(context) {
   return collect(context, 'workers', async (context) => {
-    const token = context.env.CLOUDFLARE_USAGE_TOKEN || context.env.CLOUDFLARE_API_TOKEN || context.env.CF_API_TOKEN || (await commandJson(context, join(context.rootDir, 'node_modules/.bin/wrangler'), ['auth', 'token', '--json'])).token
+    // The `cf` CLI has no GraphQL command, so Worker outcomes need a token in
+    // the environment. The `cf` login cannot stand in for it.
+    const token = context.env.CLOUDFLARE_USAGE_TOKEN || context.env.CLOUDFLARE_API_TOKEN || context.env.CF_API_TOKEN
     if (!token)
-      throw new Error('Cloudflare token is unavailable.')
+      throw new Error('Worker analytics needs CLOUDFLARE_USAGE_TOKEN. The cf CLI cannot read GraphQL.')
     const window = workersWindow(context.since.toISOString(), context.now.toISOString())
     const response = await fetch('https://api.cloudflare.com/client/v4/graphql', { method: 'POST', redirect: 'error', signal: context.signal, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: buildWorkersQuery(window.since, window.until) }) })
     const parsed = parseWorkersResponse(response.status, await readBoundedResponseText(response, 2_097_152))
@@ -328,7 +352,7 @@ export function collectWorkers(context) {
       throw new Error(parsed.reason)
     const outcomes = {}
     for (const row of parsed.rows) {
-      if (row.dimensions.scriptName === 'skilld-dev')
+      if (row.dimensions.scriptName === PRODUCTION_WORKER)
         outcomes[row.dimensions.status] = (outcomes[row.dimensions.status] ?? 0) + row.sum.requests
     }
     return { window, outcomes, nonOk: Object.entries(outcomes).filter(([status]) => !['success', 'clientDisconnected', 'responseStreamDisconnected'].includes(status)).map(([status, requests]) => ({ status, requests })) }
@@ -347,12 +371,9 @@ export function collectWorkers(context) {
  */
 export function collectAnalytics(context) {
   return collect(context, 'analytics', async (context) => {
-    const token = context.env.CLOUDFLARE_USAGE_TOKEN || context.env.CLOUDFLARE_API_TOKEN || context.env.CF_API_TOKEN || (await commandJson(context, join(context.rootDir, 'node_modules/.bin/wrangler'), ['auth', 'token', '--json'])).token
-    if (!token)
-      throw new Error('Cloudflare token is unavailable.')
     const readRows = async (query) => {
-      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ANALYTICS_ACCOUNT_TAG}/analytics_engine/sql`, { method: 'POST', redirect: 'error', signal: context.signal, headers: { Authorization: `Bearer ${token}` }, body: query })
-      const parsed = parseAnalyticsEngineResponse(response.status, await readBoundedResponseText(response, 2_097_152))
+      // `cf` exits non-zero on an HTTP failure, so a body that reaches here succeeded.
+      const parsed = parseAnalyticsEngineResponse(200, await cloudflare(context, ['analytics-engine', 'sql', 'query', '--body', query]))
       if (parsed._tag === 'Err')
         throw new Error(parsed.reason)
       return parsed.rows

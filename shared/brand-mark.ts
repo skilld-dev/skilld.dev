@@ -164,13 +164,17 @@ export function markSvg(options: SvgOptions & { cut?: MarkCut, tile?: string }):
     + `<path class="ink" d="${CARET_PATH[cut]}" fill="${colors.ink}"/><circle class="dot" cx="${dot.cx}" cy="${dot.cy}" r="${dot.r}" fill="${colors.dot}"/></svg>\n`
 }
 
-/** The lockup as an SVG file: caret, outlined wordmark, trailing dot. `height` sets the intrinsic pixel height. */
-export function lockupSvg(options: SvgOptions & { height?: number }): string {
-  const { colors, dark, height } = options
+/**
+ * The lockup as an SVG file: caret, outlined wordmark, trailing dot. `height` sets the intrinsic pixel height.
+ * `background` fills the box, for a raster that must keep its ink readable when a mail client recolours the page.
+ */
+export function lockupSvg(options: SvgOptions & { height?: number, background?: string }): string {
+  const { colors, dark, height, background } = options
   const { box, caret, glyphs, dot } = lockupGeometry()
   const size = height ? ` width="${round((height * box.width) / box.height)}" height="${height}"` : ''
+  const fill = background ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" fill="${background}"/>` : ''
   const paths = [caret, ...glyphs].map(part => `<path transform="${part.transform}" d="${part.d}"/>`).join('')
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box.x} ${box.y} ${box.width} ${box.height}"${size}>${schemeStyle(dark)}`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box.x} ${box.y} ${box.width} ${box.height}"${size}>${schemeStyle(dark)}${fill}`
     + `<g class="ink" fill="${colors.ink}">${paths}</g><circle class="dot" cx="${dot.cx}" cy="${dot.cy}" r="${dot.r}" fill="${colors.dot}"/></svg>\n`
 }
 

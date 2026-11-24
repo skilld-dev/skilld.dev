@@ -57,7 +57,9 @@ describe('weekly template', () => {
     previewElement.innerHTML = preview
     expect(previewElement.textContent?.replace(/\s+/g, '')).toBe(emailElement.textContent?.replace(/\s+/g, ''))
     expect([...previewElement.querySelectorAll('a')].map(a => a.href)).toEqual([...emailElement.querySelectorAll('a')].map(a => a.href))
-    expect([...previewElement.querySelectorAll('img')].map(image => [image.src, image.width, image.height, image.alt])).toEqual([...emailElement.querySelectorAll('img')].map(image => [image.src, image.width, image.height, image.alt]))
+    // The preview also carries the dark lockup, which the site shows on a dark page.
+    expect([...previewElement.querySelectorAll('img:not(.weekly-lockup-dark)')].map(image => [image.src, image.width, image.height, image.alt])).toEqual([...emailElement.querySelectorAll('img')].map(image => [image.src, image.width, image.height, image.alt]))
+    expect(previewElement.querySelector('img.weekly-lockup-dark')?.getAttribute('src')).toBe('https://skilld.dev/logo-email-dark.png')
     expect(preview).toContain('var(--email-')
     expect(email).not.toContain('var(--email-')
   })
@@ -108,21 +110,45 @@ describe('weekly template', () => {
     expect(html).not.toContain('1 accounts')
   })
 
-  it('links exact source and shows the owner avatar through the skilld.dev image proxy', () => {
-    const { html } = renderWeekly(input({ likedChanges: [likedChange()] }))
-    const avatars = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('img[width="36"]')]
-      .map(img => new URL(img.getAttribute('src')!))
+  it('keeps every Skill link on skilld.dev and shows the owner avatar through the image proxy', () => {
+    const { html } = renderWeekly(input({ likedChanges: [likedChange()], trending: [trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
+    const parsed = new DOMParser().parseFromString(html, 'text/html')
+    const links = [...parsed.querySelectorAll('a')].map(a => a.getAttribute('href')!)
+    const avatars = [...parsed.querySelectorAll('img[width="36"]')].map(img => new URL(img.getAttribute('src')!))
 
-    expect(html).toContain('https://github.com/antfu/skills/blob/sha/SKILL.md')
+    expect(links).toEqual(expect.arrayContaining([
+      'https://skilld.dev/gh/antfu/skills/vitest',
+      'https://skilld.dev/gh/antfu/skills/vitest/-/SKILL.md',
+      'https://skilld.dev/gh/antfu/skills/vitest#history-heading',
+      'https://skilld.dev/gh/antfu/skills/tdd',
+    ]))
+    expect(links.filter(href => href.startsWith('https://github.com/'))).toEqual([])
     expect(avatars.map(url => [url.origin, url.pathname, url.searchParams.get('url')])).toEqual([
       ['https://skilld.dev', '/_img/avatar', 'https://github.com/antfu.png?size=80'],
     ])
   })
 
-  it('sends the reader to SKILL.md in the plain-text half', () => {
-    const { text } = renderWeekly(input({ likedChanges: [likedChange()] }))
+  it('sends the reader to skilld.dev in the plain-text half', () => {
+    const { text } = renderWeekly(input({ likedChanges: [likedChange()], trending: [trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
 
-    expect(text).toContain('https://github.com/antfu/skills/blob/sha/SKILL.md')
+    expect(text).toContain('Skill: https://skilld.dev/gh/antfu/skills/vitest\n')
+    expect(text).toContain('SKILL.md: https://skilld.dev/gh/antfu/skills/vitest/-/SKILL.md')
+    expect(text).toContain('Skill: https://skilld.dev/gh/antfu/skills/tdd\n')
+    expect(text).not.toContain('https://github.com/antfu/skills')
+  })
+
+  it('counts Skill clicks as skilld.dev paths, never as GitHub hand-offs', () => {
+    const { html } = renderWeekly(input({ countClicks: true, likedChanges: [likedChange()], trending: [trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
+    const counted = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('a')]
+      .map(a => new URL(a.getAttribute('href')!))
+      .filter(url => url.searchParams.has('p'))
+
+    expect(counted.map(url => url.searchParams.get('to'))).toEqual(expect.arrayContaining([
+      '/gh/antfu/skills/vitest',
+      '/gh/antfu/skills/vitest/-/SKILL.md',
+      '/gh/antfu/skills/tdd',
+    ]))
+    expect(counted.filter(url => url.searchParams.has('g'))).toEqual([])
   })
 
   it('lists up to three commit subjects on a changed skill', () => {
@@ -553,19 +579,126 @@ describe('weekly theme', () => {
   })
 })
 
+function parse(html: string): Document {
+  return new DOMParser().parseFromString(html, 'text/html')
+}
+
+describe('weekly masthead and close', () => {
+  it('draws the lockup as one hosted image named by its alt text', () => {
+    const { card } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
+    const lockup = parse(card).querySelector('img[alt="skilld"]')
+
+    expect(lockup?.getAttribute('src')).toBe('https://skilld.dev/logo-email-light.png')
+    expect(card).not.toContain('logo-icon.png')
+  })
+
+  it('draws the dark lockup on a dark card', () => {
+    const { card } = renderWeekly(input({ theme: 'dark', trending: [trending()] }))
+
+    expect(parse(card).querySelector('img[alt="skilld"]')?.getAttribute('src')).toBe('https://skilld.dev/logo-email-dark.png')
+  })
+
+  it('names the edition and its window beside the lockup', () => {
+    const weekly = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
+    const digest = renderWeekly(input({ trending: [trending()] }))
+
+    expect(weekly.html).toContain('weekly · 13–20 Aug')
+    expect(digest.html).toContain('Skill updates · 13–20 Aug')
+  })
+
+  it('spends rose on the button alone', () => {
+    const { html } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
+
+    expect(html.match(/#be123c/g)).toHaveLength(1)
+    expect(html).not.toContain('#fb7185')
+  })
+
+  it('keeps the footer links on one line under the account sentence', () => {
+    const { card } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
+    const settings = [...parse(card).querySelectorAll('a')].find(link => link.textContent === 'Settings')!
+    const line = settings.parentElement!
+
+    expect([...line.querySelectorAll('a')].map(link => link.textContent)).toEqual(['Settings', 'Unsubscribe'])
+    expect(line.textContent).not.toContain('Your account is set to receive the weekly email.')
+    expect(card).toContain('Your account is set to receive the weekly email.')
+  })
+})
+
+describe('weekly opening', () => {
+  const RANKED = 'Ranked by how many separate devs talked about each one. Skills from the 20 most-starred repositories rank lower, so lesser-known skills lead.'
+
+  it('names the first Skill and how many accounts mentioned it', () => {
+    const { html, text } = renderWeekly(input({
+      edition: 'weekly',
+      trending: [
+        trending({ reason: { _tag: 'named', authorCount: 4, mentionCount: 6 } }),
+        trending({ slug: 'tdd', canonicalName: 'tdd' }),
+      ],
+    }))
+
+    expect(parse(html).querySelector('h1')?.textContent).toBe('vitest is #1 trending this week')
+    expect(html).toContain('4 accounts mentioned it this week.')
+    expect(text).toContain('vitest is #1 trending this week\n4 accounts mentioned it this week.')
+    expect(html).not.toContain('Here are this week’s trending Skills.')
+  })
+
+  it('keeps the board heading when the first Skill ranks by stars alone', () => {
+    const { html } = renderWeekly(input({ edition: 'weekly', trending: [trending({ reason: { _tag: 'popular', stars: 46_712 } })] }))
+
+    expect(parse(html).querySelector('h1')?.textContent).toBe('Trending skills this week')
+  })
+
+  it('says what orders the board', () => {
+    const named = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
+    const withStars = renderWeekly(input({
+      edition: 'weekly',
+      trending: [trending(), trending({ slug: 'tdd', canonicalName: 'tdd', reason: { _tag: 'popular', stars: 46_712 } })],
+    }))
+
+    expect(named.html).toContain(RANKED)
+    expect(named.text).toContain(RANKED)
+    expect(withStars.html).toContain('Ranked by how many separate devs talked about each one. GitHub stars rank the rest of the board.')
+  })
+
+  it('numbers weekly rows by board position and drops the repeated label', () => {
+    const weekly = renderWeekly(input({ edition: 'weekly', trending: [trending(), trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
+    const digest = renderWeekly(input({ trending: [trending(), trending({ slug: 'tdd', canonicalName: 'tdd' })] }))
+    const ranks = (html: string) => [...parse(html).querySelectorAll('td.weekly-rank')].map(cell => cell.textContent?.trim())
+
+    expect(ranks(weekly.html)).toEqual(['#1', '#2'])
+    expect(weekly.html).not.toContain('>Trending this week<')
+    expect(weekly.text).toContain('#1 antfu/skills vitest')
+    expect(ranks(digest.html)).toEqual([])
+    expect(digest.html).toContain('>Trending this week<')
+  })
+
+  it('leaves out star counts under 100', () => {
+    const small = renderWeekly(input({ edition: 'weekly', trending: [trending({ stars: 79 })] }))
+    const large = renderWeekly(input({ edition: 'weekly', trending: [trending({ stars: 12_400 })] }))
+
+    expect(small.html).not.toContain('79 stars')
+    expect(small.text).not.toContain('79 stars')
+    expect(large.html).toContain('12k stars')
+  })
+})
+
 describe('weekly trending spark', () => {
   // Every glyph a spark can print, the blank cell included.
   const BRAILLE = new RegExp(`[${SPARK_BARS.join('')}]`)
   const week = [0, 1, 0, 2, 0, 3, 6]
 
-  it('draws a week of mentions as a braille spark beside its count', () => {
+  it('draws a week of mentions as dots in HTML and braille in plain text', () => {
     const { html, text } = renderWeekly(input({
       trending: [trending({ reason: { _tag: 'named', authorCount: 3, mentionCount: 12, latestAt: WINDOW_END, mentionsByDay: week } })],
     }))
+    const spark = new DOMParser().parseFromString(html, 'text/html').querySelector('[role="img"][aria-label^="12 mentions"]')!
 
     expect(text).toContain('⠀⣀⠀⣀⠀⣤⣿ 12 mentions')
-    expect(html).toContain('aria-label="12 mentions in 7 days. Per day, oldest first: 0, 1, 0, 2, 0, 3, 6."')
-    expect(html).toMatch(BRAILLE)
+    expect(spark.getAttribute('aria-label')).toBe('12 mentions in 7 days. Per day, oldest first: 0, 1, 0, 2, 0, 3, 6.')
+    expect(spark.querySelectorAll('table tr')).toHaveLength(4)
+    expect(spark.querySelectorAll('table tr:first-child td')).toHaveLength(7)
+    expect(spark.textContent).toContain('12 mentions')
+    expect(html).not.toMatch(BRAILLE)
   })
 
   it('draws the spark on a row that was named and surged', () => {
