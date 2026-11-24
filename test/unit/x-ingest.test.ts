@@ -59,9 +59,11 @@ function stubClient(pages: Array<XResult<XPage>>) {
   const sinceIds: Array<string | null> = []
   const maxResults: Array<number | undefined> = []
   const nextTokens: Array<string | null | undefined> = []
+  const queries: string[] = []
   let call = 0
   const client: XClient = {
-    async searchRecent({ sinceId, nextToken, maxResults: max }) {
+    async searchRecent({ query, sinceId, nextToken, maxResults: max }) {
+      queries.push(query)
       sinceIds.push(sinceId)
       nextTokens.push(nextToken)
       maxResults.push(max)
@@ -74,8 +76,22 @@ function stubClient(pages: Array<XResult<XPage>>) {
       throw new Error('usage is not part of discovery')
     },
   }
-  return { client, sinceIds, nextTokens, maxResults, callCount: () => call }
+  return { client, sinceIds, nextTokens, maxResults, queries, callCount: () => call }
 }
+
+// Measured 17 to 23 Nov 2026: "SKILL.md" alone matched 606 posts, and 521
+// linked no repository or Skill, so trending read none of them. All 85 that
+// did link carried a GitHub link.
+describe('ingestXMentions discovery query', () => {
+  it('searches for "SKILL.md" only alongside a GitHub or skilld.dev link', async () => {
+    const { client, queries } = stubClient([])
+    await ingestXMentions({ db: db().db, client, now: NOW })
+    const gated = '("SKILL.md" (url:"github.com" OR url:"skilld.dev"))'
+
+    expect(queries[0]).toContain(gated)
+    expect(queries[0]!.replace(gated, '')).not.toContain('SKILL.md')
+  })
+})
 
 let harness: SqliteD1 | null = null
 
