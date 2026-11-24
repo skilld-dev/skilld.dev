@@ -274,9 +274,9 @@ describe('createXClient lookup', () => {
     expect(result._tag === 'err' && result.error._tag).toBe('malformed-response')
   })
 
-  // X bills each User object a response carries, at twice the price of a
-  // Post. Discovery already stored the author, so a refresh that asked for it
-  // again paid for nothing it used.
+  // Discovery already stored the author, so a refresh that asked for it again
+  // fetched data nothing read. X bills a User read at twice a Post, though it
+  // billed only 448 of them in the 30 days to 24 Nov 2026.
   it('asks a refresh lookup for post metrics only, never the author', async () => {
     const { client, calls } = clientReturning({ data: [] })
     await client.lookupPosts(['1', '2'])

@@ -38,8 +38,8 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
  * WHY `"SKILL.md"` NOW NEEDS A LINK. The install commands earn their place:
  * 94% of the 313 posts they matched from 17 to 23 Nov 2026 linked a repository
  * or Skill. `"SKILL.md"` alone matched 606 posts in the same week, and 521
- * linked nothing, so trending read none of them while each cost a Post read
- * and an author read. Every one of the 85 that linked carried a GitHub link.
+ * linked nothing, so trending read none of them while each cost a Post read.
+ * Every one of the 85 that linked carried a GitHub link.
  *
  * WHY ARM 4 IS GATED SO HIGH. The same probe run without a floor returned
  * crypto spam ("JUST LIT THE FUSE! $200 for link") and AI-hustle threads

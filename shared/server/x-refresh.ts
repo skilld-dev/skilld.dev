@@ -13,8 +13,10 @@
  *
  * Measured 17 to 23 Nov 2026, refresh still read posts on 1,003 later UTC
  * days in a week, about 143 a day, and 478 of those were posts that link no
- * repository or Skill. Trending never reads their engagement. Each lookup
- * also carried the author, a User read billed at $0.010, twice a Post.
+ * repository or Skill. Trending never reads their engagement. Lookups also
+ * asked for the author, which discovery already stores. The X Developer
+ * Console billed 448 User reads against 10,190 Post reads in the 30 days to
+ * 24 Nov 2026, so Post reads are the cost that matters here.
  *
  * Three guards remain here:
  *
