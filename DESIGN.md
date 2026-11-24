@@ -307,11 +307,12 @@ The mark is a prompt caret with one rose dot after it. The caret is a terminal p
 | --- | --- |
 | `favicon.svg` | Browser tabs. The 16px cut, ink and dot switch with `prefers-color-scheme` |
 | `favicon.ico` | Legacy tabs and crawlers. 16, 32 and 48px on the stone tile |
-| `logo-icon.png`, `logo-icon.svg` | The weekly email header, the Discord avatar, app icons. 512px stone tile. Gmail strips SVG, so email takes the PNG |
+| `logo-icon.png`, `logo-icon.svg` | The Discord avatar, app icons. 512px stone tile |
+| `logo-email-light.png`, `logo-email-dark.png` | The email masthead lockup, at three times its 122px display width. Each file carries its email's surface colour, so a client that recolours the page keeps the ink readable. Gmail strips SVG, so email takes the PNG |
 | `logo.svg`, `logo-light.svg` | The lockup, outlined, for dark and light backgrounds. READMEs and other repositories link these names |
 | `logo-mark.svg`, `logo-mark-light.svg` | The mark alone, for dark and light backgrounds |
 
-**Placement.** The lockup is the site header, the account and auth layouts, and every OG card. The mark alone goes where a square fits and a wordmark does not: favicons, avatars, app icons. The homepage H1 ends on the rose dot in place of a typed full stop. The page draws that dot, and it counts as the hero's rose element.
+**Placement.** The lockup is the site header, the account and auth layouts, every OG card, and the email masthead. The mark alone goes where a square fits and a wordmark does not: favicons, avatars, app icons. The homepage H1 ends on the rose dot in place of a typed full stop. The page draws that dot, and it counts as the hero's rose element.
 
 **Never:**
 
@@ -357,7 +358,7 @@ Motifs carry data. Each answers one pitch line from `COPY.md` and spends one ros
 
 **Run chip.** It pairs with "No more skill bloat". Run and install sit side by side, and run is preselected. Run has a dashed border and a hollow rose dot, because nothing stays. Install has a solid border and a filled dot, because files land. A consequence line under the chip says what each choice leaves on disk.
 
-**Braille spark.** It pairs with "Stay hyped". Seven columns of braille dots show seven days of social mentions, filled from the bottom, with today in rose. The mention count sits beside it, with its noun from `sparkCount`, so one mention reads "1 mention". On the site, `SparkDots` draws each day as one SVG column of up to four dots, about 20px for the week. A day with no mentions draws one dot at 40% opacity as a track, so a lone column still reads as one day of seven. Plain text prints the same levels as braille bars (`⣀⣤⣶⣿`) and keeps the blank cell, so the spark works in the weekly email, in Discord and in a terminal. The trending mark is four rising columns of the same dots. The spark replaces the trending flame emoji.
+**Braille spark.** It pairs with "Stay hyped". Seven columns of braille dots show seven days of social mentions, filled from the bottom, with today in rose. The mention count sits beside it, with its noun from `sparkCount`, so one mention reads "1 mention". On the site, `SparkDots` draws each day as one SVG column of up to four dots, about 20px for the week. A day with no mentions draws one dot at 40% opacity as a track, so a lone column still reads as one day of seven. Plain text prints the same levels as braille bars (`⣀⣤⣶⣿`) and keeps the blank cell, so the spark works in plain-text email, in Discord and in a terminal. The HTML email draws the same levels as 4px table-cell dots, all in stone, because braille glyphs change width between mail clients and cells need no font or image. The trending mark is four rising columns of the same dots. The spark replaces the trending flame emoji.
 
 **Change grid.** It pairs with "Keep updated". A 13-week grid of days, today at the bottom right. Each change is a stone dot, and the newest change is rose. A ring around a dot shows the size of the version bump, only where a version is known.
 
@@ -428,7 +429,8 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Crop, do not scale**: `max-block-size: 26rem` with a `mask-image` fade. A `transform: scale()` blurs the type, and the email is the one element here that has to look exactly like itself.
 - **The preview is `aria-hidden` and untabbable.** It carries roughly twenty real links; tabbing an inbox picture mid-homepage is a trap. The prose beside it is the accessible description.
 - **Rose budget**: one solid rose element, the primary CTA. Rose inside the preview is depicted content, like a photograph containing a red object, and does not count against the 10%.
-- **The braille spark** marks the email's trending section, as it does on the site. Emoji stay banned in the email too.
+- **The dot spark** marks each trending row in the email, as it does on the site. Emoji stay banned in the email too.
+- **The email's own rose budget**: the masthead lockup's dot and one solid rose button. Spark dots, rules and links stay stone.
 
 ## Design Decisions
 

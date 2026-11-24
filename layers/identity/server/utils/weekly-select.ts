@@ -8,6 +8,7 @@ import type { WeeklyReason, WeeklyTrendingSkill } from './weekly-template'
 import { loadFallbackSkills } from '#shared/server/trending-fallback'
 import { loadTopStarredRepositories } from '#shared/server/trending-repos'
 import { DEFAULT_WINDOW_HOURS, loadTrendingSkills } from '#shared/server/trending-skills'
+import { DEMOTED_STARRED_REPOSITORIES } from '#shared/trending-range'
 import { githubSkillSourceUrl } from './email-skill-links'
 import {
   excludeRecentlySentWeeklySkills,
@@ -105,7 +106,7 @@ export async function loadWeeklyTrending(
   now: number,
 ): Promise<WeeklyTrendingSkill[]> {
   const [deprioritizeRepositories, recentKeys] = await Promise.all([
-    loadTopStarredRepositories(db, 20),
+    loadTopStarredRepositories(db, DEMOTED_STARRED_REPOSITORIES),
     loadRecentWeeklySkillKeys(db, now),
   ])
   const candidateLimit = MAX_TRENDING + recentKeys.size

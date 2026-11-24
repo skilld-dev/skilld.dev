@@ -49,9 +49,13 @@ function brandFiles(): Record<string, string | Buffer> {
       { size: 32, data: png(tile, 32) },
       { size: 48, data: png(tile, 48) },
     ]),
-    // The weekly email header and the Discord digest avatar use the tile, because Gmail strips SVG.
+    // The Discord digest avatar and app icons use the tile, because Gmail and Discord strip SVG.
     'logo-icon.svg': tile,
     'logo-icon.png': png(tile, 512),
+    // The email header lockup, at three times its 122px display width. Each file carries its email's
+    // surface colour, so a client that recolours the page never leaves dark ink on a dark ground.
+    'logo-email-light.png': png(lockupSvg({ colors: BRAND_LIGHT, background: '#ffffff' }), 366),
+    'logo-email-dark.png': png(lockupSvg({ colors: BRAND_DARK, background: BRAND_TILE }), 366),
     // `logo` and `logo-mark` are for dark backgrounds; the `-light` files are for light ones.
     'logo.svg': lockupSvg({ colors: BRAND_DARK, height: 84 }),
     'logo-light.svg': lockupSvg({ colors: BRAND_LIGHT, height: 84 }),

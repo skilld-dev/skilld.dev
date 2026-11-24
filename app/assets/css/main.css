@@ -1269,7 +1269,6 @@
   --email-accent: #be123c;
   --email-onAccent: #ffffff;
   --email-quote: #fafaf9;
-  --email-mark: #fb7185;
 }
 
 .dark .weekly-preview {
@@ -1284,5 +1283,13 @@
   --email-accent: #fb7185;
   --email-onAccent: #1c1917;
   --email-quote: #211d18;
-  --email-mark: #fb7185;
+}
+
+/* The card carries both lockup PNGs, each on its own surface colour; show the one that matches the page. */
+.dark .weekly-preview .weekly-lockup-light {
+  display: none !important;
+}
+
+.dark .weekly-preview .weekly-lockup-dark {
+  display: block !important;
 }
