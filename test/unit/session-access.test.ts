@@ -1,24 +1,23 @@
-import type { H3Event } from 'h3'
+import { H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { decideSessionAccess, readUserSession } from '../../shared/server/session-access'
 
-// h3's `useSession` mints a session and sets its cookie whenever a request
+// `getUserSession` mints a session and sets its cookie whenever a request
 // arrives without one. Reading the session on an anonymous request is what put
-// a `nuxt-session` cookie on `/api/skills`, and a response that sets a cookie
+// a session cookie on `/api/skills`, and a response that sets a cookie
 // is never stored by a shared cache.
 describe('decideSessionAccess', () => {
   it.each([
-    { name: 'no cookie header', cookie: undefined, sessionHeader: undefined, expected: 'anonymous' },
-    { name: 'empty cookie header', cookie: '', sessionHeader: undefined, expected: 'anonymous' },
-    { name: 'unrelated cookies only', cookie: 'theme=dark; __cf_bm=abc', sessionHeader: undefined, expected: 'anonymous' },
-    { name: 'a cleared session cookie', cookie: 'nuxt-session=', sessionHeader: undefined, expected: 'anonymous' },
-    { name: 'a cookie whose name only ends with the session name', cookie: 'old-nuxt-session=Fe26.2', sessionHeader: undefined, expected: 'anonymous' },
-    { name: 'the session cookie', cookie: 'nuxt-session=Fe26.2**abc', sessionHeader: undefined, expected: 'carried' },
-    { name: 'the session cookie among others', cookie: 'theme=dark;  nuxt-session=Fe26.2**abc ; x=1', sessionHeader: undefined, expected: 'carried' },
-    { name: 'the session header', cookie: undefined, sessionHeader: 'Fe26.2**abc', expected: 'carried' },
-    { name: 'an empty session header', cookie: undefined, sessionHeader: '', expected: 'anonymous' },
-  ])('$name is $expected', ({ cookie, sessionHeader, expected }) => {
-    expect(decideSessionAccess({ cookie, sessionHeader })._tag).toBe(expected)
+    { name: 'no cookie header', cookie: null, expected: 'anonymous' },
+    { name: 'empty cookie header', cookie: '', expected: 'anonymous' },
+    { name: 'unrelated cookies only', cookie: 'theme=dark; __cf_bm=abc', expected: 'anonymous' },
+    { name: 'a cleared session cookie', cookie: 'nuxt-auth-session=', expected: 'anonymous' },
+    { name: 'a cookie whose name only ends with the session name', cookie: 'old-nuxt-auth-session=sealed', expected: 'anonymous' },
+    { name: 'the old session cookie', cookie: 'nuxt-session=sealed', expected: 'anonymous' },
+    { name: 'the session cookie', cookie: 'nuxt-auth-session=sealed', expected: 'carried' },
+    { name: 'the session cookie among others', cookie: 'theme=dark;  nuxt-auth-session=sealed ; x=1', expected: 'carried' },
+  ])('$name is $expected', ({ cookie, expected }) => {
+    expect(decideSessionAccess(cookie)._tag).toBe(expected)
   })
 })
 
@@ -32,7 +31,7 @@ describe('readUserSession', () => {
   })
 
   function event(headers: Record<string, string>): H3Event {
-    return { node: { req: { headers } }, context: {} } as unknown as H3Event
+    return new H3Event(new Request('https://skilld.dev/api/_auth/session', { headers }))
   }
 
   it('never opens a session for an anonymous request', async () => {
@@ -41,7 +40,7 @@ describe('readUserSession', () => {
   })
 
   it('reads the session a request carries', async () => {
-    await expect(readUserSession(event({ cookie: 'nuxt-session=Fe26.2**abc' })))
+    await expect(readUserSession(event({ cookie: 'nuxt-auth-session=sealed' })))
       .resolves
       .toEqual({ id: 'sealed-id', user: { id: 7, login: 'octocat' } })
   })
@@ -49,6 +48,6 @@ describe('readUserSession', () => {
   it('treats a carried session with no user as signed out', async () => {
     getUserSession.mockResolvedValue({ id: 'sealed-id' })
 
-    await expect(readUserSession(event({ cookie: 'nuxt-session=Fe26.2**abc' }))).resolves.toBeNull()
+    await expect(readUserSession(event({ cookie: 'nuxt-auth-session=sealed' }))).resolves.toBeNull()
   })
 })

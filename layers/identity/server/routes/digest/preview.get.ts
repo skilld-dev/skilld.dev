@@ -1,3 +1,5 @@
+import { $fetch } from '#shared/server/fetch'
+
 export default defineCachedEventHandler(async (event) => {
   const demo = await $fetch<{ html: string }>('/api/digest/demo')
   setHeader(event, 'content-type', 'text/html; charset=utf-8')

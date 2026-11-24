@@ -3,7 +3,7 @@ import { createError } from 'h3'
 import { ref } from 'vue'
 import RepoPage from '../../layers/registry/app/pages/gh/[owner]/[repo]/index.vue'
 
-mockNuxtImport('useRoute', () => () => ({ params: { owner: 'missing-owner', repo: 'missing-repo' }, query: {}, path: '/gh/missing-owner/missing-repo' }))
+mockNuxtImport('useRoute', () => () => ({ params: { owner: 'missing-owner', repo: 'missing-repo' }, query: {}, matched: [], path: '/gh/missing-owner/missing-repo' }))
 mockNuxtImport('useBotDetection', () => () => ({ isBot: ref(false) }))
 
 registerEndpoint('/api/repos/missing-owner/missing-repo/route-target', () => ({ owner: 'missing-owner', repo: 'missing-repo', target: { _tag: 'repo' } }))

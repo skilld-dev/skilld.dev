@@ -1,10 +1,9 @@
+import type { H3Event } from 'h3'
 import type { HtmlValidatorDecision, RenderedPage } from '../../shared/html-validators'
-import { IncomingMessage, ServerResponse } from 'node:http'
-import { Socket } from 'node:net'
-import { createEvent, setResponseHeader } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import registerPlugin from '../../server/plugins/html-validators'
 import { decideHtmlValidators } from '../../shared/html-validators'
+import { createTestEvent } from './helpers/event'
 
 vi.hoisted(() => {
   vi.stubGlobal('defineNitroPlugin', (plugin: unknown) => plugin)
@@ -91,7 +90,7 @@ describe('decideHtmlValidators', () => {
   it.each<[string, PageInput, string]>([
     ['a request with a cookie', { request: { cookie: 'theme=dark' } }, 'credentials'],
     ['a request with an authorization header', { request: { authorization: 'Bearer token' } }, 'credentials'],
-    ['a page that sets a cookie', { response: { 'set-cookie': 'nuxt-session=abc; Path=/' } }, 'sets-cookie'],
+    ['a page that sets a cookie', { response: { 'set-cookie': 'nuxt-auth-session=abc; Path=/' } }, 'sets-cookie'],
     ['a page the edge must not store', { response: { 'cloudflare-cdn-cache-control': 'private, no-store' } }, 'not-shared'],
     ['a page with no edge policy', { response: { 'cloudflare-cdn-cache-control': '' } }, 'not-shared'],
     ['a page with a zero edge lifetime', { response: { 'cloudflare-cdn-cache-control': 'public, max-age=0' } }, 'not-shared'],
@@ -113,7 +112,7 @@ describe('decideHtmlValidators', () => {
 
 describe('html validators plugin', () => {
   interface RenderResponse { body: unknown, statusCode?: number, statusMessage?: string }
-  type RenderHook = (response: RenderResponse, context: { event: ReturnType<typeof createEvent> }) => Promise<void>
+  type RenderHook = (response: RenderResponse, context: { event: H3Event }) => Promise<void>
 
   function renderHook(): RenderHook {
     let hook: RenderHook | undefined
@@ -127,15 +126,10 @@ describe('html validators plugin', () => {
   }
 
   function event(headers: Record<string, string> = {}) {
-    const req = new IncomingMessage(new Socket())
-    req.method = 'GET'
-    req.url = '/gh/anthropics/skills/skill-creator'
-    req.headers = { host: 'skilld.dev', ...headers }
-    const res = new ServerResponse(req)
-    const h3Event = createEvent(req, res)
-    setResponseHeader(h3Event, 'content-type', 'text/html;charset=utf-8')
-    setResponseHeader(h3Event, 'cloudflare-cdn-cache-control', EDGE)
-    return { event: h3Event, res }
+    const event = createTestEvent({ path: '/gh/anthropics/skills/skill-creator', headers })
+    event.res.headers.set('content-type', 'text/html;charset=utf-8')
+    event.res.headers.set('cloudflare-cdn-cache-control', EDGE)
+    return { event, headers: event.res.headers }
   }
 
   it('tags the rendered page, then answers its ETag with an empty 304', async () => {
@@ -143,7 +137,7 @@ describe('html validators plugin', () => {
     const first = event()
     const rendered: RenderResponse = { body: HTML, statusCode: 200 }
     await hook(rendered, { event: first.event })
-    const etag = String(first.res.getHeader('etag'))
+    const etag = String(first.headers.get('etag'))
 
     expect(etag).toMatch(/^W\/"build-1-/)
     expect(rendered).toEqual({ body: HTML, statusCode: 200 })
@@ -152,18 +146,18 @@ describe('html validators plugin', () => {
     const revalidated: RenderResponse = { body: HTML, statusCode: 200 }
     await hook(revalidated, { event: repeat.event })
 
-    expect(repeat.res.getHeader('etag')).toBe(etag)
+    expect(repeat.headers.get('etag')).toBe(etag)
     expect(revalidated).toEqual({ body: '', statusCode: 304, statusMessage: 'Not Modified' })
-    expect(repeat.res.getHeader('cloudflare-cdn-cache-control')).toBe(EDGE)
+    expect(repeat.headers.get('cloudflare-cdn-cache-control')).toBe(EDGE)
   })
 
   it('leaves a signed-in request without an ETag', async () => {
     const hook = renderHook()
-    const signedIn = event({ 'cookie': 'nuxt-session=abc', 'if-none-match': '*' })
+    const signedIn = event({ 'cookie': 'nuxt-auth-session=abc', 'if-none-match': '*' })
     const rendered: RenderResponse = { body: HTML, statusCode: 200 }
     await hook(rendered, { event: signedIn.event })
 
-    expect(signedIn.res.getHeader('etag')).toBeUndefined()
+    expect(signedIn.headers.get('etag')).toBeNull()
     expect(rendered).toEqual({ body: HTML, statusCode: 200 })
   })
 })

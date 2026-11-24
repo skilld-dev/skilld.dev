@@ -30,7 +30,7 @@ export default defineApiHandler({
       await optOutSkillgenRepository(platform.db, repository)
       return { _tag: 'Saved', ...repository, optedIn: false }
     }
-    const token = await requireGithubUserToken(platform.db, u.id, useRuntimeConfig(event).tokenKey as string)
+    const token = await requireGithubUserToken(platform.db, u.id, useRuntimeConfig().tokenKey as string)
     const eligibility = await checkSkillgenEligibility(githubUserGet(token), repository)
     const maintains = eligibility._tag !== 'NotFound' && eligibility._tag !== 'NotMaintainer' && eligibility._tag !== 'GithubUnavailable'
     if (!body.optedIn && maintains) {

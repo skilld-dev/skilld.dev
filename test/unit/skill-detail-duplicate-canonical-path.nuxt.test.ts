@@ -4,6 +4,7 @@ import { reactive, ref } from 'vue'
 import SkillBehaviors from '../../layers/registry/app/components/_SkillBehaviors.vue'
 
 const route = reactive({
+  matched: [],
   path: '/gh/mirror/multi/shared-skill',
   query: {},
   params: { owner: 'mirror', repo: 'multi', name: 'shared-skill' },

@@ -12,7 +12,7 @@ export default defineApiHandler({
   policy: [authenticated],
   handler: async ({ event, platform }) => {
     const u = await requireUserRow(event)
-    const token = await requireGithubUserToken(platform.db, u.id, useRuntimeConfig(event).tokenKey as string)
+    const token = await requireGithubUserToken(platform.db, u.id, useRuntimeConfig().tokenKey as string)
     const github = githubUserGet(token)
     const listed = await listMaintainedRepositories(github)
     if (listed._tag === 'GithubUnavailable')

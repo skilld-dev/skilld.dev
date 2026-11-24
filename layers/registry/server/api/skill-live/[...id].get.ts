@@ -1,5 +1,7 @@
 import type { AuditEntry } from 'skilld-protocol/wire'
+
 import type { SkillAuditResponse } from '../../schemas/skill-responses'
+import { $fetch } from '#shared/server/fetch'
 import { SkillAuditResponseSchema } from '../../schemas/skill-responses'
 
 interface SkillsShAuditResponse {

@@ -1,8 +1,10 @@
 import type { H3Event } from 'h3'
+
 import type { ResolutionRow } from './state'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { setHeader } from 'h3'
 import { emitOperationalEvent } from '#server/utils/operational-event'
+import { $fetch } from '#shared/server/fetch'
 
 export interface DeliveredSkillSource {
   owner: string

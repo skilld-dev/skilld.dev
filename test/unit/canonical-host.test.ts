@@ -1,9 +1,8 @@
-import { IncomingMessage, ServerResponse } from 'node:http'
-import { Socket } from 'node:net'
-import { createEvent, setResponseHeader } from 'h3'
+import { toResponse } from 'h3'
 import { describe, expect, it } from 'vitest'
 import canonicalHost from '../../server/middleware/canonical-host'
 import { canonicalHostRedirect } from '../../server/utils/canonical-host'
+import { createTestEvent } from './helpers/event'
 
 describe('canonicalHostRedirect', () => {
   it.each([
@@ -42,31 +41,22 @@ describe('canonicalHostRedirect', () => {
 // Workers Cache keys on the path and query, never the host. A stored www
 // redirect would answer the apex URL too and send it to itself.
 describe('canonical host middleware', () => {
-  function event(host: string, path: string) {
-    const req = new IncomingMessage(new Socket())
-    req.headers.host = host
-    req.url = path
-    const res = new ServerResponse(req)
-    return { event: createEvent(req, res), res }
-  }
-
   it('never lets a shared cache keep the www redirect', async () => {
-    const { event: request, res } = event('www.skilld.dev', '/skills/trending?range=all')
-    setResponseHeader(request, 'cloudflare-cdn-cache-control', 'public, max-age=60, stale-while-revalidate=3600')
+    const request = createTestEvent({ path: 'https://www.skilld.dev/skills/trending?range=all', headers: { host: 'www.skilld.dev' } })
+    request.res.headers.set('cloudflare-cdn-cache-control', 'public, max-age=60, stale-while-revalidate=3600')
+    const response = await toResponse(canonicalHost(request), request)
 
-    await canonicalHost(request)
-
-    expect(res.statusCode).toBe(301)
-    expect(res.getHeader('location')).toBe('https://skilld.dev/skills/trending?range=all')
-    expect(res.getHeader('cloudflare-cdn-cache-control')).toBe('no-store')
-    expect(res.getHeader('cache-control')).toBe('private, no-store')
+    expect(response.status).toBe(301)
+    expect(response.headers.get('location')).toBe('https://skilld.dev/skills/trending?range=all')
+    expect(response.headers.get('cloudflare-cdn-cache-control')).toBe('no-store')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
   })
 
   it('leaves an apex request and its cache policy alone', async () => {
-    const { event: request, res } = event('skilld.dev', '/skills/trending')
-    setResponseHeader(request, 'cloudflare-cdn-cache-control', 'public, max-age=60')
+    const request = createTestEvent({ path: '/skills/trending' })
+    request.res.headers.set('cloudflare-cdn-cache-control', 'public, max-age=60')
 
     expect(await canonicalHost(request)).toBeUndefined()
-    expect(res.getHeader('cloudflare-cdn-cache-control')).toBe('public, max-age=60')
+    expect(request.res.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=60')
   })
 })

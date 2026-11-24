@@ -1,3 +1,5 @@
+import { $fetch } from '#shared/server/fetch'
+
 import { defineApiHandler } from '#shared/server/handler'
 import {
   loadPublicDigestChanges,

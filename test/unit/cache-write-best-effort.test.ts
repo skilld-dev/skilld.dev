@@ -3,6 +3,7 @@ import type { SqliteD1 } from './helpers/d1-sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readCache, writeCache } from '../../shared/server/cache'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 describe('best-effort cache writes', () => {
   it('resolves when the KV write is rate limited', async () => {
@@ -124,9 +125,9 @@ describe('skill detail route cache', () => {
   })
 
   function event(): H3Event {
-    return {
+    return createTestEvent({
+      headers: {},
       context: { platform: { db: harness.db } },
-      node: { req: { headers: {} } },
-    } as unknown as H3Event
+    })
   }
 })

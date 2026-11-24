@@ -52,7 +52,13 @@ export default defineNuxtConfig({
       nitroConfig.publicAssets = withBuildAssetMissFallthrough(
         nitroConfig.publicAssets || [],
         '/_nuxt/v2/',
-      )
+      ).filter(asset => asset !== undefined)
+    },
+    'nitro:init': (nitro) => {
+      const wrangler = nitro.options.cloudflare?.wrangler
+      // Nitro also reads nodejs_compat from the project's wrangler.jsonc.
+      if (wrangler?.compatibility_flags)
+        wrangler.compatibility_flags = wrangler.compatibility_flags.filter(flag => flag !== 'nodejs_compat')
     },
   },
 
@@ -442,8 +448,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // nuxt-auth-utils names its cookie from here; `readUserSession` looks for
     // the same name before it opens a session.
-    session: { name: SESSION_NAME, password: '' },
-    sessionPassword: '',
+    session: { name: SESSION_NAME },
     adminSecret: '',
     tokenKey: '',
     checkinToken: '',
@@ -492,8 +497,8 @@ export default defineNuxtConfig({
     // Registered here, not scanned from `server/middleware`, because nuxt-ai-ready
     // claims every `.md` path and scanned middleware runs after a module's.
     handlers: [
-      { middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
-      { middleware: true, handler: '~~/server/handlers/content-negotiation.ts' },
+      { route: '/**', middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
+      { route: '/**', middleware: true, handler: '~~/server/handlers/content-negotiation.ts' },
     ],
     alias: {
       // Cloudflare's ASSETS binding is authoritative in production and local
@@ -543,7 +548,6 @@ export default defineNuxtConfig({
     },
     experimental: {
       tasks: true,
-      wasm: true,
       asyncContext: true,
     },
   },
@@ -653,7 +657,7 @@ export default defineNuxtConfig({
     // The old rule was `/api/repos/(?!index/)owner/repo`. Most-specific-wins
     // replaces the negative lookahead: the index routes take the second rule.
     '/api/repos/**': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=900, stale-while-revalidate=3600, stale-if-error=3600' } } as any,
-    '/api/repos/*/*/route-target': {
+    '/api/repos/:owner/:repo/route-target': {
       headers: {
         'cache-control': 'private, no-store',
         'cloudflare-cdn-cache-control': 'private, no-store',
@@ -776,11 +780,11 @@ export default defineNuxtConfig({
     compatibilityVersion: 5,
   },
 
+  nitroLegacy: true,
+
   experimental: {
     // compatibilityVersion 5 turns h3 and nitropack server auto-imports off.
-    // Nuxt 4.6.2 (nuxt/nuxt#36548) made that take effect. Our server code and
-    // nuxt-auth-utils 0.5 (`createError` from `#imports`) still rely on them.
-    // Remove once server code imports from `nuxt/server` and nuxt-auth-utils is on 0.6.
+    // Server code still uses these auto-imports while moving to explicit imports.
     nitroAutoImports: true,
     checkOutdatedBuildInterval: 5 * 60 * 1000,
     viteEnvironmentApi: false,

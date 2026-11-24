@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { createApp, defineEventHandler, toWebHandler } from 'h3'
+import { H3 } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import registerPlugin from '../../server/plugins/robots-header'
 
@@ -13,13 +13,12 @@ async function convert(html: string, initialRobots = 'index,follow') {
     if (name === 'ai-ready:page:markdown')
       onMarkdown = callback
   } } } as unknown as Parameters<typeof registerPlugin>[0])
-  const app = createApp()
-  app.use(defineEventHandler((event) => {
-    event.node.res.setHeader('x-robots-tag', initialRobots)
+  const app = new H3().get('/gh/author/repository.md', (event) => {
+    event.res.headers.set('x-robots-tag', initialRobots)
     onMarkdown?.({ html, event })
     return '# Converted page'
-  }))
-  return toWebHandler(app)(new Request('http://localhost/gh/author/repository.md'))
+  })
+  return app.fetch(new Request('http://localhost/gh/author/repository.md'))
 }
 
 describe('converted Markdown indexing directives', () => {

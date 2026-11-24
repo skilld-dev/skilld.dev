@@ -1,3 +1,5 @@
+import type { WeeklyRenderInput } from '#layers/identity/server/utils/weekly-template'
+
 /**
  * Browser preview for the weekly email. Dev only; 404 in production.
  *
@@ -8,9 +10,9 @@
  * anyone, because a mail client is the one surface we cannot hotfix.
  */
 
-import type { WeeklyRenderInput } from '#layers/identity/server/utils/weekly-template'
 import { MAX_TRENDING } from '#layers/identity/server/utils/weekly-select'
 import { renderWeekly } from '#layers/identity/server/utils/weekly-template'
+import { $fetch } from '#shared/server/fetch'
 
 const WINDOW_END = 1_755_648_000 // 2026-08-20T00:00:00Z, fixed so previews are stable
 const WINDOW_START = WINDOW_END - 7 * 86_400

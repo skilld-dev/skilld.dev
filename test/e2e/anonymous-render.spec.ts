@@ -54,7 +54,7 @@ test('the trending board asks the edge to keep only the anonymous render', async
   const navigation = { 'accept': BROWSER_ACCEPT, 'sec-fetch-dest': 'document' }
   const anonymous = await request.get('/skills/trending?range=month', { headers: navigation })
   const withCookie = await request.get('/skills/trending?range=month', {
-    headers: { ...navigation, cookie: 'nuxt-session=not-a-session' },
+    headers: { ...navigation, cookie: 'nuxt-auth-session=not-a-session' },
   })
 
   expect(anonymous.headers()['cloudflare-cdn-cache-control']).toBe('public, max-age=60, stale-while-revalidate=3600')

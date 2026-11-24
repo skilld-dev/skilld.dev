@@ -2,7 +2,6 @@ import {
   getHeader,
   setHeader,
   setResponseStatus,
-  toWebRequest,
 } from 'h3'
 import { verifyGithubWebhookSignature } from '../../../utils/github-app'
 import { processGithubAppWebhook } from '../../../utils/private-access'
@@ -22,7 +21,7 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 413)
     return { accepted: false, code: 'REQUEST_TOO_LARGE' }
   }
-  const bodyResult = await readBoundedBody(toWebRequest(event))
+  const bodyResult = await readBoundedBody(event.req)
   if (bodyResult._tag !== 'body') {
     setResponseStatus(event, bodyResult._tag === 'too-large' ? 413 : 400)
     return {
@@ -73,7 +72,7 @@ function parseJson(bytes: Uint8Array): unknown | null {
   }
 }
 
-async function readBoundedBody(request: Request): Promise<
+async function readBoundedBody(request: Pick<Request, 'body'>): Promise<
   { _tag: 'body', value: Uint8Array }
   | { _tag: 'empty' | 'too-large' }
 > {

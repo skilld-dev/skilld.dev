@@ -1,9 +1,11 @@
 import type { H3Event } from 'h3'
+
 import type { TagPayload } from '../../jobs/generate-tags'
 import type { GithubBindings } from '../../utils/github-client'
 import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '#server/utils/db'
 import { cached, readCache, writeCache } from '#shared/server/cache'
+import { $fetch } from '#shared/server/fetch'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { getGithubJson, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../utils/github-client'

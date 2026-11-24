@@ -56,7 +56,7 @@ Sign-in counts record a fixed entry category, a setup step, and its outcome. Ste
 
 skilld.dev sets these cookies and no others:
 
-- `nuxt-session` keeps you signed in. skilld.dev sets it only when you sign in. It holds your account ID, login, name, and avatar URL, encrypted. It ends when you close your browser.
+- `nuxt-auth-session` keeps you signed in. skilld.dev sets it only when you sign in. It holds your account ID, login, name, and avatar URL, encrypted. It ends when you close your browser.
 - `__nkpv` records which version of the site your browser loaded, so an update does not break an open page. It lasts 7 days.
 - `nuxt-auth-state` protects the GitHub sign-in step against forged requests. It lasts 10 minutes.
 - `skilld-login-intent` keeps your return page and pending Like or Watch action during GitHub sign-in. It is encrypted and lasts 10 minutes.

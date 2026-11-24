@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive, ref, toValue } from 'vue'
 
 const route = reactive({
+  matched: [],
   path: '/gh/antfu/skills/vite',
   query: {},
   params: { owner: 'antfu', repo: 'skills', name: 'vite' },

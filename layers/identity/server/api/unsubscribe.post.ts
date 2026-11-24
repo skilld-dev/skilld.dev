@@ -8,7 +8,7 @@ import { applyUnsubscribe, renderUnsubscribePage } from '../utils/unsubscribe'
 // rather than relying on the schema's body path.
 export default defineApiHandler({
   handler: async ({ event, platform }) => {
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const contentType = getHeader(event, 'content-type') ?? ''
     const rawForm = contentType.includes('application/x-www-form-urlencoded')
       ? await readBody<unknown>(event)

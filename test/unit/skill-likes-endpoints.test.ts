@@ -1,6 +1,7 @@
 import type { EventHandler, H3Event } from 'h3'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const NOW = new Date('2026-08-10T09:00:00.000Z')
@@ -234,28 +235,24 @@ describe('skill likes endpoints', () => {
     return sqlite.prepare(`SELECT DISTINCT reason FROM skill_dirty`).pluck().all()
   }
 
-  function baseEvent(): H3Event {
-    return {
-      method: 'GET',
+  function baseEvent(method = 'GET'): H3Event {
+    return createTestEvent({
+      method,
+      headers: { ...SIGNED_IN_HEADERS },
       context: { platform: { db: wrapSqlite(sqlite) }, user: { id: 1, login: 'harlan' } },
-      node: { req: { headers: { ...SIGNED_IN_HEADERS } } },
-    } as unknown as H3Event
+    })
   }
 
   function likeEvent(body: { owner: string, repo: string, name: string }): H3Event {
     vi.stubGlobal('readBody', () => Promise.resolve(body))
     vi.stubGlobal('getUserSession', () => Promise.resolve({ user: { id: 1, login: 'harlan' } }))
-    const event = baseEvent()
-    ;(event as unknown as { method: string }).method = 'POST'
-    return event
+    return baseEvent('POST')
   }
 
   function unlikeEvent(params: { owner: string, repo: string, name: string }): H3Event {
     vi.stubGlobal('getUserSession', () => Promise.resolve({ user: { id: 1, login: 'harlan' } }))
     vi.stubGlobal('getRouterParam', (_e: H3Event, key: string) => params[key as keyof typeof params])
-    const event = baseEvent()
-    ;(event as unknown as { method: string }).method = 'DELETE'
-    return event
+    return baseEvent('DELETE')
   }
 })
 

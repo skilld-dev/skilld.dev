@@ -1,0 +1,104 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 02c4975..6c31bd8 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -492,10 +492,22 @@ function defineCachedFunction(fn, opts = {}) {
+ 		name
+ 	};
+ 	const getStorage = () => resolveStorage(_optsRef, opts);
+-	const pending = /* @__PURE__ */ new Map();
+-	const releasePending = (key, current) => {
+-		if (pending.get(key) === current) pending.delete(key);
+-	};
++	// A Worker request cannot await I/O from a request that has ended.
++	// Keep pending work inside its request. Completed entries still share storage.
++	const pendingByKey = /* @__PURE__ */ new Map();
++	const retirePending = new FinalizationRegistry(({ key, ref }) => {
++		if (pendingByKey.get(key) === ref) pendingByKey.delete(key);
++	});
++	function pendingScope(key) {
++		let scope = pendingByKey.get(key)?.deref();
++		if (!scope) {
++			scope = { byRequest: new WeakMap(), fenced: false };
++			const ref = new WeakRef(scope);
++			pendingByKey.set(key, ref);
++			retirePending.register(scope, { key, ref });
++		}
++		return scope;
++	}
+ 	const writes = /* @__PURE__ */ new Map();
+ 	const trackWrite = (key, write) => {
+ 		const earlier = writes.get(key);
+@@ -567,9 +579,14 @@ function defineCachedFunction(fn, opts = {}) {
+ 		}
+ 		const status = entry.value === void 0 ? "miss" : !expired ? "hit" : swr && _isValid && isMatched ? "stale" : "revalidated";
+ 		const resolveEntry = async () => {
+-			let current = pending.get(key);
++			const scope = pendingScope(key);
++			const request = event?.req;
++			const releasePending = (current) => {
++				if (request && scope.byRequest.get(request) === current) scope.byRequest.delete(request);
++			};
++			let current = request ? scope.byRequest.get(request) : void 0;
+ 			if (current?.holdUntil !== void 0 && (shouldInvalidateCache || Date.now() > current.holdUntil)) {
+-				releasePending(key, current);
++				releasePending(current);
+ 				current = void 0;
+ 			}
+ 			const isPending = current !== void 0;
+@@ -609,16 +626,16 @@ function defineCachedFunction(fn, opts = {}) {
+ 					};
+ 				})();
+ 				current = { promise: maxResolveTime ? withDeadline(resolution, maxResolveTime, controller) : resolution };
+-				pending.set(key, current);
++				if (request) scope.byRequest.set(request, current);
+ 			}
+ 			let resolved;
+ 			try {
+ 				resolved = await current.promise;
+ 			} catch (error) {
+ 				if (!isPending) {
+-					releasePending(key, current);
++					releasePending(current);
+ 					const keepStale = status === "stale" && opts[kKeepStale]?.(error) !== false;
+-					if (!current.fenced && !keepStale) {
++					if (!scope.fenced && !keepStale) {
+ 						const evictPromise = evictFromStorage(getStorage(), key, bases, group, name).catch((error) => {
+ 							onError("[cache] Cache eviction error.", error);
+ 						});
+@@ -640,7 +657,7 @@ function defineCachedFunction(fn, opts = {}) {
+ 				let landing;
+ 				try {
+ 					const isValid = await validate(entry, validateCtx) !== false;
+-					if (current.fenced) return;
++					if (scope.fenced) return;
+ 					if (isValid && setOpts !== false) {
+ 						const writeBases = hitIndex < 0 ? bases : bases.slice(0, hitIndex + 1);
+ 						const { status: _status, ...rest } = entry;
+@@ -671,9 +688,9 @@ function defineCachedFunction(fn, opts = {}) {
+ 						const lifetime = (entry.maxAge ?? opts.maxAge) * 1e3;
+ 						current.holdUntil = entry.mtime + (maxResolveTime ? Math.min(maxResolveTime * 1e3, lifetime) : lifetime);
+ 						const held = current;
+-						const release = () => releasePending(key, held);
++						const release = () => releasePending(held);
+ 						landing.then(release, release);
+-					} else releasePending(key, current);
++					} else releasePending(current);
+ 				}
+ 			}
+ 		};
+@@ -702,10 +719,10 @@ function defineCachedFunction(fn, opts = {}) {
+ 		return value;
+ 	};
+ 	(fences ??= /* @__PURE__ */ new WeakMap()).set(cachedFn, (key) => {
+-		const current = pending.get(key);
+-		if (current) {
+-			current.fenced = true;
+-			pending.delete(key);
++		const scope = pendingByKey.get(key)?.deref();
++		if (scope) {
++			scope.fenced = true;
++			pendingByKey.delete(key);
+ 		}
+ 		return writes.get(key);
+ 	});

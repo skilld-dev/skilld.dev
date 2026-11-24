@@ -2,14 +2,14 @@ import type { H3Event } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { consumeSignupClickProof, issueSignupClickProof } from '../../layers/identity/server/utils/signup-click-proof'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 const sessions = vi.hoisted(() => new Map<string, { data: Record<string, unknown> }>())
-vi.mock('nitropack/runtime', () => ({ useRuntimeConfig: () => ({ session: { password: 'test-password' } }) }))
-vi.mock('h3', async original => ({
-  ...await original<typeof import('h3')>(),
+vi.mock('nuxt/server', async original => ({
+  ...await original<typeof import('nuxt/server')>(),
   useSession: async (event: H3Event, options: { name: string }) => {
     expect(options.name).toBe('skilld-signup-click')
-    const client = String(event.node.req.headers['cf-connecting-ip'])
+    const client = String(event.req.headers.get('cf-connecting-ip'))
     const session = sessions.get(client) ?? { data: {} }
     sessions.set(client, session)
     return {
@@ -37,14 +37,11 @@ afterEach(() => {
 })
 
 function event(headers: Record<string, string> = {}): H3Event {
-  return {
-    node: {
-      req: { headers: { 'host': 'skilld.dev', 'referer': 'https://skilld.dev/login?action=like-skill', 'cf-connecting-ip': '192.0.2.1', ...headers }, connection: { encrypted: true } },
-      res: { setHeader() {} },
-    },
+  return createTestEvent({
+    headers: { 'referer': 'https://skilld.dev/login?action=like-skill', 'cf-connecting-ip': '192.0.2.1', ...headers },
     path: '/api/events/signup-proof',
     context: { platform: { db: d1.db, env: { API_GUEST_RATE_LIMIT: { limit } } } },
-  } as unknown as H3Event
+  })
 }
 
 describe('anonymous click proof', () => {

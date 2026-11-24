@@ -1,4 +1,5 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { authSessionEvent } from '#shared/server/session-access'
 import {
   accountDeletionConfirmed,
   identityAccountDeleteBodySchema,
@@ -47,7 +48,7 @@ export default defineApiHandler({
       'success.count': deletedRows,
     }), revocation._tag === 'revoked' ? 'info' : 'warn')
 
-    await clearUserSession(event)
+    await clearUserSession(authSessionEvent(event))
     return { ok: true as const, github_access_revoked: revocation._tag === 'revoked' }
   },
 })

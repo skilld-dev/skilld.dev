@@ -3,6 +3,7 @@ import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 // On 2026-09-29 a crawler rendered 392 uncached Skill pages in two minutes and
 // D1 answered "overloaded". Each render cost ten D1 reads for the detail, and
@@ -83,13 +84,13 @@ function seed(options: { maximumQueries?: number, renderedAt?: number | null, re
 }
 
 async function render(): Promise<Record<string, any>> {
-  const body = await handler({
+  const body = await handler(createTestEvent({
+    headers: {},
     context: {
       platform: { db: harness.db },
       cloudflare: { context: { waitUntil: (promise: Promise<unknown>) => background.push(promise) } },
     },
-    node: { req: { headers: {} } },
-  } as unknown as H3Event)
+  }))
   await Promise.all(background)
   return body
 }
@@ -232,7 +233,9 @@ describe('findSkill', () => {
     seed({ maximumQueries: 1 })
     const { findSkill } = await import('../../layers/registry/server/utils/skills-registry')
 
-    const skill = await findSkill({ context: { platform: { db: harness.db } } } as unknown as H3Event, `${OWNER}/${REPO}/alpha`)
+    const skill = await findSkill(createTestEvent({
+      context: { platform: { db: harness.db } },
+    }), `${OWNER}/${REPO}/alpha`)
 
     expect(skill).toMatchObject({ owner: OWNER, repo: REPO, name: 'alpha', authorName: 'Eric Zakariasson' })
   })
@@ -249,7 +252,10 @@ describe('uncached skill related render', () => {
     }])))
     const handler = (await import('../../layers/registry/server/api/skill-related/[...slug].get')).default as (event: H3Event) => Promise<Record<string, any>>
 
-    const body = await handler({ context: { platform: { db: harness.db, env: {} } }, node: { req: { headers: {} } } } as unknown as H3Event)
+    const body = await handler(createTestEvent({
+      headers: {},
+      context: { platform: { db: harness.db, env: {} } },
+    }))
 
     expect(String(rawFetch.mock.calls[0]?.[0])).toBe(`https://api.github.com/repos/${OWNER}/${REPO}/commits?path=skills%2Falpha%2FSKILL.md&per_page=5`)
     expect(body.commits.map((commit: { shortSha: string }) => commit.shortSha)).toEqual(['abcdef1'])

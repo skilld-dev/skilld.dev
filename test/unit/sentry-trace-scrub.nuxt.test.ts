@@ -5,10 +5,10 @@ const { sentryCloudflareNitroPlugin } = vi.hoisted(() => ({
   sentryCloudflareNitroPlugin: vi.fn(),
 }))
 
-vi.mock('@sentry/nuxt/module/plugins', () => ({ sentryCloudflareNitroPlugin }))
+vi.mock('../../server/utils/sentry-cloudflare', () => ({ sentryCloudflareNitroPlugin }))
+vi.mock('nuxt/server', () => ({ useRuntimeConfig: () => useNuxtApp().$config }))
 
 async function serverPluginOptions(): Promise<Record<string, unknown>> {
-  vi.stubGlobal('defineNitroPlugin', (plugin: (nitroApp: unknown) => void) => plugin)
   sentryCloudflareNitroPlugin.mockClear()
   sentryCloudflareNitroPlugin.mockReturnValue(vi.fn())
   const config = (useNuxtApp().$config as { sentry: Record<string, unknown> }).sentry

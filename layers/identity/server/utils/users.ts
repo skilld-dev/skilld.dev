@@ -52,7 +52,7 @@ export async function upsertUserFromGithub(
   profile: GitHubProfile,
   credentials: GithubUserCredentials,
 ): Promise<GithubSignInResult> {
-  const config = useRuntimeConfig(event)
+  const config = useRuntimeConfig()
   const encrypted = await encryptToken(credentials.accessToken, config.tokenKey as string)
   const encryptedRefreshToken = credentials.refreshToken
     ? await encryptToken(credentials.refreshToken, config.tokenKey as string)

@@ -1,3 +1,5 @@
+import type { UpstreamRetryOptions } from './upstream-retry'
+
 /**
  * Read a repository file tree from ungh as a tagged outcome.
  *
@@ -12,7 +14,7 @@
  * live source used to reach the agent as a 503 (SKILLD-1E).
  */
 
-import type { UpstreamRetryOptions } from './upstream-retry'
+import { $fetch } from '#shared/server/fetch'
 import {
   isTransientUpstreamStatus,
   MISSING_UPSTREAM_STATUS,

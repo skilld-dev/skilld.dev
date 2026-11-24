@@ -1,6 +1,7 @@
 import type { EventHandler, H3Event } from 'h3'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestEvent } from './helpers/event'
 
 describe('collection manifest endpoint', () => {
   let sqlite: Database.Database
@@ -55,16 +56,16 @@ describe('collection manifest endpoint', () => {
       INSERT INTO repos VALUES ('other', 'repo', NULL);
     `)
 
-    event = {
+    event = createTestEvent({
       method: 'GET',
+      headers: {},
       context: {
         platform: {
           db: wrapSqlite(sqlite),
         },
         params: { login: 'harlan', slug: 'stack' },
       },
-      node: { req: { headers: {} } },
-    } as unknown as H3Event
+    })
     vi.stubGlobal('getUserSession', () => Promise.resolve(null))
     manifestHandler = (await import('../../server/api/collections/by-author/[login]/[slug]/manifest.get')).default
   })

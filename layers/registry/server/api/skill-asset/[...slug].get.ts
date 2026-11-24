@@ -95,7 +95,7 @@ export default defineApiHandler({
     if (target._tag === 'missing')
       throw createError({ statusCode: 404, message: 'Skill source not found' })
     if (target._tag === 'unavailable') {
-      setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
+      setHeader(event, 'retry-after', String(ASSET_RETRY_AFTER))
       throw createError({ statusCode: 503, message: 'Skill source commit is unavailable. Try again after the next sync.' })
     }
     const branch = row.rendered_commit_sha!
@@ -130,7 +130,7 @@ export default defineApiHandler({
       // A GitHub outage must not leave a "missing" marker behind, or the asset
       // reads as deleted for the rest of the cache window.
       emitOperationalEvent(createWideEvent({ 'operation': 'skill-asset-fetch', 'outcome': 'failed', 'upstream.status': upstream.status ?? 0, 'attempt': upstream.attempts }))
-      setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
+      setHeader(event, 'retry-after', String(ASSET_RETRY_AFTER))
       throw dependencyOutageError({ dependency: 'raw.githubusercontent.com', message: 'Asset source is unavailable upstream' })
     }
 

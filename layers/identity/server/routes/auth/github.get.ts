@@ -1,7 +1,9 @@
 import type { H3Event } from 'h3'
-import { useSession } from 'h3'
+import { isEvent } from 'h3'
+import { useSession } from 'nuxt/server'
 import { z } from 'zod'
 import { parseReturnTo } from '#shared/return-to'
+import { authSessionEvent } from '#shared/server/session-access'
 import { signupEntry } from '#shared/signup-analytics'
 import { sendEmailWithEnv, signUnsubToken } from '../../utils/email'
 import { fetchVerifiedPrimaryEmail } from '../../utils/github-emails'
@@ -37,6 +39,8 @@ const githubHandler = defineOAuthGitHubEventHandler({
     emailRequired: false,
   },
   async onSuccess(event, { user, tokens }) {
+    if (!isEvent(event))
+      throw new TypeError('GitHub OAuth requires an H3 request event.')
     const profile = user as {
       id: number
       login: string
@@ -68,7 +72,7 @@ const githubHandler = defineOAuthGitHubEventHandler({
       scopes,
     })
     const row = signIn.user
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     if (signIn._tag === 'created' && row.email) {
       const welcome = sendWelcomeEmail({
         db: platform.db,
@@ -143,7 +147,7 @@ const githubHandler = defineOAuthGitHubEventHandler({
     if (action.startsWith('watch-') || action.startsWith('like-'))
       await handleWatchAction(event, row.id, action, returnTo)
 
-    await setUserSession(event, {
+    await setUserSession(authSessionEvent(event), {
       user: {
         id: row.id,
         githubId: row.github_id,
@@ -167,7 +171,11 @@ const githubHandler = defineOAuthGitHubEventHandler({
 
     return sendRedirect(event, '/me')
   },
-  onError: loginFailed,
+  onError(event) {
+    if (!isEvent(event))
+      throw new TypeError('GitHub OAuth requires an H3 request event.')
+    return loginFailed(event)
+  },
 })
 
 async function loginFailed(event: H3Event) {
@@ -186,10 +194,8 @@ async function loginFailed(event: H3Event) {
 
 // Seal browser intent separately from identity. GitHub returns only code and state.
 function loginIntentSession(event: H3Event) {
-  const config = useRuntimeConfig(event)
-  return useSession<{ returnTo: string, action: string }>(event, {
+  return useSession<{ returnTo: string, action: string }>(authSessionEvent(event), {
     name: 'skilld-login-intent',
-    password: process.env.NUXT_SESSION_PASSWORD || config.session.password,
     maxAge: 600,
     cookie: { httpOnly: true, sameSite: 'lax', secure: !import.meta.dev, path: '/' },
   })
@@ -215,5 +221,5 @@ export default defineEventHandler(async (event) => {
     emitSignupEvent(event, { stage: 'oauth', outcome: 'started', entry: signupEntry(action, returnTo) })
   }
   // Provider network failures can throw before the OAuth error callback runs.
-  return githubHandler(event).catch(() => loginFailed(event))
+  return githubHandler(authSessionEvent(event)).catch(() => loginFailed(event))
 })

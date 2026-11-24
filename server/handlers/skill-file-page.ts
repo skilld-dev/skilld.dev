@@ -14,6 +14,10 @@ import { isSkillFilePagePath } from '#shared/skill-asset-path'
  * The request plugin calls this before the module caches its routing decision.
  */
 export default defineEventHandler((event) => {
-  if (isSkillFilePagePath(event.path))
-    event.node.req.headers[AI_READY_INTERNAL_HEADER] = '1'
+  if (!isSkillFilePagePath(event.url.pathname))
+    return
+  // Cloudflare supplies immutable incoming request headers.
+  const headers = new Headers(event.req.headers)
+  headers.set(AI_READY_INTERNAL_HEADER, '1')
+  Object.defineProperty(event.req, 'headers', { value: headers, configurable: true })
 })

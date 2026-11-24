@@ -6,9 +6,9 @@ import { requireGithubUserToken } from '../../../../utils/users'
 
 export default defineApiOperation({
   operation: starsV1.operations.import,
-  handler: async ({ event, platform, input, user }) => {
+  handler: async ({ platform, input, user }) => {
     // Throws the 401 that asks for a new GitHub sign-in when no token is stored.
-    const githubToken = await requireGithubUserToken(platform.db, user.id, useRuntimeConfig(event).tokenKey as string)
+    const githubToken = await requireGithubUserToken(platform.db, user.id, useRuntimeConfig().tokenKey as string)
     const result = await importStarredRepositories({ db: platform.db, userId: user.id, githubToken })
     if (result._tag === 'ImportRestartRequired')
       throw createError({ statusCode: 400, message: 'Star import pages must run in order. Restart from page one.' })

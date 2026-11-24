@@ -43,7 +43,7 @@ export function createApiRateLimitHandler(resolveUser: (event: H3Event) => Promi
     setResponseStatus(event, 429)
     setHeader(event, 'content-type', 'application/problem+json')
     setHeader(event, 'cache-control', 'private, no-store')
-    setHeader(event, 'retry-after', 60)
+    setHeader(event, 'retry-after', '60')
     setHeader(event, 'x-request-id', requestId)
     setHeader(event, 'access-control-allow-origin', '*')
     setHeader(event, 'access-control-expose-headers', 'Retry-After, X-Request-Id')

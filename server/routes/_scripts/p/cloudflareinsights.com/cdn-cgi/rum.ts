@@ -1,5 +1,7 @@
 import { scrubRumBeaconBody } from '#shared/rum-beacon'
 
+import { $fetch } from '#shared/server/fetch'
+
 /**
  * Forward the Cloudflare Web Analytics beacon to its real endpoint.
  *

@@ -3,9 +3,9 @@ import type { LegacyOwnerProfile } from '../../layers/registry/server/presenters
 import type { LegacyTrendingFeed, LegacyTrendingPost } from '../../layers/registry/server/presenters/trending-v1'
 import type { SkillCardSource } from '../../shared/server/skill-cards'
 import Database from 'better-sqlite3'
-import { createApp, createRouter, eventHandler, toWebHandler } from 'h3'
+import { H3 } from 'h3'
 import { indexRequestsV1, ownersV1, repositoriesV1, skillsV1, tracksV1, trendingV1 } from 'skilld-sdk/contract'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import ownersGet from '../../layers/registry/server/api/v1/owners/[owner].get'
 import tracksGet from '../../layers/registry/server/api/v1/tracks/[slug].get'
 import trendingList from '../../layers/registry/server/api/v1/trending.get'
@@ -23,6 +23,21 @@ import { findSkillsByKeys, querySkills } from '../../layers/registry/server/util
 
 /** 2026-09-28T14:02:11Z */
 const MODIFIED = 1_790_604_131
+
+vi.mock('nuxt/server', async importOriginal => ({
+  ...await importOriginal<typeof import('nuxt/server')>(),
+  async serverFetch(event: H3Event, path: string) {
+    const fetch = event.context.fetchOwnRoute as (path: string) => unknown
+    try {
+      return Response.json(await fetch(path))
+    }
+    catch (error) {
+      if (error instanceof Error && 'statusCode' in error && error.statusCode === 404)
+        return new Response(null, { status: 404 })
+      throw error
+    }
+  },
+}))
 
 function card(overrides: Partial<SkillCardSource> = {}): SkillCardSource {
   return {
@@ -359,21 +374,18 @@ function keyLookupDatabase(missing: ReadonlySet<string> = new Set()): D1Database
 /** Serves one route with the site's own routes and D1 replaced by stand-ins. */
 function serveRoute(route: string, handler: EventHandler, ownRoutes: (path: string) => unknown, db = keyLookupDatabase()) {
   const fetched: string[] = []
-  const app = createApp()
-  app.use(eventHandler((event) => {
+  const app = new H3()
+  app.use((event) => {
     event.context.platform = { requestId: 'req_test', db } as never
-    Object.assign(event, {
-      $fetch: async (path: string) => {
-        fetched.push(path)
-        return ownRoutes(path)
-      },
-    })
-  }))
-  app.use(createRouter().get(route, handler))
-  const handle = toWebHandler(app)
+    event.context.fetchOwnRoute = (path: string) => {
+      fetched.push(path)
+      return ownRoutes(path)
+    }
+  })
+  app.get(route, handler)
   return {
     fetched,
-    request: (path: string) => handle(new Request(`http://localhost${path}`)),
+    request: (path: string) => app.fetch(new Request(`http://localhost${path}`)),
   }
 }
 

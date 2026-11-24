@@ -11,7 +11,7 @@ export default defineApiHandler({
   policy: [authenticated],
   handler: async ({ event, platform }) => {
     const u = await requireUserRow(event)
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const scan = await scanAccountRepositories({
       db: platform.db,
       env: platform.env,

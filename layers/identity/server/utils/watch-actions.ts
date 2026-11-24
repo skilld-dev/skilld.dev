@@ -1,5 +1,7 @@
 import type { H3Event } from 'h3'
+
 import { z } from 'zod'
+import { $fetch } from '#shared/server/fetch'
 import { likeSkill } from './likes'
 import { createRepositoryWatches } from './watches'
 

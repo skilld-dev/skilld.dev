@@ -1,5 +1,7 @@
 import type { CollectionEntryRef } from '../../../../utils/collections'
+
 import { curatorsV1 } from 'skilld-sdk/contract'
+import { $fetch } from '#shared/server/fetch'
 import { defineApiOperation, operationFailure } from '#shared/server/operation'
 import { loadSkillCardRows } from '#shared/server/skill-cards'
 import { pageWindow, presentSkillPage } from '../../../../presenters/collection-v1'

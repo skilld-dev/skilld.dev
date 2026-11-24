@@ -10,6 +10,7 @@ export interface ProductionDeployDependencies {
   command: ProductionCommand
   smoke: () => Promise<ProductionSmokeResult>
   releaseSha: string
+  secretsFile?: string
   outputDirectory?: string
   deploymentReadAttempts?: number
   deploymentReadDelayMs?: number
@@ -289,7 +290,10 @@ export async function runProductionDeployment(
     return { _tag: 'capture_failed', failure: captured }
   const previousVersion = captured.versionId
 
-  const deploy = await dependencies.command(['--cwd', outputDirectory, 'deploy'])
+  const deployArgs = ['--cwd', outputDirectory, 'deploy']
+  if (dependencies.secretsFile)
+    deployArgs.push('--secrets-file', dependencies.secretsFile)
+  const deploy = await dependencies.command(deployArgs)
   if (deploy._tag === 'failed') {
     return {
       _tag: 'deploy_failed',

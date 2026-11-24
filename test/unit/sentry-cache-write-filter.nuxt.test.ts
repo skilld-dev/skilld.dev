@@ -112,7 +112,8 @@ const { sentryCloudflareNitroPlugin } = vi.hoisted(() => ({
   sentryCloudflareNitroPlugin: vi.fn(),
 }))
 
-vi.mock('@sentry/nuxt/module/plugins', () => ({ sentryCloudflareNitroPlugin }))
+vi.mock('../../server/utils/sentry-cloudflare', () => ({ sentryCloudflareNitroPlugin }))
+vi.mock('nuxt/server', () => ({ useRuntimeConfig: () => useNuxtApp().$config }))
 
 interface SentryEventFixture {
   exception?: { values?: Array<{ type?: string, value?: string }> }

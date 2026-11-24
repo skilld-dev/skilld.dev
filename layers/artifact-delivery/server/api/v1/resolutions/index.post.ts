@@ -126,7 +126,7 @@ export default withArtifactProblems(defineApiHandler({
     setHeader(event, 'cache-control', 'private, no-store')
     await setSkillPageUrlHeader(event, result.row)
     if (response.state === 'pending')
-      setHeader(event, 'retry-after', 1)
+      setHeader(event, 'retry-after', '1')
     return result.row
   },
   presenter: presentArtifactResolution,

@@ -52,7 +52,7 @@ describe('api rate limits', () => {
 
   it('recognises a signed-in session', async () => {
     resolveUser.mockResolvedValue({ id: 9, login: 'octo' })
-    await serve()('/api/v1/account', { Cookie: 'nuxt-session=valid' })
+    await serve()('/api/v1/account', { Cookie: 'nuxt-auth-session=valid' })
     expect(account).toHaveBeenCalledWith({ key: 'account:9' })
   })
 

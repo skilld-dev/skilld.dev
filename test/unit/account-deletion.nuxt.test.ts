@@ -7,6 +7,7 @@ import { encryptToken } from '../../layers/identity/server/utils/crypto'
 import { accountDeletionConfirmed } from '../../layers/identity/shared/contracts/account'
 import { emitOperationalEvent } from '../../server/utils/operational-event'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const NOW = 1_789_603_200
@@ -425,9 +426,10 @@ describe('account deletion endpoint', () => {
   })
 
   function request(headers: Record<string, string> = {}): H3Event {
-    return {
+    return createTestEvent({
       method: 'DELETE',
       path: '/api/me',
+      headers: { ...SIGNED_IN_HEADERS, ...headers },
       context: {
         platform: {
           db: fixture.db,
@@ -438,8 +440,7 @@ describe('account deletion endpoint', () => {
           },
         },
       },
-      node: { req: { headers: { ...SIGNED_IN_HEADERS, ...headers } }, res: {} },
-    } as unknown as H3Event
+    })
   }
 
   async function deleteAccount(): Promise<EventHandler> {

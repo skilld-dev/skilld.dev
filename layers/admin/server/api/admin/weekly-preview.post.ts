@@ -37,7 +37,7 @@ export default defineApiHandler({
   handler: async ({ event, body, platform }) => {
     await requireAdmin(event)
     const db = platform.db
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
 
     const user = await db.prepare(
       `SELECT id, login, name, digest_email, email FROM users WHERE login = ?1`,

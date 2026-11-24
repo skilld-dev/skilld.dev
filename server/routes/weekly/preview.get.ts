@@ -24,7 +24,7 @@ export default defineCachedEventHandler(
     const windowEnd = Math.floor(Date.now() / 1_000)
     const trending = await loadWeeklyTrending(db, windowEnd)
 
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const siteUrl = (config.publicSiteUrl as string) || 'https://skilld.dev'
 
     const rendered = renderWeekly({

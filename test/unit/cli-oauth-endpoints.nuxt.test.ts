@@ -2,6 +2,7 @@ import type { EventHandler, H3Event } from 'h3'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sha256Base64Url } from '../../layers/identity/server/utils/cli-tokens'
+import { createTestEvent } from './helpers/event'
 
 const TOKEN_KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(9)))
 const NOW = new Date('2026-05-13T04:10:00.000Z')
@@ -180,15 +181,15 @@ describe('cli OAuth token endpoint', () => {
   }
 
   function makeEvent(): H3Event {
-    return {
+    return createTestEvent({
       method: 'POST',
+      headers: {},
       context: {
         platform: {
           db: wrapSqlite(sqlite),
         },
       },
-      node: { req: { headers: {} } },
-    } as unknown as H3Event
+    })
   }
 
   function setBody(body: unknown) {

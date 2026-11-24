@@ -1,14 +1,16 @@
+import type { NitroAppPlugin } from 'nitro/types'
 import { createSentryInitOptions } from '@harlan-zw/nuxt-sentry/server'
 import { SDK_VERSION } from '@sentry/cloudflare'
-import { sentryCloudflareNitroPlugin } from '@sentry/nuxt/module/plugins'
+import { useRuntimeConfig } from 'nuxt/server'
 import { isBestEffortCacheWriteError, isMcpAcceptProbeError, isMcpProtocolProbeError, scrubSentryBreadcrumb, scrubSentryEvent } from '../../shared/sentry'
 import { isDependencyOutageError } from '../../shared/server/dependency-outage'
+import { sentryCloudflareNitroPlugin } from '../utils/sentry-cloudflare'
 
 function isDroppedSignature(error: unknown): boolean {
   return isBestEffortCacheWriteError(error) || isDependencyOutageError(error) || isMcpAcceptProbeError(error) || isMcpProtocolProbeError(error)
 }
 
-export default defineNitroPlugin((nitroApp) => {
+export default ((nitroApp) => {
   const { sentry } = useRuntimeConfig()
   if (!sentry.enabled || !sentry.dsn)
     return
@@ -39,4 +41,4 @@ export default defineNitroPlugin((nitroApp) => {
       return scrubSentryEvent(event)
     },
   })(nitroApp)
-})
+}) satisfies NitroAppPlugin

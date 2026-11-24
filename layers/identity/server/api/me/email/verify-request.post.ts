@@ -8,7 +8,7 @@ export default defineApiHandler({
   schema: EmailVerifyRequestInput,
   policy: [authenticated],
   handler: async ({ event, body, platform }) => {
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const u = await requireUserRow(event)
     const newEmail = body.digest_email
 

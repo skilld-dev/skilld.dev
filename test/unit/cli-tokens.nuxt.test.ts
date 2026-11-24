@@ -9,6 +9,7 @@ import {
   sha256Base64Url,
   verifyAccessToken,
 } from '../../layers/identity/server/utils/cli-tokens'
+import { createTestEvent } from './helpers/event'
 
 const TOKEN_KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)))
 const NOW = new Date('2026-05-13T04:00:00.000Z')
@@ -90,12 +91,12 @@ describe('cli token sessions', () => {
       VALUES (1, 123, 'harlan', 'Harlan', 'harlan@example.com', 'https://example.com/a.png', 1, 1);
     `)
     db = wrapSqlite(sqlite)
-    event = {
+    event = createTestEvent({
+      headers: {},
       context: {
         platform: { db },
       },
-      node: { req: { headers: {} } },
-    } as unknown as H3Event
+    })
   })
 
   afterEach(() => {
@@ -183,7 +184,7 @@ describe('cli token sessions', () => {
 
   it('resolves bearer sessions into the user context shape used by policies', async () => {
     const session = await issueSession(event, 1, { kind: 'oauth' })
-    ;(event.node.req.headers as Record<string, string>).authorization = `Bearer ${session.accessToken}`
+    event.req.headers.set('authorization', `Bearer ${session.accessToken}`)
 
     const user = await resolveBearerSession(event)
 
