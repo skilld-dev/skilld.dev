@@ -22,9 +22,8 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
  * FOUR ARMS, ORDERED BY PRECISION, AND THE ORDERING IS THE WHOLE DESIGN.
  *
  *   1. `url:"skilld.dev"`  anyone linking us, whatever they say.
- *   2. `"SKILL.md"` and the install commands, with NO url requirement. These
- *      tokens are specific enough to stand alone: a probe of 10 results
- *      returned 10 genuine skill posts.
+ *   2. The install commands with NO url requirement, and `"SKILL.md"` beside a
+ *      GitHub or skilld.dev link.
  *   3. GitHub links plus ecosystem vocabulary. The original query.
  *   4. Loose vocabulary gated behind `min_likes:75`.
  *
@@ -35,6 +34,12 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
  * because a post that goes viral is commentary, a screenshot, or a thread with
  * the link in a reply. The query was selecting for link-dumpers and excluding
  * everyone else, which is exactly why the board read as weak.
+ *
+ * WHY `"SKILL.md"` NOW NEEDS A LINK. The install commands earn their place:
+ * 94% of the 313 posts they matched from 17 to 23 Nov 2026 linked a repository
+ * or Skill. `"SKILL.md"` alone matched 606 posts in the same week, and 521
+ * linked nothing, so trending read none of them while each cost a Post read
+ * and an author read. Every one of the 85 that linked carried a GitHub link.
  *
  * WHY ARM 4 IS GATED SO HIGH. The same probe run without a floor returned
  * crypto spam ("JUST LIT THE FUSE! $200 for link") and AI-hustle threads
@@ -60,7 +65,7 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
  * with `lang: zxx`, so filtering on `lang:en` alone would discard the single
  * highest-engagement skill post we have seen.
  */
-export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR "SKILL.md" OR "npx skills add" OR "npx skilld add" OR (url:"github.com" ("skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills")) OR (("claude skill" OR "claude skills" OR "agent skills" OR "claude code skill") min_likes:75)) -is:retweet (lang:en OR lang:zxx)'
+export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR ("SKILL.md" (url:"github.com" OR url:"skilld.dev")) OR "npx skills add" OR "npx skilld add" OR (url:"github.com" ("skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills")) OR (("claude skill" OR "claude skills" OR "agent skills" OR "claude code skill") min_likes:75)) -is:retweet (lang:en OR lang:zxx)'
 
 /** Cursor key, so a second query can be added later without a schema change. */
 export const X_DISCOVERY_CURSOR_KEY = 'discovery-v1'
