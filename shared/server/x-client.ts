@@ -224,10 +224,11 @@ export interface XClient {
   /**
    * `GET /2/tweets?ids=` for up to {@link X_LOOKUP_BATCH_SIZE} ids, metrics only.
    *
-   * It asks for no author. X bills each User a response carries at $0.010,
-   * twice a Post, and discovery already stored the author. A returned post
-   * falls back to its author id as handle, so callers must not read authors
-   * from it.
+   * It asks for no author, because discovery already stored it. X billed
+   * only 448 User reads against 10,190 Post reads in the 30 days to
+   * 24 Nov 2026, so the saving is small, but nothing read the field. A
+   * returned post falls back to its author id as handle, so callers must not
+   * read authors from it.
    */
   lookupPosts: (ids: string[]) => Promise<XResult<XPage>>
 
