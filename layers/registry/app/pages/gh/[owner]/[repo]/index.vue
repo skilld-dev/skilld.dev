@@ -87,6 +87,11 @@ if (fetchRepoSourceOnServer && repoSourceError.value?.statusCode === 404) {
   else
     throw createError({ statusCode: 404, statusMessage: 'Repository not found', fatal: true })
 }
+if (import.meta.server && (repoRouteFetch.error.value || repoSourceError.value || repoProfileFetch.error.value)) {
+  const event = useRequestEvent()
+  if (event)
+    event.context.hubRenderFailed = true
+}
 
 const repoSkills = computed(() => selectRepoSkills(repoProfile.value, repoHub.value.repo))
 const repoSkillsLoading = computed(() =>

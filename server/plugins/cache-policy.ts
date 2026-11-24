@@ -15,10 +15,11 @@ export default definePlugin((nitroApp) => {
     event.res.headers.set('cache-control', 'private, no-store')
     event.res.headers.set('cloudflare-cdn-cache-control', 'private, no-store')
   })
-  nitroApp.hooks?.hook('response', (response) => {
-    if (response.headers.get('vary') !== '*')
+  nitroApp.hooks?.hook('response', (response, event) => {
+    if (!event.context.hubRenderFailed && response.headers.get('vary') !== '*')
       return
 
+    response.headers.set('vary', '*')
     response.headers.set('cache-control', 'private, no-store')
     response.headers.set('cloudflare-cdn-cache-control', 'no-store')
   })

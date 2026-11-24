@@ -15,6 +15,13 @@
  * that sends only `If-Modified-Since` gets the full page.
  */
 
+declare module 'h3' {
+  interface H3EventContext {
+    /** A server-side hub data fetch failed. Keep the fallback render private. */
+    hubRenderFailed?: true
+  }
+}
+
 export interface HeaderReader {
   get: (name: string) => string | null
 }
@@ -61,7 +68,7 @@ export async function decideHtmlValidators(page: RenderedPage): Promise<HtmlVali
     return { _tag: 'skip', reason: 'credentials' }
   if (page.response.get('set-cookie'))
     return { _tag: 'skip', reason: 'sets-cookie' }
-  if (!sharedCacheMayStore(page.response.get('cloudflare-cdn-cache-control')))
+  if (page.response.get('vary') === '*' || !sharedCacheMayStore(page.response.get('cloudflare-cdn-cache-control')))
     return { _tag: 'skip', reason: 'not-shared' }
 
   const etag = `W/"${page.buildId}-${await contentHash(page.body.replace(PER_RENDER_META_RE, ''))}"`

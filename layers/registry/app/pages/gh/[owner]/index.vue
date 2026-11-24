@@ -29,6 +29,9 @@ if (import.meta.server && isBot.value) {
   await orgProfile
   if (error.value?.statusCode === 404)
     throw createError({ statusCode: 404, statusMessage: 'Owner not found', fatal: true })
+  const event = useRequestEvent()
+  if (error.value && event)
+    event.context.hubRenderFailed = true
 }
 
 const siteOrigin = 'https://skilld.dev'

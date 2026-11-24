@@ -47,8 +47,8 @@ const SESSION_COOKIE = 'nuxt-auth-session=edge-cache-check'
 /** The bare path and the default range name one board, so one canonical URL. */
 const DEFAULT_BOARD_ALIASES = new Set(['/skills/trending', `/skills/trending?range=${DEFAULT_TRENDING_RANGE}`])
 
-/** `cf-cache-status` values that mean the edge answered without the Worker. */
-const SERVED_FROM_CACHE = new Set(['HIT', 'STALE', 'UPDATING'])
+/** `cf-cache-status` values that mean the edge reused a stored response. */
+const SERVED_FROM_CACHE = new Set(['HIT', 'STALE', 'UPDATING', 'REVALIDATED'])
 
 export type EdgeCacheFetch = (input: string, init: RequestInit) => Promise<Response>
 
@@ -327,7 +327,10 @@ async function checkWww(path: string, wwwBaseUrl: string, baseUrl: string, fetch
   const cacheStatus = response.headers.get('cf-cache-status')
   const vary = response.headers.get('vary')
   const cacheControl = response.headers.get('cache-control')
-  if (vary !== '*' || !cacheControl?.includes('no-store') || SERVED_FROM_CACHE.has(cacheStatus ?? ''))
+  // A quoted extension value can contain commas and the text "no-store".
+  const directives = cacheControl?.match(/(?:[^",]|"(?:[^"\\]|\\.)*")+/g)
+  const noStore = directives?.some(directive => directive.trim().toLowerCase() === 'no-store')
+  if (vary !== '*' || !noStore || SERVED_FROM_CACHE.has(cacheStatus?.toUpperCase() ?? ''))
     return { _tag: 'www-cache-policy', path, cacheStatus, vary, cacheControl }
   return null
 }
