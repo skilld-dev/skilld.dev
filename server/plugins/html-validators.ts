@@ -11,6 +11,9 @@ import { decideHtmlValidators } from '#shared/html-validators'
  */
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('render:response', async (response, { event }) => {
+    if (event.context.hubRenderFailed)
+      return
+
     const header = (value: string | number | string[] | undefined): string | null =>
       value === undefined ? null : Array.isArray(value) ? value.join(', ') : String(value)
     // Nitro applies route headers after this render hook has decided whether to return a 304.

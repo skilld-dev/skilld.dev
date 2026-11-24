@@ -253,6 +253,23 @@ describe('checkEdgeCache', () => {
     })
   })
 
+  it.each([
+    { cacheStatus: 'REVALIDATED', cacheControl: 'private, no-store' },
+    { cacheStatus: 'MISS', cacheControl: 'public, max-age=300, x-no-store' },
+    { cacheStatus: 'MISS', cacheControl: 'public, probe="one,no-store,two"' },
+  ])('rejects www with $cacheStatus and $cacheControl', async ({ cacheStatus, cacheControl }) => {
+    const result = await run(edge({ www: path => ({
+      status: 301,
+      headers: { 'location': `${BASE}${path}`, 'cache-control': cacheControl, 'cf-cache-status': cacheStatus, 'vary': '*' },
+      body: '',
+    }) }))
+
+    expect(result).toMatchObject({
+      _tag: 'failed',
+      failures: [{ _tag: 'www-cache-policy', path: '/skills/trending', cacheStatus, cacheControl }],
+    })
+  })
+
   it('fails when www redirects somewhere other than the apex path', async () => {
     const result = await run(edge({ www: () => ({ status: 301, headers: { location: 'https://www.skilld.dev/skills/trending' }, body: '' }) }))
 

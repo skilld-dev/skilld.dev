@@ -47,6 +47,7 @@ describe('decideNegotiation: which requests negotiate', () => {
     { name: 'a build asset', request: page({ path: '/_nuxt/v2/entry.js', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a file', request: page({ path: '/robots.txt', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'an explicit Markdown URL', request: page({ path: '/gh/a/b/c.md', accept: 'text/markdown' }), reason: 'not-a-page' },
+    { name: 'a dotted repository Markdown URL', request: page({ path: '/gh/vercel/next.js.md', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a well-known URL', request: page({ path: '/.well-known/mcp', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a README badge image', request: page({ path: '/b/antfu/skills', accept: 'image/*' }), reason: 'not-a-page' },
   ])('$name is skipped ($reason)', ({ request, reason }) => {
@@ -61,6 +62,12 @@ describe('decideNegotiation: which requests negotiate', () => {
   it('negotiates a collection author page', () => {
     expect(decideNegotiation(page({ path: '/@harlan-zw', accept: 'text/markdown' })))
       .toEqual({ _tag: 'markdown', location: '/@harlan-zw.md' })
+  })
+
+  it('negotiates a repository hub whose name contains a dot', () => {
+    expect(decideNegotiation(page({ path: '/gh/vercel/next.js', accept: 'text/html' }))).toEqual({ _tag: 'html' })
+    expect(decideNegotiation(page({ path: '/gh/vercel/next.js', accept: 'text/markdown' })))
+      .toEqual({ _tag: 'markdown', location: '/gh/vercel/next.js.md' })
   })
 
   it('negotiates a page whose path starts with /b but is not a badge', () => {

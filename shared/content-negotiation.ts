@@ -182,6 +182,9 @@ function isPagePath(path: string): boolean {
   if (RESERVED_PATH_RE.test(path))
     return false
   const lastSegment = path.replace(/\/+$/, '').split('/').pop() ?? ''
+  // Repository names may contain dots. The .md suffix still names the Markdown route.
+  if (HUB_PATH_RE.test(path))
+    return !lastSegment.toLowerCase().endsWith('.md')
   return !lastSegment.includes('.')
 }
 

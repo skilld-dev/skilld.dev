@@ -96,6 +96,7 @@ describe('decideHtmlValidators', () => {
     ['a page that sets a cookie', { response: { 'set-cookie': 'nuxt-auth-session=abc; Path=/' } }, 'sets-cookie'],
     ['a page the edge must not store', { response: { 'cloudflare-cdn-cache-control': 'private, no-store' } }, 'not-shared'],
     ['a page with no edge policy', { response: { 'cloudflare-cdn-cache-control': '' } }, 'not-shared'],
+    ['a page that forbids a shared cache key', { response: { vary: '*' } }, 'not-shared'],
     ['a page with a zero edge lifetime', { response: { 'cloudflare-cdn-cache-control': 'public, max-age=0' } }, 'not-shared'],
     ['an error page', { status: 404 }, 'status'],
     ['a form post', { method: 'POST' }, 'method'],
@@ -174,5 +175,16 @@ describe('html validators plugin', () => {
 
     expect(headers.get('etag')).toMatch(/^W\/"build-1-/)
     expect(rendered).toEqual({ body: '', statusCode: 304, statusMessage: 'Not Modified' })
+  })
+
+  it('returns the full fallback page when a hub data fetch fails', async () => {
+    const { event: request, headers } = event({ 'if-none-match': '*' })
+    request.context.hubRenderFailed = true
+    const rendered: RenderResponse = { body: HTML, statusCode: 200 }
+
+    await renderHook()(rendered, { event: request })
+
+    expect(headers.get('etag')).toBeNull()
+    expect(rendered).toEqual({ body: HTML, statusCode: 200 })
   })
 })
