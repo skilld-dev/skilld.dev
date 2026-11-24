@@ -1,10 +1,12 @@
+import type { SkillRunFailure } from '../utils/run-sweep'
+
 /// <reference types="@cloudflare/workers-types" />
 
-import type { SkillRunFailure } from '../utils/run-sweep'
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
+import { $fetch } from '#shared/server/fetch'
 import { enqueueArtifactBuild } from '../utils/queue'
 import { fetchAdmittedSkillIdentity, requestResolution } from '../utils/request-resolution'
 import { drainSettledResolutions } from '../utils/resolution-retention'

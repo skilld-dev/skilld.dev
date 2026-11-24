@@ -1,4 +1,6 @@
 import type { H3Event } from 'h3'
+import { createError, serverFetch } from 'nuxt/server'
+import { authSessionEvent } from '#shared/server/session-access'
 
 export type OwnRouteRead<T>
   = | { _tag: 'found', value: T }
@@ -13,6 +15,13 @@ function statusOf(error: unknown): number | null {
   return typeof record.status === 'number' ? record.status : null
 }
 
+export async function fetchOwnRoute<T>(event: H3Event, path: `/${string}`): Promise<T> {
+  const response = await serverFetch(authSessionEvent(event), path)
+  if (!response.ok)
+    throw createError({ status: response.status, statusText: response.statusText })
+  return response.json() as Promise<T>
+}
+
 /**
  * Read one of the site's own routes in process.
  *
@@ -21,11 +30,9 @@ function statusOf(error: unknown): number | null {
  * expected answer, so it comes back as a value. Every other failure
  * propagates, and the operation adapter maps it to a problem.
  */
-export function readOwnRoute<T>(event: H3Event, path: string): Promise<OwnRouteRead<T>> {
-  // This dynamic path has an explicit answer type. Avoid Nitro's route union.
-  const fetchAnswer = event.$fetch as <TAnswer>(path: string) => Promise<TAnswer>
-  return fetchAnswer<T>(path).then(
-    (value): OwnRouteRead<T> => ({ _tag: 'found', value: value as T }),
+export function readOwnRoute<T>(event: H3Event, path: `/${string}`): Promise<OwnRouteRead<T>> {
+  return fetchOwnRoute<T>(event, path).then(
+    (value): OwnRouteRead<T> => ({ _tag: 'found', value }),
     (error: unknown): OwnRouteRead<T> => {
       if (statusOf(error) === 404)
         return { _tag: 'missing' }

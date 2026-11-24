@@ -13,7 +13,7 @@ export default defineApiOperation({
     const scan = await scanAccountRepositories({
       db: platform.db,
       env: platform.env,
-      tokenKey: useRuntimeConfig(event).tokenKey as string,
+      tokenKey: useRuntimeConfig().tokenKey as string,
       user: row,
     })
     if (scan._tag === 'IndexingOff')

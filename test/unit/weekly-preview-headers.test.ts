@@ -1,5 +1,6 @@
 import type { EventHandler } from 'h3'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { createTestEvent } from './helpers/event'
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), send: vi.fn(), admin: vi.fn() }))
 vi.mock('../../shared/server/session-access', () => ({ readUserSession: mocks.session }))
@@ -20,7 +21,11 @@ async function request(to?: string) {
   const first = vi.fn().mockResolvedValue({ id: 7, login: 'operator', name: null, email: 'account@example.com', digest_email: null })
   const db = { prepare: () => ({ bind: () => ({ first }) }) }
   const handler = (await import('../../layers/admin/server/api/admin/weekly-preview.post')).default
-  return handler({ method: 'POST', node: { req: { headers: {} } }, context: { platform: { db, env: {} } } } as unknown as Parameters<typeof handler>[0])
+  return handler(createTestEvent({
+    method: 'POST',
+    headers: {},
+    context: { platform: { db, env: {} } },
+  }))
 }
 
 beforeEach(() => {

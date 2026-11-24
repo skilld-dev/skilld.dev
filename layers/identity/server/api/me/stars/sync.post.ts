@@ -11,7 +11,7 @@ export default defineApiHandler({
   presenter: starsImportPresenter,
   handler: async ({ event, body, platform }) => {
     const u = await requireUserRow(event)
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const githubToken = await requireGithubUserToken(platform.db, u.id, config.tokenKey as string)
 
     const result = await importStarredPage({ db: platform.db, userId: u.id, githubToken, page: body.page, importId: body.importId })

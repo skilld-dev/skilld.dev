@@ -1,13 +1,12 @@
 import type { SqliteD1 } from './helpers/d1-sqlite'
 // @vitest-environment node
 import { readFileSync } from 'node:fs'
-import { IncomingMessage, ServerResponse } from 'node:http'
-import { Socket } from 'node:net'
-import { createEvent, fetchWithEvent, getResponseHeader } from 'h3'
+import { getResponseHeader } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveSkillPageUrl } from '../../layers/artifact-delivery/server/utils/skill-page'
 import { findSkillPagePath, skillPageCacheKey } from '../../layers/registry/server/utils/skill-page-url'
 import { createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 let harness: SqliteD1 | null = null
 function db() {
@@ -160,13 +159,7 @@ describe('setSkillPageUrlHeader', () => {
   })
 
   it('reads the page URL without the caller credentials and sets the header', async () => {
-    const req = new IncomingMessage(new Socket())
-    req.method = 'POST'
-    req.url = '/api/v1/resolutions'
-    req.headers = { authorization: 'Bearer x', cookie: 'a=b', host: 'skilld.dev' }
-    const event = createEvent(req, new ServerResponse(req))
-    // Nitro's request hook wires event.$fetch this way.
-    event.$fetch = ((request: string, init?: object) => fetchWithEvent(event, request, init, { fetch: globalThis.$fetch })) as never
+    const event = createTestEvent({ method: 'POST', path: '/api/v1/resolutions', headers: { authorization: 'Bearer x', cookie: 'a=b' } })
     const fetch = vi.fn().mockResolvedValue({ pageUrl: 'https://skilld.dev/gh/antfu/skills/vue' })
     vi.stubGlobal('$fetch', fetch)
     // The Nuxt test environment binds `$fetch` at module load, so import after the stub.

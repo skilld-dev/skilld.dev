@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isDependencyOutageError } from '../../shared/server/dependency-outage'
 import { tarGzFixture } from '../fixtures/tar-archive'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 describe('package detection cache', () => {
   let harness: SqliteD1
@@ -110,6 +111,9 @@ describe('package detection cache', () => {
   })
 
   function event(): H3Event {
-    return { context: { platform: { db: harness.db } }, node: { req: { headers: {} } } } as unknown as H3Event
+    return createTestEvent({
+      headers: {},
+      context: { platform: { db: harness.db } },
+    })
   }
 })

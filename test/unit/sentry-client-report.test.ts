@@ -1,5 +1,4 @@
 import type { Event } from '@sentry/nuxt'
-import { createError } from 'h3'
 import { describe, expect, it } from 'vitest'
 import { filterClientReport } from '../../shared/sentry'
 
@@ -9,6 +8,11 @@ function report(type: string, value: string): Event {
 
 function namedError(name: string, message: string): Error {
   return Object.assign(new Error(message), { name })
+}
+
+function wrappedWithoutMessage(cause: unknown): Error {
+  // eslint-disable-next-line unicorn/error-message -- Nuxt can wrap a non-Error throw without a message.
+  return new Error('', { cause })
 }
 
 describe('filterClientReport', () => {
@@ -33,14 +37,13 @@ describe('filterClientReport', () => {
     expect(filterClientReport(event, {})).toBe(event)
   })
 
-  // Nuxt's `createErrorFromThrown` hands the thrown value to h3's `createError`, as here.
   it('names what a messageless error was thrown with, and never its content (SKILLD-54)', () => {
     const loadFailure = new globalThis.Event('error')
     Object.defineProperty(loadFailure, 'target', { value: { tagName: 'SCRIPT', src: 'https://skilld.dev/_nuxt/v2/BzUDwpzU.js' } })
-    const fromEvent = filterClientReport(report('Error', ''), { originalException: createError(loadFailure as never) })
+    const fromEvent = filterClientReport(report('Error', ''), { originalException: wrappedWithoutMessage(loadFailure) })
     expect(fromEvent?.tags).toEqual({ 'thrown.cause': 'Event:error:SCRIPT' })
 
-    const fromObject = filterClientReport(report('Error', ''), { originalException: createError({ secret: 'value' } as never) })
+    const fromObject = filterClientReport(report('Error', ''), { originalException: wrappedWithoutMessage({ secret: 'value' }) })
     expect(fromObject?.tags).toEqual({ 'thrown.cause': 'Object' })
   })
 

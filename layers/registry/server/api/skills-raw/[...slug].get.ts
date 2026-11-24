@@ -78,7 +78,7 @@ export default defineApiHandler({
     // is the one read that still reaches GitHub. Its directory comes from D1.
     const target = resolveReferencedFileTarget(skill, row, filePath)
     if (target._tag === 'unavailable') {
-      setHeader(event, 'retry-after', RAW_RETRY_AFTER)
+      setHeader(event, 'retry-after', String(RAW_RETRY_AFTER))
       throw createError({ statusCode: 503, message: 'Skill source commit is unavailable. Try again after the next sync.' })
     }
     if (target._tag === 'missing')
@@ -108,7 +108,7 @@ export default defineApiHandler({
     }
     catch (error) {
       if ((error as { statusCode?: number } | null)?.statusCode === 503)
-        setHeader(event, 'retry-after', RAW_RETRY_AFTER)
+        setHeader(event, 'retry-after', String(RAW_RETRY_AFTER))
       throw error
     }
   },

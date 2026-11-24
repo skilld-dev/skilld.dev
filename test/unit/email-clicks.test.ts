@@ -1,6 +1,6 @@
-import type { H3Event } from 'h3'
 import type { WeeklyRenderInput } from '../../layers/identity/server/utils/weekly-template'
 import type { SqliteD1 } from './helpers/d1-sqlite'
+import { toResponse } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import weeklyReport from '../../layers/admin/server/api/admin/weekly.get'
 import clickHandler from '../../layers/identity/server/api/e/[campaign].get'
@@ -8,6 +8,7 @@ import { renderDigest } from '../../layers/identity/server/utils/digest-template
 import { parseEmailClick, parseSiteRelativePath, recordEmailClick } from '../../layers/identity/server/utils/email-clicks'
 import { renderWeekly } from '../../layers/identity/server/utils/weekly-template'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 vi.hoisted(() => {
   vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
@@ -123,28 +124,16 @@ describe('email click counter', () => {
   })
 
   async function serve(campaign: string, query: Record<string, string>) {
-    const headers = new Map<string, string>()
-    const event = {
-      method: 'GET',
+    const event = createTestEvent({
       path: `/api/e/${campaign}?${new URLSearchParams(query)}`,
       context: { platform: { db: d1.db }, params: { campaign } },
-      node: {
-        req: { headers: {}, url: `/api/e/${campaign}?${new URLSearchParams(query)}` },
-        res: {
-          statusCode: 200,
-          setHeader: (name: string, value: string) => headers.set(name.toLowerCase(), value),
-          getHeader: (name: string) => headers.get(name.toLowerCase()),
-          end: () => {},
-        },
-      },
-      handled: false,
-    } as unknown as H3Event
+    })
     vi.stubGlobal('getUserSession', () => Promise.resolve(null))
-    await clickHandler(event)
+    const response = await toResponse(await clickHandler(event), event)
     return {
-      status: (event.node.res as { statusCode: number }).statusCode,
-      location: headers.get('location') ?? '',
-      cacheControl: headers.get('cache-control') ?? '',
+      status: response.status,
+      location: response.headers.get('location') ?? '',
+      cacheControl: response.headers.get('cache-control') ?? '',
     }
   }
 
@@ -162,7 +151,10 @@ describe('email click counter', () => {
     await serve('weekly', { to: '/api/share/weekly', p: 'share', i: String(ISSUE) })
 
     expect(redirect).toMatchObject({ status: 302, location: '/skills/trending', cacheControl: 'private, no-store' })
-    const report = await weeklyReport({ context: { platform: { db: d1.db } }, node: { req: { headers: {} } } } as unknown as H3Event)
+    const report = await weeklyReport(createTestEvent({
+      headers: {},
+      context: { platform: { db: d1.db } },
+    }))
     expect(report.windows[0]).toMatchObject({ windowEnd: ISSUE, accepted: 1, clicks: 2, clicksPerAccepted: 2, shareClicks: 1 })
   })
 

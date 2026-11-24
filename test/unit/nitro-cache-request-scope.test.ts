@@ -1,33 +1,24 @@
-import { defineCachedFunction } from 'nitropack/runtime/internal/cache'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+import { H3Event } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 
-// Nitro's cache reads its storage and its error sink through virtual modules.
-// The test gives it an in-memory storage and drops captured errors.
-const { store } = vi.hoisted(() => ({ store: new Map<string, unknown>() }))
-
-vi.mock('nitropack/runtime/internal/storage', () => ({
-  useStorage: () => ({
-    getItem: async (key: string) => store.get(key) ?? null,
-    setItem: async (key: string, value: unknown) => {
-      store.set(key, structuredClone(value))
-    },
-  }),
-}))
-
-vi.mock('nitropack/runtime/internal/app', () => ({
-  useNitroApp: () => ({ captureError: () => {} }),
-}))
+// Exercise the request cache implementation resolved by the shipped Nitro.
+const require = createRequire(import.meta.url)
+const requireNitro = createRequire(require.resolve('nitro/package.json'))
+const { defineCachedFunction } = await import(/* @vite-ignore */ pathToFileURL(requireNitro.resolve('ocache')).href) as Pick<typeof import('nitro/cache'), 'defineCachedFunction'>
 
 // workerd ties I/O to the request that started it. Once that request ends,
 // the answer to its I/O never arrives. A request that awaited another
 // request's resolve then waited forever, and so did every later request on
 // that key in the isolate, because the resolve never settled to clear itself.
 describe('nitro cache resolves', () => {
-  it('give a request its own value when the request whose resolve it met has ended', async () => {
+  it('gives a request its own value when the request whose resolve it met has ended', async () => {
     const origin = slowOrigin()
-    const read = defineCachedFunction((event: RequestEvent) => origin.read(event.context.request), {
+    const read = defineCachedFunction((event: H3Event) => origin.read(event.context.cacheFixtureRequest), {
       name: 'request-scope-ended',
       maxAge: 60,
+      maxResolveTime: 0,
       getKey: () => 'key',
     })
     const first = workerRequest('first')
@@ -45,11 +36,12 @@ describe('nitro cache resolves', () => {
     expect(origin.calls).toEqual(['first', 'second'])
   })
 
-  it('share one resolve between reads inside one request', async () => {
+  it('shares one resolve between reads inside one request', async () => {
     const origin = slowOrigin()
-    const read = defineCachedFunction((event: RequestEvent) => origin.read(event.context.request), {
+    const read = defineCachedFunction((event: H3Event) => origin.read(event.context.cacheFixtureRequest), {
       name: 'request-scope-shared',
       maxAge: 60,
+      maxResolveTime: 0,
       getKey: () => 'key',
     })
     const only = workerRequest('only')
@@ -68,15 +60,10 @@ interface WorkerRequest {
   ended: boolean
 }
 
-/** The part of an H3 event Nitro's cache reads. */
-interface RequestEvent {
-  __is_event__: true
-  context: { request: WorkerRequest }
-}
-
 function workerRequest(name: string) {
   const request: WorkerRequest = { name, ended: false }
-  const event: RequestEvent = { __is_event__: true, context: { request } }
+  const event = new H3Event(new Request('http://localhost/cache'))
+  event.context.cacheFixtureRequest = request
   return {
     event,
     end: () => {

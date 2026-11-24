@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 // The skills search route was the last one on Nitro's `defineCachedEventHandler`
 // (Sentry SKILLD-28): whether a failed KV read reaches the request depended on
@@ -21,8 +22,7 @@ describe('skills search route cache', () => {
   vi.stubGlobal('createError', (input: Record<string, unknown>) => Object.assign(new Error(String(input.message)), input))
   vi.stubGlobal('getUserSession', () => Promise.resolve(null))
   vi.stubGlobal('getQuery', (event: H3Event) => {
-    const search = (event.node?.req?.url ?? '').split('?')[1] ?? ''
-    return Object.fromEntries(new URLSearchParams(search))
+    return Object.fromEntries(event.url.searchParams)
   })
   vi.stubGlobal('useStorage', () => cacheStorage)
 
@@ -55,15 +55,16 @@ describe('skills search route cache', () => {
   }
 
   function event(query: string): H3Event {
-    return {
+    return createTestEvent({
+      path: `/api/skills${query}`,
+      headers: {},
       context: {
         platform: {
           db: countingDb(),
           env: deployment ? { CF_VERSION_METADATA: { id: deployment } } : {},
         },
       },
-      node: { req: { headers: {}, url: `/api/skills${query}`, originalUrl: `/api/skills${query}` } },
-    } as unknown as H3Event
+    })
   }
 
   function mapStorage(): void {

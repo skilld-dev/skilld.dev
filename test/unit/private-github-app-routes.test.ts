@@ -1,19 +1,20 @@
 import type { EventHandler, H3Event } from 'h3'
+import { getQuery } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { bytesToBase64Url } from '../../layers/artifact-delivery/server/utils/encoding'
 import { githubConnectionReturnTo } from '../../layers/artifact-delivery/server/utils/github-connection-flow'
 import { decryptToken, encryptToken } from '../../layers/identity/server/utils/crypto'
 import { createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const NOW = 1_787_227_200
 const TOKEN_KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(6)))
 const cookies = new Map<string, string>()
-const responseHeaders = new Map<string, string | string[]>()
 
 describe('opt-in GitHub App connection routes', () => {
   let fixture: ReturnType<typeof createSqliteD1>
-  let event: H3Event
+  let env: Cloudflare.Env
 
   beforeEach(async () => {
     vi.resetModules()
@@ -22,7 +23,6 @@ describe('opt-in GitHub App connection routes', () => {
     cookies.clear()
     // The browser arrives signed in; the routes add their state cookies to it.
     rememberCookies(SIGNED_IN_HEADERS.cookie)
-    responseHeaders.clear()
     fixture = createSqliteD1([
       'migrations/0017_users.sql',
       'migrations/0110_artifact_delivery.sql',
@@ -37,41 +37,10 @@ describe('opt-in GitHub App connection routes', () => {
          github_token_scopes, created_at, last_login_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).run(1, 101, 'octocat', loginToken, 'read:user user:email', NOW, NOW)
-    event = {
-      method: 'GET',
-      context: {
-        platform: {
-          db: fixture.db,
-          env: await githubEnv(),
-        },
-      },
-      node: {
-        req: { headers: { ...SIGNED_IN_HEADERS } },
-        res: {
-          end: () => undefined,
-          statusCode: 200,
-          getHeader: (name: string) => responseHeaders.get(name.toLowerCase()),
-          appendHeader: (name: string, value: string) => {
-            const key = name.toLowerCase()
-            const current = responseHeaders.get(key)
-            const values = current === undefined
-              ? [value]
-              : [...(Array.isArray(current) ? current : [current]), value]
-            responseHeaders.set(key, values)
-            if (key === 'set-cookie')
-              rememberCookies(value)
-          },
-          removeHeader: (name: string) => responseHeaders.delete(name.toLowerCase()),
-          setHeader: (name: string, value: string | string[]) => {
-            responseHeaders.set(name.toLowerCase(), value)
-            if (name.toLowerCase() === 'set-cookie')
-              rememberCookies(value)
-          },
-        },
-      },
-    } as H3Event
+    env = await githubEnv()
 
     vi.stubGlobal('defineEventHandler', (handler: EventHandler) => handler)
+    vi.stubGlobal('getQuery', getQuery)
     vi.stubGlobal('getUserSession', () => Promise.resolve({
       user: { id: 1, login: 'octocat' },
     }))
@@ -83,51 +52,58 @@ describe('opt-in GitHub App connection routes', () => {
     vi.unstubAllGlobals()
   })
 
+  function request(route: 'authorize' | 'callback', query: Record<string, string>): H3Event {
+    return createTestEvent({
+      path: `/api/v1/github/connections/${route}?${new URLSearchParams(query)}`,
+      headers: { cookie: serializeCookies() },
+      context: { platform: { db: fixture.db, env } },
+    })
+  }
+
   it('hides the GitHub App while private Artifact access is disabled', async () => {
-    event.context.platform!.env = await githubEnv(false)
+    env = await githubEnv(false)
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubGlobal('getQuery', () => ({ return_to: '/me' }))
     const authorize = (await import(
       '../../layers/artifact-delivery/server/api/v1/github/connections/authorize.get',
     )).default
 
+    const event = request('authorize', { return_to: '/me' })
     await expect(authorize(event)).rejects.toMatchObject({ statusCode: 404 })
 
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(responseHeaders.get('location')).toBeUndefined()
+    expect(event.res.headers.get('location')).toBeNull()
   })
 
   it('keeps normal OAuth login while the private connection completes', async () => {
     const fetchMock = githubFetch(101)
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubGlobal('getQuery', () => ({ return_to: '/me' }))
     const authorize = (await import(
       '../../layers/artifact-delivery/server/api/v1/github/connections/authorize.get',
     )).default
 
-    await authorize(event)
-    const installUrl = new URL(String(responseHeaders.get('location')))
+    const authorization = request('authorize', { return_to: '/me' })
+    await authorize(authorization)
+    const installUrl = new URL(authorization.res.headers.get('location')!)
     const state = installUrl.searchParams.get('state')
     expect(installUrl.origin + installUrl.pathname)
       .toBe('https://github.com/apps/skilld-private/installations/new')
     expect(state).toMatch(/^[\w-]{43}$/)
 
-    event.node.req.headers.cookie = serializeCookies()
-    responseHeaders.clear()
-    vi.stubGlobal('getQuery', () => ({
+    rememberCookies(authorization.res.headers.getSetCookie())
+    const event = request('callback', {
       code: 'private-code',
       installation_id: '9001',
       setup_action: 'install',
-      state,
-    }))
+      state: state!,
+    })
     const callback = (await import(
       '../../layers/artifact-delivery/server/api/v1/github/connections/callback.get',
     )).default
 
     await callback(event)
 
-    expect(responseHeaders.get('location')).toBe('/me')
+    expect(event.res.headers.get('location')).toBe('/me')
     expect(fixture.raw.prepare(
       'SELECT account_id FROM github_app_user_authorizations',
     ).all()).toEqual([{ account_id: 1 }])
@@ -142,20 +118,19 @@ describe('opt-in GitHub App connection routes', () => {
 
   it('rejects an App authorization from another GitHub user', async () => {
     vi.stubGlobal('fetch', githubFetch(202))
-    vi.stubGlobal('getQuery', () => ({ return_to: '/me' }))
     const authorize = (await import(
       '../../layers/artifact-delivery/server/api/v1/github/connections/authorize.get',
     )).default
-    await authorize(event)
-    const state = new URL(String(responseHeaders.get('location'))).searchParams.get('state')
-    event.node.req.headers.cookie = serializeCookies()
-    responseHeaders.clear()
-    vi.stubGlobal('getQuery', () => ({
+    const authorization = request('authorize', { return_to: '/me' })
+    await authorize(authorization)
+    const state = new URL(authorization.res.headers.get('location')!).searchParams.get('state')
+    rememberCookies(authorization.res.headers.getSetCookie())
+    const event = request('callback', {
       code: 'other-user-code',
       installation_id: '9001',
       setup_action: 'install',
-      state,
-    }))
+      state: state!,
+    })
     const callback = (await import(
       '../../layers/artifact-delivery/server/api/v1/github/connections/callback.get',
     )).default

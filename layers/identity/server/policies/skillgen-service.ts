@@ -7,7 +7,7 @@ import { getHeader } from 'h3'
  * Digests compare in constant time, so the check leaks nothing through timing.
  */
 export const skillgenService: Policy<any> = ({ event }) => {
-  const secret = useRuntimeConfig(event).skillgenToken
+  const secret = useRuntimeConfig().skillgenToken
   const authorization = getHeader(event, 'authorization')
   if (!authorization?.startsWith('Bearer ') || typeof secret !== 'string' || !secret)
     return false

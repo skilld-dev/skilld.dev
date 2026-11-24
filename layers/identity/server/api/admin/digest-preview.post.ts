@@ -13,7 +13,7 @@ export default defineApiHandler({
   policy: canPreviewDigest,
   handler: async ({ event, body, platform }) => {
     setHeader(event, 'Cache-Control', 'private, no-store')
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const user = await platform.db.prepare(
       `SELECT id, login, name, digest_email, email, email_opt_in, onboarded_at
        FROM users WHERE login = ?1`,

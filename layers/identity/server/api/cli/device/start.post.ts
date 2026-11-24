@@ -18,7 +18,7 @@ export default defineApiHandler({
        ) VALUES (?1, ?2, ?3, ?4, 'pending', ?5, ?6)`,
     ).bind(deviceCode, userCode, body.cli_version, body.machine_hint ?? null, now, now + 600).run()
 
-    const site = useRuntimeConfig(event).publicSiteUrl as string
+    const site = useRuntimeConfig().publicSiteUrl as string
     return {
       device_code: deviceCode,
       user_code: userCode,

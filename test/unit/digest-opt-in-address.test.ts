@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { identityEmailPatchBodySchema } from '../../layers/identity/shared/contracts/account'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const migrationPath = resolve(process.cwd(), 'migrations/0082_digest_opt_in_requires_address.sql')
@@ -203,11 +204,11 @@ describe('me email patch endpoint', () => {
   })
 
   function patchEvent(): H3Event {
-    return {
+    return createTestEvent({
       method: 'PATCH',
+      headers: { ...SIGNED_IN_HEADERS },
       context: { platform: { db: wrapSqlite(sqlite) }, user: { id: 1, login: 'harlan' } },
-      node: { req: { headers: { ...SIGNED_IN_HEADERS } } },
-    } as unknown as H3Event
+    })
   }
 })
 

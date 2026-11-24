@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 // The skill detail route lost Nitro's stale-while-revalidate shield when it
 // moved to a manual KV read-through cache (Sentry SKILLD-1V fix). Without
@@ -84,9 +85,9 @@ describe('skill detail SWR cache', () => {
   })
 
   function event(): H3Event {
-    return {
+    return createTestEvent({
+      headers: {},
       context: { platform: { db: harness.db } },
-      node: { req: { headers: {} } },
-    } as unknown as H3Event
+    })
   }
 })

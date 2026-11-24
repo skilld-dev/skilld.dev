@@ -1,15 +1,17 @@
 import type { H3Event } from 'h3'
+import type { SessionEvent } from 'nuxt/server'
 import type { UserSession } from './handler'
-import { getRequestHeader } from 'h3'
 
 /**
  * The session cookie name. `nuxt.config.ts` passes it to nuxt-auth-utils, so
  * this constant and the cookie the module writes cannot drift apart.
  */
-export const SESSION_NAME = 'nuxt-session'
+export const SESSION_NAME = 'nuxt-auth-session'
 
-/** h3 also accepts the sealed session in this header instead of the cookie. */
-const SESSION_HEADER = `x-${SESSION_NAME}-session`
+export function authSessionEvent(event: H3Event): H3Event & SessionEvent {
+  // The session helpers use Web Headers. srvx makes some unrelated Request fields optional.
+  return event as H3Event & SessionEvent
+}
 
 export type SessionAccess
   = | { _tag: 'anonymous' }
@@ -18,17 +20,15 @@ export type SessionAccess
 /**
  * Decide whether a request carries a session to read.
  *
- * h3's `useSession`, and so nuxt-auth-utils' `getUserSession`, mints a new
+ * `getUserSession` mints a new
  * session and sets its cookie on any request that arrives without one. That
- * put a `nuxt-session` cookie on anonymous `/api/skills` responses, and a
+ * put a session cookie on anonymous `/api/skills` responses, and a
  * response that sets a cookie is never stored by a shared cache. So a request
  * opens a session only when it already brings one. Sign-in writes the first
  * one.
  */
-export function decideSessionAccess(input: { cookie: string | undefined, sessionHeader: string | undefined }): SessionAccess {
-  if (input.sessionHeader)
-    return { _tag: 'carried' }
-  return hasCookie(input.cookie, SESSION_NAME) ? { _tag: 'carried' } : { _tag: 'anonymous' }
+export function decideSessionAccess(cookie: string | null): SessionAccess {
+  return hasCookie(cookie, SESSION_NAME) ? { _tag: 'carried' } : { _tag: 'anonymous' }
 }
 
 /**
@@ -42,18 +42,15 @@ export async function readUserSession(event: H3Event): Promise<UserSession | nul
   if (requestSessionAccess(event)._tag === 'anonymous')
     return null
   // eslint-disable-next-line no-restricted-syntax -- the one sanctioned read, after the anonymous check
-  const session = await getUserSession(event) as Partial<UserSession>
+  const session = await getUserSession(authSessionEvent(event)) as Partial<UserSession>
   return session.user ? session as UserSession : null
 }
 
 export function requestSessionAccess(event: H3Event): SessionAccess {
-  return decideSessionAccess({
-    cookie: getRequestHeader(event, 'cookie'),
-    sessionHeader: getRequestHeader(event, SESSION_HEADER),
-  })
+  return decideSessionAccess(event.req.headers.get('cookie'))
 }
 
-function hasCookie(header: string | undefined, name: string): boolean {
+function hasCookie(header: string | null, name: string): boolean {
   if (!header)
     return false
   return header.split(';').some((pair) => {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive, ref } from 'vue'
 
 const route = reactive({
+  matched: [],
   path: '/gh/hack23/old-repo/logging%20and%20monitoring%20for%20agentic%20workflows',
   query: {},
   params: {

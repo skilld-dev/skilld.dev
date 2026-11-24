@@ -1,6 +1,6 @@
 import type { ApiOperationHandler } from '../../shared/server/operation'
 import type { SqliteD1 } from './helpers/d1-sqlite'
-import { createApp, createError, createRouter, eventHandler, readBody, toWebHandler } from 'h3'
+import { createError, H3, readBody } from 'h3'
 import { accountV1, changesV1, likesV1, starsV1, tokensV1, watchesV1 } from 'skilld-sdk/contract'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import getAccount from '../../layers/identity/server/api/v1/account/index.get'
@@ -49,18 +49,15 @@ const ROUTES: ApiOperationHandler[] = [
 let d1: SqliteD1
 
 function serve() {
-  const app = createApp()
-  app.use(eventHandler((event) => {
+  const app = new H3()
+  app.use((event) => {
     event.context.platform = { db: d1.db, requestId: 'req_test' } as never
-  }))
-  const router = createRouter()
+  })
   for (const route of ROUTES) {
     const { method, path } = route.skilldOperation
-    router.add(path.replace(/\{([^{}]+)\}/g, ':$1'), route, method.toLowerCase() as 'get')
+    app.on(method as 'GET' | 'PATCH' | 'PUT' | 'DELETE', path.replace(/\{([^{}]+)\}/g, ':$1'), route)
   }
-  app.use(router)
-  const handle = toWebHandler(app)
-  return (method: string, path: string, body?: unknown) => handle(new Request(`http://localhost${path}`, {
+  return (method: string, path: string, body?: unknown) => app.fetch(new Request(`http://localhost${path}`, {
     method,
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: body === undefined ? {} : { 'content-type': 'application/json' },

@@ -40,7 +40,7 @@ export default defineApiHandler({
       compute: () => findSkillPagePath(platform.db, source),
       schedule: promise => runAfterResponse(event, promise),
     })
-    return { path, origin: useRuntimeConfig(event).publicSiteUrl as string }
+    return { path, origin: useRuntimeConfig().publicSiteUrl as string }
   },
   presenter: ({ path, origin }) => ({
     pageUrl: path ? new URL(path, origin).href : null,

@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 const NOW_SEC = Math.floor(Date.now() / 1000)
 const repositoryLicense = vi.hoisted(() => vi.fn().mockResolvedValue({ _tag: 'known', license: 'MIT' }))
@@ -41,10 +42,10 @@ interface Body {
 
 async function detail(): Promise<Body> {
   const handler = (await import('../../layers/registry/server/api/skills/[...slug].get')).default as (event: H3Event) => Promise<Body>
-  return handler({
+  return handler(createTestEvent({
+    headers: {},
     context: { platform: { db: harness.db } },
-    node: { req: { headers: {} } },
-  } as unknown as H3Event)
+  }))
 }
 
 beforeEach(() => {

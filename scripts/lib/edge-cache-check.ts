@@ -42,7 +42,7 @@ const BROWSER_HEADERS = {
 }
 
 /** Opaque on purpose: the page must not read it, so it never needs to unseal. */
-const SESSION_COOKIE = 'nuxt-session=edge-cache-check'
+const SESSION_COOKIE = 'nuxt-auth-session=edge-cache-check'
 
 /** The bare path and the default range name one board, so one canonical URL. */
 const DEFAULT_BOARD_ALIASES = new Set(['/skills/trending', `/skills/trending?range=${DEFAULT_TRENDING_RANGE}`])
@@ -237,7 +237,7 @@ async function checkSessionCookie(path: string, url: string, fetch: EdgeCacheFet
   // A request that carries a cookie is never stored, so nuxt-skew-protection
   // may still set its version cookie on a miss. A new session cookie would
   // mean the render opened the session.
-  const sessionCookies = cookieNames(response).filter(name => name === 'nuxt-session')
+  const sessionCookies = cookieNames(response).filter(name => name === 'nuxt-auth-session')
   if (sessionCookies.length)
     return { _tag: 'sets-cookie', path, request: 'session-cookie', cookies: sessionCookies }
   const problem = sessionRenderProblem(body)

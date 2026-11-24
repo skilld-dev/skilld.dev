@@ -1,5 +1,4 @@
 # Binding names only. Keep real local values in .dev.vars (gitignored).
-NUXT_SESSION_PASSWORD=
 NUXT_ADMIN_SECRET=
 NUXT_TOKEN_KEY=
 NUXT_HEALTH_CHECK_NOTIFY_TO=

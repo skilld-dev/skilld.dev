@@ -5,6 +5,7 @@ import weeklyReport from '../../layers/admin/server/api/admin/weekly.get'
 import { summarizeWeeklyEngagement } from '../../layers/admin/server/utils/weekly-engagement'
 import { loadWeeklyRecipients } from '../../layers/identity/server/utils/weekly-select'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 vi.hoisted(() => {
@@ -57,7 +58,10 @@ describe('weekly admin audience', () => {
   })
 
   function event(): H3Event {
-    return { context: { platform: { db: d1.db } }, node: { req: { headers: { ...SIGNED_IN_HEADERS } } } } as unknown as H3Event
+    return createTestEvent({
+      headers: { ...SIGNED_IN_HEADERS },
+      context: { platform: { db: d1.db } },
+    })
   }
 
   it('counts only consenting recipients and preserves the other audience counts', async () => {

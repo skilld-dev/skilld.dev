@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 let fixture: SqliteD1
@@ -51,7 +52,7 @@ describe('skill-asset source outage', () => {
     await expect(handler(event())).rejects.toMatchObject({ statusCode: 503 })
 
     expect(cache.setItem).not.toHaveBeenCalled()
-    expect(responseHeaders.get('retry-after')).toBe(30)
+    expect(responseHeaders.get('retry-after')).toBe('30')
   })
 })
 
@@ -116,9 +117,9 @@ describe('skill-asset Skill references', () => {
 })
 
 function event(): H3Event {
-  return {
+  return createTestEvent({
     method: 'GET',
+    headers: { ...SIGNED_IN_HEADERS },
     context: { platform: { db: fixture.db } },
-    node: { req: { headers: { ...SIGNED_IN_HEADERS } } },
-  } as unknown as H3Event
+  })
 }

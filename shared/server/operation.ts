@@ -106,9 +106,8 @@ export function defineApiOperation<const TOperation extends SkilldV1OperationDef
     setCacheHeaders(event, operation)
     setResponseStatus(event, operation.response.status)
     return parsed.data
-  }) as ApiOperationHandler
-  handler.skilldOperation = { id: operation.id, method: operation.method, path: operation.path }
-  return handler
+  })
+  return Object.assign(handler, { skilldOperation: { id: operation.id, method: operation.method, path: operation.path } })
 }
 
 async function runOperation<TOperation extends SkilldV1OperationDefinition>(

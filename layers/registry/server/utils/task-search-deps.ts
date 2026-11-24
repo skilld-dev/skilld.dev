@@ -70,7 +70,7 @@ function emitReport(report: TaskSearchReport): void {
  * has its own limiter, keyed by the client IP, which is never stored.
  */
 export function taskSearchDeps(event: H3Event, platform: Platform): TaskSearchShellDeps {
-  const config = (useRuntimeConfig(event).taskSearch ?? {}) as TaskSearchConfig
+  const config = (useRuntimeConfig().taskSearch ?? {}) as TaskSearchConfig
   const limiter = platform.env.TASK_SEARCH_RATE_LIMIT
   const ai = platform.ai as unknown as ModelBinding | undefined
   const budget = Number(config.dailyBudgetMicros)

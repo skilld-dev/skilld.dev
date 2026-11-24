@@ -1,5 +1,6 @@
 import type { UserSession } from '#auth-utils'
 import { defineApiHandler } from '#shared/server/handler'
+import { authSessionEvent } from '#shared/server/session-access'
 import { identityEmailPatchBodySchema, identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
 import { planAccountSettings, updateAccountSettings } from '../../utils/account-settings'
@@ -24,7 +25,7 @@ export default defineApiHandler({
     if (plan._tag === 'MissingAddress')
       throw createError({ statusCode: 400, message: 'Add a valid email address to receive emails' })
     await updateAccountSettings(platform.db, u.id, plan.columns)
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const updated = await requireUserRow(event)
     const summary = sendSkillValidationSummary({
       db: platform.db,
@@ -45,7 +46,7 @@ export default defineApiHandler({
       await summary
     const current = session as unknown as UserSession | null
     if (current?.user && (body.email_opt_in !== undefined || body.weekly_opt_in !== undefined)) {
-      await setUserSession(event, {
+      await setUserSession(authSessionEvent(event), {
         ...current,
         user: { ...current.user, onboarded: true },
       })

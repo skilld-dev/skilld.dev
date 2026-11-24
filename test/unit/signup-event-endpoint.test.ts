@@ -1,4 +1,5 @@
 import type { EventHandler } from 'h3'
+import { createTestEvent } from './helpers/event'
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), write: vi.fn() }))
 vi.mock('../../shared/server/session-access', () => ({ readUserSession: mocks.session }))
@@ -9,11 +10,10 @@ async function request(body: unknown, signedIn: boolean) {
   vi.stubGlobal('createError', (input: { statusCode: number }) => Object.assign(new Error('rejected'), input))
   vi.stubGlobal('readBody', async () => body)
   const handler = (await import('../../layers/identity/server/api/events/signup.post')).default as unknown as (event: unknown) => Promise<unknown>
-  return handler({
+  return handler(createTestEvent({
     method: 'POST',
-    node: { req: { headers: {} } },
     context: { platform: { env: { SKILLD_WEB_ANALYTICS: { writeDataPoint: mocks.write } } } },
-  })
+  }))
 }
 
 beforeEach(() => vi.clearAllMocks())

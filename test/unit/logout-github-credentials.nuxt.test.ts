@@ -2,6 +2,7 @@ import type { EventHandler, H3Event } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { encryptToken } from '../../layers/identity/server/utils/crypto'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const NOW = 1_787_227_200
@@ -47,11 +48,11 @@ describe('web sign-out and stored GitHub credentials', () => {
       )
     }
     sessionUserId = OCTOCAT
-    event = {
+    event = createTestEvent({
       method: 'POST',
+      headers: { ...SIGNED_IN_HEADERS },
       context: { platform: { db: fixture.db } },
-      node: { req: { headers: { ...SIGNED_IN_HEADERS } } },
-    } as unknown as H3Event
+    })
     vi.stubGlobal('defineEventHandler', (handler: EventHandler) => handler)
     vi.stubGlobal('readBody', () => Promise.resolve({}))
     vi.stubGlobal('useRuntimeConfig', () => ({ tokenKey: TOKEN_KEY }))

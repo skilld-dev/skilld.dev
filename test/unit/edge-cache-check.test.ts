@@ -297,12 +297,12 @@ describe('checkEdgeCache', () => {
 
   it('fails when a request with a session cookie is handed a new session', async () => {
     const result = await run(edge({
-      session: () => ({ cookies: ['nuxt-session=Fe26.2**new; Path=/; HttpOnly'] }),
+      session: () => ({ cookies: ['nuxt-auth-session=Fe26.2**new; Path=/; HttpOnly'] }),
     }))
 
     expect(result).toMatchObject({
       _tag: 'failed',
-      failures: [{ _tag: 'sets-cookie', path: '/skills/trending', request: 'session-cookie', cookies: ['nuxt-session'] }],
+      failures: [{ _tag: 'sets-cookie', path: '/skills/trending', request: 'session-cookie', cookies: ['nuxt-auth-session'] }],
     })
   })
 

@@ -10,7 +10,7 @@ const ADMIN_GITHUB_LOGIN = 'harlan-zw'
 // Admin auth accepts either the bearer token (CLI, scripts) or a signed-in
 // cookie session whose users row matches the admin identity.
 export async function requireAdmin(event: H3Event): Promise<{ email: string }> {
-  const config = useRuntimeConfig(event)
+  const config = useRuntimeConfig()
   const auth = getHeader(event, 'authorization')
   if (await isValidAdminAuthorization(auth, config.adminSecret))
     return { email: ADMIN_EMAIL }

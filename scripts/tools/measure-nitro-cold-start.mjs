@@ -128,7 +128,7 @@ async function measureRun({ endpoint, port, root, timeoutMs }) {
       cwd: root,
       env: {
         ...process.env,
-        NUXT_SESSION_PASSWORD: process.env.NUXT_SESSION_PASSWORD
+        NUXT_APP_SECRET: process.env.NUXT_APP_SECRET
           ?? 'local-cold-start-benchmark-secret-32-characters',
       },
       detached: true,

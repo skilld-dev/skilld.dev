@@ -11,6 +11,7 @@ async function main(): Promise<void> {
       baseUrl: process.env.PRODUCTION_SMOKE_BASE_URL ?? 'https://skilld.dev',
     }),
     releaseSha: process.env.GITHUB_SHA ?? 'unknown-release',
+    secretsFile: process.env.SKILLD_DEPLOY_SECRETS_FILE,
   })
   console.log(JSON.stringify(result, null, 2))
   if (result._tag !== 'deployed')

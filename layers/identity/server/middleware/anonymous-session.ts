@@ -9,7 +9,7 @@ const SESSION_ROUTE = '/api/_auth/session'
  * that read mints a session and sets its cookie when the request brings none.
  * The server now renders every public page signed out, so the browser asks
  * this route on each page load. Without this, every anonymous visitor would
- * collect a `nuxt-session` cookie on the first view. The module's handler
+ * collect a `nuxt-auth-session` cookie on the first view. The module's handler
  * still answers every request that carries a session.
  */
 export default defineEventHandler((event) => {

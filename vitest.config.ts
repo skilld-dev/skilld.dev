@@ -1,6 +1,6 @@
 import type { ConfigEnv, TestProjectConfiguration, ViteUserConfig } from 'vitest/config'
 import { readFileSync, realpathSync } from 'node:fs'
-import { findPackageJSON } from 'node:module'
+import { createRequire, findPackageJSON } from 'node:module'
 import { availableParallelism } from 'node:os'
 import { dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -47,12 +47,14 @@ function shippedNitropack(): string {
 }
 
 const nitropack = shippedNitropack()
+const require = createRequire(import.meta.url)
 
 const nuxtVitestConfig = defineVitestConfig({
   resolve: {
     // Keep the object form: `defineVitestConfig` merges Nuxt's own aliases
     // (`#app`, `#imports`) into an object and drops them from an array.
     alias: {
+      '#nuxt-test-utils/h3': require.resolve('h3/generic'),
       '#checkin/checks': fileURLToPath(new URL('./test/fixtures/checkin-registry.ts', import.meta.url)),
       // A prefix alias also matches `nitropack/runtime/meta`, a separate export, so map it first.
       'nitropack/runtime/meta': `${nitropack}/runtime-meta.mjs`,
@@ -85,6 +87,7 @@ const nuxtVitestConfig = defineVitestConfig({
     environmentOptions: {
       nuxt: {
         domEnvironment: 'happy-dom',
+        h3Version: 2,
       },
     },
   },

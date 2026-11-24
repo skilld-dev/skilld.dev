@@ -1,5 +1,6 @@
 import type { UserSession } from '#auth-utils'
 import { defineApiHandler } from '#shared/server/handler'
+import { authSessionEvent } from '#shared/server/session-access'
 import { identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
 import { requireUserRow } from '../../utils/users'
@@ -18,7 +19,7 @@ export default defineApiHandler({
     // types the session loosely; the cookie holds nuxt-auth-utils' shape.
     const current = session as unknown as UserSession | null
     if (current?.user) {
-      await setUserSession(event, {
+      await setUserSession(authSessionEvent(event), {
         ...current,
         user: { ...current.user, onboarded: true },
       })

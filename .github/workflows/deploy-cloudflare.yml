@@ -86,7 +86,6 @@ jobs:
         timeout-minutes: 15
         env:
           NODE_OPTIONS: --max-old-space-size=8192
-          NUXT_SESSION_PASSWORD: ${{ secrets.NUXT_SESSION_PASSWORD }}
           NUXT_AI_READY_RUNTIME_SYNC_SECRET: ${{ secrets.NUXT_AI_READY_RUNTIME_SYNC_SECRET }}
           # Enables Sentry source-map upload + release injection so client errors
           # are un-minified and tagged with a release (fixes release: None on SKILLD-1).
@@ -103,6 +102,27 @@ jobs:
             printf '%s\n' "$maps" | sed -n '1,5p'
             exit 1
           fi
+
+      - name: Prepare the session secret
+        run: |
+          set -euo pipefail
+          has_secret=$(pnpm exec wrangler secret list --config wrangler.jsonc --format json |
+            jq -r 'if type == "array" then any(.[]; .name == "NUXT_APP_SECRET") else error("Expected Worker secret list") end')
+          if [ "$has_secret" = true ]; then
+            exit 0
+          fi
+          if [ "${#SKILLD_SESSION_ROOT}" -lt 32 ]; then
+            echo 'Set NUXT_APP_SECRET to at least 32 characters.' >&2
+            exit 1
+          fi
+          umask 077
+          secret_file=$(mktemp "$RUNNER_TEMP/skilld-secrets.XXXXXXXX.json")
+          jq -n '{NUXT_APP_SECRET: env.SKILLD_SESSION_ROOT}' > "$secret_file"
+          printf 'SKILLD_DEPLOY_SECRETS_FILE=%s\n' "$secret_file" >> "$GITHUB_ENV"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SKILLD_SESSION_ROOT: ${{ secrets.NUXT_APP_SECRET || secrets.NUXT_SESSION_PASSWORD }}
 
       - name: Apply D1 migrations
         run: pnpm db:migrations:prod
@@ -137,7 +157,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy, smoke, and rollback on failure
-        run: pnpm production:deploy
+        run: |
+          trap 'if [ -n "${SKILLD_DEPLOY_SECRETS_FILE:-}" ]; then rm -f "$SKILLD_DEPLOY_SECRETS_FILE"; fi' EXIT
+          pnpm production:deploy
         env:
           GITHUB_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

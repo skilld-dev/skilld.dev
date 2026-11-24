@@ -12,7 +12,7 @@ const MAX_ENVELOPE_BYTES = 512 * 1024
  * Only envelopes for the configured DSN are forwarded.
  */
 export default defineEventHandler(async (event) => {
-  const { sentry } = useRuntimeConfig(event)
+  const { sentry } = useRuntimeConfig()
   if (!sentry.enabled || !sentry.dsn)
     throw createError({ statusCode: 404 })
 

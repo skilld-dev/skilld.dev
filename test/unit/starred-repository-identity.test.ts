@@ -1,10 +1,11 @@
-import type { EventHandler, H3Event } from 'h3'
+import type { EventHandler } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { selectDigestForUser } from '../../layers/identity/server/utils/digest-select'
 import { importStarredPage, loadStarredRows } from '../../layers/identity/server/utils/starred-repos'
 import { createRepositoryWatches, loadWatches } from '../../layers/identity/server/utils/watches'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 describe('starred repository identity', () => {
@@ -62,7 +63,11 @@ describe('starred repository identity', () => {
   it('creates one canonical watch, preserves its deliberate source and selects digest changes', async () => {
     d1.raw.exec(`INSERT INTO skill_subscriptions (user_id, owner, repo, source, created_at) VALUES (1, 'LEONXLNX', 'TASTE-SKILL', 'manual', 10);`)
     vi.stubGlobal('readBody', async () => ({ source: 'star-import', repos: [{ owner: 'Leonxlnx', repo: 'Taste-Skill' }] }))
-    await subscribe({ method: 'POST', context: { platform: { db: d1.db } }, node: { req: { headers: SIGNED_IN_HEADERS } } } as unknown as H3Event)
+    await subscribe(createTestEvent({
+      method: 'POST',
+      headers: SIGNED_IN_HEADERS,
+      context: { platform: { db: d1.db } },
+    }))
     expect(d1.raw.prepare('SELECT owner, repo, source FROM skill_subscriptions').all()).toEqual([{ owner: 'leonxlnx', repo: 'taste-skill', source: 'manual' }])
     const selection = await selectDigestForUser(d1.db, { id: 1, login: 'test-user', digest_email: 'fixture@example.com', email: null, email_opt_in: 1, onboarded_at: 1 }, 20, { cursorStart: 0, cursorEnd: 1 })
     expect(selection?.entries).toMatchObject([{ owner: 'leonxlnx', repo: 'taste-skill', skillNames: ['brandkit'] }])
@@ -70,7 +75,11 @@ describe('starred repository identity', () => {
 
   it('stores new star-import watches canonically for digest selection', async () => {
     vi.stubGlobal('readBody', async () => ({ source: 'star-import', repos: [{ owner: 'Leonxlnx', repo: 'Taste-Skill' }] }))
-    await subscribe({ method: 'POST', context: { platform: { db: d1.db } }, node: { req: { headers: SIGNED_IN_HEADERS } } } as unknown as H3Event)
+    await subscribe(createTestEvent({
+      method: 'POST',
+      headers: SIGNED_IN_HEADERS,
+      context: { platform: { db: d1.db } },
+    }))
     expect(d1.raw.prepare('SELECT owner, repo, source FROM skill_subscriptions').all()).toEqual([{ owner: 'leonxlnx', repo: 'taste-skill', source: 'star-import' }])
     const selection = await selectDigestForUser(d1.db, { id: 1, login: 'test-user', digest_email: 'fixture@example.com', email: null, email_opt_in: 1, onboarded_at: 1 }, 20, { cursorStart: 0, cursorEnd: 1 })
     expect(selection?.entries[0]?.skillNames).toEqual(['brandkit'])

@@ -11,7 +11,7 @@ export default defineApiHandler({
       : {}
     const form = typeof rawForm === 'object' && rawForm !== null ? rawForm : {}
     const parsed = UnsubQuery.safeParse(Object.assign({}, getQuery(event), form))
-    const config = useRuntimeConfig(event)
+    const config = useRuntimeConfig()
     const userId = parsed.success
       ? await verifyUnsubToken(parsed.data.t, config.tokenKey as string)
       : null

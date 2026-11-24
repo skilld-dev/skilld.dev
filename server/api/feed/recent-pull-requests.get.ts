@@ -1,3 +1,5 @@
+import type { OpenSourceRepository, RecentPullRequestsResponse } from '#shared/open-source-pull-requests'
+
 /**
  * Recently merged pull requests from skilld's public repositories, for the
  * Independent and open source reason on the homepage and `/vs/skills-sh`.
@@ -7,9 +9,9 @@
  * and the cache keeps serving the last good answer for a week.
  */
 
-import type { OpenSourceRepository, RecentPullRequestsResponse } from '#shared/open-source-pull-requests'
 import { cachedFeed } from '#server/utils/feed-cache'
 import { OPEN_SOURCE_REPOSITORIES, recentMergedPullRequests } from '#shared/open-source-pull-requests'
+import { $fetch } from '#shared/server/fetch'
 import { defineApiHandler } from '#shared/server/handler'
 
 /** Rows the pictures show at most. */

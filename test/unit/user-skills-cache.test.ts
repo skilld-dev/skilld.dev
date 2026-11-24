@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 
 // GET /api/users/:login/skills ran as a bare handler, so every crawler hit
 // repeated the same per-login D1 reads and the route landed as SKILLD-1K in
@@ -112,9 +113,9 @@ describe('user skills cache', () => {
   })
 
   function event(loginParam: string = login): H3Event {
-    return {
+    return createTestEvent({
+      headers: {},
       context: { params: { login: loginParam }, platform: { db: harness.db } },
-      node: { req: { headers: {} } },
-    } as unknown as H3Event
+    })
   }
 })

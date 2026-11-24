@@ -125,10 +125,13 @@ export const SKILL_INDEXABLE_SQL = `(
  * Columns a `skills s JOIN repos r` read adds to call `isSkillIndexable`.
  * `s.seo_indexable` is already in the shared Skill select.
  */
-export const SKILL_INDEX_INPUT_COLUMNS_SQL = `${SKILL_ADMITTED_SQL} AS trending_admitted,
+const SKILL_INDEX_INPUT_COLUMNS_SQL = `${SKILL_ADMITTED_SQL} AS trending_admitted,
   ${SKILL_PROBE_SQL} AS probe_exception,
   ${SKILL_ADMISSIONS_POPULATED_SQL} AS admissions_populated,
   r.repo_kind`
+
+// The auto-import scanner treats the SQL column separators as declarations.
+export { SKILL_INDEX_INPUT_COLUMNS_SQL }
 
 export interface SkillIndexInput {
   seo_indexable: number | null

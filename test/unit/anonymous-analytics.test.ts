@@ -1,6 +1,7 @@
 import type { EventHandler } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { analyticsCountry, analyticsIndex, copyDataPoint } from '../../shared/analytics'
+import { createTestEvent } from './helpers/event'
 
 describe('anonymous analytics data points', () => {
   it('writes a copy as surface, mode, kind, slug, and country', () => {
@@ -58,9 +59,9 @@ describe('copy event endpoint', () => {
     vi.stubGlobal('getHeader', (_event: unknown, name: string) => headers[name])
     vi.resetModules()
     const handler = (await import('../../server/api/events/install.post')).default as unknown as (event: unknown) => Promise<unknown>
-    return handler({
+    return handler(createTestEvent({
       method: 'POST',
-      node: { req: { headers } },
+      headers,
       context: {
         platform: {
           env: {
@@ -78,7 +79,7 @@ describe('copy event endpoint', () => {
           },
         },
       },
-    })
+    }))
   }
 
   beforeEach(() => {

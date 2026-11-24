@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestEvent } from './helpers/event'
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
@@ -11,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   analytics: vi.fn(),
   welcome: vi.fn(),
 }))
-vi.mock('h3', async importOriginal => ({ ...await importOriginal<typeof import('h3')>(), useSession: mocks.session }))
+vi.mock('nuxt/server', async importOriginal => ({ ...await importOriginal<typeof import('nuxt/server')>(), useSession: mocks.session }))
 vi.mock('../../layers/identity/server/utils/users', () => ({ upsertUserFromGithub: mocks.upsert }))
 vi.mock('../../layers/identity/server/utils/watch-actions', () => ({ handleWatchAction: mocks.replay }))
 vi.mock('../../layers/identity/server/utils/scan-owned-repos', () => ({ scanOwnedRepos: mocks.scan, ownedRepoScanWarning: () => false }))
@@ -30,7 +31,9 @@ describe('gitHub browser login round trip', () => {
   const clearIntent = vi.fn(async () => {
     intent = {}
   })
-  const event = { context: { platform: { env: { SKILLD_WEB_ANALYTICS: { writeDataPoint: mocks.analytics } } } } } as unknown as H3Event
+  const event = createTestEvent({
+    context: { platform: { env: { SKILLD_WEB_ANALYTICS: { writeDataPoint: mocks.analytics } } } },
+  })
 
   beforeEach(async () => {
     vi.resetModules()

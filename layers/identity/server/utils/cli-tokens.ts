@@ -71,7 +71,7 @@ export async function issueSession(
     : opts.kind === 'oidc'
       ? accessExpiresAt
       : now + (opts.ttlSec ?? REFRESH_TTL_SEC)
-  const encryptedRefresh = hasRefresh ? await encryptRefresh(event, refreshToken) : null
+  const encryptedRefresh = hasRefresh ? await encryptRefresh(refreshToken) : null
 
   await event.context.platform.db.prepare(
     `INSERT INTO cli_tokens (
@@ -99,7 +99,7 @@ export async function issueSession(
 
   return {
     tokenId: row.id,
-    accessToken: await signAccessToken(event, row.id, userId, scopes, accessExpiresAt),
+    accessToken: await signAccessToken(row.id, userId, scopes, accessExpiresAt),
     refreshToken: hasRefresh ? refreshToken : undefined,
     expiresAt: accessExpiresAt,
     scopes,
@@ -159,7 +159,7 @@ export async function rotateSession(event: H3Event, refreshToken: string): Promi
     ).bind(
       now + ROTATE_GRACE_SEC,
       nextRefreshHash,
-      await encryptRefresh(event, nextRefreshToken),
+      await encryptRefresh(nextRefreshToken),
       now,
       refreshExpiresAt,
       row.id,
@@ -167,7 +167,7 @@ export async function rotateSession(event: H3Event, refreshToken: string): Promi
 
     return {
       tokenId: row.id,
-      accessToken: await signAccessToken(event, row.id, row.user_id, row.scopes, accessExpiresAt),
+      accessToken: await signAccessToken(row.id, row.user_id, row.scopes, accessExpiresAt),
       refreshToken: nextRefreshToken,
       expiresAt: accessExpiresAt,
       scopes: row.scopes,
@@ -182,8 +182,8 @@ export async function rotateSession(event: H3Event, refreshToken: string): Promi
     ).bind(now, row.id).run()
     return {
       tokenId: row.id,
-      accessToken: await signAccessToken(event, row.id, row.user_id, row.scopes, accessExpiresAt),
-      refreshToken: await decryptRefresh(event, row.refresh_token_encrypted),
+      accessToken: await signAccessToken(row.id, row.user_id, row.scopes, accessExpiresAt),
+      refreshToken: await decryptRefresh(row.refresh_token_encrypted),
       expiresAt: accessExpiresAt,
       scopes: row.scopes,
       userId: row.user_id,
@@ -258,7 +258,7 @@ export async function revokeCliToken(db: D1Database, userId: number, tokenId: nu
 }
 
 export async function verifyAccessToken(event: H3Event, jwt: string): Promise<{ tokenId: number, userId: number, scopes: string } | null> {
-  const payload = await verifyJwt(event, jwt)
+  const payload = await verifyJwt(jwt)
   if (!payload)
     return null
 
@@ -284,19 +284,19 @@ export async function verifyAccessToken(event: H3Event, jwt: string): Promise<{ 
   return { tokenId: row.id, userId: row.user_id, scopes: row.scopes }
 }
 
-async function signAccessToken(event: H3Event, tokenId: number, userId: number, scopes: string, expiresAt: number): Promise<string> {
+async function signAccessToken(tokenId: number, userId: number, scopes: string, expiresAt: number): Promise<string> {
   const header = base64UrlJson({ alg: 'HS256', typ: 'JWT' })
   const payload = base64UrlJson({ sub: userId, tid: tokenId, scopes, exp: expiresAt, iat: nowSec() })
-  const sig = await hmacSha256Base64Url(signingKey(event), `${header}.${payload}`)
+  const sig = await hmacSha256Base64Url(signingKey(), `${header}.${payload}`)
   return `${header}.${payload}.${sig}`
 }
 
-async function verifyJwt(event: H3Event, jwt: string): Promise<{ sub: number, tid: number, scopes: string, exp: number } | null> {
+async function verifyJwt(jwt: string): Promise<{ sub: number, tid: number, scopes: string, exp: number } | null> {
   const parts = jwt.split('.')
   if (parts.length !== 3)
     return null
 
-  const expected = await hmacSha256Base64Url(signingKey(event), `${parts[0]}.${parts[1]}`)
+  const expected = await hmacSha256Base64Url(signingKey(), `${parts[0]}.${parts[1]}`)
   if (!timingSafeEqual(expected, parts[2]!))
     return null
 
@@ -316,23 +316,23 @@ async function verifyJwt(event: H3Event, jwt: string): Promise<{ sub: number, ti
   }
 }
 
-function signingKey(event: H3Event): Uint8Array {
-  const key = tokenKey(event)
+function signingKey(): Uint8Array {
+  const key = tokenKey()
   if (!key)
     throw createError({ statusCode: 500, message: 'NUXT_TOKEN_KEY missing' })
   return base64UrlDecode(key.replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, ''))
 }
 
-async function encryptRefresh(event: H3Event, token: string): Promise<string> {
-  return encryptToken(token, tokenKey(event))
+async function encryptRefresh(token: string): Promise<string> {
+  return encryptToken(token, tokenKey())
 }
 
-async function decryptRefresh(event: H3Event, ciphertext: string): Promise<string> {
-  return decryptToken(ciphertext, tokenKey(event))
+async function decryptRefresh(ciphertext: string): Promise<string> {
+  return decryptToken(ciphertext, tokenKey())
 }
 
-function tokenKey(event: H3Event): string {
-  return (useRuntimeConfig(event).tokenKey as string) || process.env.NUXT_TOKEN_KEY || ''
+function tokenKey(): string {
+  return (useRuntimeConfig().tokenKey as string) || process.env.NUXT_TOKEN_KEY || ''
 }
 
 export async function sha256Base64Url(value: string): Promise<string> {

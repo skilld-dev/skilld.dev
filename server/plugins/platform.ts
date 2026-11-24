@@ -31,7 +31,7 @@ function headerValue(value: ReturnType<typeof getResponseHeader>): string | unde
 function carryBookmark(event: H3Event, bookmark: string | null): void {
   const decision = decideD1BookmarkCookie({
     bookmark,
-    responseSent: event.handled || event.node.res.headersSent,
+    responseSent: event.runtime?.node?.res?.headersSent ?? false,
     cacheControl: [
       headerValue(getResponseHeader(event, 'cache-control')),
       headerValue(getResponseHeader(event, 'cloudflare-cdn-cache-control')),
@@ -50,7 +50,7 @@ function carryBookmark(event: H3Event, bookmark: string | null): void {
 
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('request', (event) => {
-    const env = resolveCloudflareBindings<Cloudflare.Env>(event.context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(event)
     if (!env)
       return
 

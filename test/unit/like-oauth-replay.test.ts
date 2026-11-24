@@ -1,12 +1,10 @@
 import type { H3Event } from 'h3'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestEvent } from './helpers/event'
 
 const fetchRoute = vi.hoisted(() => vi.fn())
-vi.mock('ofetch', async original => ({
-  ...await original<typeof import('ofetch')>(),
-  $fetch: Object.assign(fetchRoute, { create: () => fetchRoute }),
-}))
+vi.mock('#shared/server/fetch', () => ({ $fetch: fetchRoute }))
 
 /**
  * An anonymous heart click bounces through GitHub OAuth carrying ?action=like-skill.
@@ -102,7 +100,9 @@ describe('post-OAuth like replay', () => {
   }
 
   function event(): H3Event {
-    return { context: { platform: { db: wrapSqlite(sqlite) } } } as unknown as H3Event
+    return createTestEvent({
+      context: { platform: { db: wrapSqlite(sqlite) } },
+    })
   }
 })
 

@@ -1,16 +1,10 @@
 import type { H3Event } from 'h3'
 import { retryIdempotentD1Write } from '@harlan-zw/nuxt-cloudflare/d1'
-import { getHeader, getRequestURL, setHeader, useSession } from 'h3'
-import { useRuntimeConfig } from 'nitropack/runtime'
+import { getHeader, getRequestURL, setHeader } from 'h3'
+import { useSession } from 'nuxt/server'
+import { authSessionEvent } from '#shared/server/session-access'
 
 const PROOF_SECONDS = 300
-
-interface ClickProof {
-  nonce: string
-  page: string
-  client: string
-  expiresAt: number
-}
 
 function browserPage(event: H3Event): string | null {
   const referer = getHeader(event, 'referer')
@@ -30,10 +24,8 @@ function clientKey(event: H3Event): string {
 }
 
 function proofSession(event: H3Event) {
-  const config = useRuntimeConfig(event)
-  return useSession<ClickProof>(event, {
+  return useSession<{ nonce: string, page: string, client: string, expiresAt: number }>(authSessionEvent(event), {
     name: 'skilld-signup-click',
-    password: process.env.NUXT_SESSION_PASSWORD || config.session.password,
     maxAge: PROOF_SECONDS,
     cookie: { httpOnly: true, sameSite: 'strict', secure: !import.meta.dev, path: '/' },
   })

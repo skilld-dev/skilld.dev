@@ -1,9 +1,11 @@
 import type { H3EventContext } from 'h3'
+
 import type { SourceRequest } from '../schemas/contracts'
 import type { FetchAdmittedSkillIdentity } from './admitted-identity'
 import type { ArtifactBuildOutcome } from './build'
 import type { ServedResolution } from './served-resolution'
 import type { CreateResolutionResult } from './state'
+import { $fetch } from '#shared/server/fetch'
 import { admittedSourceRequest } from './admitted-identity'
 import { recordResolutionRequester } from './requester-github'
 import { createResolution, resolutionRequestIdentity } from './state'

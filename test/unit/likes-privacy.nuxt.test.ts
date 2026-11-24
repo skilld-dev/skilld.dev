@@ -2,6 +2,7 @@ import type { EventHandler, H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { createTestEvent } from './helpers/event'
 import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const OWNER = { id: 9001, login: 'privacy-owner' }
@@ -112,10 +113,10 @@ describe('liked list privacy', () => {
   }): H3Event {
     vi.stubGlobal('getUserSession', () => Promise.resolve(input.viewer ? { user: input.viewer } : {}))
     vi.stubGlobal('readBody', () => Promise.resolve(input.body))
-    return {
+    return createTestEvent({
       method: input.method ?? 'GET',
+      headers: input.viewer ? { ...SIGNED_IN_HEADERS } : {},
       context: { platform: { db: d1.db }, params: { login: input.login } },
-      node: { req: { headers: input.viewer ? { ...SIGNED_IN_HEADERS } : {} } },
-    } as unknown as H3Event
+    })
   }
 })
