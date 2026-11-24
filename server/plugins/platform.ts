@@ -50,9 +50,7 @@ function carryBookmark(event: H3Event, bookmark: string | null): void {
 
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('request', (event) => {
-    const env = resolveCloudflareBindings<Cloudflare.Env>({
-      cloudflare: event.req.runtime?.cloudflare ?? event.context.cloudflare,
-    })
+    const env = resolveCloudflareBindings<Cloudflare.Env>(event)
     if (!env)
       return
 

@@ -586,14 +586,14 @@ export default defineNuxtConfig({
     // each distinct query caches separately. Nothing here varies by user.
     '/api/skills': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=120, stale-while-revalidate=600, stale-if-error=3600' } } as any,
     '/api/clusters': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=600' } } as any,
-    '/api/clusters/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
-    '/api/orgs/*': {
+    '/api/clusters/:slug': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    '/api/orgs/:owner': {
       headers: {
         'cache-control': 'private, no-store',
         'cloudflare-cdn-cache-control': 'private, no-store',
       },
     } as any,
-    '/api/tags/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    '/api/tags/:tag': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
     // The first HTML in Workers Cache, proved here before skill, repo and
     // category pages follow. It is safe because the server renders every public
     // page signed out and negotiates on Accept and Sec-Fetch-Dest only, both

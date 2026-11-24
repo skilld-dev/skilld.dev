@@ -10,6 +10,11 @@ function namedError(name: string, message: string): Error {
   return Object.assign(new Error(message), { name })
 }
 
+function wrappedWithoutMessage(cause: unknown): Error {
+  // eslint-disable-next-line unicorn/error-message -- Nuxt can wrap a non-Error throw without a message.
+  return new Error('', { cause })
+}
+
 describe('filterClientReport', () => {
   it.each([
     { issue: 'SKILLD-5B', thrown: 'ResizeObserver loop limit exceeded', event: report('Error', 'ResizeObserver loop limit exceeded') },
@@ -35,10 +40,10 @@ describe('filterClientReport', () => {
   it('names what a messageless error was thrown with, and never its content (SKILLD-54)', () => {
     const loadFailure = new globalThis.Event('error')
     Object.defineProperty(loadFailure, 'target', { value: { tagName: 'SCRIPT', src: 'https://skilld.dev/_nuxt/v2/BzUDwpzU.js' } })
-    const fromEvent = filterClientReport(report('Error', ''), { originalException: new Error(undefined, { cause: loadFailure }) })
+    const fromEvent = filterClientReport(report('Error', ''), { originalException: wrappedWithoutMessage(loadFailure) })
     expect(fromEvent?.tags).toEqual({ 'thrown.cause': 'Event:error:SCRIPT' })
 
-    const fromObject = filterClientReport(report('Error', ''), { originalException: new Error(undefined, { cause: { secret: 'value' } }) })
+    const fromObject = filterClientReport(report('Error', ''), { originalException: wrappedWithoutMessage({ secret: 'value' }) })
     expect(fromObject?.tags).toEqual({ 'thrown.cause': 'Object' })
   })
 

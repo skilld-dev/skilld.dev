@@ -106,8 +106,9 @@ jobs:
       - name: Prepare the session secret
         run: |
           set -euo pipefail
-          bindings=$(pnpm exec wrangler secret list --config wrangler.jsonc --format json)
-          if jq -e 'any(.[]; .name == "NUXT_APP_SECRET")' <<< "$bindings" > /dev/null; then
+          has_secret=$(pnpm exec wrangler secret list --config wrangler.jsonc --format json |
+            jq -r 'if type == "array" then any(.[]; .name == "NUXT_APP_SECRET") else error("Expected Worker secret list") end')
+          if [ "$has_secret" = true ]; then
             exit 0
           fi
           if [ "${#SKILLD_SESSION_ROOT}" -lt 32 ]; then

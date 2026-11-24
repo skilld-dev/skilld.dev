@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   if (!isValidCheckinAuthorization(getHeader(event, 'authorization'), config.checkinToken))
     throw new HTTPError({ status: 401, message: 'Check-in authorization failed.', headers: { 'cache-control': 'no-store' } })
-  const env = event.context.platform?.env ?? resolveCloudflareBindings<Cloudflare.Env>(event.context)
+  const env = event.context.platform?.env ?? resolveCloudflareBindings<Cloudflare.Env>(event)
   const deployment = env?.CF_VERSION_METADATA?.id
   if (!env?.DB || !deployment)
     throw new HTTPError({ status: 503, message: 'Check-in bindings or deployment identity are missing.', headers: { 'cache-control': 'no-store' } })
