@@ -1,5 +1,5 @@
 import { getRequestHeader, getResponseHeader, setResponseHeader } from 'h3'
-import { useRuntimeConfig } from 'nitropack/runtime'
+import { getRouteRules, useRuntimeConfig } from 'nuxt/server'
 import { decideHtmlValidators } from '#shared/html-validators'
 
 /**
@@ -13,13 +13,15 @@ export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('render:response', async (response, { event }) => {
     const header = (value: string | number | string[] | undefined): string | null =>
       value === undefined ? null : Array.isArray(value) ? value.join(', ') : String(value)
+    // Nitro applies route headers after this render hook has decided whether to return a 304.
+    const routeHeaders = new Headers(getRouteRules(event).headers || undefined)
     const decision = await decideHtmlValidators({
       buildId: useRuntimeConfig().app.buildId,
       method: event.method,
       status: response.statusCode ?? 200,
       body: response.body,
       request: { get: name => header(getRequestHeader(event, name)) },
-      response: { get: name => header(getResponseHeader(event, name)) },
+      response: { get: name => routeHeaders.get(name) ?? header(getResponseHeader(event, name)) },
     })
     if (decision._tag === 'skip')
       return

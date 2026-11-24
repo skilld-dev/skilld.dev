@@ -50,6 +50,7 @@ describe('canonical host middleware', () => {
     expect(response.headers.get('location')).toBe('https://skilld.dev/skills/trending?range=all')
     expect(response.headers.get('cloudflare-cdn-cache-control')).toBe('no-store')
     expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('vary')).toBe('*')
   })
 
   it('leaves an apex request and its cache policy alone', async () => {

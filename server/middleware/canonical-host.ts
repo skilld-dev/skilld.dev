@@ -24,6 +24,7 @@ export default defineEventHandler((event) => {
   setResponseHeaders(event, {
     'cache-control': 'private, no-store',
     'cloudflare-cdn-cache-control': 'no-store',
+    'vary': '*',
   })
   return sendRedirect(event, url, 301)
 })
