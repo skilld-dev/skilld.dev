@@ -511,6 +511,10 @@ export default defineNuxtConfig({
     cloudflare: {
       deployConfig: true,
       nodeCompat: true,
+      wrangler: {
+        // Sentry uploads the maps and removes them before Wrangler reads this bundle.
+        upload_source_maps: false,
+      },
     },
     storage: {
       'data': {
