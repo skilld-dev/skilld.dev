@@ -494,6 +494,12 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'cloudflare-module',
+    $development: {
+      // Miniflare cannot load the Nuxt development bundle in Workerd.
+      // Keep the local Wrangler bindings available to the Node dev server.
+      devServer: { runner: 'node-worker' },
+      plugins: [fileURLToPath(new URL('./server/runtime/cloudflare-dev-platform.ts', import.meta.url))],
+    },
     // Registered here, not scanned from `server/middleware`, because nuxt-ai-ready
     // claims every `.md` path and scanned middleware runs after a module's.
     handlers: [
