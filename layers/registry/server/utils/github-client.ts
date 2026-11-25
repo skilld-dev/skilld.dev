@@ -16,6 +16,7 @@ import {
   readWithGithubCredential,
   staticGithubCredential,
 } from '#shared/server/github-app-credential'
+import { decodeGithubTreeCacheValue, encodeGithubTreeCacheValue } from './github-tree-cache-codec'
 
 const API_BASE = 'https://api.github.com'
 const GRAPHQL_URL = 'https://api.github.com/graphql'
@@ -244,9 +245,18 @@ interface CachedEntry<T> {
 
 const ETAG_PREFIX = 'gh-etag:'
 const ETAG_TTL = 60 * 60 * 24 * 7
+const GITHUB_TREE_PATH = /^\/repos\/[^/]+\/[^/]+\/git\/trees\/.+$/
 
 function etagKey(url: string): string {
   return `${ETAG_PREFIX}${url}`
+}
+
+function readGithubTreeCacheEntry<T>(value: unknown): CachedEntry<T> | null {
+  if (value === null)
+    return null
+  if (typeof value === 'object' && 'etag' in value && typeof value.etag === 'string' && value.etag && 'body' in value)
+    return { etag: value.etag, body: value.body as T }
+  throw new Error('Invalid GitHub tree cache entry')
 }
 
 function parseRateLimit(headers: Headers): RateLimitInfo | null {
@@ -271,10 +281,16 @@ async function ghRequest<T>(
   headers.set('User-Agent', 'skilld.dev')
   headers.set('X-GitHub-Api-Version', '2022-11-28')
 
+  const path = new URL(url).pathname
+  const isTree = GITHUB_TREE_PATH.test(path)
   const cacheKey = etagKey(url)
+  const cache = bindings.KV_CACHE
   let cached: CachedEntry<T> | null = null
-  if (bindings.KV_CACHE) {
-    cached = await bindings.KV_CACHE.get<CachedEntry<T>>(cacheKey, 'json').catch(() => {
+  if (cache) {
+    const readCache = isTree
+      ? cache.get<unknown>(cacheKey, 'json').then(decodeGithubTreeCacheValue).then(readGithubTreeCacheEntry<T>)
+      : cache.get<CachedEntry<T>>(cacheKey, 'json')
+    cached = await readCache.catch(() => {
       emitOperationalEvent(createWideEvent({ operation: 'github-etag-cache-read', outcome: 'failed' }))
       return null
     })
@@ -283,7 +299,7 @@ async function ghRequest<T>(
   }
 
   const read = await readAsApp(bindings, {
-    label: new URL(url).pathname,
+    label: path,
     // A page read's limit covers the mint it waits for, too.
     deadline: init?.signal ?? undefined,
     send: token => fetch(url, { ...init, headers: withAuthorization(headers, token) }),
@@ -313,9 +329,15 @@ async function ghRequest<T>(
 
   const body = (await res.json()) as T
   const newEtag = res.headers.get('etag')
-  if (newEtag && bindings.KV_CACHE) {
-    await bindings.KV_CACHE
-      .put(cacheKey, JSON.stringify({ etag: newEtag, body }), { expirationTtl: ETAG_TTL })
+  if (newEtag && cache) {
+    const raw = JSON.stringify({ etag: newEtag, body })
+    const value = isTree
+      ? await encodeGithubTreeCacheValue(raw).catch(() => {
+          emitOperationalEvent(createWideEvent({ operation: 'github-etag-cache-compress', outcome: 'failed' }))
+          return raw
+        })
+      : raw
+    await cache.put(cacheKey, value, { expirationTtl: ETAG_TTL })
       .catch(() => emitOperationalEvent(createWideEvent({ operation: 'github-etag-cache-write', outcome: 'failed' })))
   }
 
