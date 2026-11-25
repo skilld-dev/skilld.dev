@@ -10,10 +10,41 @@ const RETRYABLE_D1_READ_MESSAGES = [
   'd1 db is overloaded',
 ]
 
+/**
+ * How long one request waits in total for D1 to accept its reads again.
+ *
+ * D1 measures overload over a 10 second window, and its own automatic retries
+ * skip overload. The 2026-11 overload bursts (SKILLD-50, SKILLD-5K) mostly ended
+ * within 1 to 6 s, which outlasted the earlier 0.4 s budget. Every read of the
+ * request shares this deadline, so sequential reads cannot multiply the wait.
+ */
+const READ_RETRY_BUDGET_MS = 4_000
+const READ_RETRY_BASE_DELAY_MS = 400
+
 interface D1MaintenanceRecoveryOptions {
   maxAttempts?: number
+  now?: () => number
   random?: () => number
   sleep?: (milliseconds: number) => Promise<void>
+}
+
+interface ReadRetryPolicy {
+  maxAttempts: number
+  now: () => number
+  random: () => number
+  sleep: (milliseconds: number) => Promise<void>
+  /** Set by the request's first retryable failure. */
+  deadline: number | null
+}
+
+function createReadRetryPolicy(options: D1MaintenanceRecoveryOptions): ReadRetryPolicy {
+  return {
+    maxAttempts: Math.max(1, Math.floor(options.maxAttempts ?? 5)),
+    now: options.now ?? Date.now,
+    random: options.random ?? Math.random,
+    sleep: options.sleep ?? ((milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds))),
+    deadline: null,
+  }
 }
 
 interface PlatformD1Options extends D1MaintenanceRecoveryOptions {
@@ -111,7 +142,7 @@ export function createPlatformD1(
   const tracking: WriteTracking | undefined = onWrite
     ? { statementSql, written: () => onWrite(recoveringSession.getBookmark()) }
     : undefined
-  const maintenanceTolerantBinding = createMaintenanceTolerantDatabase(env.DB, rawStatements, options, tracking)
+  const maintenanceTolerantBinding = createMaintenanceTolerantDatabase(env.DB, rawStatements, createReadRetryPolicy(options), tracking)
   const recoveringSession = withD1ResetRecovery(maintenanceTolerantBinding, { consistency: options.consistency })
   const database = new Proxy(maintenanceTolerantBinding, {
     get(target, property, receiver) {
@@ -149,7 +180,7 @@ function afterWrite<T>(result: Promise<T>, tracking: WriteTracking | undefined):
 function createMaintenanceTolerantDatabase(
   database: D1Database,
   rawStatements: WeakMap<object, D1PreparedStatement>,
-  options: D1MaintenanceRecoveryOptions,
+  retry: ReadRetryPolicy,
   tracking: WriteTracking | undefined,
 ): D1Database {
   return new Proxy(database, {
@@ -158,7 +189,7 @@ function createMaintenanceTolerantDatabase(
         return (constraint?: D1SessionBookmark | D1SessionConstraint) => createMaintenanceTolerantSession(
           target.withSession(constraint),
           rawStatements,
-          options,
+          retry,
           tracking,
         )
       }
@@ -171,13 +202,13 @@ function createMaintenanceTolerantDatabase(
 function createMaintenanceTolerantSession(
   session: D1DatabaseSession,
   rawStatements: WeakMap<object, D1PreparedStatement>,
-  options: D1MaintenanceRecoveryOptions,
+  retry: ReadRetryPolicy,
   tracking: WriteTracking | undefined,
 ): D1DatabaseSession {
   return new Proxy(session, {
     get(target, property, receiver) {
       if (property === 'prepare')
-        return (sql: string) => createMaintenanceTolerantStatement(target, rawStatements, sql, [], target.prepare(sql), options, tracking)
+        return (sql: string) => createMaintenanceTolerantStatement(target, rawStatements, sql, [], target.prepare(sql), retry, tracking)
       if (property === 'batch') {
         return (statements: D1PreparedStatement[]) => {
           const result = target.batch(statements.map(statement => rawStatements.get(statement) ?? statement))
@@ -200,7 +231,7 @@ function createMaintenanceTolerantStatement(
   sql: string,
   parameters: unknown[],
   initial: D1PreparedStatement,
-  options: D1MaintenanceRecoveryOptions,
+  retry: ReadRetryPolicy,
   tracking: WriteTracking | undefined,
 ): D1PreparedStatement {
   let readAttempt = 0
@@ -218,7 +249,7 @@ function createMaintenanceTolerantStatement(
           sql,
           values,
           target.bind(...values),
-          options,
+          retry,
           tracking,
         )
       }
@@ -235,7 +266,7 @@ function createMaintenanceTolerantStatement(
           if (typeof method !== 'function')
             throw new TypeError(`D1 statement method ${String(property)} is unavailable`)
           return method.apply(statement, args) as Promise<unknown>
-        }, options)
+        }, retry)
       }
       const value: unknown = Reflect.get(target, property, receiver)
       return typeof value === 'function' ? value.bind(target) : value
@@ -248,12 +279,8 @@ function createMaintenanceTolerantStatement(
 
 async function retryReplayableD1Read<T>(
   operation: () => Promise<T>,
-  options: D1MaintenanceRecoveryOptions,
+  retry: ReadRetryPolicy,
 ): Promise<T> {
-  const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 4))
-  const random = options.random ?? Math.random
-  const sleep = options.sleep ?? ((milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds)))
-
   for (let attempt = 0; ; attempt++) {
     const outcome: RetryOutcome<T> = await Promise.resolve()
       .then(operation)
@@ -263,12 +290,16 @@ async function retryReplayableD1Read<T>(
       )
     if (outcome._tag === 'ok')
       return outcome.value
-    if (!isRetryableD1Read(outcome.error) || attempt + 1 >= maxAttempts)
+    if (!isRetryableD1Read(outcome.error) || attempt + 1 >= retry.maxAttempts)
       throw outcome.error
 
-    const delayCeiling = 60 * 2 ** attempt
-    const jitter = Math.min(1, Math.max(0, random()))
-    await sleep(Math.round(delayCeiling * (0.5 + jitter * 0.5)))
+    retry.deadline ??= retry.now() + READ_RETRY_BUDGET_MS
+    const remaining = retry.deadline - retry.now()
+    if (remaining <= 0)
+      throw outcome.error
+    const delayCeiling = READ_RETRY_BASE_DELAY_MS * 2 ** attempt
+    const jitter = Math.min(1, Math.max(0, retry.random()))
+    await retry.sleep(Math.min(remaining, Math.round(delayCeiling * (0.5 + jitter * 0.5))))
   }
 }
 
