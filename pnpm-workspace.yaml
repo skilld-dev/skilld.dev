@@ -1,6 +1,6 @@
 minimumReleaseAgeExclude:
   - '@nuxt/cli@4.0.0'
-  - '@harlan-zw/comark-content@0.1.5 || 0.2.0'
+  - '@harlan-zw/comark-content@0.1.5 || 0.2.0 || 0.2.3'
   - '@harlan-zw/nuxt-cf-jobs'
   - '@harlan-zw/nuxt-checkin'
   - '@harlan-zw/nuxt-use-query@0.2.1 || 0.3.0'
@@ -56,15 +56,15 @@ minimumReleaseAgeExclude:
   - '@nuxtjs/seo@6.0.1'
   - '@nuxtjs/robots@7.0.2 || 7.1.0'
   - '@nuxtjs/sitemap@9.1.0'
-  - nuxt-og-image@7.0.3
-  - nuxt-ai-ready@3.5.0
+  - nuxt-og-image@7.0.3 || 7.2.1
+  - nuxt-ai-ready@3.5.0 || 3.6.2
   - nuxt-skew-protection@2.0.2 || 2.0.6
-  - nuxt-schema-org@7.0.1
-  - nuxt-seo-utils@9.0.0
+  - nuxt-schema-org@7.0.1 || 7.1.2
+  - nuxt-seo-utils@9.0.0 || 9.1.1
   - nuxt-link-checker@6.0.1
-  - nuxt-site-config@5.0.3 || 5.0.4
-  - nuxt-site-config-kit@5.0.3 || 5.0.4
-  - site-config-stack@5.0.3 || 5.0.4
+  - nuxt-site-config@5.0.3 || 5.0.4 || 5.1.1
+  - nuxt-site-config-kit@5.0.3 || 5.0.4 || 5.1.1
+  - site-config-stack@5.0.3 || 5.0.4 || 5.1.1
   - nuxtseo-shared@6.0.2
   - nuxtseo-devtools-host@1.0.2
   - nuxtseo-layer-devtools@6.0.2
@@ -232,10 +232,14 @@ overrides:
   '@nuxtjs/robots': 7.1.0
   '@unhead/bundler@^3.0.0': 3.5.0
   '@unhead/vue@^3.0.0': 3.5.0
-  nuxt-ai-ready: 3.5.0
-  nuxt-og-image: 7.0.3
-  nuxt-site-config: 5.0.4
+  nuxt-ai-ready: 3.6.2
+  nuxt-og-image: 7.2.1
+  nuxt-schema-org: 7.1.2
+  nuxt-seo-utils: 9.1.1
+  nuxt-site-config: 5.1.1
+  nuxt-site-config-kit: 5.1.1
   nuxt-skew-protection: 2.0.6
+  site-config-stack: 5.1.1
   unhead@^3.0.0: 3.5.0
 patchedDependencies:
   '@harlan-zw/nuxt-wide-events@0.2.0': patches/@harlan-zw__nuxt-wide-events@0.2.0.patch
@@ -247,11 +251,11 @@ catalog:
   '@cloudflare/sandbox': 1.0.0
   '@cloudflare/workers-types': ^5.20260901.1
   '@comark/nuxt': 0.7.0
-  '@harlan-zw/comark-content': 0.2.0
+  '@harlan-zw/comark-content': 0.2.3
   '@harlan-zw/jev': 0.3.0
   '@harlan-zw/nuxt-cf-jobs': 0.4.2
   '@harlan-zw/nuxt-checkin': 0.4.1
-  '@harlan-zw/nuxt-cloudflare': 0.6.0
+  '@harlan-zw/nuxt-cloudflare': 0.6.1
   '@harlan-zw/nuxt-dx': 0.3.0
   '@harlan-zw/nuxt-sentry': 0.3.0
   '@harlan-zw/nuxt-use-query': 0.3.0
@@ -273,7 +277,7 @@ catalog:
   '@nuxt/ui': ^4.11.2
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/mcp-toolkit': ^0.22.0
-  '@nuxtjs/seo': 6.0.1
+  '@nuxtjs/seo': 6.1.0
   '@playwright/test': ^1.62.1
   '@resvg/resvg-js': ^2.6.2
   '@sentry/cloudflare': ^11.1.0
