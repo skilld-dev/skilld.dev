@@ -1,10 +1,8 @@
 name: Test
 
-# The pull request gate. The three jobs carried three copies of the same four
-# setup steps; they now come from harlan-zw/harlan-nuxt so every site shares one
-# pinned copy.
-#
-# Pull request builds run separately from typechecks. Main reuses the deploy build.
+# The pull request gate. Pull request checks skip `harness-proof` unless the
+# Harness Worker or lockfile changed. `published-cli-grammar` runs on main pushes
+# without blocking production deploys.
 
 on:
   push:
@@ -22,16 +20,46 @@ concurrency:
 # so a workflow condition cannot protect a registered workstation runner.
 
 jobs:
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      harness: ${{ steps.filter.outputs.harness }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files=$(git diff --name-only "$BASE...$HEAD")
+          harness=false
+          while IFS= read -r file; do
+            case "$file" in
+              workers/skill-harness/*|pnpm-lock.yaml|.github/workflows/test.yml) harness=true; break ;;
+            esac
+          done <<< "$files"
+          echo "harness=$harness" >> "$GITHUB_OUTPUT"
+
   harness-proof:
+    needs: changes
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.changes.outputs.harness == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 26.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Build skill harness image
         run: docker build --tag skilld-harness-check ./workers/skill-harness
       - run: |
@@ -42,19 +70,24 @@ jobs:
   # .skills/skilld is a synced copy of skills/skilld in skilld-dev/skilld.
   # The check fails when the copy, its Agent links, or its declaration drift.
   declared-skills:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 26.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm check:skills
 
   site:
-    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@575a348edd78a65c6b28104a86d6a3401301c913
+    if: github.event_name == 'pull_request'
+    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
     with:
       node-version: 26.13.0
       runs-on: '["ubuntu-latest"]'
@@ -64,14 +97,9 @@ jobs:
       prepare-command: pnpm dev:prepare
       timeout-minutes: 30
 
-  # The only gate between a merge and production. `Deploy to Cloudflare` fires on
-  # this workflow's success for main, so a failure here stops the deploy.
-  #
-  # The main push runs it, pull requests do not: a site change cannot add a
-  # command to the published CLI, so gating every pull request on the CLI
-  # release would just hold unrelated work. The check clears itself once npm
-  # `latest` carries the printed grammar. To deploy before then, run
-  # `Deploy to Cloudflare` by hand.
+  # Runs on pushes to main without blocking production deploys. A site change
+  # cannot add a command to the published CLI, so gating pull requests or
+  # deploys on the npm release would hold unrelated work.
   published-cli-grammar:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -80,9 +108,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 26.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm cli:grammar
 
   build:
@@ -94,9 +125,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 26.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm build
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+      - name: Verify Worker startup and bundle
+        run: |
+          pnpm exec wrangler --cwd .output check startup --outfile "$RUNNER_TEMP/worker-startup.cpuprofile"
+          pnpm exec wrangler --cwd .output deploy --dry-run
