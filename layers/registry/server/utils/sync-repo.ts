@@ -27,6 +27,8 @@ export interface SyncRepoStats {
   reason?: string
   skillsSeen: number
   skillsUpserted: number
+  /** Existing healthy skills acknowledged unchanged without a D1 row write. */
+  skillsUnchanged: number
   /** Skills this sync followed to a new folder name (ADR-0017). */
   skillsRenamed?: number
   /** Files present upstream that GitHub will not return as text. */
@@ -928,6 +930,7 @@ export async function syncRepo(
     status: 'failed',
     skillsSeen: 0,
     skillsUpserted: 0,
+    skillsUnchanged: 0,
     skillsUnreadable: 0,
     revisionsInserted: 0,
     activityEmitted: 0,
@@ -1281,6 +1284,9 @@ export async function syncRepo(
           updateParams,
         ))
         stats.skillsUpserted += 1
+      }
+      else {
+        stats.skillsUnchanged += 1
       }
 
       if (referencesChanged) {

@@ -476,7 +476,7 @@ export function makeOwnedRepoScanner(deps: ScanOwnedReposDependencies) {
         continue
       }
 
-      if (stats.status === 'indexed' && stats.skillsUpserted > 0)
+      if (stats.status === 'indexed' && stats.skillsUpserted + (stats.skillsUnchanged ?? 0) > 0)
         counts.reposSynced += 1
       else if (stats.status === 'verified-only')
         counts.reposVerifiedOnly += 1

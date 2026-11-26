@@ -320,7 +320,7 @@ describe('syncRepo content acknowledgement', () => {
 
     const result = await syncRepo('acme', 'skills', {}, db)
 
-    expect(result).toMatchObject({ status: 'indexed', skillsUpserted: 0 })
+    expect(result).toMatchObject({ status: 'indexed', skillsUpserted: 0, skillsUnchanged: 1 })
     expect(sqlite.prepare(`SELECT sync_status, source_resolved, last_synced_at FROM skills WHERE name = 'one'`).get()).toEqual({
       sync_status: 'ok',
       source_resolved: 1,

@@ -497,4 +497,23 @@ describe('sync failure permanence', () => {
       error: 'blob_batch_partial:some/path/SKILL.md',
     })
   })
+
+  it('treats an indexed sync whose healthy skills were acknowledged unchanged as indexed', () => {
+    expect(discoveryOutcomeFromSyncStats({
+      status: 'indexed',
+      skillsUpserted: 0,
+      skillsUnchanged: 2,
+    } as never)).toEqual({ _tag: 'indexed' })
+  })
+
+  it('still fails an indexed sync that neither upserted nor acknowledged any skill', () => {
+    expect(discoveryOutcomeFromSyncStats({
+      status: 'indexed',
+      skillsUpserted: 0,
+      skillsUnchanged: 0,
+    } as never)).toEqual({
+      _tag: 'retryable_failure',
+      error: 'indexed_without_upsert',
+    })
+  })
 })

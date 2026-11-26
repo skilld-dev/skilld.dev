@@ -18,6 +18,8 @@ function indexed(owner: string, repo: string, skillsUpserted = 1): SyncRepoStats
     reason: skillsUpserted > 0 ? undefined : 'trust_inputs_insufficient',
     skillsSeen: 1,
     skillsUpserted,
+    skillsUnchanged: 0,
+    skillsUnreadable: 0,
     revisionsInserted: 0,
     activityEmitted: skillsUpserted > 0 ? 1 : 0,
   }
@@ -137,6 +139,58 @@ describe('owned GitHub repository discovery', () => {
     const result = await scan({ login: 'acme', userToken: 'token', db, env: {} as Cloudflare.Env })
 
     expect(result).toMatchObject({ reposSynced: 0, reposRejected: 1, reposFailed: 0 })
+  })
+
+  it('counts an unchanged single-chunk indexed sync as synced and completes the candidate', async () => {
+    const scan = makeOwnedRepoScanner({
+      fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: noOrgs,
+      syncRepo: vi.fn(async (owner, repo) => ({
+        ...indexed(owner, repo, 0),
+        status: 'indexed' as const,
+        reason: undefined,
+        skillsUpserted: 0,
+        skillsUnchanged: 2,
+      })),
+      resolveGithubBindings: () => ({}),
+      now: () => 100,
+      claimToken: () => 'claim-one',
+    })
+
+    const result = await scan({ login: 'acme', userToken: 'token', db, env: {} as Cloudflare.Env })
+
+    expect(result).toMatchObject({ _tag: 'complete', reposSynced: 1, reposFailed: 0 })
+    expect(sqlite.prepare(`SELECT outcome, retry_state, last_error FROM discovery_candidates`).get()).toEqual({
+      outcome: 'indexed',
+      retry_state: 'complete',
+      last_error: null,
+    })
+  })
+
+  it('still fails an indexed sync that acknowledged zero upserted and zero unchanged skills', async () => {
+    const scan = makeOwnedRepoScanner({
+      fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: noOrgs,
+      syncRepo: vi.fn(async (owner, repo) => ({
+        ...indexed(owner, repo, 0),
+        status: 'indexed' as const,
+        reason: undefined,
+        skillsUpserted: 0,
+        skillsUnchanged: 0,
+      })),
+      resolveGithubBindings: () => ({}),
+      now: () => 100,
+      claimToken: () => 'claim-one',
+    })
+
+    const result = await scan({ login: 'acme', userToken: 'token', db, env: {} as Cloudflare.Env })
+
+    expect(result).toMatchObject({ _tag: 'complete', reposSynced: 0, reposFailed: 1 })
+    expect(sqlite.prepare(`SELECT outcome, retry_state, last_error FROM discovery_candidates`).get()).toEqual({
+      outcome: 'retryable_failure',
+      retry_state: 'retry_scheduled',
+      last_error: 'indexed_without_upsert',
+    })
   })
 
   it('reports a stale terminal claim after sync success as a retryable candidate-state failure', async () => {

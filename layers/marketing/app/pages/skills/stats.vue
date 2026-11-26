@@ -11,10 +11,7 @@ defineOgImage('Page.takumi', {
   description: 'Charts for repository maintenance, age, stars, owners, and skill counts.',
 }, { alt: 'Skills stats on skilld' })
 
-const { isBot } = useBotDetection()
-const { data, status, error, refresh } = useFetch<SkillsStats>('/api/skills/stats', {
-  lazy: !isBot.value,
-})
+const { data, status, error, refresh } = await useFetch<SkillsStats>('/api/skills/stats')
 
 const { prefersReducedMotion } = useMotionA11y()
 
