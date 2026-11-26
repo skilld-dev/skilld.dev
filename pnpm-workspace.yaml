@@ -327,7 +327,7 @@ catalog:
   vue-tsc: 3.3.14
   wrangler: ^4.127.1
   yaml: ^2.9.0
-  zod: ^4.6.6
+  zod: ^4.6.7
 catalogs:
   harness:
     '@cloudflare/workers-types': 5.20261002.1
