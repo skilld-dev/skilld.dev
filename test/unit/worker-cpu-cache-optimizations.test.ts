@@ -139,6 +139,99 @@ describe('static and scanner 404 probe matcher', () => {
   })
 })
 
+describe('fast plain-text 410 gone middleware', () => {
+  it('answers /people/* with plain-text 410 and keeps /people/harlanzw.com redirecting 301', async () => {
+    const middleware = (await import('../../server/middleware/people-gone')).default
+    const app = createApp()
+    app.use(middleware)
+    app.use(defineEventHandler(() => 'passed'))
+    const handle = toWebHandler(app)
+
+    const gone = await handle(new Request('http://localhost/people/someone.bsky.social'))
+    expect(gone.status).toBe(410)
+    expect(gone.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect(gone.headers.get('x-robots-tag')).toBe('noindex')
+    expect(gone.headers.get('cache-control')).toBe('no-store')
+    expect(gone.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=300')
+    expect(await gone.text()).toBe('Gone')
+
+    const head = await handle(new Request('http://localhost/people', { method: 'HEAD' }))
+    expect(head.status).toBe(410)
+    expect(head.headers.get('x-robots-tag')).toBe('noindex')
+    expect(head.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=300')
+    expect(await head.text()).toBe('')
+
+    const post = await handle(new Request('http://localhost/people/foo', { method: 'POST' }))
+    expect(post.status).toBe(410)
+    expect(post.headers.get('cloudflare-cdn-cache-control')).toBe('no-store')
+
+    const redirect = await handle(new Request('http://localhost/people/harlanzw.com'))
+    expect(redirect.status).toBe(301)
+    expect(redirect.headers.get('location')).toBe('/@harlanzw')
+
+    const redirectSlash = await handle(new Request('http://localhost/people/harlanzw.com/'))
+    expect(redirectSlash.status).toBe(301)
+    expect(redirectSlash.headers.get('location')).toBe('/@harlanzw')
+
+    const other = await handle(new Request('http://localhost/skills'))
+    expect(other.status).toBe(200)
+    expect(await other.text()).toBe('passed')
+  })
+
+  it('answers /guides and /guides/* with plain-text 410 before SSR', async () => {
+    const middleware = (await import('../../server/middleware/guides-gone')).default
+    const app = createApp()
+    app.use(middleware)
+    app.use(defineEventHandler(() => 'passed'))
+    const handle = toWebHandler(app)
+
+    for (const path of ['/guides', '/guides/npm/example']) {
+      const res = await handle(new Request(`http://localhost${path}`))
+      expect(res.status).toBe(410)
+      expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+      expect(res.headers.get('x-robots-tag')).toBe('noindex')
+      expect(res.headers.get('cache-control')).toBe('no-store')
+      expect(res.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=300')
+      expect(await res.text()).toBe('This guide is no longer available.')
+    }
+
+    const head = await handle(new Request('http://localhost/guides/npm/example', { method: 'HEAD' }))
+    expect(head.status).toBe(410)
+    expect(head.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=300')
+    expect(await head.text()).toBe('')
+
+    const other = await handle(new Request('http://localhost/skills/guide'))
+    expect(other.status).toBe(200)
+    expect(await other.text()).toBe('passed')
+  })
+
+  it('answers retired collections with plain-text 410 before SSR', async () => {
+    const middleware = (await import('../../server/middleware/retired-collections')).default
+    const app = createApp()
+    app.use(middleware)
+    app.use(defineEventHandler(() => 'passed'))
+    const handle = toWebHandler(app)
+
+    for (const path of ['/@harlan-zw/apple-apps', '/%40harlan-zw/knowledge-workspace/']) {
+      const res = await handle(new Request(`http://localhost${path}`))
+      expect(res.status).toBe(410)
+      expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+      expect(res.headers.get('x-robots-tag')).toBe('noindex')
+      expect(res.headers.get('cache-control')).toBe('no-store')
+      expect(res.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=300')
+      expect(await res.text()).toBe('Gone')
+    }
+
+    const head = await handle(new Request('http://localhost/@harlan-zw/apple-apps', { method: 'HEAD' }))
+    expect(head.status).toBe(410)
+    expect(await head.text()).toBe('')
+
+    const live = await handle(new Request('http://localhost/@harlan-zw/agent-building-stack'))
+    expect(live.status).toBe(200)
+    expect(await live.text()).toBe('passed')
+  })
+})
+
 describe('skill-file-page Vary header', () => {
   it('adds Vary: Host on Skill file deep links so apex and www stay isolated in edge cache', async () => {
     vi.stubGlobal('defineEventHandler', defineEventHandler)
