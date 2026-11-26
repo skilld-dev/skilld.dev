@@ -56,10 +56,8 @@ const CLUSTERS_INDEX_STALE_SECONDS = 60 * 60 * 24
 const ISOLATE_CACHE_MS = 60_000
 let isolateCache: { value: { items: ClusterCard[] }, expiresAt: number } | null = null
 
-// Membership changes only when a sync or classifier writes skills, and the
-// category query reads ~53K rows. Use `cached` over the global KV `cache`
-// mount with in-isolate refresh claiming + 60s isolate memory cache instead of
-// bare `defineCachedEventHandler`, which missed concurrently on 10m expiry.
+// Category membership reads ~53K rows and only changes on sync or classification.
+// Use global KV `cached` with a 60s isolate cache to avoid concurrent 10m misses.
 export default defineEventHandler(async (event): Promise<{ items: ClusterCard[] }> => {
   setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=600, stale-while-revalidate=3600')
   const now = Date.now()
@@ -101,10 +99,8 @@ export default defineEventHandler(async (event): Promise<{ items: ClusterCard[] 
           .sort((a, b) => b.is_abstract - a.is_abstract || b.stars - a.stars || a.name.localeCompare(b.name))
         const examples = curateClusterSkills(inCluster, c.pinnedExamples).slice(0, EXAMPLES_PER_CARD)
 
-        // Avatars answer "who writes this kind of skill", so they rank by the
-        // author's reach rather than by whichever example happened to be pinned.
-        // Abstract-first here too, or the backfill hands every track the same
-        // handful of vendor avatars.
+        // Rank avatars by author reach, abstract-first, so pinned examples or
+        // backfill do not hand every track the same vendor avatars.
         const authors: string[] = []
         const byStars = [...inCluster].sort((a, b) => b.is_abstract - a.is_abstract || b.stars - a.stars || a.owner.localeCompare(b.owner))
         for (const row of byStars) {

@@ -2,7 +2,12 @@ import type { XClient, XPost } from '../../shared/server/x-client'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ZERO_METRICS } from '../../shared/server/x-client'
-import { refreshXEngagement } from '../../shared/server/x-refresh'
+import {
+  refreshXEngagement,
+  X_POST_METRICS_PRUNE_AT_SECOND_SQL,
+  X_POST_METRICS_PRUNE_SCAN_SQL,
+  xPostMetricsPruneDeleteSql,
+} from '../../shared/server/x-refresh'
 import { DEFAULT_REFRESH_POLICY } from '../../shared/x-refresh-policy'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -303,5 +308,132 @@ describe('refreshXEngagement', () => {
       { post_id: 'active', observed_at: NOW },
       { post_id: 'dormant', observed_at: ancient },
     ])
+  })
+
+  it('prunes expired intermediate snapshots for frozen posts while keeping latest and in-window rows', async () => {
+    const expired = NOW - 40 * 24 * HOUR
+    const recent = NOW - 10 * 24 * HOUR
+    seedPost({ id: 'frozen-multi', tier: 'frozen', postedAt: expired - 12 * HOUR, metricsUpdatedAt: expired })
+    seedPost({ id: 'frozen-single', tier: 'frozen', postedAt: expired - 12 * HOUR, metricsUpdatedAt: expired })
+    seedPost({ id: 'frozen-recent', tier: 'frozen', postedAt: recent - 12 * HOUR, metricsUpdatedAt: recent })
+
+    const insertSnapshot = db().raw.prepare(
+      `INSERT INTO x_post_metrics (post_id, observed_at, favourite_count, repost_count,
+         reply_count, quote_count, bookmark_count, impression_count)
+       VALUES (?, ?, ?, 0, 0, 0, 0, 0)`,
+    )
+    insertSnapshot.run('frozen-multi', expired - 2 * HOUR, 1)
+    insertSnapshot.run('frozen-multi', expired - HOUR, 5)
+    insertSnapshot.run('frozen-multi', expired, 10)
+    insertSnapshot.run('frozen-single', expired, 3)
+    insertSnapshot.run('frozen-recent', recent - 2 * HOUR, 1)
+    insertSnapshot.run('frozen-recent', recent - HOUR, 4)
+    insertSnapshot.run('frozen-recent', recent, 8)
+
+    const { client } = stubClient([])
+    const first = await refreshXEngagement({ db: db().db, client, now: NOW })
+
+    expect(first.snapshotsPruned).toBe(2)
+    expect(
+      db().raw.prepare('SELECT post_id, observed_at FROM x_post_metrics ORDER BY post_id, observed_at').all(),
+    ).toEqual([
+      { post_id: 'frozen-multi', observed_at: expired },
+      { post_id: 'frozen-recent', observed_at: recent - 2 * HOUR },
+      { post_id: 'frozen-recent', observed_at: recent - HOUR },
+      { post_id: 'frozen-recent', observed_at: recent },
+      { post_id: 'frozen-single', observed_at: expired },
+    ])
+
+    // Steady-state next run advances past already-swept rows without rescanning them.
+    const second = await refreshXEngagement({ db: db().db, client, now: NOW + HOUR })
+    expect(second.snapshotsPruned).toBe(0)
+  })
+
+  it('drains a frozen snapshot backlog across bounded runs including same-second ties', async () => {
+    const t1 = NOW - 60 * 24 * HOUR
+    const t2 = NOW - 50 * 24 * HOUR
+    const t3 = NOW - 40 * 24 * HOUR
+    for (const id of ['p1', 'p2', 'p3'])
+      seedPost({ id, tier: 'frozen', postedAt: t1 - HOUR, metricsUpdatedAt: t3 })
+
+    const insertSnapshot = db().raw.prepare(
+      `INSERT INTO x_post_metrics (post_id, observed_at, favourite_count, repost_count,
+         reply_count, quote_count, bookmark_count, impression_count)
+       VALUES (?, ?, 1, 0, 0, 0, 0, 0)`,
+    )
+    // Three posts share exact timestamp t1 (> pruneScanLimit: 2), plus later rows at t2 and t3.
+    insertSnapshot.run('p1', t1)
+    insertSnapshot.run('p2', t1)
+    insertSnapshot.run('p3', t1)
+    insertSnapshot.run('p1', t2)
+    insertSnapshot.run('p2', t2)
+    insertSnapshot.run('p3', t2)
+    insertSnapshot.run('p1', t3)
+    insertSnapshot.run('p2', t3)
+    insertSnapshot.run('p3', t3)
+
+    const { client } = stubClient([])
+    const run1 = await refreshXEngagement({ db: db().db, client, now: NOW, pruneScanLimit: 2 })
+    const run2 = await refreshXEngagement({ db: db().db, client, now: NOW + HOUR, pruneScanLimit: 2 })
+    const run3 = await refreshXEngagement({ db: db().db, client, now: NOW + 2 * HOUR, pruneScanLimit: 2 })
+
+    expect(run1.snapshotsPruned + run2.snapshotsPruned + run3.snapshotsPruned).toBe(6)
+    expect(
+      db().raw.prepare('SELECT post_id, observed_at FROM x_post_metrics ORDER BY post_id, observed_at').all(),
+    ).toEqual([
+      { post_id: 'p1', observed_at: t3 },
+      { post_id: 'p2', observed_at: t3 },
+      { post_id: 'p3', observed_at: t3 },
+    ])
+  })
+
+  it('advances the prune watermark across distinct-timestamp batches without skipping rows', async () => {
+    const base = NOW - 60 * 24 * HOUR
+    const posts = ['d1', 'd2', 'd3']
+    const insertSnapshot = db().raw.prepare(
+      `INSERT INTO x_post_metrics (post_id, observed_at, favourite_count, repost_count,
+         reply_count, quote_count, bookmark_count, impression_count)
+       VALUES (?, ?, 1, 0, 0, 0, 0, 0)`,
+    )
+    posts.forEach((id, i) => {
+      const start = base + i * 100
+      seedPost({ id, tier: 'frozen', postedAt: start, metricsUpdatedAt: start + 10 })
+      insertSnapshot.run(id, start)
+      insertSnapshot.run(id, start + 10)
+    })
+
+    const { client } = stubClient([])
+    let totalPruned = 0
+    for (let run = 0; run < 5; run++)
+      totalPruned += (await refreshXEngagement({ db: db().db, client, now: NOW + run * HOUR, pruneScanLimit: 2 })).snapshotsPruned
+
+    expect(totalPruned).toBe(3)
+    expect(
+      db().raw.prepare('SELECT post_id, observed_at FROM x_post_metrics ORDER BY post_id, observed_at').all(),
+    ).toEqual([
+      { post_id: 'd1', observed_at: base + 10 },
+      { post_id: 'd2', observed_at: base + 110 },
+      { post_id: 'd3', observed_at: base + 210 },
+    ])
+  })
+
+  it('uses idx_x_post_metrics_observed and primary key seeks without full scans', () => {
+    const explain = (sql: string, ...params: unknown[]): string =>
+      (db().raw.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params) as Array<{ detail: string }>)
+        .map(row => row.detail)
+        .join('\n')
+
+    const scanPlan = explain(X_POST_METRICS_PRUNE_SCAN_SQL, 0, NOW - 30 * 24 * HOUR, 500)
+    expect(scanPlan).toContain('idx_x_post_metrics_observed (observed_at>? AND observed_at<?)')
+    expect(scanPlan).not.toContain('SCAN')
+
+    const tiePlan = explain(X_POST_METRICS_PRUNE_AT_SECOND_SQL, NOW - 30 * 24 * HOUR)
+    expect(tiePlan).toContain('idx_x_post_metrics_observed (observed_at=?)')
+    expect(tiePlan).not.toContain('SCAN')
+
+    const deletePlan = explain(xPostMetricsPruneDeleteSql(2), 'p1', 'p2', NOW - 30 * 24 * HOUR)
+    expect(deletePlan).toContain('SEARCH x_post_metrics USING COVERING INDEX sqlite_autoindex_x_post_metrics_1 (post_id=? AND observed_at<?)')
+    expect(deletePlan).toContain('SEARCH newer USING COVERING INDEX sqlite_autoindex_x_post_metrics_1 (post_id=? AND observed_at>?)')
+    expect(deletePlan).not.toContain('SCAN')
   })
 })

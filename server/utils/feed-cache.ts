@@ -57,10 +57,8 @@ export async function cachedFeed<T>(
     return mem.value as T
   }
 
-  // Canonical global feeds (recent-publishes, recent-updates, standard trending
-  // views) have bounded key cardinality and expensive multi-table D1 recomputes.
-  // Non-canonical query combinations fall back to `edge-cache` so crawlers
-  // cannot amplify billed KV writes.
+  // Canonical feeds use bounded KV keys to avoid costly D1 recomputes;
+  // non-canonical queries fall back to `edge-cache` to cap billed KV writes.
   const value = await readThroughCache(useStorage(storageName), key, compute, window)
   writeIsolateFeedCache(
     memKey,

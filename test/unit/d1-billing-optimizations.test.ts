@@ -4,6 +4,7 @@ import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { repoStarObservationStatements } from '../../layers/registry/server/utils/repo-history'
 import { SUBSCRIBED_SYNC_CANDIDATES_SQL } from '../../layers/registry/server/utils/sync-candidates'
+import { X_POST_METRICS_PRUNE_SCAN_SQL } from '../../shared/server/x-refresh'
 
 const migrationsDir = resolve(process.cwd(), 'migrations')
 
@@ -78,18 +79,9 @@ describe('migration 0162 index and trigger optimizations', () => {
       expect(subscribedPlan).toContain('SEARCH r USING INDEX sqlite_autoindex_repos_1')
       expect(subscribedPlan).not.toContain('SCAN r')
 
-      const prunePlan = plan(
-        `DELETE FROM x_post_metrics
-         WHERE observed_at < ?1
-           AND EXISTS (
-             SELECT 1 FROM x_post_metrics newer
-             WHERE newer.post_id = x_post_metrics.post_id
-               AND newer.observed_at >= ?1
-           )`,
-        { 1: 1_000_000 },
-      )
-      expect(prunePlan).toContain('idx_x_post_metrics_observed (observed_at<?)')
-      expect(prunePlan).not.toContain('LIST SUBQUERY')
+      const prunePlan = plan(X_POST_METRICS_PRUNE_SCAN_SQL, { 1: 0, 2: 1_000_000, 3: 500 })
+      expect(prunePlan).toContain('idx_x_post_metrics_observed (observed_at>? AND observed_at<?)')
+      expect(prunePlan).not.toContain('SCAN')
     }
     finally {
       sqlite.close()
