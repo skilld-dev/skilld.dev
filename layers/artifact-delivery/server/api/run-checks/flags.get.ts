@@ -25,6 +25,7 @@ export default defineApiHandler({
   handler: async ({ event, body, platform }) => {
     // The sweep settles checks every 15 minutes, so one minute of reuse is safe.
     setHeader(event, 'cache-control', 'public, max-age=60')
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=60, stale-while-revalidate=300')
     const allFlags = await readThroughCache(
       useStorage('edge-cache'),
       RUN_CHECK_FLAGS_CACHE_KEY,

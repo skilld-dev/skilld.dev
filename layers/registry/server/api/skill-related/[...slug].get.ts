@@ -4,6 +4,7 @@ import type { GithubBindings } from '../../utils/github-client'
 import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
 import type { SkillCommitSourceRow } from '../../utils/skill-commit-source'
 import type { CachedRelated } from '../../utils/skill-related'
+import { setHeader } from 'h3'
 import { readCache, readThroughCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
@@ -111,6 +112,7 @@ export default defineApiHandler({
     if (cached._tag === 'missing')
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=300, stale-while-revalidate=3600')
     return cached.response
   },
 })

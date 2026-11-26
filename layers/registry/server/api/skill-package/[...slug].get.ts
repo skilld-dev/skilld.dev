@@ -1,3 +1,4 @@
+import { setHeader } from 'h3'
 import { readThroughCache } from '#shared/server/cache'
 import { dependencyOutageError } from '#shared/server/dependency-outage'
 import { defineApiHandler } from '#shared/server/handler'
@@ -50,6 +51,7 @@ export default defineApiHandler({
     )
     if (result._tag === 'Unavailable')
       throw dependencyOutageError({ dependency: 'GitHub or npm', message: 'Package details are unavailable. Try again later.' })
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=600, stale-while-revalidate=3600')
     return result
   },
   presenter: presentPnpmPackage,

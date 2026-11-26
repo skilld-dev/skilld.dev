@@ -586,17 +586,10 @@ export default defineNuxtConfig({
     '/api/community': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
     '/api/feed/recent-updates': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
     '/api/feed/recent-publishes': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
-    '/api/feed/trending': edgeCache({ maxAge: 120, staleWhileRevalidate: 1800 }),
-    '/api/run-checks/flags': edgeCache({ maxAge: 60, staleWhileRevalidate: 300, browser: { maxAge: 60 } }),
-    '/api/skill-demos': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
-    '/api/skill-asset/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
-    '/api/skill-related/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
-    '/api/skill-package/**': edgeCache({ maxAge: 600, staleWhileRevalidate: 3600 }),
     '/api/skills/tags': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
     // Search and browse. The Workers Cache key includes the query string, so
     // each distinct query caches separately. Nothing here varies by user.
     '/api/skills': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=120, stale-while-revalidate=600, stale-if-error=3600' } } as any,
-    '/api/skills/**': edgeCache({ maxAge: 60, staleWhileRevalidate: 300 }),
     '/api/clusters': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=600' } } as any,
     '/api/clusters/:slug': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
     '/api/orgs/:owner': {
@@ -623,13 +616,7 @@ export default defineNuxtConfig({
     '/skills': edgeCache({ maxAge: 120, staleWhileRevalidate: 3600 }),
     '/skills/:cluster': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     '/skills/tag/:slug': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
-    '/community': edgeCache({ maxAge: 120, staleWhileRevalidate: 3600 }),
     '/frameworks/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
-    '/agents/**': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
-    '/compare/**': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
-    '/vs/**': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
-    '/learn/**': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
-    '/docs/**': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
     // Demos change on deploy, and when a run check flag hides one. A flag
     // takes two failed checks, so a day of stale serving on a quiet colo is
     // within the time the checks themselves take.
