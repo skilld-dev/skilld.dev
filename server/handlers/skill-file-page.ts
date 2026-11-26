@@ -1,3 +1,4 @@
+import { appendResponseHeader } from 'h3'
 import { AI_READY_INTERNAL_HEADER } from '#shared/content-negotiation'
 import { isSkillFilePagePath } from '#shared/skill-asset-path'
 
@@ -10,7 +11,9 @@ import { isSkillFilePagePath } from '#shared/skill-asset-path'
  * no per-route opt-out; it skips only requests that carry its internal header.
  *
  * Content negotiation skips the same requests. The file is already the
- * content, so no Markdown twin exists to redirect to.
+ * content, so no Markdown twin exists to redirect to. Because negotiation does
+ * not run, set `Vary: Host` here so edge-cached apex file pages never answer
+ * `www` requests.
  * The request plugin calls this before the module caches its routing decision.
  */
 export default defineEventHandler((event) => {
@@ -20,4 +23,5 @@ export default defineEventHandler((event) => {
   const headers = new Headers(event.req.headers)
   headers.set(AI_READY_INTERNAL_HEADER, '1')
   Object.defineProperty(event.req, 'headers', { value: headers, configurable: true })
+  appendResponseHeader(event, 'vary', 'Host')
 })

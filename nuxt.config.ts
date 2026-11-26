@@ -641,10 +641,12 @@ export default defineNuxtConfig({
     //
     // Owner and repository hubs render signed out and vary on User-Agent for
     // crawler renders. Nitro 3 matches the hub segments explicitly.
-    // File links (`/gh/o/r/s/-/...`) stay uncached.
+    // File deep links (`/gh/o/r/s/-/...`) also render signed out without
+    // bot-specific branches; `skill-file-page.ts` sets `Vary: Host`.
     '/gh/:owner': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     '/gh/:owner/:repo': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     '/gh/:owner/:repo/:name': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
+    '/gh/:owner/:repo/:name/-/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     // Raw markdown and the typeahead index deliberately keep browser caching
     // too: both are large, identical for everyone, and only change when the
     // registry does.
@@ -768,7 +770,10 @@ export default defineNuxtConfig({
     '/_nuxt/v2/**': {
       headers: {
         'cache-control': 'public, max-age=31536000, immutable',
-        'cloudflare-cdn-cache-control': 'max-age=60',
+        // Build assets are content-hashed and retained across deploys by
+        // `skewProtection`. Misses fall through to `server/routes/_nuxt/v2/[...path].ts`,
+        // which returns a `no-store` 404 so transient misses never stick.
+        'cloudflare-cdn-cache-control': 'public, max-age=31536000, immutable',
       },
     },
     // Dev-only sandbox (404s in production, see app/pages/_playground/mdxg.vue).

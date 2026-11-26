@@ -116,6 +116,22 @@ describe('agent Skill page Markdown source', () => {
     expect(source?.title).toBe('writing')
   })
 
+  it('short-circuits a missing explicit Skill Markdown URL with 404 and noindex', async () => {
+    const response = await requestMarkdownResponse('/gh/author/repository/does-not-exist', [{ name: 'writing' }])
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('x-robots-tag')).toBe('noindex')
+    expect((await response.json()).source.markdown).toContain('Page not found')
+  })
+
+  it('short-circuits a removed explicit Skill Markdown URL with 410 and noindex', async () => {
+    const response = await requestMarkdownResponse('/gh/author/repository/removed', [{ name: 'removed', resolved: 0 }])
+
+    expect(response.status).toBe(410)
+    expect(response.headers.get('x-robots-tag')).toBe('noindex')
+    expect((await response.json()).source.markdown).toContain('no longer available')
+  })
+
   it.each([
     ['/gh/author/repository', [{ name: 'writing' }, { name: 'design' }]],
     ['/gh/author/repository', [{ name: 'removed', resolved: 0 }]],

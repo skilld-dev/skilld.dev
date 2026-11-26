@@ -19,7 +19,7 @@ import { findSkillDemo, presentSkillDemo } from '../../utils/skill-demos'
 import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { readRepositoryLicense } from '../../utils/skill-license'
-import { parseSkillMd } from '../../utils/skill-md-render'
+import { canReuseStoredSkillHtml, parseSkillMd } from '../../utils/skill-md-render'
 import { loadLinkableRepoSkillNames } from '../../utils/skill-stored-source'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
@@ -262,7 +262,15 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   // cost 557 D1 writes in two minutes of one crawler burst on 2026-09-29.
   let rendered: RenderedView
   if (row.rendered_html && row.rendered_status === 'ok') {
-    const reparsed = row.rendered_raw
+    const reuseStored = canReuseStoredSkillHtml({
+      raw: row.rendered_raw,
+      html: row.rendered_html,
+      frontmatter: row.rendered_frontmatter,
+      sourceResolved: row.source_resolved,
+      skillNames: repoSkillNames,
+      currentSkill: skill.name,
+    })
+    const reparsed = !reuseStored && row.rendered_raw
       ? await parseSkillMd(row.rendered_raw, {
           owner: source.owner,
           repo: source.repo,

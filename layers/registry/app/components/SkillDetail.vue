@@ -325,23 +325,6 @@ const runFlagFetch = useFetch<RunCheckFlagsResponse>('/api/run-checks/flags', {
 })
 const runFlag = computed(() => runFlagFetch.data.value?.items[0] ?? null)
 
-const liveSkillFetch = useAsyncData<LiveSkill | null>(
-  () => `skill-live:${slug.value}`,
-  () => $fetch<LiveSkill>(`/api/skill-live/${slug.value}`),
-  {
-    watch: [slug],
-    default: () => null,
-  },
-)
-
-// Both responsive command blocks share one optional package check after hydration.
-const packageFetch = useAsyncData<PnpmPackage | null>(
-  () => `skill-package:${slug.value}`,
-  () => $fetch<PnpmPackage>(`/api/skill-package/${slug.value}`),
-  { server: false, default: () => null },
-)
-const pnpmPackage = computed(() => packageFetch.data.value?._tag === 'Found' ? packageFetch.data.value : null)
-
 // Keep complete SSR for search and link previews. Client navigation renders
 // the loading state immediately while these independent requests run together.
 // A deep link renders its file on the server, so the link shows that file
@@ -356,10 +339,44 @@ const initialFileFetch = props.file
   ? useFetch<SkillAssetResponse>(() => `/api/skill-asset/${slug.value}/${props.file}`, { watch: false })
   : null
 
-if (import.meta.server)
-  await Promise.all([skillFetch, liveSkillFetch, runFlagFetch, ...(initialFileFetch ? [initialFileFetch] : [])])
+if (import.meta.server) {
+  await Promise.all([skillFetch, runFlagFetch, ...(initialFileFetch ? [initialFileFetch] : [])])
+  const fileErrorStatus = initialFileFetch?.error.value?.statusCode
+  if (initialFileFetch?.error.value && fileErrorStatus !== 404 && fileErrorStatus !== 410) {
+    const event = useRequestEvent()
+    if (event)
+      event.context.hubRenderFailed = true
+  }
+}
 
 const { data, status, error, refresh } = skillFetch
+const isMissingSkill = computed(() => error.value?.statusCode === 404)
+const hasLiveSkill = computed(() => Boolean(data.value && !data.value.sourceGone && !isMissingSkill.value))
+
+// Third-party security audits from skills.sh load in the browser for live
+// Skills only, matching related skills and package checks. Crawlers and 404/410
+// hits never pay an outbound upstream fetch during SSR.
+const liveSkillFetch = useAsyncData<LiveSkill | null>(
+  () => `skill-live:${slug.value}`,
+  () => hasLiveSkill.value ? $fetch<LiveSkill>(`/api/skill-live/${slug.value}`) : Promise.resolve(null),
+  {
+    server: false,
+    watch: [slug, hasLiveSkill],
+    default: () => null,
+  },
+)
+
+// Both responsive command blocks share one optional package check after hydration.
+const packageFetch = useAsyncData<PnpmPackage | null>(
+  () => `skill-package:${slug.value}`,
+  () => hasLiveSkill.value ? $fetch<PnpmPackage>(`/api/skill-package/${slug.value}`) : Promise.resolve(null),
+  {
+    server: false,
+    watch: [slug, hasLiveSkill],
+    default: () => null,
+  },
+)
+const pnpmPackage = computed(() => packageFetch.data.value?._tag === 'Found' ? packageFetch.data.value : null)
 const rootSource = shallowRef<{ slug: string, sha: string | null, html: string | null, raw: string | null } | null>(null)
 const rootRaw = computed(() => data.value?.raw ?? (
   rootSource.value?.slug === slug.value
@@ -418,7 +435,6 @@ const starTrend = computed(() => {
 })
 const { data: liveSkill } = liveSkillFetch
 
-const isMissingSkill = computed(() => error.value?.statusCode === 404)
 const missingSkillQuery = computed(() => name.value
   .replace(/[-_:]+/g, ' ')
   .replace(/\s+/g, ' ')
@@ -446,9 +462,8 @@ async function loadMissingSkillMatches(): Promise<void> {
   await searchForMissingSkill()
 }
 
-if (import.meta.server && isMissingSkill.value)
-  await loadMissingSkillMatches()
-
+// Browser only: human visitors on a 404 immediately get live recovery matches
+// without bots burning D1 FTS5 searches on every missing Skill URL.
 watch([isMissingSkill, missingSkillQuery], () => {
   if (import.meta.client && isMissingSkill.value)
     void loadMissingSkillMatches()
@@ -485,15 +500,23 @@ const sourceUnavailableDetail = computed(() => {
   return 'The source file moved or was removed. Browse the repository to find its current location.'
 })
 
-const { data: skillFiles } = useFetch(
+const skillFilesFetch = useFetch(
   () => `/api/skill-files/${slug.value}`,
-  { watch: [slug], lazy: true, server: false, immediate: true, default: () => null },
+  { watch: false, lazy: true, server: false, immediate: false, default: () => null },
 ) as ReturnType<typeof useFetch<{
   skillPath: string | null
   branch: string
   files: { path: string, size: number, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }[]
   total: number
 } | null>>
+const { data: skillFiles } = skillFilesFetch
+const requestedSkillFilesSlug = ref<string | null>(null)
+watch([slug, hasLiveSkill], ([key, live]) => {
+  if (!import.meta.client || !live || requestedSkillFilesSlug.value === key)
+    return
+  requestedSkillFilesSlug.value = key
+  void skillFilesFetch.refresh()
+}, { immediate: true })
 
 // Prefer the stored file inventory endpoint; fall back to detail metadata.
 const treeAssets = computed(() => {

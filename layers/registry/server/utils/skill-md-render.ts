@@ -222,6 +222,49 @@ async function resolveProxiedImages(
   return proxied
 }
 
+export interface StoredSkillHtmlReuseInput {
+  raw: string | null
+  html: string | null
+  frontmatter: string | null
+  sourceResolved: number | null
+  skillNames: readonly string[]
+  currentSkill: string
+}
+
+/**
+ * True when the sync-time `rendered_html` and `rendered_frontmatter` in D1 are
+ * already exact and re-running `marked` + `rangi` at request time would only
+ * reproduce the same output.
+ *
+ * Re-parsing is still required when:
+ * - the upstream source is gone (relative links must be stripped),
+ * - the markdown contains an image (`![`) that needs a request-time signed proxy URL,
+ * - the markdown may reference a sibling Skill in the same repository (`/<name>`), or
+ * - the stored render predates `rendered_frontmatter` or `<pre tabindex="0">`.
+ */
+export function canReuseStoredSkillHtml(input: StoredSkillHtmlReuseInput): boolean {
+  if (!input.html || !input.frontmatter)
+    return false
+  if (input.sourceResolved === 0)
+    return false
+  if (input.html.includes('<pre') && !input.html.includes('<pre tabindex="0"'))
+    return false
+  if (!input.raw)
+    return true
+  if (input.raw.includes('!['))
+    return false
+  if (input.raw.includes('/')) {
+    const current = input.currentSkill.toLowerCase()
+    const lowerRaw = input.raw.toLowerCase()
+    for (const candidate of input.skillNames) {
+      const lowerName = candidate.toLowerCase()
+      if (lowerName !== current && lowerRaw.includes(`/${lowerName}`))
+        return false
+    }
+  }
+  return true
+}
+
 export async function parseSkillMd(
   raw: string,
   ctx?: SkillRenderContext,

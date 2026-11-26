@@ -10,10 +10,13 @@ export default defineEventHandler((event) => {
 
   // Answer without the Nuxt error page. Throwing here would server-render the
   // full error layout, which is the cost this branch exists to avoid.
-  setResponseStatus(event, 404)
-  setResponseHeaders(event, {
-    'content-type': 'text/plain; charset=utf-8',
-    'x-robots-tag': 'noindex',
+  return new Response('Not found', {
+    status: 404,
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      'x-robots-tag': 'noindex',
+      'cache-control': 'no-store',
+      'cloudflare-cdn-cache-control': 'public, max-age=300',
+    },
   })
-  return 'Not found'
 })
