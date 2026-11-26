@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import type { z } from 'zod'
 import type { Platform } from '#shared/server/platform'
+import { setHeader } from 'h3'
 
 import { cached, readThroughCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
@@ -215,7 +216,7 @@ const skillDetailHandler = defineApiHandler({
     if (!slug)
       throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
-    return cached({
+    const detail = await cached({
       storage: useStorage('edge-cache'),
       key: `skills:detail:v5:${slug.toLowerCase()}`,
       ttlSeconds: DETAIL_CACHE_TTL,
@@ -223,6 +224,8 @@ const skillDetailHandler = defineApiHandler({
       compute: () => loadSkillDetail(event, platform, slug),
       schedule: promise => runAfterResponse(event, promise),
     })
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=60, stale-while-revalidate=300')
+    return detail
   },
 })
 

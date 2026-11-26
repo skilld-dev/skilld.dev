@@ -119,7 +119,7 @@ function isPermanentSyncFailure(error: string): boolean {
 }
 
 export function discoveryOutcomeFromSyncStats(stats: SyncRepoStats): DiscoveryAttemptOutcome {
-  if (stats.status === 'indexed' && stats.skillsUpserted > 0)
+  if (stats.status === 'indexed' && stats.skillsUpserted + (stats.skillsUnchanged ?? 0) > 0)
     return { _tag: 'indexed' }
   if (stats.status === 'verified-only')
     return { _tag: 'verified_only' }

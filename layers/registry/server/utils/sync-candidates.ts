@@ -19,13 +19,16 @@ interface HistoricalDiscoveryStageOptions extends RepoSyncPriorityOptions {
  * Grouping collapses multiple subscribers watching the same repo. Repos with
  * a recorded too-large tree verdict use the slower general refresh pool.
  * Their bounded subtree fallback costs more reads than a normal tree fetch.
+ *
+ * `CROSS JOIN` starts from the tiny `skill_subscriptions` set instead of
+ * walking thousands of rows through `repos`.
  */
 export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
   SELECT r.owner, r.repo, r.repo_meta_synced_at AS ls,
          COALESCE(dc.owner_verified, 0) AS owner_verified
-  FROM repos r INDEXED BY idx_repos_sync_due
-  JOIN skill_subscriptions sub
-    ON sub.owner = r.owner AND sub.repo = r.repo
+  FROM skill_subscriptions sub
+  CROSS JOIN repos r
+    ON r.owner = sub.owner AND r.repo = sub.repo
   LEFT JOIN discovery_candidates dc
     ON dc.owner = r.owner AND dc.repo = r.repo
   WHERE r.broken_since IS NULL

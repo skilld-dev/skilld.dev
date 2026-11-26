@@ -2,10 +2,9 @@
 import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
 import FrameworkSkillsDirectory from '../../components/FrameworkSkillsDirectory.vue'
 
-const { isBot } = useBotDetection()
-const { data, status, error, refresh } = useFetch<TagProfile>(
+const { data, status, error, refresh } = await useFetch<TagProfile>(
   () => '/api/tags/vue?view=data',
-  { key: 'tag-vue', lazy: !isBot.value },
+  { key: 'tag-vue' },
 )
 
 const siteOrigin = 'https://skilld.dev'

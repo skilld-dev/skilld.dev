@@ -107,6 +107,7 @@ export default defineApiHandler({
     if (cached) {
       if (cached.status === 'missing')
         throw createError({ statusCode: 404, message: 'Asset content unavailable' })
+      setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=300, stale-while-revalidate=3600')
       return cached
     }
 
@@ -163,6 +164,7 @@ export default defineApiHandler({
       skillPath: skillMdPath,
     }
     await writeCache(useStorage('edge-cache'), cacheKey, result, { ttl: ASSET_CACHE_TTL })
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=300, stale-while-revalidate=3600')
     return result
   },
 })

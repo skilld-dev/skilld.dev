@@ -613,6 +613,10 @@ export default defineNuxtConfig({
     // inside the 36000s nuxt-skew-protection keeps old chunks for.
     // `scripts/check-edge-cache.ts` proves it after each deploy.
     '/skills/trending': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
+    '/skills': edgeCache({ maxAge: 120, staleWhileRevalidate: 3600 }),
+    '/skills/:cluster': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
+    '/skills/tag/:slug': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
+    '/frameworks/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     // Demos change on deploy, and when a run check flag hides one. A flag
     // takes two failed checks, so a day of stale serving on a quiet colo is
     // within the time the checks themselves take.

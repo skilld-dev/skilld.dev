@@ -94,19 +94,43 @@ watch([searchQuery, searchIntent, tags, owner, tagMode, sort], () => {
 
 // Keep the existing pagination contract for the directory.
 const PAGE_SIZE = 60
-const { isBot } = useBotDetection()
 
 const isFiltering = computed(() =>
   !!searchQuery.value || tags.value.length > 0 || !!owner.value,
 )
 const showTopSkillPerOwner = computed(() => !isFiltering.value)
 
-// Tag facets
-const { data: tagFacets } = useFetch('/api/skills/tags', {
-  key: 'skills-tag-facets',
-  lazy: !isBot.value,
-  default: () => ({ tags: [] as TagFacet[], total: 0 }),
-})
+const registryQuery = computed(() => ({
+  page: page.value,
+  limit: PAGE_SIZE,
+  sort: sort.value,
+  retrieval: searchIntent.value._tag === 'ai' ? 'hybrid' : 'lexical',
+  ...(showTopSkillPerOwner.value ? { uniqueOwners: true, maintainerRepos: true } : {}),
+  ...(searchQuery.value ? { q: searchQuery.value } : {}),
+  ...(owner.value ? { owner: owner.value } : {}),
+  ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
+}))
+
+// Blocking, not lazy: `/skills` is edge-cached without `Vary: User-Agent`, so
+// every visitor and crawler shares one HTML copy and SSR must render real rows.
+const [
+  { data: tagFacets },
+  { data: featuredData, status: featuredStatus },
+  { data: registryData, status: registryStatus, error: registryError, refresh: refreshRegistry },
+] = await Promise.all([
+  useFetch('/api/skills/tags', {
+    key: 'skills-tag-facets',
+    default: () => ({ tags: [] as TagFacet[], total: 0 }),
+  }),
+  useFetch('/api/skills/featured', {
+    key: 'skills-maintainers',
+    query: { orgs: 0, devs: 8, perDev: 1 },
+  }),
+  useFetch('/api/skills', {
+    key: 'skills-registry-table',
+    query: registryQuery,
+  }),
+])
 
 const tagBySlug = computed(() => {
   const map = new Map<string, TagFacet>()
@@ -138,15 +162,6 @@ const trendingKeys = computed(
 )
 
 // Maintainer names come from the featured endpoint's GitHub profiles.
-const {
-  data: featuredData,
-  status: featuredStatus,
-} = useFetch('/api/skills/featured', {
-  key: 'skills-maintainers',
-  query: { orgs: 0, devs: 8, perDev: 1 },
-  lazy: !isBot.value,
-})
-
 const maintainers = computed(() => {
   const seen = new Set<string>()
   return (featuredData.value?.devSections ?? []).filter((section) => {
@@ -155,27 +170,6 @@ const maintainers = computed(() => {
     seen.add(section.owner)
     return true
   })
-})
-
-const registryQuery = computed(() => ({
-  page: page.value,
-  limit: PAGE_SIZE,
-  sort: sort.value,
-  retrieval: searchIntent.value._tag === 'ai' ? 'hybrid' : 'lexical',
-  ...(showTopSkillPerOwner.value ? { uniqueOwners: true, maintainerRepos: true } : {}),
-  ...(searchQuery.value ? { q: searchQuery.value } : {}),
-  ...(owner.value ? { owner: owner.value } : {}),
-  ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
-}))
-const {
-  data: registryData,
-  status: registryStatus,
-  error: registryError,
-  refresh: refreshRegistry,
-} = await useFetch('/api/skills', {
-  key: 'skills-registry-table',
-  query: registryQuery,
-  lazy: !isBot.value,
 })
 
 const registryView = computed(() => resolveRegistryViewState({

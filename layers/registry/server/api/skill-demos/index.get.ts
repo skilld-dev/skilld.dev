@@ -16,6 +16,7 @@ export interface SkillDemoListResponse {
 export default defineApiHandler({
   handler: async ({ event }) => {
     setHeader(event, 'Cache-Control', 'public, max-age=300, s-maxage=3600')
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=300, stale-while-revalidate=3600')
     return listShownSkillDemos(await fetchFlaggedSkillKeys('skill-demos'))
   },
   presenter: (demos): SkillDemoListResponse => ({

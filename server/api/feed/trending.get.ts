@@ -293,7 +293,7 @@ export default defineEventHandler(
       24 * 30,
     )
 
-    return cachedFeed(event, 'trending', async () => {
+    const response = await cachedFeed(event, 'trending', async () => {
       const db = getDB(event)
       const now = Math.floor(Date.now() / 1000)
       const [board, flagged] = await Promise.all([
@@ -314,5 +314,7 @@ export default defineEventHandler(
 
       return { items, namedSkills: skillItems, fallback, computedAt: now }
     }, [limit, windowHours], TRENDING_FEED_WINDOW)
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=120, stale-while-revalidate=1800')
+    return response
   },
 )
