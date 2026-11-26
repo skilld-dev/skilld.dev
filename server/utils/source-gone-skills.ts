@@ -78,6 +78,23 @@ export function skillKeyFromPath(pathname: string): string | null {
   return rest.toLowerCase()
 }
 
+/**
+ * The `<owner>/<repo>/<name>` key for a `/gh/<owner>/<repo>/<name>/-/<file>`
+ * deep link, or null for any other path.
+ */
+export function skillKeyFromFilePath(pathname: string): string | null {
+  if (!pathname.startsWith('/gh/'))
+    return null
+  const rest = pathname.slice('/gh/'.length).replace(/\/+$/, '')
+  const segments = rest.split('/')
+  if (segments.length < 5 || segments[3] !== '-')
+    return null
+  const [owner, repo, name] = segments
+  if (!owner || !repo || !name)
+    return null
+  return `${owner}/${repo}/${name}`.toLowerCase()
+}
+
 export async function selectGoneSkillKeys(db: D1Database): Promise<string[]> {
   const rows = await db.prepare(GONE_SKILLS_SQL).bind().all<GoneSkillRow>()
   return goneSkillKeys(rows.results ?? [])

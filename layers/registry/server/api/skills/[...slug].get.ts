@@ -19,7 +19,7 @@ import { findSkillDemo, presentSkillDemo } from '../../utils/skill-demos'
 import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { readRepositoryLicense } from '../../utils/skill-license'
-import { canReuseStoredSkillHtml, parseSkillMd } from '../../utils/skill-md-render'
+import { canReuseStoredSkillHtml, canReuseStoredSkillHtmlForGoneSource, parseSkillMd } from '../../utils/skill-md-render'
 import { loadLinkableRepoSkillNames } from '../../utils/skill-stored-source'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
@@ -43,8 +43,8 @@ interface CuratorEndorsement {
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24
 
-const DETAIL_CACHE_TTL = 60
-const DETAIL_CACHE_STALE_TTL = 60 * 5
+const DETAIL_CACHE_TTL = 300
+const DETAIL_CACHE_STALE_TTL = 60 * 60
 type SkillDetailPayload = z.infer<typeof SkillDetailResponseSchema>
 
 const OFFICIAL_REPO_KEYS = new Set(officialRepos.map(r => `${r.owner}/${r.repo}`))
@@ -224,7 +224,7 @@ const skillDetailHandler = defineApiHandler({
       compute: () => loadSkillDetail(event, platform, slug),
       schedule: promise => runAfterResponse(event, promise),
     })
-    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=60, stale-while-revalidate=300')
+    setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=300, stale-while-revalidate=3600')
     return detail
   },
 })
@@ -242,10 +242,13 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const { skill, row } = found
   const curators: CuratorEndorsement[] = []
 
+  const needsSiblingSkillNames = (row.repo_skill_count ?? 0) > 1
   const [duplicateGroup, generated, repoSkillNames] = await Promise.all([
-    findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
+    findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`, {
+      admissionsPopulated: row.admissions_populated === 1,
+    }),
     getGeneratedKinds(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name }, ['faq', 'tags', 'summary']),
-    loadLinkableRepoSkillNames(platform.db, skill),
+    needsSiblingSkillNames ? loadLinkableRepoSkillNames(platform.db, skill) : Promise.resolve<string[]>([]),
   ])
   const faqRow = generated.get('faq') as { payload: FaqPayload } | undefined
   const tagRow = generated.get('tags') as { payload: TagPayload } | undefined
@@ -262,14 +265,16 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   // cost 557 D1 writes in two minutes of one crawler burst on 2026-09-29.
   let rendered: RenderedView
   if (row.rendered_html && row.rendered_status === 'ok') {
-    const reuseStored = canReuseStoredSkillHtml({
+    const reuseInput = {
       raw: row.rendered_raw,
       html: row.rendered_html,
       frontmatter: row.rendered_frontmatter,
       sourceResolved: row.source_resolved,
       skillNames: repoSkillNames,
       currentSkill: skill.name,
-    })
+    }
+    const reuseStored = canReuseStoredSkillHtml(reuseInput)
+      || canReuseStoredSkillHtmlForGoneSource(reuseInput)
     const reparsed = !reuseStored && row.rendered_raw
       ? await parseSkillMd(row.rendered_raw, {
           owner: source.owner,

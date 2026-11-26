@@ -139,6 +139,45 @@ describe('prefetchUnchangedRepos', () => {
       .toEqual({ repo_meta_synced_at: null })
   })
 
+  it('uses the single-column freshness update when repository metadata is already current', async () => {
+    const pushedAt = Math.floor(Date.parse('2026-10-01T00:00:00Z') / 1000)
+    const createdAt = Math.floor(Date.parse('2025-01-01T00:00:00Z') / 1000)
+    harness.raw.prepare(`
+      UPDATE repos
+      SET default_branch = 'main',
+          stars = 77,
+          forks = 2,
+          is_fork = 0,
+          description = 'Skills',
+          pushed_at = ?,
+          repo_created_at = ?,
+          broken_since = NULL,
+          tree_truncated_at = NULL,
+          source_owner = 'acme',
+          source_repo = 'unchanged',
+          repository_id = 4242
+      WHERE owner = 'acme' AND repo = 'unchanged'
+    `).run(pushedAt, createdAt)
+
+    const preparedSql: string[] = []
+    const trackingDb = {
+      prepare(sql: string) {
+        preparedSql.push(sql)
+        return harness.db.prepare(sql)
+      },
+      batch: (statements: D1PreparedStatement[]) => harness.db.batch(statements),
+    } as unknown as D1Database
+
+    vi.stubGlobal('fetch', vi.fn(graphqlAnswer))
+    const result = await prefetchUnchangedRepos({ db: trackingDb, bindings, now: NOW }, [candidate('unchanged')])
+
+    expect(result).toMatchObject({ _tag: 'prefetched', unchanged: 1, queue: [] })
+    expect(preparedSql.some(sql => sql.includes('SET repo_meta_synced_at = ?'))).toBe(true)
+    expect(preparedSql.some(sql => sql.includes('SET default_branch = ?'))).toBe(false)
+    expect(harness.raw.prepare(`SELECT repo_meta_synced_at FROM repos WHERE owner = 'acme' AND repo = 'unchanged'`).get())
+      .toEqual({ repo_meta_synced_at: NOW })
+  })
+
   it('queues every candidate when GitHub does not answer the batch', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('bad gateway', { status: 502 })))
 

@@ -63,8 +63,8 @@ describe('skill detail SWR cache', () => {
     const fresh = cacheMap.get(cacheKey) as { v: Record<string, unknown>, t: number }
     expect(fresh.v.registryPath).toBe('/gh/ericzakariasson/scandinavian-design')
 
-    // Age the entry past the 60s TTL, into the 5 minute stale window.
-    const staleT = Math.floor(Date.now() / 1000) - 61
+    // Age the entry past the 300s TTL, into the 1 hour stale window.
+    const staleT = Math.floor(Date.now() / 1000) - 301
     cacheMap.set(cacheKey, { v: fresh.v, t: staleT })
 
     const beforeBurst = prepareCalls

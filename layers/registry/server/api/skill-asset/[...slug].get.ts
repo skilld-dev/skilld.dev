@@ -6,7 +6,6 @@ import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identi
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { loadLinkableRepoSkillNames, loadStoredSkillRow, parseStoredAssets, resolveReferencedFileTarget } from '../../utils/skill-stored-source'
-import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
 
 const ASSET_CACHE_TTL = 60 * 60 * 24 * 7
@@ -62,18 +61,10 @@ export default defineApiHandler({
     if (filePath.includes('..'))
       throw createError({ statusCode: 400, message: 'Invalid path' })
 
-    const skillSlug = `${owner}/${repo}/${name}`
-    const skill = await findSkill(event, skillSlug)
-    if (!skill)
-      throw createError({ statusCode: 404, message: 'Skill not found' })
-
-    const [row, repoSkillNames] = await Promise.all([
-      loadStoredSkillRow(platform.db, skill),
-      loadLinkableRepoSkillNames(platform.db, skill),
-    ])
-
+    const skill = { owner, repo, name }
+    const row = await loadStoredSkillRow(platform.db, skill)
     if (!row)
-      throw createError({ statusCode: 404, message: 'Skill metadata missing' })
+      throw createError({ statusCode: 404, message: 'Skill not found' })
 
     // The sync's verdict that this SKILL.md is gone upstream. The page serves
     // a 410 tombstone on the same verdict, and this endpoint must agree.
@@ -111,7 +102,11 @@ export default defineApiHandler({
       return cached
     }
 
-    const upstream = await fetchUpstreamText(target.url)
+    const type = asset.type ?? classifyAsset(filePath)
+    const [upstream, repoSkillNames] = await Promise.all([
+      fetchUpstreamText(target.url),
+      type === 'markdown' ? loadLinkableRepoSkillNames(platform.db, skill) : Promise.resolve<string[]>([]),
+    ])
 
     if (upstream._tag === 'missing') {
       emitOperationalEvent(createWideEvent({ 'operation': 'skill-asset-fetch', 'outcome': 'missing', 'upstream.status': upstream.status }))
@@ -137,7 +132,6 @@ export default defineApiHandler({
 
     const raw = upstream.body
 
-    const type = asset.type ?? classifyAsset(filePath)
     let html: string | null = null
     if (type === 'markdown') {
       const parsed = await parseSkillMd(raw, {

@@ -1,6 +1,12 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { assertMethod } from 'h3'
+import { runAfterResponse } from '#layers/registry/server/utils/after-response'
+import { cached } from '#shared/server/cache'
+
+const AI_SITEMAP_CACHE_KEY = 'ai-sitemap:xml:v1'
+const AI_SITEMAP_TTL_SECONDS = 60 * 60
+const AI_SITEMAP_STALE_SECONDS = 60 * 60 * 24
 
 // 2026-08-22 agent lane: an agent-only sitemap listing
 // every AI-ready page, including pages that are noindex for Google. Referenced
@@ -17,33 +23,45 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 503, statusMessage: 'AI sitemap unavailable' })
   }
 
-  const origin = 'https://skilld.dev'
-  const res = await db
-    .prepare(
-      `SELECT route, updated_at FROM ai_ready_pages
-       WHERE indexed = 1 AND is_error = 0
-       ORDER BY route ASC`,
-    )
-    .all<{ route: string, updated_at: string }>()
+  const xml = await cached<string>({
+    storage: useStorage('cache'),
+    key: AI_SITEMAP_CACHE_KEY,
+    ttlSeconds: AI_SITEMAP_TTL_SECONDS,
+    staleSeconds: AI_SITEMAP_STALE_SECONDS,
+    schedule: promise => runAfterResponse(event, promise),
+    compute: async () => {
+      const origin = 'https://skilld.dev'
+      const res = await db
+        .prepare(
+          `SELECT route, updated_at FROM ai_ready_pages
+           WHERE indexed = 1 AND is_error = 0
+           ORDER BY route ASC`,
+        )
+        .all<{ route: string, updated_at: string }>()
 
-  const rows = res.results ?? []
-  const urls = rows.map((row) => {
-    const lastmod = new Date(row.updated_at)
-    const lastmodTag = Number.isNaN(lastmod.getTime())
-      ? ''
-      : `<lastmod>${lastmod.toISOString()}</lastmod>`
-    return `  <url>\n    <loc>${origin}${escapeXml(row.route)}</loc>\n${lastmodTag ? `    ${lastmodTag}\n` : ''}  </url>`
-  })
+      const rows = res.results ?? []
+      const urls = rows.map((row) => {
+        const lastmod = new Date(row.updated_at)
+        const lastmodTag = Number.isNaN(lastmod.getTime())
+          ? ''
+          : `<lastmod>${lastmod.toISOString()}</lastmod>`
+        return `  <url>\n    <loc>${origin}${escapeXml(row.route)}</loc>\n${lastmodTag ? `    ${lastmodTag}\n` : ''}  </url>`
+      })
 
-  setHeader(event, 'Content-Type', 'application/xml; charset=utf-8')
-  setHeader(event, 'Cache-Control', 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400')
-  return `<?xml version="1.0" encoding="UTF-8"?>
+      return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <!-- AI agent sitemap: every AI-ready page including noindex-for-Google pages.
      Linked from llms.txt; not submitted to any search engine. -->
 ${urls.join('\n')}
 </urlset>
 `
+    },
+  })
+
+  setHeader(event, 'Content-Type', 'application/xml; charset=utf-8')
+  setHeader(event, 'Cache-Control', 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400')
+  setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=3600, stale-while-revalidate=86400')
+  return xml
 })
 
 function escapeXml(value: string): string {

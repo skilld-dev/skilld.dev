@@ -107,7 +107,7 @@ describe('skill detail route cache', () => {
     expect(setItem).toHaveBeenCalledWith(
       expect.stringContaining('skills:detail:'),
       expect.objectContaining({ v: expect.objectContaining({ registryPath: '/gh/ericzakariasson/scandinavian-design' }), t: expect.any(Number) }),
-      { ttl: 360 },
+      { ttl: 3900 },
     )
   })
 
