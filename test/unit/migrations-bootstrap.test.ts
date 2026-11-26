@@ -84,6 +84,22 @@ describe('d1 migration bootstrap', () => {
          WHERE type = 'index' AND name = 'idx_jobs_claimable'`,
       ).get()
       expect(cfJobClaimIndex).toBeUndefined()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name IN ('idx_jobs_site', 'idx_jobs_user', 'idx_jobs_partner')`,
+      ).all()).toEqual([])
+      expect(sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_job_batches_site'`,
+      ).pluck().get()).toContain('WHERE site_id IS NOT NULL')
+      expect(sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_jobs_batch'`,
+      ).pluck().get()).toContain('WHERE batch_id IS NOT NULL')
+      expect(sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_jobs_sync_dedup'`,
+      ).pluck().get()).toContain('WHERE site_id IS NOT NULL')
       const cfJobColumns = sqlite.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>
       expect(cfJobColumns.map(column => column.name)).toEqual(expect.arrayContaining([
         'backoff',
