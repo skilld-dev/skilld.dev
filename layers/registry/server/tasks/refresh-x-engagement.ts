@@ -89,7 +89,6 @@ export default defineScheduledTask({
         snapshotsPruned: result.snapshotsPruned,
         trackedHot: tiers.hot,
         trackedWarm: tiers.warm,
-        trackedFrozen: tiers.frozen,
         // Live cost projection. Compare against the monthly cap before
         // shortening any interval in DEFAULT_REFRESH_POLICY.
         estimatedDailyReads: estimateDailyRefreshReads(tiers, DEFAULT_REFRESH_POLICY),
@@ -130,11 +129,17 @@ export default defineScheduledTask({
   },
 })
 
-async function countTiers(db: D1Database): Promise<{ hot: number, warm: number, frozen: number }> {
+/**
+ * Count active refresh tiers via the partial index `idx_x_posts_refresh`
+ * (`WHERE refresh_tier != 'frozen'`). Counting frozen rows scanned all ~20K
+ * `x_posts` rows on every run (~40K rows read), while `estimateDailyRefreshReads`
+ * only reads active tiers.
+ */
+async function countTiers(db: D1Database): Promise<{ hot: number, warm: number }> {
   const rows = (await db
-    .prepare(`SELECT refresh_tier, COUNT(*) AS n FROM x_posts GROUP BY refresh_tier`)
-    .all<{ refresh_tier: 'hot' | 'warm' | 'frozen', n: number }>()).results ?? []
-  const out = { hot: 0, warm: 0, frozen: 0 }
+    .prepare(`SELECT refresh_tier, COUNT(*) AS n FROM x_posts WHERE platform = 'x' AND refresh_tier != 'frozen' GROUP BY refresh_tier`)
+    .all<{ refresh_tier: 'hot' | 'warm', n: number }>()).results ?? []
+  const out = { hot: 0, warm: 0 }
   for (const row of rows)
     out[row.refresh_tier] = row.n
   return out

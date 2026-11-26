@@ -95,6 +95,7 @@ export async function prefetchUnchangedRepos(
       repositoryId: summary.repositoryId,
       checkedAt: dependencies.now,
       ownerVerified: candidate.ownerVerified,
+      existing: row,
     }))
   })
   for (let offset = 0; offset < writes.length; offset += WRITE_BATCH_REPOSITORIES)
@@ -138,7 +139,9 @@ async function loadPrefetchRows(
        SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
        FROM json_each(?1)
      )
-     SELECT r.owner, r.repo, r.repository_id, r.last_tree_sha, r.pushed_at, r.source_owner, r.source_repo,
+     SELECT r.owner, r.repo, r.repository_id, r.last_tree_sha, r.default_branch,
+            r.stars, r.forks, r.is_fork, r.description, r.pushed_at, r.repo_created_at,
+            r.broken_since, r.tree_truncated_at, r.source_owner, r.source_repo,
             EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) AS has_skills,
             EXISTS (
               SELECT 1 FROM repo_sync_progress p

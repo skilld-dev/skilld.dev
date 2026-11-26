@@ -138,6 +138,7 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
   }
 
   const byId = new Map(rows.map(r => [r.post_id, r]))
+  const refreshedPostIds: string[] = []
 
   for (let i = 0; i < rows.length; i += X_LOOKUP_BATCH_SIZE) {
     const batch = rows.slice(i, i + X_LOOKUP_BATCH_SIZE)
@@ -160,6 +161,7 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
       if (!previous)
         continue
       returned.add(fresh.id)
+      refreshedPostIds.push(fresh.id)
 
       const plan = planRefresh({ postedAt: previous.posted_at }, now, policy)
 
@@ -225,29 +227,42 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
       await db.batch(statements)
   }
 
-  summary.snapshotsPruned = await pruneSnapshots(db, now)
+  summary.snapshotsPruned = await pruneSnapshots(db, now, refreshedPostIds)
   summary.elapsedMs = Date.now() - startedAt
   return summary
 }
 
+/** Max post IDs per prune statement, staying under D1's 100-parameter cap. */
+const PRUNE_POST_CHUNK_SIZE = 90
+
 /**
- * Drop snapshots past the retention window, but only for posts that still
- * have a recent one. Without that guard a long-frozen post would lose its
- * final observation and disappear from any historical view.
+ * Drop snapshots past the retention window for posts that just received a
+ * fresh snapshot.
+ *
+ * A global `DELETE ... WHERE observed_at < ? AND EXISTS (...)` scanned all
+ * ~35K historical snapshots of long-frozen posts every hour (~70K rows read
+ * per run to delete 0 rows). Posts freeze after 12 hours, so only posts
+ * refreshed here can hold both a fresh snapshot and one past retention;
+ * seeking `(post_id, observed_at)` by primary key keeps dormant posts' final
+ * snapshot intact at O(refreshed) reads.
  */
-async function pruneSnapshots(db: D1Database, now: number): Promise<number> {
+async function pruneSnapshots(db: D1Database, now: number, refreshedPostIds: readonly string[]): Promise<number> {
+  if (refreshedPostIds.length === 0)
+    return 0
   const cutoff = now - METRIC_RETENTION_DAYS * 24 * 3600
-  const result = await db
-    .prepare(
-      `DELETE FROM x_post_metrics
-       WHERE observed_at < ?1
-         AND EXISTS (
-           SELECT 1 FROM x_post_metrics newer
-           WHERE newer.post_id = x_post_metrics.post_id
-             AND newer.observed_at >= ?1
-         )`,
-    )
-    .bind(cutoff)
-    .run()
-  return (result.meta as { changes?: number } | undefined)?.changes ?? 0
+  let pruned = 0
+  for (let i = 0; i < refreshedPostIds.length; i += PRUNE_POST_CHUNK_SIZE) {
+    const chunk = refreshedPostIds.slice(i, i + PRUNE_POST_CHUNK_SIZE)
+    const placeholders = chunk.map(() => '?').join(', ')
+    const result = await db
+      .prepare(
+        `DELETE FROM x_post_metrics
+         WHERE post_id IN (${placeholders})
+           AND observed_at < ?`,
+      )
+      .bind(...chunk, cutoff)
+      .run()
+    pruned += (result.meta as { changes?: number } | undefined)?.changes ?? 0
+  }
+  return pruned
 }

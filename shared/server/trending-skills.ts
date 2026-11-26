@@ -455,7 +455,7 @@ async function loadGithubEvidence(
     .prepare(
       `WITH surged_repos AS (
          SELECT DISTINCT owner, repo
-         FROM repo_star_surges
+         FROM repo_star_surges INDEXED BY idx_repo_star_surges_detected
          WHERE detected_at >= ?1
        ),
        single_skill_repos AS (

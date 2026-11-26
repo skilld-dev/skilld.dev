@@ -265,6 +265,33 @@ export function canReuseStoredSkillHtml(input: StoredSkillHtmlReuseInput): boole
   return true
 }
 
+const RELATIVE_INLINE_LINK_RE = /\]\(\s*<?(?![a-z][a-z0-9+.-]*:|\/\/|#)/i
+const RELATIVE_REF_LINK_DEF_RE = /^[ \t]*\[[^\]\n]+\]:[ \t]*(?:\r?\n[ \t]*)?<?(?![a-z][a-z0-9+.-]*:|\/\/|#|\s|$)/im
+
+/**
+ * True when markdown contains a relative inline `[label](href)` or reference
+ * `[label]: href` link that `sourceGone` rendering must strip into plain text.
+ */
+export function hasRelativeMarkdownLink(raw: string): boolean {
+  return RELATIVE_INLINE_LINK_RE.test(raw) || RELATIVE_REF_LINK_DEF_RE.test(raw)
+}
+
+/**
+ * True when a gone Skill (`sourceResolved === 0`) can reuse its stored
+ * `rendered_html` directly without re-running `marked` + `rangi`.
+ *
+ * The only difference `sourceGone: true` makes during `parseSkillMd` is
+ * turning relative Markdown links into plain text; when the raw source has no
+ * relative link, the stored HTML is already byte-for-byte identical.
+ */
+export function canReuseStoredSkillHtmlForGoneSource(input: StoredSkillHtmlReuseInput): boolean {
+  if (input.sourceResolved !== 0)
+    return false
+  if (input.raw && hasRelativeMarkdownLink(input.raw))
+    return false
+  return canReuseStoredSkillHtml({ ...input, sourceResolved: 1 })
+}
+
 export async function parseSkillMd(
   raw: string,
   ctx?: SkillRenderContext,

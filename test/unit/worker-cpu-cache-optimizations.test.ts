@@ -1,7 +1,8 @@
 import { createApp, defineEventHandler, getRequestURL, toWebHandler } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
-import { canReuseStoredSkillHtml } from '../../layers/registry/server/utils/skill-md-render'
+import { canReuseStoredSkillHtml, canReuseStoredSkillHtmlForGoneSource } from '../../layers/registry/server/utils/skill-md-render'
 import { isStaticProbe404Path } from '../../shared/static-probe-404'
+import { createTestEvent } from './helpers/event'
 
 const globals = globalThis as Record<string, unknown>
 globals.defineNuxtConfig ??= (config: unknown) => config
@@ -63,6 +64,29 @@ describe('static and scanner 404 probe matcher', () => {
     '/main.c6d13be3ea6fc9cb.js',
     '/assets/GanjingAbout-Cb73sJYd.js',
     '/static/icon/bjch.png',
+    '/.buildkite/pipeline.yml',
+    '/.node-version',
+    '/.ruby-version',
+    '/.envrc',
+    '/.kube/config',
+    '/.secrets',
+    '/index.php~',
+    '/config.php~',
+    '/error_log',
+    '/Gemfile',
+    '/jsconfig.json',
+    '/_status',
+    '/inventory.ini',
+    '/ansible.cfg',
+    '/privkey.pem',
+    '/terraform.tfstate',
+    '/oauth-client-metadata.json',
+    '/oauth/client-metadata.json',
+    '/api/oauth/metadata',
+    '/api/auth/atproto/metadata.json',
+    '/.well-known/oauth-authorization-server',
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/client-metadata.json',
   ])('identifies %s as a static/scanner probe', (path) => {
     expect(isStaticProbe404Path(path)).toBe(true)
   })
@@ -84,6 +108,7 @@ describe('static and scanner 404 probe matcher', () => {
     '/_scripts/assets/637381256384554e.js',
     '/_file-icons/file-type-markdown.svg',
     '/api/v1/openapi.json',
+    '/auth/github',
     '/b/harlan-zw/nuxt-seo',
     '/repos/mrdoob/three.js',
     '/repos/animate-css/animate.css',
@@ -94,6 +119,9 @@ describe('static and scanner 404 probe matcher', () => {
     '/install.sh',
     '/install.ps1',
     '/.well-known/api-catalog',
+    '/.well-known/agent-skills/index.json',
+    '/.well-known/mcp/server-card.json',
+    '/.well-known/openai-apps-challenge',
   ])('never intercepts valid or dynamic path %s', (path) => {
     expect(isStaticProbe404Path(path)).toBe(false)
   })
@@ -285,5 +313,104 @@ describe('canReuseStoredSkillHtml', () => {
 
   it('re-parses when stored HTML has legacy <pre> markup without tabindex="0"', () => {
     expect(canReuseStoredSkillHtml({ ...base, html: '<pre><code>x</code></pre>' })).toBe(false)
+  })
+
+  it('reuses stored HTML for a gone Skill when markdown has no relative links', () => {
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [docs](https://example.com), [top](#alpha), and [ref][ext].\n\n[ext]: https://example.com/docs\n[sec]: #alpha',
+    })).toBe(true)
+
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [guide](./references/guide.md).',
+    })).toBe(false)
+
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [guide][g].\n\n[g]: ./references/guide.md',
+    })).toBe(false)
+
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [guide][g].\n\n  [g]: <references/guide.md> "Guide"',
+    })).toBe(false)
+
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [guide][g].\n\n[g]:\n  references/guide.md',
+    })).toBe(false)
+  })
+})
+
+describe('leaderboard global KV pagination cap', () => {
+  it('uses global cache for pages 1..10 and falls back to edge-cache above page 10', async () => {
+    const mounts: string[] = []
+    vi.stubGlobal('useStorage', (name: string) => {
+      mounts.push(name)
+      return {
+        getItem: async () => null,
+        setItem: async () => {},
+      }
+    })
+    vi.stubGlobal('getQuery', (event: { context: { query?: Record<string, unknown> } }) => event.context.query ?? {})
+    vi.stubGlobal('getUserSession', () => Promise.resolve(null))
+
+    const handler = (await import('../../layers/registry/server/api/skills/leaderboard.get')).default as unknown as (event: unknown) => Promise<unknown>
+    const db = {
+      prepare: () => ({
+        bind: () => ({ all: async () => ({ results: [] }) }),
+        first: async () => ({ total: 0 }),
+      }),
+    }
+    const makeEvent = (page: number) => createTestEvent({
+      headers: {},
+      context: {
+        query: { page: String(page) },
+        platform: { db },
+        cloudflare: { context: { waitUntil: () => {} } },
+      },
+    })
+
+    await handler(makeEvent(1))
+    await handler(makeEvent(10))
+    await handler(makeEvent(11))
+    await handler(makeEvent(99999))
+
+    expect(mounts).toEqual(['cache', 'cache', 'edge-cache', 'edge-cache'])
+  })
+})
+
+describe('skill-source-gone file deep-link fast path', () => {
+  it('returns plain-text 410 before SSR for file links of a gone Skill while keeping tombstone SSR for the Skill page', async () => {
+    const storage = {
+      getItem: vi.fn(async () => ['acme/tools/removed']),
+      setItem: vi.fn(async () => {}),
+    }
+    vi.stubGlobal('useStorage', () => storage)
+
+    const middleware = (await import('../../server/middleware/skill-source-gone')).default
+    const app = createApp()
+    app.use(defineEventHandler((event) => {
+      event.context.platform = { db: {} }
+    }))
+    app.use(middleware)
+    app.use(defineEventHandler(() => 'ssr-tombstone'))
+    const handle = toWebHandler(app)
+
+    const fileRes = await handle(new Request('http://localhost/gh/acme/tools/removed/-/reference/guide.md'))
+    expect(fileRes.status).toBe(410)
+    expect(fileRes.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect(fileRes.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=300')
+    expect(await fileRes.text()).toBe('This Skill source is gone upstream.')
+
+    const pageRes = await handle(new Request('http://localhost/gh/acme/tools/removed'))
+    expect(pageRes.status).toBe(410)
+    expect(await pageRes.text()).toBe('ssr-tombstone')
   })
 })

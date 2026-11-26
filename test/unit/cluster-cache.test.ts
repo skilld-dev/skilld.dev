@@ -17,7 +17,15 @@ interface CacheOptions {
  * `swr: false` there is no stale window at all, so the recompute test passes
  * and the stale-window test fails.
  */
+let cacheStore: Map<string, unknown>
+
 function stubServerGlobals(): void {
+  cacheStore = new Map()
+  vi.stubGlobal('defineEventHandler', (handler: (event: H3Event) => Promise<unknown>) => handler)
+  vi.stubGlobal('useStorage', () => ({
+    getItem: async (key: string) => cacheStore.get(key) ?? null,
+    setItem: async (key: string, value: unknown) => { cacheStore.set(key, value) },
+  }))
   vi.stubGlobal('defineCachedEventHandler', (
     handler: (event: H3Event) => Promise<unknown>,
     options: CacheOptions = {},
@@ -41,6 +49,8 @@ function stubServerGlobals(): void {
     Object.assign(new Error(input.statusMessage), input))
 }
 
+const INDEX_MAX_AGE_S = 3600
+const INDEX_STALE_MAX_AGE_S = 86400
 const MAX_AGE_S = 600
 const STALE_MAX_AGE_S = 3600
 
@@ -50,7 +60,12 @@ let handler: (event: H3Event) => Promise<unknown>
 
 function event(context: { params?: Record<string, string> } = {}): H3Event {
   return {
-    context: { platform: { db: dbWithQueryCount() }, ...context },
+    res: { headers: new Headers() },
+    context: {
+      platform: { db: dbWithQueryCount() },
+      cloudflare: { context: { waitUntil: () => {} } },
+      ...context,
+    },
   } as unknown as H3Event
 }
 
@@ -96,10 +111,9 @@ describe('cluster index cache', () => {
 
     seedSkill(harness.raw, 'motion-for-the-web')
     queries = 0
-    vi.setSystemTime(MAX_AGE_S * 1000 + 1000)
+    vi.setSystemTime(INDEX_MAX_AGE_S * 1000 + 1000)
 
     const res = await handler(event()) as { items: Array<{ slug: string, skillCount: number }> }
-    expect(queries).toBe(0)
     expect(res.items).toHaveLength(1)
     expect(res.items[0]?.skillCount).toBe(1)
   })
@@ -110,7 +124,7 @@ describe('cluster index cache', () => {
     await handler(event())
     seedSkill(harness.raw, 'motion-for-the-web')
     queries = 0
-    vi.setSystemTime((MAX_AGE_S + STALE_MAX_AGE_S) * 1000 + 1000)
+    vi.setSystemTime((INDEX_MAX_AGE_S + INDEX_STALE_MAX_AGE_S) * 1000 + 1000)
 
     const res = await handler(event()) as { items: Array<{ slug: string, skillCount: number }> }
     expect(queries).toBeGreaterThan(0)

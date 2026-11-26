@@ -24,10 +24,12 @@ export const SKILLS_LEADERBOARD_SQL = `
       r.repo_meta_synced_at,
       eligibility.reviewed_at
     FROM skill_repo_eligibility AS eligibility
-    JOIN repos AS r
+    -- Drive from the small eligibility set (~240 rows) rather than scanning
+    -- every active repository via repos_broken_idx (~9,500 rows).
+    CROSS JOIN repos AS r
       ON r.owner = eligibility.owner
      AND r.repo = eligibility.repo
-    JOIN owners AS owner
+    CROSS JOIN owners AS owner
       ON owner.owner = r.owner
      AND owner.kind = 'user'
     WHERE eligibility.status = 'eligible'
@@ -50,10 +52,10 @@ export const SKILLS_LEADERBOARD_SQL = `
           s.modified_at DESC,
           s.name COLLATE NOCASE ASC
       ) AS recency_rank
-    FROM skills AS s
-    JOIN eligible_repositories AS repository
-      ON repository.owner = s.owner
-     AND repository.repo = s.repo
+    FROM eligible_repositories AS repository
+    CROSS JOIN skills AS s
+      ON s.owner = repository.owner
+     AND s.repo = repository.repo
     WHERE s.source_resolved = 1
   )
   SELECT
@@ -88,7 +90,23 @@ export const SKILLS_LEADERBOARD_PAGE_SQL = `
   LIMIT ? OFFSET ?
 `
 
+// Count eligible repositories directly via EXISTS instead of running the
+// window-function ranking and ORDER BY over every resolved Skill (~39K -> ~1K rows).
 export const SKILLS_LEADERBOARD_COUNT_SQL = `
   SELECT COUNT(*) AS total
-  FROM (${SKILLS_LEADERBOARD_SQL})
+  FROM skill_repo_eligibility AS eligibility
+  CROSS JOIN repos AS r
+    ON r.owner = eligibility.owner
+   AND r.repo = eligibility.repo
+  CROSS JOIN owners AS owner
+    ON owner.owner = r.owner
+   AND owner.kind = 'user'
+  WHERE eligibility.status = 'eligible'
+    AND r.broken_since IS NULL
+    AND EXISTS (
+      SELECT 1 FROM skills AS s
+      WHERE s.owner = r.owner
+        AND s.repo = r.repo
+        AND s.source_resolved = 1
+    )
 `

@@ -76,17 +76,19 @@ export async function getGeneratedBatch<T>(
   if (!keys.length)
     return new Map()
   // D1 caps statements at ~100 bound variables. Each key contributes 3
-  // (owner, repo, name) plus the leading `kind` param.
+  // (owner, repo, name) plus the trailing `kind` param. Tuple IN (VALUES ...)
+  // seeks the primary key `(owner, repo, name, kind)` directly instead of
+  // scanning every row of `kind` via `idx_skill_generated_kind`.
   const CHUNK = 30
   const map = new Map<string, GeneratedRow<T>>()
   for (let i = 0; i < keys.length; i += CHUNK) {
     const chunk = keys.slice(i, i + CHUNK)
-    const placeholders = chunk.map(() => '(? = owner AND ? = repo AND ? = name)').join(' OR ')
+    const placeholders = chunk.map(() => '(?, ?, ?)').join(', ')
     const params: string[] = []
     for (const k of chunk) params.push(k.owner, k.repo, k.name)
     const res = await db
-      .prepare(`SELECT * FROM skill_generated WHERE kind = ? AND (${placeholders})`)
-      .bind(kind, ...params)
+      .prepare(`SELECT * FROM skill_generated WHERE (owner, repo, name) IN (VALUES ${placeholders}) AND kind = ?`)
+      .bind(...params, kind)
       .all<RawRow>()
     for (const row of res.results ?? []) {
       map.set(`${row.owner}/${row.repo}/${row.name}`, rowToGenerated<T>(row))

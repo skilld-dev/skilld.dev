@@ -60,8 +60,11 @@ export default defineEventHandler(
          -- deleted used to survive the join, and the fallbacks below then
          -- invented a repo name for it, so the feed linked to a page that
          -- does not exist. recent-updates.get.ts already joins this way.
-         JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
-         JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
+         -- CROSS JOIN fixes the join order so SQLite walks idx_activity_home_feed
+         -- newest-first and stops after LIMIT 12 instead of driving from repos
+         -- and sorting every historical publish for every official owner (~30K -> ~1K rows).
+         CROSS JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
+         CROSS JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
          WHERE a.type = 'skill_published'
            AND ${officialOwnerFilter.sql}
          ORDER BY a.occurred_at DESC

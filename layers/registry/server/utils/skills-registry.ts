@@ -16,7 +16,7 @@ import { canonicalRepoSkillPath } from './skill-routes'
 import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
 import { SKILLS_DIRECTORY_FOCUS_SQL } from './skills-directory-focus'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
-import { noteAdmissionFallback, SKILL_ADMISSIONS_POPULATED_SQL, SKILL_INDEXABLE_SQL } from './trending-admission'
+import { noteAdmissionFallback, SKILL_ADMISSIONS_POPULATED_SQL } from './trending-admission'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 /**
@@ -829,7 +829,7 @@ const DUPLICATE_CANDIDATES_STALE_TTL = 60 * 60 * 24
 
 function listDuplicateCandidateRows(
   event: H3Event,
-  opts: { supportedOnly: boolean, includeAggregators?: boolean },
+  opts: { supportedOnly: boolean, includeAggregators?: boolean, admissionsPopulated?: boolean },
 ): Promise<SkillDuplicateRow[]> {
   return cached({
     storage: useStorage('cache'),
@@ -841,14 +841,63 @@ function listDuplicateCandidateRows(
   })
 }
 
+async function admissionsTablePopulated(db: D1Database): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT ${SKILL_ADMISSIONS_POPULATED_SQL} AS populated`)
+    .first<{ populated: number }>()
+  return row?.populated === 1
+}
+
 async function queryDuplicateCandidateRows(
   event: H3Event,
-  opts: { supportedOnly: boolean, includeAggregators?: boolean },
+  opts: { supportedOnly: boolean, includeAggregators?: boolean, admissionsPopulated?: boolean },
 ): Promise<SkillDuplicateRow[]> {
   const db = getDB(event)
   const supportedSelect = `CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END`
   const supportedFilter = opts.supportedOnly ? `AND (${SUPPORTED_SKILL_SQL})` : ''
   const aggregatorFilter = opts.includeAggregators ? '' : `AND ${NOT_AGGREGATOR_SQL}`
+  const populated = opts.admissionsPopulated ?? await admissionsTablePopulated(db)
+
+  // When `skill_trending_admissions` is populated (~400 rows vs ~28K skills),
+  // drive from the admitted table instead of scanning every Skill twice.
+  if (populated) {
+    const res = await db
+      .prepare(`
+        SELECT
+          s.owner,
+          s.repo,
+          s.name,
+          s.display_name,
+          s.description,
+          s.rendered_raw_sha256,
+          r.stars,
+          r.pushed_at,
+          supported_repos.support_tier,
+          s.trust_tier,
+          ${supportedSelect} AS is_supported,
+          ${repoSkillCountSql('s')}
+        FROM skill_trending_admissions adm
+        CROSS JOIN skills s
+          ON s.owner = adm.owner
+          AND s.repo = adm.repo
+          AND s.name = adm.name
+        CROSS JOIN repos r
+          ON r.owner = s.owner
+          AND r.repo = s.repo
+        LEFT JOIN supported_repos
+          ON supported_repos.owner = s.owner
+          AND supported_repos.repo = s.repo
+          AND supported_repos.enabled = 1
+        WHERE ${NOT_BROKEN_SQL}
+          AND (s.seo_indexable = 1 OR adm.first_board = 'probe')
+          ${aggregatorFilter}
+          ${supportedFilter}
+        ORDER BY s.owner ASC, s.repo ASC, s.name ASC
+      `)
+      .all<SkillDuplicateRow>()
+    return res.results ?? []
+  }
+
   const res = await db
     .prepare(`
       SELECT
@@ -871,7 +920,7 @@ async function queryDuplicateCandidateRows(
         AND supported_repos.repo = s.repo
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
-        AND ${SKILL_INDEXABLE_SQL}
+        AND s.seo_indexable = 1
         ${aggregatorFilter}
         ${supportedFilter}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
@@ -880,8 +929,16 @@ async function queryDuplicateCandidateRows(
   return res.results ?? []
 }
 
-export async function findDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
-  const rows = await listDuplicateCandidateRows(event, { supportedOnly: false, includeAggregators: true })
+export async function findDuplicateGroupForSkill(
+  event: H3Event,
+  slug: string,
+  opts?: { admissionsPopulated?: boolean },
+): Promise<SkillDuplicateGroup | null> {
+  const rows = await listDuplicateCandidateRows(event, {
+    supportedOnly: false,
+    includeAggregators: true,
+    admissionsPopulated: opts?.admissionsPopulated,
+  })
   return findDuplicateGroupInRows(rows, slug)
 }
 
@@ -912,38 +969,74 @@ export function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEnt
 }
 
 export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSitemapEntry[]> {
-  const res = await db
-    .prepare(`
-      SELECT
-        s.name,
-        s.owner,
-        s.repo,
-        s.display_name,
-        s.description,
-        s.rendered_raw_sha256,
-        s.current_sha,
-        r.stars,
-        r.pushed_at,
-        supported_repos.support_tier,
-        s.trust_tier,
-        r.repo_kind,
-        CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported,
-        ${REPO_SKILL_COUNT_FROM_JOIN}
-      ${FROM_SKILLS_JOIN_REPOS}
-      ${REPO_SKILL_COUNTS_JOIN}
-      LEFT JOIN supported_repos
-        ON supported_repos.owner = s.owner
-        AND supported_repos.repo = s.repo
-        AND supported_repos.enabled = 1
-      WHERE ${NOT_BROKEN_SQL}
-        AND ${SKILL_INDEXABLE_SQL}
-      ORDER BY s.owner ASC, s.repo ASC, s.name ASC
-    `)
-    .all<SkillDuplicateRow>()
-  const rows = res.results ?? []
-  const populated = await db.prepare(`SELECT ${SKILL_ADMISSIONS_POPULATED_SQL} AS populated`).first<{ populated: number }>()
-  if (populated?.populated !== 1)
+  const populated = await admissionsTablePopulated(db)
+  if (!populated)
     noteAdmissionFallback()
+
+  const res = populated
+    ? await db
+        .prepare(`
+          SELECT
+            s.name,
+            s.owner,
+            s.repo,
+            s.display_name,
+            s.description,
+            s.rendered_raw_sha256,
+            s.current_sha,
+            r.stars,
+            r.pushed_at,
+            supported_repos.support_tier,
+            s.trust_tier,
+            r.repo_kind,
+            CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported,
+            ${repoSkillCountSql('s')}
+          FROM skill_trending_admissions adm
+          CROSS JOIN skills s
+            ON s.owner = adm.owner
+            AND s.repo = adm.repo
+            AND s.name = adm.name
+          CROSS JOIN repos r
+            ON r.owner = s.owner
+            AND r.repo = s.repo
+          LEFT JOIN supported_repos
+            ON supported_repos.owner = s.owner
+            AND supported_repos.repo = s.repo
+            AND supported_repos.enabled = 1
+          WHERE ${NOT_BROKEN_SQL}
+            AND (s.seo_indexable = 1 OR adm.first_board = 'probe')
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
+        `)
+        .all<SkillDuplicateRow>()
+    : await db
+        .prepare(`
+          SELECT
+            s.name,
+            s.owner,
+            s.repo,
+            s.display_name,
+            s.description,
+            s.rendered_raw_sha256,
+            s.current_sha,
+            r.stars,
+            r.pushed_at,
+            supported_repos.support_tier,
+            s.trust_tier,
+            r.repo_kind,
+            CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported,
+            ${REPO_SKILL_COUNT_FROM_JOIN}
+          ${FROM_SKILLS_JOIN_REPOS}
+          ${REPO_SKILL_COUNTS_JOIN}
+          LEFT JOIN supported_repos
+            ON supported_repos.owner = s.owner
+            AND supported_repos.repo = s.repo
+            AND supported_repos.enabled = 1
+          WHERE ${NOT_BROKEN_SQL}
+            AND s.seo_indexable = 1
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
+        `)
+        .all<SkillDuplicateRow>()
+  const rows = res.results ?? []
   // The duplicate decision reads the same candidate set as the Skill page,
   // aggregators included (`findDuplicateGroupForSkill`). An aggregator copy can
   // outrank a real repo and make it the weaker duplicate, so the sitemap must
