@@ -25,6 +25,8 @@ const SCANNER_EXACT_PATHS = new Set([
 
 const DYNAMIC_PREFIXES = [
   '/_img/',
+  '/_og/',
+  '/_og-static-fonts/',
   '/__og-image__/',
   '/_nuxt/',
   '/_file-icons/',
@@ -33,6 +35,7 @@ const DYNAMIC_PREFIXES = [
   '/b/',
   '/demos/',
   '/gh/',
+  '/repos/',
   '/skills/',
   '/.well-known/',
 ] as const

@@ -326,10 +326,10 @@ describe('production smoke contract', () => {
   })
 
   it('outwaits a CDN-cached 404 that predates the smoke', async () => {
-    // `/_nuxt/v2/**` carries `cloudflare-cdn-cache-control: max-age=60`, so a 404
-    // observed during rollout is pinned at the edge for the TTL. Origin is ready
-    // (the cache-busted probe passes) and the clean URL only recovers once the
-    // entry expires, so the retry cadence must outlast the TTL.
+    // `/_nuxt/v2/**` uses `cloudflare-cdn-cache-control: public, max-age=31536000, immutable`
+    // for hits (and `no-store` on miss fallthrough). If a 404 is cached at the edge
+    // during rollout while origin is ready (the cache-busted probe passes), the clean
+    // URL recovers once `cdnCacheTtlMs` elapses, so the retry cadence must outlast it.
     const cdnCacheTtlMs = 60_000
     let elapsedMs = 0
     const cleanRequests: number[] = []

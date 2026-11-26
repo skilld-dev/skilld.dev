@@ -42,9 +42,9 @@ export interface ProductionSmokeDependencies {
   attempts?: number
   retryDelayMs?: number
   /**
-   * `cloudflare-cdn-cache-control: max-age=60` on `/_nuxt/v2/**` (see routeRules
-   * in nuxt.config) pins a rollout 404 at the edge even once origin serves the
-   * asset. Keep this in step with that max-age.
+   * Wait window for a stale edge 404 to expire before re-checking clean asset URLs.
+   * `/_nuxt/v2/**` uses `cloudflare-cdn-cache-control: public, max-age=31536000, immutable`
+   * for hits (see routeRules in nuxt.config), while misses fall through to a `no-store` 404.
    */
   cdnCacheTtlMs?: number
   /**
