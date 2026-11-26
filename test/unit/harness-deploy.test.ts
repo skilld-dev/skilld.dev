@@ -9,8 +9,13 @@ describe('harness deploy decision', () => {
   })
 
   it('keeps the live version when nothing it builds from changed', () => {
-    expect(harnessDeployDecision({ liveCommit: 'aaa111', changedPaths: ['app/pages/index.vue', 'docs/runbooks/skillgen.md'] }))
+    expect(harnessDeployDecision({ liveCommit: 'aaa111', changedPaths: ['app/pages/index.vue', 'docs/runbooks/skillgen.md', '.github/workflows/deploy-cloudflare.yml'] }))
       .toEqual({ _tag: 'Keep' })
+  })
+
+  it('deploys when the Harness deploy workflow changed', () => {
+    expect(harnessDeployDecision({ liveCommit: 'aaa111', changedPaths: ['.github/workflows/deploy-harness.yml'] }))
+      .toEqual({ _tag: 'Deploy', reason: '.github/workflows/deploy-harness.yml changed since aaa111.' })
   })
 
   it('deploys when the live version names no commit', () => {

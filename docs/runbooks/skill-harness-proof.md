@@ -8,16 +8,15 @@ The proof produces a file bundle. [GitHub](https://github.com) tag handling and 
 
 ## Deploy the proof
 
-A merge to main deploys the `skilld-harness-proof` Worker and its container image after the site deploy.
-Each deploy tags the version with its commit. A main deploy compares that commit with HEAD.
-It deploys when `workers/skill-harness/`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, or the deploy workflow changed since then.
+A merge to main triggers the `Deploy Harness` workflow when `workers/skill-harness/`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, or `.github/workflows/deploy-harness.yml` changes.
+Each deploy tags the version with its commit. The workflow compares that commit with HEAD, waits for the site deploy to finish, and then deploys the `skilld-harness-proof` Worker and its container image.
 So a merge that cancels an earlier run still ships that run's Worker change. Container instances roll out at once.
 A new version restarts containers, so an unchanged merge keeps the running version.
 
-To deploy a branch by hand, dispatch the workflow with `target=harness-proof`.
+To deploy a branch by hand, dispatch `deploy-harness.yml`.
 
 ```sh
-gh workflow run deploy-cloudflare.yml --ref BRANCH --field target=harness-proof
+gh workflow run deploy-harness.yml --ref BRANCH
 ```
 
 By default, OpenCode runs GLM 5.3 through OpenCode Go: `PROVIDER=opencode-go` and `MODEL=glm-5.3`.

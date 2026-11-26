@@ -9,11 +9,6 @@ on:
       - AGENTS.md
   workflow_dispatch:
     inputs:
-      target:
-        description: Deployment target
-        type: choice
-        options: [site, harness-proof]
-        default: site
       rotate_registry_github_token:
         description: Rotate the registry GitHub fallback token
         type: boolean
@@ -24,7 +19,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ format('deploy-cloudflare-{0}', inputs.target || 'site') }}
+  group: deploy-cloudflare-site
   # A deploy in flight must finish. This workflow applies D1 migrations and then
   # deploys the signer and public Worker, then runs smoke and rollback. Cancelling
   # between those steps leaves migrated data against the previous Worker.
@@ -34,7 +29,7 @@ jobs:
   deploy:
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.target != 'harness-proof')
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -170,65 +165,3 @@ jobs:
           echo '::warning::Nuxt DX reporting failed. See the report step.'
           echo '### Nuxt DX report unavailable' >> "$GITHUB_STEP_SUMMARY"
           echo 'Reporting failed. The deployment result is unchanged.' >> "$GITHUB_STEP_SUMMARY"
-
-      # Workers Cache stores `/skills/trending` (see routeRules in
-      # nuxt.config.ts). This proves a repeat visit is a hit, and that no stored
-      # response sets a cookie, hides Markdown from an agent, or carries a
-      # session. It also proves a stored page answers its ETag with a 304, and
-      # that a 304 never replaces the stored page. It fails the job without a
-      # rollback: the rollback smoke re-checks the previous version, and a
-      # version from before the rule could never pass these checks.
-      - name: Check the trending edge cache
-        run: pnpm production:edge-cache
-
-  # The Harness Worker deploys on dispatch, and after a main push whose tested
-  # commit changed it, its dependencies, or this workflow. It runs after the site deploy,
-  # because the Worker calls site routes that the same merge may add. It skips
-  # unchanged merges: a new version restarts containers, and a Skillgen job may
-  # be running in one.
-  harness-proof:
-    needs: deploy
-    if: >-
-      !cancelled() &&
-      ((github.event_name == 'workflow_dispatch' && inputs.target == 'harness-proof') ||
-      (needs.deploy.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # The live version's commit can be many merges back.
-          fetch-depth: 0
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 26.13.0
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --ignore-scripts
-      # Compares the commit the live version was built from, not HEAD^. A merge
-      # that cancels an earlier run would otherwise hide that run's Harness change.
-      - name: Detect Harness changes
-        id: changes
-        run: |
-          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            pnpm exec tsx scripts/harness-deploy-plan.ts
-          fi
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Check the Harness Worker
-        if: steps.changes.outputs.deploy == 'true'
-        run: |
-          pnpm --filter @skilld/skill-harness-worker types:check
-          pnpm --filter @skilld/skill-harness-worker typecheck
-          pnpm --filter @skilld/skill-harness-worker test:run
-      - name: Deploy the Harness proof
-        if: steps.changes.outputs.deploy == 'true'
-        # The tag names the commit, so the next run diffs from what is live.
-        run: pnpm --filter @skilld/skill-harness-worker deploy:proof --tag "${COMMIT:0:12}" --message "$COMMIT"
-        env:
-          COMMIT: ${{ github.sha }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

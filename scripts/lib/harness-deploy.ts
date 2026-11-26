@@ -5,7 +5,7 @@
  */
 
 /** The paths the Harness Worker and its container image build from. */
-export const HARNESS_PATHS = ['workers/skill-harness', 'pnpm-workspace.yaml', 'pnpm-lock.yaml', '.github/workflows/deploy-cloudflare.yml'] as const
+export const HARNESS_PATHS = ['workers/skill-harness', 'pnpm-workspace.yaml', 'pnpm-lock.yaml', '.github/workflows/deploy-harness.yml'] as const
 
 export type HarnessDeployDecision
   = | { readonly _tag: 'Deploy', readonly reason: string }

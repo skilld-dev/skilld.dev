@@ -1,0 +1,54 @@
+name: Post-deploy checks
+
+# Non-blocking verification that runs after a successful main site deploy.
+# Keeping edge-cache verification out of `Deploy to Cloudflare` lets the deploy
+# workflow complete right after the Worker rollout and Artifact build smoke.
+
+on:
+  workflow_run:
+    workflows: [Deploy to Cloudflare]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Every completed Deploy to Cloudflare run triggers this workflow, including
+  # failed or cancelled runs and branch dispatches. Keep those out of the live
+  # check group so they never cancel an active verification run.
+  group: >-
+    ${{ (github.event_name == 'workflow_run' && (github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_repository.full_name != github.repository || github.event.workflow_run.head_branch != 'main'))
+    && format('post-deploy-checks-noop-{0}', github.run_id)
+    || 'post-deploy-checks' }}
+  cancel-in-progress: true
+
+jobs:
+  edge-cache:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Workers Cache stores `/skills/trending` and other edge-cached pages
+      # (see routeRules in nuxt.config.ts). This proves a repeat visit is a hit,
+      # and that no stored response sets a cookie, hides Markdown from an agent,
+      # or carries a session. It also proves a stored page answers its ETag with
+      # a 304, and that a 304 never replaces the stored page. It does not roll
+      # back: the rollback smoke re-checks the previous version, and a version
+      # from before the rule could never pass these checks.
+      - name: Check the trending edge cache
+        run: pnpm production:edge-cache

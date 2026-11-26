@@ -1,0 +1,78 @@
+name: Deploy Harness
+
+# Deploys the skilld-harness-proof Worker and its container image when its
+# source, workspace lockfile, or this workflow changes on main, or on manual
+# dispatch. Waits for the matching site deploy before rolling out so new site
+# routes are live first.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/skill-harness/**'
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/deploy-harness.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: deploy-harness-proof
+  # Container rollouts restart active Skillgen jobs; finish a rollout in flight.
+  cancel-in-progress: false
+
+jobs:
+  harness-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The live version's commit can be many merges back.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Compares the commit the live version was built from, not HEAD^. A merge
+      # that cancels an earlier run would otherwise hide that run's Harness change.
+      - name: Detect Harness changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            pnpm exec tsx scripts/harness-deploy-plan.ts
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Check the Harness Worker
+        if: steps.changes.outputs.deploy == 'true'
+        run: |
+          pnpm --filter @skilld/skill-harness-worker types:check
+          pnpm --filter @skilld/skill-harness-worker typecheck
+          pnpm --filter @skilld/skill-harness-worker test:run
+      # The Worker calls site routes that the same merge may add. Wait for the
+      # site deploy to finish before shipping a new Harness version.
+      - name: Wait for site deploy
+        if: github.event_name == 'push' && steps.changes.outputs.deploy == 'true'
+        run: pnpm exec tsx scripts/wait-for-site-deploy.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+      - name: Deploy the Harness proof
+        if: steps.changes.outputs.deploy == 'true'
+        # The tag names the commit, so the next run diffs from what is live.
+        run: pnpm --filter @skilld/skill-harness-worker deploy:proof --tag "${COMMIT:0:12}" --message "$COMMIT"
+        env:
+          COMMIT: ${{ github.sha }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
