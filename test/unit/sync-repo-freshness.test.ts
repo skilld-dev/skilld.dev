@@ -349,6 +349,23 @@ describe('syncRepo freshness cursor', () => {
       .get()).toBeNull()
   })
 
+  it('updates only repo_meta_synced_at when repo metadata is already identical', async () => {
+    await syncRepo('acme', 'skills', {}, db)
+    statements.length = 0
+
+    vi.setSystemTime(new Date('2026-07-13T01:00:00Z'))
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('skipped-tree-sha')
+    const repoUpdate = statements.find(sql => sql.includes('UPDATE repos'))
+    expect(repoUpdate).toContain('SET repo_meta_synced_at = ?')
+    expect(repoUpdate).not.toContain('stars =')
+    expect(sqlite.prepare(`SELECT repo_meta_synced_at, stars FROM repos WHERE owner = 'acme' AND repo = 'skills'`).get()).toEqual({
+      repo_meta_synced_at: 1783904400,
+      stars: 42,
+    })
+  })
+
   it('restores repo_missing skills on the owner-verified unchanged path too', async () => {
     sqlite.prepare(`UPDATE skills SET sync_status = 'repo_missing', source_resolved = 0`).run()
 

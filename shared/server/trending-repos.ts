@@ -106,6 +106,7 @@ const POSTS_SQL = `
      WHERE m.post_id = p.post_id AND m.observed_at < p.metrics_updated_at
    )
   WHERE p.posted_at >= ?1
+    AND p.favourite_count >= ?2
 `
 
 export interface LoadTrendingOptions {
@@ -145,15 +146,15 @@ export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<T
   const limit = options.limit ?? 24
   const cutoff = now - TREND_WINDOW_HOURS * 3600
 
-  const rows = (await db.prepare(POSTS_SQL).bind(cutoff).all<PostRow>()).results ?? []
+  const minLikes = options.minLikes ?? 0
+  const maxReposPerPost = options.maxReposPerPost ?? Infinity
+
+  const rows = (await db.prepare(POSTS_SQL).bind(cutoff, minLikes).all<PostRow>()).results ?? []
   if (rows.length === 0)
     return []
 
   const grouped = new Map<string, RepoTrendInput>()
   const postsById = new Map<string, PostRow>()
-
-  const minLikes = options.minLikes ?? 0
-  const maxReposPerPost = options.maxReposPerPost ?? Infinity
 
   for (const row of rows) {
     // Quiet posts and listicles are excluded before ranking, so they cannot

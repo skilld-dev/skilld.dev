@@ -114,6 +114,7 @@ export function repoStarObservationStatements(
       INSERT INTO repo_star_observations (owner, repo, observed_day, stars)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(owner, repo, observed_day) DO UPDATE SET stars = excluded.stars
+      WHERE repo_star_observations.stars != excluded.stars
     `).bind(owner, repo, observedDay, Math.max(0, Math.floor(stars))),
     db.prepare(`
       DELETE FROM repo_star_observations

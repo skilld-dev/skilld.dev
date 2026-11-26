@@ -241,7 +241,11 @@ async function pruneSnapshots(db: D1Database, now: number): Promise<number> {
     .prepare(
       `DELETE FROM x_post_metrics
        WHERE observed_at < ?1
-         AND post_id IN (SELECT post_id FROM x_post_metrics WHERE observed_at >= ?1)`,
+         AND EXISTS (
+           SELECT 1 FROM x_post_metrics newer
+           WHERE newer.post_id = x_post_metrics.post_id
+             AND newer.observed_at >= ?1
+         )`,
     )
     .bind(cutoff)
     .run()

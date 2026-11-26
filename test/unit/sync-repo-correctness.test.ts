@@ -303,6 +303,31 @@ describe('syncRepo content acknowledgement', () => {
     expect(renderer.parseSkillMd.mock.calls[0]?.[0]).toBe(rawSkill('One'))
   })
 
+  it('skips rewriting an unchanged zero-asset skill during a single-chunk sync', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    sqlite.prepare(`
+      UPDATE skills
+      SET rendered_status = 'ok',
+          rendered_skill_path = 'skills/one/SKILL.md',
+          rendered_commit_sha = ?,
+          sync_status = 'ok',
+          source_resolved = 1,
+          last_synced_at = 123
+      WHERE name = 'one'
+    `).run('a'.repeat(40))
+    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-old' }]))
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({ status: 'indexed', skillsUpserted: 0 })
+    expect(sqlite.prepare(`SELECT sync_status, source_resolved, last_synced_at FROM skills WHERE name = 'one'`).get()).toEqual({
+      sync_status: 'ok',
+      source_resolved: 1,
+      last_synced_at: 123,
+    })
+  })
+
   it('keeps unchanged names seen and refreshes their tree-derived fields', async () => {
     insertRepo(sqlite, 'old-tree')
     insertSkill(sqlite, 'one', 'one-old')

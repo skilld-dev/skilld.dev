@@ -61,6 +61,8 @@ interface ExistingSkill {
   modified_at: number | null
   first_seen_at: number | null
   last_synced_at: number | null
+  sync_status: string | null
+  source_resolved: number
   references_count: number
   rendered_skill_path: string | null
   rendered_commit_sha: string | null
@@ -76,7 +78,15 @@ interface ExistingSkillAssets {
 export interface ExistingRepo {
   repository_id: number | null
   last_tree_sha: string | null
+  default_branch: string | null
+  stars: number
+  forks: number
+  is_fork: number | null
+  description: string | null
   pushed_at: number | null
+  repo_created_at: number | null
+  broken_since: number | null
+  tree_truncated_at: number | null
   source_owner: string | null
   source_repo: string | null
 }
@@ -334,6 +344,7 @@ export async function loadExistingSkillSummaries(
   const res = await db
     .prepare(
       `SELECT name, current_sha, modified_at, first_seen_at, last_synced_at,
+              sync_status, source_resolved,
               references_count, rendered_skill_path, rendered_commit_sha, rendered_status,
               owner_verified
        FROM skills WHERE owner = ? AND repo = ?`,
@@ -521,7 +532,9 @@ async function followRepositoryMove(
 async function loadExistingRepo(db: D1Database, owner: string, repo: string): Promise<ExistingRepo | null> {
   return await db
     .prepare(`
-      SELECT repository_id, last_tree_sha, pushed_at, source_owner, source_repo
+      SELECT repository_id, last_tree_sha, default_branch, stars, forks, is_fork,
+             description, pushed_at, repo_created_at, broken_since, tree_truncated_at,
+             source_owner, source_repo
       FROM repos
       WHERE owner = ? AND repo = ?
     `)
@@ -529,10 +542,45 @@ async function loadExistingRepo(db: D1Database, owner: string, repo: string): Pr
     .first<ExistingRepo>()
 }
 
+function repoSummaryMetadataUnchanged(
+  existing: ExistingRepo | null | undefined,
+  next: {
+    defaultBranch: string
+    stars: number
+    forks: number
+    isFork: number | null
+    description: string | null
+    pushedAt: number | null
+    repoCreatedAt: number | null
+    sourceOwner: string
+    sourceRepo: string
+    repositoryId: number
+  },
+): boolean {
+  if (!existing)
+    return false
+  return existing.default_branch === next.defaultBranch
+    && existing.stars === next.stars
+    && existing.forks === next.forks
+    && existing.is_fork === next.isFork
+    && existing.description === next.description
+    && existing.pushed_at === next.pushedAt
+    && existing.repo_created_at === next.repoCreatedAt
+    && existing.broken_since === null
+    && existing.tree_truncated_at === null
+    && existing.source_owner === next.sourceOwner
+    && existing.source_repo === next.sourceRepo
+    && existing.repository_id === next.repositoryId
+}
+
 /**
  * Record a successful GitHub metadata check when content did not change.
  * This is the scheduler's repo-level freshness cursor and also keeps cheap
  * metadata current without rewriting every skill row in the repo.
+ *
+ * When every metadata column already matches the stored row, update only
+ * `repo_meta_synced_at` so SQLite skips rewriting secondary indexes on
+ * `stars` and `broken_since`.
  */
 function markRepoSummaryCheckedStatement(
   db: D1Database,
@@ -542,7 +590,38 @@ function markRepoSummaryCheckedStatement(
   repositoryId: number,
   pushedAt: number | null,
   checkedAt: number,
+  existing?: ExistingRepo | null,
 ): D1PreparedStatement {
+  const defaultBranch = meta.default_branch || 'main'
+  const stars = meta.stargazers_count ?? 0
+  const forks = meta.forks_count ?? 0
+  const isFork = typeof meta.fork === 'boolean' ? Number(meta.fork) : null
+  const description = meta.description?.trim() || null
+  const repoCreatedAt = epoch(meta.created_at)
+  const sourceOwner = meta.owner.login
+  const sourceRepo = meta.name
+
+  if (repoSummaryMetadataUnchanged(existing, {
+    defaultBranch,
+    stars,
+    forks,
+    isFork,
+    description,
+    pushedAt,
+    repoCreatedAt,
+    sourceOwner,
+    sourceRepo,
+    repositoryId,
+  })) {
+    return db
+      .prepare(
+        `UPDATE repos
+         SET repo_meta_synced_at = ?
+         WHERE owner = ? AND repo = ?`,
+      )
+      .bind(checkedAt, owner, repo)
+  }
+
   return db
     .prepare(
       `UPDATE repos
@@ -562,16 +641,16 @@ function markRepoSummaryCheckedStatement(
        WHERE owner = ? AND repo = ?`,
     )
     .bind(
-      meta.default_branch || 'main',
-      meta.stargazers_count ?? 0,
-      meta.forks_count ?? 0,
-      typeof meta.fork === 'boolean' ? Number(meta.fork) : null,
-      meta.description?.trim() || null,
+      defaultBranch,
+      stars,
+      forks,
+      isFork,
+      description,
       pushedAt,
-      epoch(meta.created_at),
+      repoCreatedAt,
       checkedAt,
-      meta.owner.login,
-      meta.name,
+      sourceOwner,
+      sourceRepo,
       repositoryId,
       owner,
       repo,
@@ -624,12 +703,13 @@ export function repoUnchangedStatements(
     repositoryId: number
     checkedAt: number
     ownerVerified: boolean
+    existing?: ExistingRepo | null
   },
 ): D1PreparedStatement[] {
-  const { owner, repo, meta, repositoryId, checkedAt } = input
+  const { owner, repo, meta, repositoryId, checkedAt, existing } = input
   const pushedAt = epoch(meta.pushed_at)
   const statements = [
-    markRepoSummaryCheckedStatement(db, owner, repo, meta, repositoryId, pushedAt, checkedAt),
+    markRepoSummaryCheckedStatement(db, owner, repo, meta, repositoryId, pushedAt, checkedAt, existing),
     clearRepoMissingSkillsStatement(db, owner, repo, checkedAt),
     ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
   ]
@@ -928,7 +1008,7 @@ export async function syncRepo(
   const hasAdmittedSkills = await repoHasAdmittedSkills(db, owner, repo)
 
   const markUnchanged = async (status: 'skipped-tree-sha' | 'skipped-pushed-at'): Promise<SyncRepoStats> => {
-    await db.batch(repoUnchangedStatements(db, { owner, repo, meta, repositoryId, checkedAt, ownerVerified: opts.ownerVerified === true }))
+    await db.batch(repoUnchangedStatements(db, { owner, repo, meta, repositoryId, checkedAt, ownerVerified: opts.ownerVerified === true, existing: existingRepo }))
     stats.status = opts.ownerVerified ? 'verified-only' : status
     return stats
   }
@@ -1164,31 +1244,44 @@ export async function syncRepo(
       const assetsJson = JSON.stringify(selectSkillFiles(assets).files)
       const referencesChanged = prev.references_count !== refsCount || existingAssets.get(prev.name) !== assetsJson
       const ownerVerificationChanged = opts.ownerVerified === true && prev.owner_verified !== 1
+      const isSingleChunk = chunkStart === 0 && isFinalChunk
+      // Single-chunk syncs track surviving names in memory (`seenNames`), so an
+      // unchanged zero-asset skill with a healthy row needs no D1 write at all.
+      // Skills with supporting files still advance `rendered_commit_sha` when
+      // the repo commit moves so asset fetches read the latest files, and
+      // multi-chunk continuations still stamp `last_synced_at` as their
+      // cross-invocation checkpoint.
+      const commitChanged = sourceCommit !== null
+        && prev.rendered_commit_sha !== sourceCommit
+        && (refsCount > 0 || prev.rendered_commit_sha === null)
+      const statusChanged = prev.sync_status !== 'ok' || prev.source_resolved !== 1
 
       seenNames.add(prev.name)
-      writes.push(weighWrite(
-        db,
-        `UPDATE skills
-         SET references_count = ?,
-             assets = ?,
-             rendered_commit_sha = ?,
-             last_synced_at = ?,
-             sync_status = 'ok',
-             source_resolved = 1,
-             owner_verified = MAX(owner_verified, ?)
-         WHERE owner = ? AND repo = ? AND name = ?`,
-        [
-          refsCount,
-          assetsJson,
-          sourceCommit,
-          now,
-          opts.ownerVerified ? 1 : 0,
-          owner,
-          repo,
-          prev.name,
-        ],
-      ))
-      stats.skillsUpserted += 1
+      if (!isSingleChunk || referencesChanged || ownerVerificationChanged || commitChanged || statusChanged) {
+        const setClauses = [
+          'references_count = ?',
+          'assets = ?',
+          'rendered_commit_sha = ?',
+          'last_synced_at = ?',
+          `sync_status = 'ok'`,
+        ]
+        const updateParams: unknown[] = [refsCount, assetsJson, sourceCommit, now]
+        if (prev.source_resolved !== 1)
+          setClauses.push('source_resolved = 1')
+        if (ownerVerificationChanged) {
+          setClauses.push('owner_verified = MAX(owner_verified, ?)')
+          updateParams.push(1)
+        }
+        updateParams.push(owner, repo, prev.name)
+        writes.push(weighWrite(
+          db,
+          `UPDATE skills
+           SET ${setClauses.join(',\n               ')}
+           WHERE owner = ? AND repo = ? AND name = ?`,
+          updateParams,
+        ))
+        stats.skillsUpserted += 1
+      }
 
       if (referencesChanged) {
         writes.push(weighWrite(
@@ -1669,7 +1762,7 @@ export async function syncRepo(
 
   const acknowledgedBeforeThisChunk = [...existing.values()]
     .some(skill => skill.last_synced_at === now)
-  if (stats.skillsUpserted === 0 && !acknowledgedBeforeThisChunk) {
+  if (stats.skillsUpserted === 0 && seenNames.size === 0 && !acknowledgedBeforeThisChunk) {
     stats.status = 'rejected'
     stats.reason = 'trust_inputs_insufficient'
     return stats

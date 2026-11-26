@@ -43,7 +43,7 @@ describe('d1 read query plans', () => {
 
     const detail = plan(sql, params)
 
-    expect(detail).toContain('idx_skills_owner_repo_name_key')
+    expect(detail).toContain('idx_skills_identity_path')
     expect(detail).not.toMatch(/SCAN s\b/)
   })
 
