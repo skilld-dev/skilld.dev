@@ -7,7 +7,7 @@ import { checkEdgeCache } from './lib/edge-cache-check'
  *   pnpm production:edge-cache
  *   EDGE_CACHE_BASE_URL=https://skilld.dev pnpm production:edge-cache
  *
- * The deploy workflow runs it after `production:deploy`. It does not roll back:
+ * The post-deploy checks workflow runs it after `Deploy to Cloudflare` succeeds. It does not roll back:
  * the rollback smoke re-checks the previous version, and a version from before
  * the `edgeCache` rule could never pass it. Exit code 1 on any failure.
  */
