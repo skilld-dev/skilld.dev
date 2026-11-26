@@ -13,6 +13,7 @@ import {
 
 const LEADERBOARD_CACHE_TTL = 60 * 15
 const LEADERBOARD_CACHE_STALE_TTL = 60 * 60 * 4
+const MAX_GLOBAL_LEADERBOARD_PAGE = 10
 
 const query = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -57,8 +58,11 @@ export interface SkillsLeaderboardResponse {
 export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
   schema: query,
   handler: async ({ event, body, platform }): Promise<SkillsLeaderboardResponse> => {
+    // Bound global KV writes to pages 1..10 so crawler pagination (`?page=99999`)
+    // falls back to free per-colo `edge-cache` instead of creating unbounded KV keys.
+    const storage = useStorage(body.page <= MAX_GLOBAL_LEADERBOARD_PAGE ? 'cache' : 'edge-cache')
     const response = await cached({
-      storage: useStorage('cache'),
+      storage,
       key: `skills:leaderboard:v1:p${body.page}`,
       ttlSeconds: LEADERBOARD_CACHE_TTL,
       staleSeconds: LEADERBOARD_CACHE_STALE_TTL,

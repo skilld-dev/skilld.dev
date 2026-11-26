@@ -242,7 +242,10 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const { skill, row } = found
   const curators: CuratorEndorsement[] = []
 
-  const needsSiblingSkillNames = (row.repo_skill_count ?? 0) > 1
+  // `repo_skill_count` counts live (`source_resolved = 1`) skills in the repo.
+  // A live skill has a sibling when count > 1; a gone skill (`source_resolved = 0`)
+  // is excluded from that count, so any count > 0 means a live sibling exists.
+  const needsSiblingSkillNames = (row.repo_skill_count ?? 0) > (row.source_resolved === 1 ? 1 : 0)
   const [duplicateGroup, generated, repoSkillNames] = await Promise.all([
     findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`, {
       admissionsPopulated: row.admissions_populated === 1,

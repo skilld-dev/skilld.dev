@@ -183,6 +183,19 @@ describe('uncached skill detail render', () => {
     expect(body.dependencies).toEqual([])
   })
 
+  it('links live sibling references on a gone Skill even when only one live sibling remains', async () => {
+    seed()
+    harness.raw.prepare('UPDATE skills SET source_resolved = 0 WHERE name = ?').run('alpha')
+    harness.raw.prepare('UPDATE skills SET rendered_raw = ? WHERE name = ?').run('Use `/beta` instead.', 'alpha')
+
+    const body = await render()
+    const doc = new DOMParser().parseFromString(body.contentHtml, 'text/html')
+
+    expect(body.sourceGone).toBe(true)
+    expect(body.dependencies).toEqual(['beta'])
+    expect(doc.querySelector('a')?.getAttribute('href')).toBe(`/gh/${OWNER}/${REPO}/beta`)
+  })
+
   it('gives every live GitHub read a timeout', async () => {
     seed({ renderedStatus: null })
 

@@ -279,19 +279,29 @@ function withoutFlaggedSkills(board: TrendingBoard, flagged: ReadonlySet<string>
   }
 }
 
+const CANONICAL_TRENDING_LIMITS = new Set([6, 12, 20, 24, 30, 50])
+const CANONICAL_TRENDING_WINDOWS = new Set([24, DEFAULT_WINDOW_HOURS, 24 * 30])
+
 export default defineEventHandler(
   async (event): Promise<TrendingFeedResponse> => {
-    const limit = Math.min(Number(getQuery(event).limit) || 24, 50)
+    const q = getQuery(event)
+    const limit = Math.max(1, Math.min(Math.trunc(Number(q.limit) || 24), 50))
 
     // Star growth is no longer part of trending. It measures a repo, not the
     // conversation, and mixing the two hid which signal had actually fired.
     // The detect-star-surges task keeps collecting for a future surface.
     // `window` accepts hours so a caller can ask for today (24) rather than
     // the default week. Clamped to a month: beyond that nothing is trending.
-    const windowHours = Math.min(
-      Math.max(Number(getQuery(event).window) || DEFAULT_WINDOW_HOURS, 1),
-      24 * 30,
+    const windowHours = Math.max(
+      1,
+      Math.min(Math.trunc(Number(q.window) || DEFAULT_WINDOW_HOURS), 24 * 30),
     )
+
+    // Only canonical app query combinations write to global KV `cache`;
+    // arbitrary crawler parameters fall back to free per-colo `edge-cache`.
+    const storageName = CANONICAL_TRENDING_LIMITS.has(limit) && CANONICAL_TRENDING_WINDOWS.has(windowHours)
+      ? 'cache'
+      : 'edge-cache'
 
     const response = await cachedFeed(event, 'trending', async () => {
       const db = getDB(event)
@@ -313,7 +323,7 @@ export default defineEventHandler(
       const fallback = fallbackSkills.map(entry => toFallbackItem(entry, seriesOf(entry)))
 
       return { items, namedSkills: skillItems, fallback, computedAt: now }
-    }, [limit, windowHours], TRENDING_FEED_WINDOW)
+    }, [limit, windowHours], TRENDING_FEED_WINDOW, storageName)
     setHeader(event, 'cloudflare-cdn-cache-control', 'public, max-age=120, stale-while-revalidate=1800')
     return response
   },

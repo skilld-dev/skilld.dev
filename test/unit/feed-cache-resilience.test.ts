@@ -105,3 +105,51 @@ it('shares equivalent trending options without sharing a different window', asyn
   await expect(handler(request('trending', '?window=720&limit=50&ignored=x'))).resolves.toEqual(fresh)
   await expect(handler(request('trending', '?window=24&limit=50'))).rejects.toThrow('D1 DB is overloaded')
 })
+
+it('clamps non-integer trending params and routes non-canonical keys to edge-cache', async () => {
+  const storageMounts: string[] = []
+  const storages = new Map<string, Map<string, unknown>>()
+  vi.stubGlobal('useStorage', (name: string) => {
+    storageMounts.push(name)
+    let bucket = storages.get(name)
+    if (!bucket) {
+      bucket = new Map()
+      storages.set(name, bucket)
+    }
+    return {
+      getItem: async (key: string) => bucket.get(key) ?? null,
+      setItem: async (key: string, value: unknown) => { bucket.set(key, value) },
+    }
+  })
+
+  const handler = (await import('../../server/api/feed/trending.get')).default
+  await handler(request('trending', '?limit=12.9&window=24.8'))
+  expect(boundary.board).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 12, windowHours: 24 }))
+  expect(storageMounts.at(-1)).toBe('cache')
+
+  await handler(request('trending', '?limit=-5&window=0.5'))
+  expect(boundary.board).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 1, windowHours: 1 }))
+  expect(storageMounts.at(-1)).toBe('edge-cache')
+
+  await handler(request('trending', '?limit=17&window=113'))
+  expect(boundary.board).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 17, windowHours: 113 }))
+  expect(storageMounts.at(-1)).toBe('edge-cache')
+})
+
+it('caps the in-isolate feed cache so unique queries cannot grow memory unbounded', async () => {
+  const { cachedFeed, MAX_ISOLATE_FEED_ENTRIES } = await import('../../server/utils/feed-cache')
+  const getItem = vi.fn(async () => null)
+  const setItem = vi.fn(async () => {})
+  vi.stubGlobal('useStorage', () => ({ getItem, setItem }))
+
+  const totalKeys = MAX_ISOLATE_FEED_ENTRIES + 5
+  for (let i = 0; i < totalKeys; i++) {
+    await cachedFeed(request('trending'), 'trending', async () => ({ id: i }), [i, 168], undefined, 'edge-cache')
+  }
+
+  // The earliest entry was evicted once the map exceeded MAX_ISOLATE_FEED_ENTRIES,
+  // so requesting key 0 again hits storage instead of the isolate map.
+  const readsBefore = getItem.mock.calls.length
+  await cachedFeed(request('trending'), 'trending', async () => ({ id: 0 }), [0, 168], undefined, 'edge-cache')
+  expect(getItem.mock.calls.length).toBe(readsBefore + 1)
+})

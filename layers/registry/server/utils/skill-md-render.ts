@@ -265,14 +265,15 @@ export function canReuseStoredSkillHtml(input: StoredSkillHtmlReuseInput): boole
   return true
 }
 
-const RELATIVE_MARKDOWN_LINK_RE = /\]\(\s*(?![a-z][a-z0-9+.-]*:|\/\/|#)/i
+const RELATIVE_INLINE_LINK_RE = /\]\(\s*<?(?![a-z][a-z0-9+.-]*:|\/\/|#)/i
+const RELATIVE_REF_LINK_DEF_RE = /^[ \t]*\[[^\]\n]+\]:[ \t]*(?:\r?\n[ \t]*)?<?(?![a-z][a-z0-9+.-]*:|\/\/|#|\s|$)/im
 
 /**
- * True when markdown contains a relative `[label](href)` link that
- * `sourceGone` rendering must strip into plain text.
+ * True when markdown contains a relative inline `[label](href)` or reference
+ * `[label]: href` link that `sourceGone` rendering must strip into plain text.
  */
 export function hasRelativeMarkdownLink(raw: string): boolean {
-  return RELATIVE_MARKDOWN_LINK_RE.test(raw)
+  return RELATIVE_INLINE_LINK_RE.test(raw) || RELATIVE_REF_LINK_DEF_RE.test(raw)
 }
 
 /**

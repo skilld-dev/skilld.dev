@@ -2,6 +2,7 @@ import { createApp, defineEventHandler, getRequestURL, toWebHandler } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import { canReuseStoredSkillHtml, canReuseStoredSkillHtmlForGoneSource } from '../../layers/registry/server/utils/skill-md-render'
 import { isStaticProbe404Path } from '../../shared/static-probe-404'
+import { createTestEvent } from './helpers/event'
 
 const globals = globalThis as Record<string, unknown>
 globals.defineNuxtConfig ??= (config: unknown) => config
@@ -318,7 +319,7 @@ describe('canReuseStoredSkillHtml', () => {
     expect(canReuseStoredSkillHtmlForGoneSource({
       ...base,
       sourceResolved: 0,
-      raw: '---\nname: alpha\n---\n\nSee [docs](https://example.com) and [top](#alpha).',
+      raw: '---\nname: alpha\n---\n\nSee [docs](https://example.com), [top](#alpha), and [ref][ext].\n\n[ext]: https://example.com/docs\n[sec]: #alpha',
     })).toBe(true)
 
     expect(canReuseStoredSkillHtmlForGoneSource({
@@ -326,6 +327,62 @@ describe('canReuseStoredSkillHtml', () => {
       sourceResolved: 0,
       raw: '---\nname: alpha\n---\n\nSee [guide](./references/guide.md).',
     })).toBe(false)
+
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [guide][g].\n\n[g]: ./references/guide.md',
+    })).toBe(false)
+
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [guide][g].\n\n  [g]: <references/guide.md> "Guide"',
+    })).toBe(false)
+
+    expect(canReuseStoredSkillHtmlForGoneSource({
+      ...base,
+      sourceResolved: 0,
+      raw: '---\nname: alpha\n---\n\nSee [guide][g].\n\n[g]:\n  references/guide.md',
+    })).toBe(false)
+  })
+})
+
+describe('leaderboard global KV pagination cap', () => {
+  it('uses global cache for pages 1..10 and falls back to edge-cache above page 10', async () => {
+    const mounts: string[] = []
+    vi.stubGlobal('useStorage', (name: string) => {
+      mounts.push(name)
+      return {
+        getItem: async () => null,
+        setItem: async () => {},
+      }
+    })
+    vi.stubGlobal('getQuery', (event: { context: { query?: Record<string, unknown> } }) => event.context.query ?? {})
+    vi.stubGlobal('getUserSession', () => Promise.resolve(null))
+
+    const handler = (await import('../../layers/registry/server/api/skills/leaderboard.get')).default as unknown as (event: unknown) => Promise<unknown>
+    const db = {
+      prepare: () => ({
+        bind: () => ({ all: async () => ({ results: [] }) }),
+        first: async () => ({ total: 0 }),
+      }),
+    }
+    const makeEvent = (page: number) => createTestEvent({
+      headers: {},
+      context: {
+        query: { page: String(page) },
+        platform: { db },
+        cloudflare: { context: { waitUntil: () => {} } },
+      },
+    })
+
+    await handler(makeEvent(1))
+    await handler(makeEvent(10))
+    await handler(makeEvent(11))
+    await handler(makeEvent(99999))
+
+    expect(mounts).toEqual(['cache', 'cache', 'edge-cache', 'edge-cache'])
   })
 })
 
