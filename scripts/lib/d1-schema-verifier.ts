@@ -129,9 +129,15 @@ export type CfJobsPackageVerificationResult
     | { _tag: 'fail', issues: PackageContractIssue[] }
 
 export const CF_JOBS_SCHEMA_CONTRACT = {
-  // The 0.3.0 distributed schema preserves these five indexes and predicates.
-  version: '0.3.0',
+  // The 0.4.1 distributed schema preserves these eight indexes and predicates.
+  version: '0.4.1',
   indexes: [
+    {
+      name: 'idx_job_batches_site',
+      tableName: 'job_batches',
+      sql: 'CREATE INDEX idx_job_batches_site ON job_batches(site_id) WHERE site_id IS NOT NULL',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_job_batches_site ON job_batches (site_id) WHERE site_id IS NOT NULL',
+    },
     {
       name: 'idx_jobs_dispatchable',
       tableName: 'jobs',
@@ -149,6 +155,18 @@ export const CF_JOBS_SCHEMA_CONTRACT = {
       tableName: 'jobs',
       sql: 'CREATE INDEX idx_jobs_active ON jobs(created_at) WHERE completed_at IS NULL AND failed_at IS NULL',
       distributedSql: 'CREATE INDEX IF NOT EXISTS idx_jobs_active ON jobs (created_at) WHERE completed_at IS NULL AND failed_at IS NULL',
+    },
+    {
+      name: 'idx_jobs_batch',
+      tableName: 'jobs',
+      sql: 'CREATE INDEX idx_jobs_batch ON jobs(batch_id) WHERE batch_id IS NOT NULL',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_jobs_batch ON jobs (batch_id) WHERE batch_id IS NOT NULL',
+    },
+    {
+      name: 'idx_jobs_sync_dedup',
+      tableName: 'jobs',
+      sql: 'CREATE INDEX idx_jobs_sync_dedup ON jobs(site_id, job_type) WHERE site_id IS NOT NULL',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_jobs_sync_dedup ON jobs (site_id, job_type) WHERE site_id IS NOT NULL',
     },
     {
       name: 'idx_failed_jobs_site_failed_at',
