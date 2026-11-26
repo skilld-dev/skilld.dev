@@ -42,12 +42,16 @@ export const DEFAULT_MAX_POSTS_PER_RUN = 600
 /** Snapshots older than this are pruned, never the most recent one. */
 const METRIC_RETENTION_DAYS = 30
 
+/** Expired snapshot rows scanned per run when advancing the prune watermark. */
+export const DEFAULT_PRUNE_SCAN_LIMIT = 500
+
 export interface XRefreshDeps {
   db: D1Database
   client: XClient
   /** Unix seconds. */
   now: number
   maxPostsPerRun?: number
+  pruneScanLimit?: number
   policy?: RefreshPolicyConfig
 }
 
@@ -86,6 +90,7 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
   const { db, client, now } = deps
   const policy = deps.policy ?? DEFAULT_REFRESH_POLICY
   const budget = deps.maxPostsPerRun ?? DEFAULT_MAX_POSTS_PER_RUN
+  const pruneScanLimit = Math.max(1, deps.pruneScanLimit ?? DEFAULT_PRUNE_SCAN_LIMIT)
 
   const summary: XRefreshSummary = {
     claimed: 0,
@@ -132,11 +137,6 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
   }
 
   const rows = claimedRows.filter(row => row.linked)
-  if (rows.length === 0) {
-    summary.elapsedMs = Date.now() - startedAt
-    return summary
-  }
-
   const byId = new Map(rows.map(r => [r.post_id, r]))
   const refreshedPostIds: string[] = []
 
@@ -227,42 +227,113 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
       await db.batch(statements)
   }
 
-  summary.snapshotsPruned = await pruneSnapshots(db, now, refreshedPostIds)
+  summary.snapshotsPruned = await pruneSnapshots(db, now, refreshedPostIds, pruneScanLimit)
   summary.elapsedMs = Date.now() - startedAt
   return summary
 }
 
 /** Max post IDs per prune statement, staying under D1's 100-parameter cap. */
 const PRUNE_POST_CHUNK_SIZE = 90
+const METRICS_PRUNE_CURSOR_KEY = 'metrics-prune-v1'
+
+export const X_POST_METRICS_PRUNE_SCAN_SQL = `
+  SELECT post_id, observed_at
+  FROM x_post_metrics INDEXED BY idx_x_post_metrics_observed
+  WHERE observed_at > ?1
+    AND observed_at < ?2
+  ORDER BY observed_at ASC
+  LIMIT ?3
+`
+
+export const X_POST_METRICS_PRUNE_AT_SECOND_SQL = `
+  SELECT DISTINCT post_id
+  FROM x_post_metrics INDEXED BY idx_x_post_metrics_observed
+  WHERE observed_at = ?1
+`
+
+export function xPostMetricsPruneDeleteSql(postCount: number): string {
+  const placeholders = Array.from({ length: postCount }).fill('?').join(', ')
+  return `DELETE FROM x_post_metrics
+    WHERE post_id IN (${placeholders})
+      AND observed_at < ?
+      AND EXISTS (
+        SELECT 1 FROM x_post_metrics newer
+        WHERE newer.post_id = x_post_metrics.post_id
+          AND newer.observed_at > x_post_metrics.observed_at
+      )`
+}
 
 /**
- * Drop snapshots past the retention window for posts that just received a
- * fresh snapshot.
- *
- * A global `DELETE ... WHERE observed_at < ? AND EXISTS (...)` scanned all
- * ~35K historical snapshots of long-frozen posts every hour (~70K rows read
- * per run to delete 0 rows). Posts freeze after 12 hours, so only posts
- * refreshed here can hold both a fresh snapshot and one past retention;
- * seeking `(post_id, observed_at)` by primary key keeps dormant posts' final
- * snapshot intact at O(refreshed) reads.
+ * Prune expired intermediate snapshots via a watermark on `observed_at` plus
+ * freshly refreshed posts, keeping each post's latest snapshot intact.
  */
-async function pruneSnapshots(db: D1Database, now: number, refreshedPostIds: readonly string[]): Promise<number> {
-  if (refreshedPostIds.length === 0)
-    return 0
+async function pruneSnapshots(
+  db: D1Database,
+  now: number,
+  refreshedPostIds: readonly string[],
+  scanLimit: number,
+): Promise<number> {
   const cutoff = now - METRIC_RETENTION_DAYS * 24 * 3600
+  const cursorRow = await db
+    .prepare(`SELECT last_run_at FROM x_ingest_cursor WHERE query_key = ?1`)
+    .bind(METRICS_PRUNE_CURSOR_KEY)
+    .first<{ last_run_at: number | null }>()
+  const watermark = cursorRow?.last_run_at ?? 0
+
+  const scanned = (await db
+    .prepare(X_POST_METRICS_PRUNE_SCAN_SQL)
+    .bind(watermark, cutoff, scanLimit)
+    .all<{ post_id: string, observed_at: number }>()).results ?? []
+
+  const candidateIds = new Set<string>(refreshedPostIds)
+  for (const row of scanned)
+    candidateIds.add(row.post_id)
+
+  let nextWatermark: number | null = null
+  if (scanned.length > 0) {
+    const minObservedAt = scanned[0]!.observed_at
+    const maxObservedAt = scanned[scanned.length - 1]!.observed_at
+    if (scanned.length < scanLimit) {
+      nextWatermark = maxObservedAt
+    }
+    else if (minObservedAt < maxObservedAt) {
+      nextWatermark = maxObservedAt - 1
+    }
+    else {
+      // Finish a tied timestamp in full so the watermark always advances.
+      const tied = (await db
+        .prepare(X_POST_METRICS_PRUNE_AT_SECOND_SQL)
+        .bind(maxObservedAt)
+        .all<{ post_id: string }>()).results ?? []
+      for (const row of tied)
+        candidateIds.add(row.post_id)
+      nextWatermark = maxObservedAt
+    }
+  }
+
   let pruned = 0
-  for (let i = 0; i < refreshedPostIds.length; i += PRUNE_POST_CHUNK_SIZE) {
-    const chunk = refreshedPostIds.slice(i, i + PRUNE_POST_CHUNK_SIZE)
-    const placeholders = chunk.map(() => '?').join(', ')
+  const postIds = [...candidateIds]
+  for (let i = 0; i < postIds.length; i += PRUNE_POST_CHUNK_SIZE) {
+    const chunk = postIds.slice(i, i + PRUNE_POST_CHUNK_SIZE)
     const result = await db
-      .prepare(
-        `DELETE FROM x_post_metrics
-         WHERE post_id IN (${placeholders})
-           AND observed_at < ?`,
-      )
+      .prepare(xPostMetricsPruneDeleteSql(chunk.length))
       .bind(...chunk, cutoff)
       .run()
     pruned += (result.meta as { changes?: number } | undefined)?.changes ?? 0
   }
+
+  if (nextWatermark !== null && nextWatermark > watermark) {
+    await db
+      .prepare(
+        `INSERT INTO x_ingest_cursor (query_key, last_run_at, last_result_count)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(query_key) DO UPDATE SET
+           last_run_at = excluded.last_run_at,
+           last_result_count = excluded.last_result_count`,
+      )
+      .bind(METRICS_PRUNE_CURSOR_KEY, nextWatermark, pruned)
+      .run()
+  }
+
   return pruned
 }
