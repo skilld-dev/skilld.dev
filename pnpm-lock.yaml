@@ -183,8 +183,8 @@ catalogs:
       specifier: 0.3.0
       version: 0.3.0
     '@harlan-zw/nuxt-cf-jobs':
-      specifier: 0.4.1
-      version: 0.4.1
+      specifier: 0.4.2
+      version: 0.4.2
     '@harlan-zw/nuxt-checkin':
       specifier: 0.4.1
       version: 0.4.1
@@ -445,7 +445,7 @@ importers:
         version: 0.3.0
       '@harlan-zw/nuxt-cf-jobs':
         specifier: 'catalog:'
-        version: 0.4.1(5e5eac4075015e1c96b43f453bdd5936)
+        version: 0.4.2(5e5eac4075015e1c96b43f453bdd5936)
       '@harlan-zw/nuxt-checkin':
         specifier: 'catalog:'
         version: 0.4.1(@nuxt/schema@4.7.0)(confbox@0.3.1)(dotenv@17.4.2)(giget@3.3.1)(jiti@2.7.0)(magic-string@1.2.3)(mlly@1.8.2)(nuxt@4.7.0(632b24ced8c59c2d73b22203237b0acb))(oxc-parser@0.143.0)(rolldown@1.2.19)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.19)(rollup@4.62.4)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1)))
@@ -1858,8 +1858,8 @@ packages:
     resolution: {integrity: sha512-XEPrZeKr3D/901ZnVfv5aXn7UMjER7XXkR1/M+LnzoEYwNfJBr/CPYk0q7/C82GxZmP30FqQCQv5hcq//e4b8A==}
     engines: {node: ^22.22.3 || ^24.15.0 || >=26.0.0}
 
-  '@harlan-zw/nuxt-cf-jobs@0.4.1':
-    resolution: {integrity: sha512-hGIInhYRknGVp2iC9OQdr7Z10mgAXCoLEaD+xSgfUDLTIO3cschm/L/mAJ8I0r5STzePWtNtoyj3Vwl2S94xOg==}
+  '@harlan-zw/nuxt-cf-jobs@0.4.2':
+    resolution: {integrity: sha512-qb+Tiv+Hhee1lgFluYQT8BwqCEqVko19rvcct8hfJtuGEEHd4ODDUB/4DT5Q6hJBtr5MP2WLxpCw6hdLGhW/NQ==}
     engines: {node: ^22.22.3 || ^24.15.0 || >=26.0.0}
     hasBin: true
     peerDependencies:
@@ -11688,7 +11688,7 @@ snapshots:
     dependencies:
       ohash: 2.0.12
 
-  '@harlan-zw/nuxt-cf-jobs@0.4.1(5e5eac4075015e1c96b43f453bdd5936)':
+  '@harlan-zw/nuxt-cf-jobs@0.4.2(5e5eac4075015e1c96b43f453bdd5936)':
     dependencies:
       '@harlan-zw/nuxt-cloudflare': 0.6.0(bd54d8ad9a3a3d516213ea29fec9a75a)
       '@nuxt/kit': 4.7.0(@nuxt/schema@4.7.0)(confbox@0.3.1)(dotenv@17.4.2)(giget@3.3.1)(jiti@2.7.0)(magic-string@1.2.3)(mlly@1.8.2)(oxc-parser@0.143.0)(rolldown@1.2.19)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.19)(rollup@4.62.4)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1)))
