@@ -249,7 +249,7 @@ catalog:
   '@comark/nuxt': 0.7.0
   '@harlan-zw/comark-content': 0.2.0
   '@harlan-zw/jev': 0.3.0
-  '@harlan-zw/nuxt-cf-jobs': 0.4.1
+  '@harlan-zw/nuxt-cf-jobs': 0.4.2
   '@harlan-zw/nuxt-checkin': 0.4.1
   '@harlan-zw/nuxt-cloudflare': 0.6.0
   '@harlan-zw/nuxt-dx': 0.3.0

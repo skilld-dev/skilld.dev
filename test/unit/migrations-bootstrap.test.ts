@@ -94,6 +94,10 @@ describe('d1 migration bootstrap', () => {
       ).pluck().get()).toContain('WHERE site_id IS NOT NULL')
       expect(sqlite.prepare(
         `SELECT sql FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_job_batches_open_created'`,
+      ).pluck().get()).toContain('WHERE finished_at IS NULL')
+      expect(sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
          WHERE type = 'index' AND name = 'idx_jobs_batch'`,
       ).pluck().get()).toContain('WHERE batch_id IS NOT NULL')
       expect(sqlite.prepare(

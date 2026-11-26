@@ -129,14 +129,20 @@ export type CfJobsPackageVerificationResult
     | { _tag: 'fail', issues: PackageContractIssue[] }
 
 export const CF_JOBS_SCHEMA_CONTRACT = {
-  // The 0.4.1 distributed schema preserves these eight indexes and predicates.
-  version: '0.4.1',
+  // The 0.4.2 distributed schema preserves these nine indexes and predicates.
+  version: '0.4.2',
   indexes: [
     {
       name: 'idx_job_batches_site',
       tableName: 'job_batches',
       sql: 'CREATE INDEX idx_job_batches_site ON job_batches(site_id) WHERE site_id IS NOT NULL',
       distributedSql: 'CREATE INDEX IF NOT EXISTS idx_job_batches_site ON job_batches (site_id) WHERE site_id IS NOT NULL',
+    },
+    {
+      name: 'idx_job_batches_open_created',
+      tableName: 'job_batches',
+      sql: 'CREATE INDEX idx_job_batches_open_created ON job_batches(created_at) WHERE finished_at IS NULL',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_job_batches_open_created ON job_batches (created_at) WHERE finished_at IS NULL',
     },
     {
       name: 'idx_jobs_dispatchable',
