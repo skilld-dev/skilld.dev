@@ -278,13 +278,15 @@ catalog:
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/mcp-toolkit': ^0.22.0
   '@nuxtjs/seo': 6.1.0
-  '@playwright/test': ^1.62.1
+  '@playwright/test': 1.62.1
   '@resvg/resvg-js': ^2.6.2
   '@sentry/cloudflare': ^11.1.0
   '@sentry/nuxt': ^11.1.0
   '@takumi-rs/core': ^2.15.0
   '@takumi-rs/wasm': ^2.15.0
   '@types/node': ^26.4.0
+  '@vitejs/plugin-vue': ^6.0.11
+  '@vitest/browser-playwright': 5.1.2
   '@vue/test-utils': ^2.5.0
   '@vueuse/core': ^15.0.0
   '@vueuse/nuxt': ^15.0.0
@@ -312,6 +314,7 @@ catalog:
   nuxt-auth-utils: 0.6.2
   nuxtseo-devtools-host: ^1.0.2
   ofetch: ^1.5.1
+  playwright: 1.62.1
   rangi: ^2.2.0
   # The header menu imports reka-ui directly. Keep it equal to the version
   # @nuxt/ui pins, or the client ships two copies.
@@ -322,7 +325,7 @@ catalog:
   tsx: ^4.23.13
   typescript: 6.0.3
   unstorage: 1.17.5
-  vitest: ^4.1.11
+  vitest: ^5.1.2
   vue: 3.5.46
   vue-tsc: 3.3.14
   wrangler: ^4.127.1

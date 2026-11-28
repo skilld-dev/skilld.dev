@@ -20,6 +20,10 @@ New Markdown at the repository root is an error. Identity and filters only.
 
 ## Rules
 
+- Run `pnpm test:browser` for changes to the Skill file tree. Install Chromium with `pnpm exec playwright install chromium`.
+- After an edit, run `pnpm test:run --since-last-run --reporter=agent` for affected tests.
+  After a failure, use `pnpm test:run --last-failed --reporter=agent`. Before opening a PR, run `pnpm test:run`.
+
 - **Every change serves one of the two loops, or it is cut.** Loop 1 is anonymous discovery to
   run: land, see curated Skills, copy `npx skilld run owner/repo/skill`, hand it to the agent.
   Loop 2 is authenticated watching to digest. They ship on the same site and are sold
