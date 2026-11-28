@@ -255,7 +255,7 @@ catalogs:
       specifier: 6.1.0
       version: 6.1.0
     '@playwright/test':
-      specifier: ^1.62.1
+      specifier: 1.62.1
       version: 1.62.1
     '@resvg/resvg-js':
       specifier: ^2.6.2
@@ -362,6 +362,9 @@ catalogs:
     ofetch:
       specifier: ^1.5.1
       version: 1.5.1
+    playwright:
+      specifier: 1.62.1
+      version: 1.62.1
     rangi:
       specifier: ^2.2.0
       version: 2.2.0
@@ -636,7 +639,7 @@ importers:
         version: 6.0.11(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vue@3.5.46(typescript@6.0.3))
       '@vitest/browser-playwright':
         specifier: 'catalog:'
-        version: 5.1.2(playwright@1.63.0)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.1.2)
+        version: 5.1.2(playwright@1.62.1)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.1.2)
       '@vue/test-utils':
         specifier: 'catalog:'
         version: 2.5.0(@vue/compiler-dom@3.5.46)(@vue/server-renderer@3.5.46)(vue@3.5.46(typescript@6.0.3))
@@ -667,6 +670,9 @@ importers:
       nuxtseo-devtools-host:
         specifier: 'catalog:'
         version: 1.0.2(93afebb1258ef230195d9a0a52c7c6dc)
+      playwright:
+        specifier: 'catalog:'
+        version: 1.62.1
       site-typecheck:
         specifier: workspace:*
         version: link:tools/typecheck
@@ -16314,11 +16320,11 @@ snapshots:
       vite: 8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1)
       vue: 3.5.46(typescript@6.0.3)
 
-  '@vitest/browser-playwright@5.1.2(playwright@1.63.0)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.1.2)':
+  '@vitest/browser-playwright@5.1.2(playwright@1.62.1)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.1.2)':
     dependencies:
       '@vitest/browser': 5.1.2(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.1.2)
       '@vitest/mocker': 5.1.2(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))
-      playwright: 1.63.0
+      playwright: 1.62.1
       tinyrainbow: 3.2.0
       vitest: 5.1.2(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-playwright@5.1.2)(@vitest/ui@5.1.2)(happy-dom@21.0.4)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))
     transitivePeerDependencies:
@@ -22905,7 +22911,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/node': 26.4.0
-      '@vitest/browser-playwright': 5.1.2(playwright@1.63.0)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.1.2)
+      '@vitest/browser-playwright': 5.1.2(playwright@1.62.1)(vite@8.3.8(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.1.2)
       '@vitest/ui': 5.1.2(vitest@5.1.2)
       happy-dom: 21.0.4
     transitivePeerDependencies:

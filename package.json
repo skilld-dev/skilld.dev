@@ -132,6 +132,7 @@
     "lint-staged": "catalog:",
     "magic-string": "catalog:",
     "nuxtseo-devtools-host": "catalog:",
+    "playwright": "catalog:",
     "site-typecheck": "workspace:*",
     "tsx": "catalog:",
     "typescript": "catalog:",
