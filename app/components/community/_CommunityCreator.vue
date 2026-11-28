@@ -25,7 +25,6 @@ const contributionSummary = computed(() => [
       <NuxtLink
         :to="`/@${creator.login}`"
         class="community-creator__profile group"
-        :aria-label="`View ${displayName}'s profile`"
       >
         <CollectionAvatar
           :src="avatarProxyUrl(creator.avatar)"

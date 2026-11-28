@@ -175,7 +175,7 @@ watch(() => route.fullPath, () => {
         >
           <nav
             class="flex flex-col gap-1 p-4 sm:px-6"
-            aria-label="Mobile navigation"
+            aria-label="Mobile"
           >
             <UButton
               to="/skills/trending"

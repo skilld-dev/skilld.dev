@@ -554,6 +554,10 @@ describe('accessibility: components', () => {
     )
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
+    const profileLink = container.querySelector('a[href="/@harlan-zw"]')
+    expect(profileLink?.getAttribute('aria-label')).toBeNull()
+    expect(profileLink?.textContent).toContain('Harlan Wilton')
+    expect(profileLink?.textContent).toContain('@harlan-zw')
     wrapper.unmount()
   })
 
@@ -781,6 +785,10 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     const picks = [...container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')]
     expect(picks[1]?.getAttribute('aria-pressed')).toBe('true')
+    expect(picks[0]?.textContent).not.toContain('Draw one.')
+    const describedById = picks[0]?.getAttribute('aria-describedby')
+    expect(describedById).toBeTruthy()
+    expect(container.querySelector(`#${CSS.escape(describedById!)}`)?.textContent).toContain('Draw one.')
 
     picks[0]!.click()
     await nextTick()
