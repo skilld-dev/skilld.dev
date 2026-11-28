@@ -2,10 +2,7 @@ import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { getQuery, getRequestURL, getRouterParam } from 'h3'
 import { fetchProxiedImage, imageProxyResponse, parseImageProxyRequest, resolveImageProxyKey, verifyImageProxySignature } from '#server/utils/image-proxy'
 import { emitOperationalEvent } from '#server/utils/operational-event'
-
-interface WorkerContext {
-  waitUntil: (promise: Promise<unknown>) => void
-}
+import { resolveAfterResponse } from '#shared/server/after-response'
 
 function defaultCache(): Cache | null {
   // The Cache API exists on Cloudflare Workers only; local Node dev has none.
@@ -48,8 +45,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const response = imageProxyResponse(result)
-  const ctx = (event.context as { cloudflare?: { context?: WorkerContext } }).cloudflare?.context
-  if (cache && ctx && (result._tag === 'Ok' || result._tag === 'AvatarFallback'))
-    ctx.waitUntil(cache.put(cacheKey, response.clone()))
+  const waitUntil = resolveAfterResponse(event)
+  if (cache && waitUntil && (result._tag === 'Ok' || result._tag === 'AvatarFallback'))
+    waitUntil(cache.put(cacheKey, response.clone()))
   return response
 })

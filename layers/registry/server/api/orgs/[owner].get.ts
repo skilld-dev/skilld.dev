@@ -4,6 +4,7 @@ import type { TagPayload } from '../../jobs/generate-tags'
 import type { GithubBindings } from '../../utils/github-client'
 import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '#server/utils/db'
+import { runAfterResponse } from '#shared/server/after-response'
 import { cached, readCache, writeCache } from '#shared/server/cache'
 import { $fetch } from '#shared/server/fetch'
 import { officialRepos } from '../../data/official-repos'
@@ -292,15 +293,4 @@ async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile
   }
 
   return profile
-}
-
-function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
-  const ctx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(promise)
-    return
-  }
-  // Local dev / non-Workers: don't block the response, but make sure the
-  // promise isn't an unhandled rejection.
-  void promise
 }

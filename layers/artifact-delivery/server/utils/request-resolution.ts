@@ -121,8 +121,12 @@ export function readsLinkedFiles(header: string | undefined): boolean {
 export const IN_REQUEST_BUILD_FALLBACK_SECONDS = 35
 
 export interface AfterResponseBuildDependencies {
-  /** Keep work alive after the response, such as the Worker's `waitUntil`. */
-  schedule: (work: Promise<unknown>) => void
+  /**
+   * Keep work alive after the response, such as the Worker's `waitUntil`.
+   * Null when the runtime cannot extend a request past its response; the build
+   * then enqueues before the response returns so the runtime cannot cancel it.
+   */
+  schedule: ((work: Promise<unknown>) => void) | null
   /** Run the build here, as the queue consumer would. */
   build: (resolutionId: string) => Promise<ArtifactBuildOutcome>
   enqueue: (resolutionId: string, delaySeconds?: number) => Promise<void>
@@ -144,13 +148,22 @@ export interface AfterResponseBuildDependencies {
  * A delayed message goes out first, so a build the runtime stops resumes on
  * the queue. A build that throws goes to the queue at once, for its retry
  * ladder. A build that follows an earlier build of the same Skill goes back
- * on the queue after the wait it names, as the consumer does.
+ * on the queue after the wait it names, as the consumer does. When no
+ * `waitUntil` hook is available, the message goes straight to the queue before
+ * the response returns so the build can never be stranded at `requested`.
  */
 export function buildAfterResponse(
   dependencies: AfterResponseBuildDependencies,
 ): (resolutionId: string) => Promise<void> {
   return async (resolutionId) => {
-    dependencies.schedule(buildHere(dependencies, resolutionId))
+    if (dependencies.schedule) {
+      dependencies.schedule(buildHere(dependencies, resolutionId))
+      return
+    }
+    const sent = await dependencies.enqueue(resolutionId)
+      .then(() => null, (error: unknown) => error)
+    if (sent !== null)
+      await dependencies.failUnqueued(resolutionId, sent)
   }
 }
 

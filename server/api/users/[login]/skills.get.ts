@@ -1,6 +1,6 @@
-import type { H3Event } from 'h3'
 import type { Platform } from '#shared/server/platform'
 
+import { runAfterResponse } from '#shared/server/after-response'
 import { cached } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
@@ -81,15 +81,4 @@ async function loadUserSkills(platform: Platform, login: string) {
       }),
     })),
   }
-}
-
-function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
-  const ctx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(promise)
-    return
-  }
-  // Local dev / non-Workers: don't block the response, but make sure the
-  // promise isn't an unhandled rejection.
-  void promise
 }

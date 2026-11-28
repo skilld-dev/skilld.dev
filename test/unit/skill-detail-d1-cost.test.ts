@@ -88,8 +88,8 @@ async function render(): Promise<Record<string, any>> {
     headers: {},
     context: {
       platform: { db: harness.db },
-      cloudflare: { context: { waitUntil: (promise: Promise<unknown>) => background.push(promise) } },
     },
+    waitUntil: (promise: Promise<unknown>) => background.push(promise),
   }))
   await Promise.all(background)
   return body

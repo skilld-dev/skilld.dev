@@ -373,8 +373,8 @@ describe('leaderboard global KV pagination cap', () => {
       context: {
         query: { page: String(page) },
         platform: { db },
-        cloudflare: { context: { waitUntil: () => {} } },
       },
+      waitUntil: () => {},
     })
 
     await handler(makeEvent(1))

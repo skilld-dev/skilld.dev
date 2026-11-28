@@ -240,6 +240,43 @@ describe('building in the request after the response', () => {
 
     expect(run.failUnqueued).not.toHaveBeenCalled()
   })
+  it('enqueues directly before answering when no waitUntil is attached', async () => {
+    const build = vi.fn(async (resolutionId: string) => ({ _tag: 'ready' as const, resolutionId }))
+    const enqueue = vi.fn(async () => {})
+    const failUnqueued = vi.fn(async () => {})
+    const reportBuildError = vi.fn()
+    const start = buildAfterResponse({
+      schedule: null,
+      build,
+      enqueue,
+      failUnqueued,
+      reportBuildError,
+    })
+
+    await start(ID)
+
+    expect(build).not.toHaveBeenCalled()
+    expect(enqueue.mock.calls).toEqual([[ID]])
+    expect(failUnqueued).not.toHaveBeenCalled()
+  })
+
+  it('fails the Resolution when no waitUntil is attached and direct enqueue throws', async () => {
+    const enqueueError = new Error('Queue send failed: 503')
+    const failUnqueued = vi.fn(async () => {})
+    const start = buildAfterResponse({
+      schedule: null,
+      build: async resolutionId => ({ _tag: 'ready', resolutionId }),
+      enqueue: async () => {
+        throw enqueueError
+      },
+      failUnqueued,
+      reportBuildError: () => {},
+    })
+
+    await start(ID)
+
+    expect(failUnqueued).toHaveBeenCalledWith(ID, enqueueError)
+  })
 })
 
 describe('pOST /api/v1/resolutions builds from the real event', () => {
@@ -258,7 +295,72 @@ describe('pOST /api/v1/resolutions builds from the real event', () => {
     vi.unstubAllGlobals()
   })
 
-  it('answers 202 and schedules the build off the h3 event', async () => {
+  function attachNitro3WaitUntil(request: Request, waitUntil: (promise: Promise<unknown>) => void): Request {
+    ;(request as Request & { waitUntil?: (promise: Promise<unknown>) => void }).waitUntil = waitUntil
+    return request
+  }
+
+  function attachNitro3RuntimeContext(request: Request, waitUntil: (promise: Promise<unknown>) => void): Request {
+    ;(request as Request & { runtime?: { name: string, cloudflare: { context: { waitUntil: (promise: Promise<unknown>) => void } } } }).runtime = {
+      name: 'cloudflare',
+      cloudflare: { context: { waitUntil } },
+    }
+    return request
+  }
+
+  it('answers 202 and schedules the build through Nitro 3 req.waitUntil', async () => {
+    const postResolutions = (await import(
+      '../../layers/artifact-delivery/server/api/v1/resolutions/index.post',
+    )).default
+    const sqlite = createSqliteD1(MIGRATIONS)
+    const sent: Array<{ version: number, resolutionId: string, delaySeconds?: number }> = []
+    const awaited: Array<Promise<unknown>> = []
+    const app = createApp()
+    app.use(eventHandler((event) => {
+      event.context.platform = {
+        db: sqlite.db,
+        env: {
+          ARTIFACT_BUILD_QUEUE: {
+            send: async (message: { version: number, resolutionId: string }, options?: { delaySeconds?: number }) => {
+              sent.push({ ...message, delaySeconds: options?.delaySeconds })
+            },
+          },
+          ARTIFACT_TRUSTED_ROOT_JSON: trustedRootConfig(),
+        },
+      } as never
+    }))
+    app.use(postResolutions)
+    const handle = toWebHandler(app)
+
+    const response = await handle(attachNitro3WaitUntil(
+      new Request('http://localhost/api/v1/resolutions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': 'post-route-build-test-key' },
+        // A path selector asks no registry lookup, so the route's HTTP seam stays out of this test.
+        body: JSON.stringify({ source: { provider: 'github', owner: 'skilld-dev', repository: 'skills', selector: { type: 'path', path: 'skills/demo' } } }),
+      }),
+      promise => awaited.push(promise),
+    ))
+
+    expect(response.status).toBe(202)
+    expect(response.headers.get('content-type')).not.toBe('application/problem+json')
+    expect(awaited).toHaveLength(1)
+    const body = await response.json()
+    expect(body).toMatchObject({ state: 'pending', stage: 'requested', pollAfterMs: 250 })
+
+    // The build runs inside waitUntil after the response. This env has no
+    // database, so the build throws: the delayed fallback goes out first, and
+    // the failure re-queues the build at once for its retry ladder.
+    await Promise.allSettled(awaited)
+    expect(sent).toHaveLength(2)
+    expect(sent[0]?.resolutionId).toBe(body.resolutionId)
+    expect(sent[0]?.delaySeconds).toBe(IN_REQUEST_BUILD_FALLBACK_SECONDS)
+    expect(sent[1]?.resolutionId).toBe(body.resolutionId)
+    expect(sent[1]?.delaySeconds).toBeUndefined()
+    sqlite.close()
+  })
+
+  it('answers 202 and enqueues immediately when the event has no waitUntil', async () => {
     const postResolutions = (await import(
       '../../layers/artifact-delivery/server/api/v1/resolutions/index.post',
     )).default
@@ -283,28 +385,19 @@ describe('pOST /api/v1/resolutions builds from the real event', () => {
 
     const response = await handle(new Request('http://localhost/api/v1/resolutions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'idempotency-key': 'post-route-build-test-key' },
-      // A path selector asks no registry lookup, so the route's HTTP seam stays out of this test.
+      headers: { 'content-type': 'application/json', 'idempotency-key': 'post-route-no-waituntil-1' },
       body: JSON.stringify({ source: { provider: 'github', owner: 'skilld-dev', repository: 'skills', selector: { type: 'path', path: 'skills/demo' } } }),
     }))
 
     expect(response.status).toBe(202)
-    expect(response.headers.get('content-type')).not.toBe('application/problem+json')
     const body = await response.json()
-    expect(body).toMatchObject({ state: 'pending', stage: 'requested', pollAfterMs: 250 })
-
-    // The build runs after the response. This env has no database, so the
-    // build throws: the delayed fallback goes out first, and the failure
-    // re-queues the build at once for its retry ladder.
-    await vi.waitFor(() => expect(sent).toHaveLength(2))
-    expect(sent[0]?.resolutionId).toBe(body.resolutionId)
-    expect(sent[0]?.delaySeconds).toBe(IN_REQUEST_BUILD_FALLBACK_SECONDS)
-    expect(sent[1]?.resolutionId).toBe(body.resolutionId)
-    expect(sent[1]?.delaySeconds).toBeUndefined()
+    // Enqueued synchronously before returning 202, with no delay, so nothing
+    // can be dropped if the runtime stops after the response.
+    expect(sent).toEqual([{ version: 1, resolutionId: body.resolutionId, delaySeconds: undefined }])
     sqlite.close()
   })
 
-  it('hands the build to the Worker waitUntil and settles it when every send fails', async () => {
+  it('hands the build to Nitro 3 runtime.cloudflare.context.waitUntil and settles it when every send fails', async () => {
     const postResolutions = (await import(
       '../../layers/artifact-delivery/server/api/v1/resolutions/index.post',
     )).default
@@ -312,9 +405,6 @@ describe('pOST /api/v1/resolutions builds from the real event', () => {
     const awaited: Array<Promise<unknown>> = []
     const app = createApp()
     app.use(eventHandler((event) => {
-      ;(event.context as { cloudflare?: object }).cloudflare = {
-        context: { waitUntil: (promise: Promise<unknown>) => awaited.push(promise) },
-      }
       event.context.platform = {
         db: sqlite.db,
         env: {
@@ -330,11 +420,14 @@ describe('pOST /api/v1/resolutions builds from the real event', () => {
     app.use(postResolutions)
     const handle = toWebHandler(app)
 
-    const response = await handle(new Request('http://localhost/api/v1/resolutions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'idempotency-key': 'post-route-waituntil-key1' },
-      body: JSON.stringify({ source: { provider: 'github', owner: 'skilld-dev', repository: 'skills', selector: { type: 'path', path: 'skills/demo' } } }),
-    }))
+    const response = await handle(attachNitro3RuntimeContext(
+      new Request('http://localhost/api/v1/resolutions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': 'post-route-waituntil-key1' },
+        body: JSON.stringify({ source: { provider: 'github', owner: 'skilld-dev', repository: 'skills', selector: { type: 'path', path: 'skills/demo' } } }),
+      }),
+      promise => awaited.push(promise),
+    ))
 
     expect(response.status).toBe(202)
     expect(awaited).toHaveLength(1)

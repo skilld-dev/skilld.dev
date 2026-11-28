@@ -1,4 +1,5 @@
 import type { UserSession } from '#auth-utils'
+import { runAfterResponse } from '#shared/server/after-response'
 import { defineApiHandler } from '#shared/server/handler'
 import { authSessionEvent } from '#shared/server/session-access'
 import { identityEmailPatchBodySchema, identityMutationResponseSchema } from '../../../shared/contracts/account'
@@ -39,10 +40,7 @@ export default defineApiHandler({
     }).catch(() => {
       emitOperationalEvent(createWideEvent({ operation: 'skill-validation-email', outcome: 'failed' }))
     })
-    const context = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-    if (context?.waitUntil)
-      context.waitUntil(summary)
-    else
+    if (!runAfterResponse(event, summary))
       await summary
     const current = session as unknown as UserSession | null
     if (current?.user && (body.email_opt_in !== undefined || body.weekly_opt_in !== undefined)) {

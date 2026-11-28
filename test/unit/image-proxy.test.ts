@@ -270,14 +270,11 @@ describe('image proxy route', () => {
       },
     })
     const pending: Promise<unknown>[] = []
-    const app = createApp({
-      onRequest(event) {
-        event.context.cloudflare = { context: { waitUntil: (promise: Promise<unknown>) => pending.push(promise) } }
-      },
-    })
+    const app = createApp()
     app.use(createRouter().get('/_img/:kind', imageProxyHandler))
     const handle = toWebHandler(app)
     const request = new Request(`https://skilld.dev${avatarProxyUrl(url)}`)
+    ;(request as Request & { waitUntil?: (promise: Promise<unknown>) => void }).waitUntil = promise => pending.push(promise)
     const first = await handle(request)
     await Promise.all(pending)
     const second = await handle(request)

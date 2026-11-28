@@ -54,9 +54,9 @@ describe('org profile garbage owner', () => {
 
   function event(): H3Event {
     return {
+      req: { waitUntil: () => {} },
       context: {
         platform: { db: harness.db },
-        cloudflare: { context: { waitUntil: () => {} } },
       },
       node: { req: { headers: {} } },
     } as unknown as H3Event
