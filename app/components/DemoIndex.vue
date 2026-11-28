@@ -22,6 +22,7 @@ const { demos, initialKey, surface = 'demos' } = defineProps<{
 const emit = defineEmits<{ pick: [demo: HomeDemoItem] }>()
 
 const stageId = useId()
+const promptIdPrefix = useId()
 
 const picked = ref(Math.max(0, demos.findIndex(demo => demoKey(demo) === initialKey)))
 const current = computed(() => demos[Math.min(picked.value, demos.length - 1)])
@@ -46,14 +47,15 @@ function author(demo: HomeDemoItem): string {
       <div class="demo-index__rail">
         <ol class="demo-index__list list-none p-0" aria-label="Prompts">
           <li v-for="(demo, index) in demos" :key="demoKey(demo)" class="demo-index__entry">
-            <button
-              type="button"
-              class="demo-index__pick"
-              :aria-pressed="index === picked"
-              :aria-controls="stageId"
-              @click="() => pick(index)"
-            >
-              <span class="demo-index__pick-head">
+            <div class="demo-index__card" :data-picked="index === picked ? 'true' : undefined">
+              <button
+                type="button"
+                class="demo-index__pick"
+                :aria-pressed="index === picked"
+                :aria-controls="stageId"
+                :aria-describedby="`${promptIdPrefix}-${index}`"
+                @click="() => pick(index)"
+              >
                 <span class="demo-index__dot" aria-hidden="true" />
                 <img
                   :src="githubAvatarProxyUrl(demo.owner, 40)"
@@ -66,11 +68,11 @@ function author(demo: HomeDemoItem): string {
                 >
                 <span class="demo-index__name">/{{ demo.name }}</span>
                 <span class="demo-index__by">{{ author(demo) }}</span>
-              </span>
-              <span class="demo-index__say line-clamp-2">
+              </button>
+              <p :id="`${promptIdPrefix}-${index}`" class="demo-index__say line-clamp-2">
                 <span class="sr-only">Prompt: </span>{{ demo.prompt }}
-              </span>
-            </button>
+              </p>
+            </div>
             <!-- Phones: the stage opens under the picked prompt. -->
             <div v-if="index === picked" class="demo-index__inline">
               <DemoStage :demo :surface />
@@ -131,7 +133,8 @@ function author(demo: HomeDemoItem): string {
   }
 }
 
-.demo-index__pick {
+.demo-index__card {
+  position: relative;
   display: grid;
   inline-size: 100%;
   gap: 0.375rem;
@@ -140,32 +143,44 @@ function author(demo: HomeDemoItem): string {
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   background: var(--ui-bg);
-  text-align: start;
-  cursor: pointer;
   transition: border-color 200ms ease-out, background-color 200ms ease-out;
 }
 
 @media (hover: hover) {
-  .demo-index__pick:hover {
+  .demo-index__card:hover {
     border-color: var(--ui-border-accented);
   }
 }
 
-.demo-index__pick:focus-visible {
-  outline: 2px solid var(--ui-border-accented);
-  outline-offset: 2px;
-}
-
-.demo-index__pick[aria-pressed='true'] {
+.demo-index__card[data-picked='true'] {
   border-color: var(--ui-border-accented);
   background: var(--ui-bg-muted);
 }
 
-.demo-index__pick-head {
+.demo-index__pick {
   display: flex;
   min-inline-size: 0;
+  inline-size: 100%;
   align-items: center;
   gap: 0.5rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.demo-index__pick::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--ui-radius);
+}
+
+.demo-index__pick:focus-visible {
+  outline: none;
+}
+
+.demo-index__pick:focus-visible::after {
+  outline: 2px solid var(--ui-border-accented);
+  outline-offset: 2px;
 }
 
 /* Stone for every prompt, rose for the one picked: the band's one rose dot. */
@@ -215,7 +230,7 @@ function author(demo: HomeDemoItem): string {
   color: var(--ui-text-muted);
 }
 
-.demo-index__pick[aria-pressed='true'] .demo-index__say {
+.demo-index__card[data-picked='true'] .demo-index__say {
   color: var(--ui-text);
 }
 
@@ -251,7 +266,7 @@ function author(demo: HomeDemoItem): string {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .demo-index__pick {
+  .demo-index__card {
     transition: none;
   }
 

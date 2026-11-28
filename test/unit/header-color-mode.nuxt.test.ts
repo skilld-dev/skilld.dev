@@ -22,7 +22,7 @@ describe('header color mode button', () => {
     await toggle.trigger('click')
 
     expect(toggle.attributes('aria-expanded')).toBe('true')
-    expect(wrapper.get('#mobile-navigation').get('nav').attributes('aria-label')).toBe('Mobile navigation')
+    expect(wrapper.get('#mobile-navigation').get('nav').attributes('aria-label')).toBe('Mobile')
     expect(wrapper.get('main').classes()).toContain('[contain:style]')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
   })
