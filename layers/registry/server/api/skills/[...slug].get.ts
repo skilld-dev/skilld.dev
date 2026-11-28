@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import type { Platform } from '#shared/server/platform'
 import { setHeader } from 'h3'
 
+import { runAfterResponse } from '#shared/server/after-response'
 import { cached, readThroughCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { githubSkillFileUrl } from '#shared/skill-file-url'
@@ -700,15 +701,4 @@ async function renderLive(
     dependencies: [],
     status: upstreamFailed ? 'fetch_failed' : 'path_missing',
   }
-}
-
-function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
-  const ctx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(promise)
-    return
-  }
-  // Local dev / non-Workers: don't block the response, but make sure the
-  // promise isn't an unhandled rejection.
-  void promise
 }

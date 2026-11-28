@@ -1,5 +1,5 @@
-import type { H3Event } from 'h3'
 import { getHeader, setHeader, setResponseStatus } from 'h3'
+import { resolveAfterResponse } from '#shared/server/after-response'
 import { defineApiHandler } from '#shared/server/handler'
 import { presentArtifactResolution } from '../../../presenters/resolution'
 import {
@@ -48,7 +48,7 @@ export default withArtifactProblems(defineApiHandler({
       db: platform.db,
       lookupAdmitted: fetchAdmittedSkillIdentity(event.context),
       enqueue: buildAfterResponse({
-        schedule: work => runAfterResponse(event, work),
+        schedule: resolveAfterResponse(event),
         build: resolutionId => processArtifactBuild(createArtifactBuildDependencies(platform.env), resolutionId),
         enqueue: (resolutionId, delaySeconds) => enqueueArtifactBuild(platform.env, resolutionId, delaySeconds),
         reportBuildError: (resolutionId, error) => console.error(JSON.stringify({
@@ -131,20 +131,3 @@ export default withArtifactProblems(defineApiHandler({
   },
   presenter: presentArtifactResolution,
 }))
-
-/**
- * Keep the scheduled build alive past the response on Workers.
- *
- * H3Event has no `waitUntil` on h3 1.15, so the work goes through the
- * Cloudflare context Nitro mounts. Off Workers (local dev, tests) it does not
- * block the response. The registry layer keeps the same helper, and ADR-0001
- * keeps utilities out of other layers, so this route holds its own copy.
- */
-function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
-  const ctx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(promise)
-    return
-  }
-  void promise
-}

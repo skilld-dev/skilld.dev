@@ -60,10 +60,10 @@ let handler: (event: H3Event) => Promise<unknown>
 
 function event(context: { params?: Record<string, string> } = {}): H3Event {
   return {
+    req: { waitUntil: () => {} },
     res: { headers: new Headers() },
     context: {
       platform: { db: dbWithQueryCount() },
-      cloudflare: { context: { waitUntil: () => {} } },
       ...context,
     },
   } as unknown as H3Event

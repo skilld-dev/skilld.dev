@@ -3,6 +3,7 @@ import { isEvent } from 'h3'
 import { useSession } from 'nuxt/server'
 import { z } from 'zod'
 import { parseReturnTo } from '#shared/return-to'
+import { runAfterResponse } from '#shared/server/after-response'
 import { authSessionEvent } from '#shared/server/session-access'
 import { signupEntry } from '#shared/signup-analytics'
 import { sendEmailWithEnv, signUnsubToken } from '../../utils/email'
@@ -88,10 +89,7 @@ const githubHandler = defineOAuthGitHubEventHandler({
       }).catch(() => {
         emitOperationalEvent(createWideEvent({ operation: 'welcome-email', outcome: 'failed' }))
       })
-      const context = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-      if (context?.waitUntil)
-        context.waitUntil(welcome)
-      else
+      if (!runAfterResponse(event, welcome))
         await welcome
     }
     const sendValidationSummary = () => sendSkillValidationSummary({
@@ -123,20 +121,13 @@ const githubHandler = defineOAuthGitHubEventHandler({
       }).then(sendValidationSummary).catch(() => {
         emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'failed' }))
       })
-      const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-      if (cfCtx?.waitUntil)
-        cfCtx.waitUntil(scanPromise)
-      else
-        void scanPromise
+      runAfterResponse(event, scanPromise)
     }
     else {
       const summaryPromise = sendValidationSummary().catch(() => {
         emitOperationalEvent(createWideEvent({ operation: 'skill-validation-email', outcome: 'failed' }))
       })
-      const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-      if (cfCtx?.waitUntil)
-        cfCtx.waitUntil(summaryPromise)
-      else
+      if (!runAfterResponse(event, summaryPromise))
         await summaryPromise
     }
 

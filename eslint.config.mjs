@@ -59,6 +59,13 @@ export default antfu({
         selector: 'CallExpression[callee.name="getUserSession"]',
         message: 'getUserSession() sets a session cookie on anonymous requests; use readUserSession() from #shared/server/session-access',
       },
+      // Nitro 3 mounts bindings and waitUntil on `event.req` / `event.runtime.cloudflare`,
+      // never on `event.context.cloudflare`. Reading the dead Nitro 2 shape silently
+      // dropped waitUntil and left artifact Resolutions stranded in `requested`.
+      {
+        selector: 'MemberExpression[property.name="cloudflare"][object.property.name="context"], MemberExpression[property.name="cloudflare"][object.type="TSAsExpression"][object.expression.property.name="context"]',
+        message: 'Nitro 3 does not populate event.context.cloudflare; use #shared/server/after-response or resolveCloudflareBindings()',
+      },
     ],
   },
 })

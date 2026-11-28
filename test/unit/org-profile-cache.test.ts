@@ -134,9 +134,9 @@ describe('org profile SWR cache', () => {
 
   function event(): H3Event {
     return {
+      req: { waitUntil: (promise: Promise<unknown>) => scheduled.push(promise) },
       context: {
         platform: { db: harness.db },
-        cloudflare: { context: { waitUntil: (promise: Promise<unknown>) => scheduled.push(promise) } },
       },
       node: { req: { headers: {} } },
     } as unknown as H3Event
