@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { SkillFileTreeNode as TreeNode } from '../utils/skill-file-tree'
+import { computed, ref, watch } from 'vue'
+import { repoSkillPath } from '#shared/skill-routes'
 import { formatByteSize } from '../utils/skill-context-cost'
 import { fileIcon, isInlineRenderable, splitFileLabel } from '../utils/skill-file-tree'
+import SkillFileIcon from './SkillFileIcon.vue'
 
 const props = defineProps<{
   node: TreeNode

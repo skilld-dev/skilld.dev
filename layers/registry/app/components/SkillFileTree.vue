@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed, useId } from 'vue'
 import { buildSkillFileTree } from '../utils/skill-file-tree'
+import SkillFileTreeNode from './SkillFileTreeNode.vue'
 
 interface SkillAsset {
   path: string

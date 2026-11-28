@@ -285,6 +285,8 @@ catalog:
   '@takumi-rs/core': ^2.15.0
   '@takumi-rs/wasm': ^2.15.0
   '@types/node': ^26.4.0
+  '@vitejs/plugin-vue': ^6.0.11
+  '@vitest/browser-playwright': 5.1.2
   '@vue/test-utils': ^2.5.0
   '@vueuse/core': ^15.0.0
   '@vueuse/nuxt': ^15.0.0
@@ -322,7 +324,7 @@ catalog:
   tsx: ^4.23.13
   typescript: 6.0.3
   unstorage: 1.17.5
-  vitest: ^4.1.11
+  vitest: ^5.1.2
   vue: 3.5.46
   vue-tsc: 3.3.14
   wrangler: ^4.127.1

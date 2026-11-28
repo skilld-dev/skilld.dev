@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       harness: ${{ steps.filter.outputs.harness }}
+      browser: ${{ steps.filter.outputs.browser }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,12 +39,17 @@ jobs:
         run: |
           files=$(git diff --name-only "$BASE...$HEAD")
           harness=false
+          browser=false
           while IFS= read -r file; do
             case "$file" in
-              workers/skill-harness/*|pnpm-lock.yaml|.github/workflows/test.yml) harness=true; break ;;
+              workers/skill-harness/*|pnpm-lock.yaml|.github/workflows/test.yml) harness=true ;;
+            esac
+            case "$file" in
+              layers/registry/app/components/SkillFileTree*.vue|layers/registry/app/components/SkillFileIcon.vue|layers/registry/app/utils/skill-file-tree.ts|shared/file-icons.ts|shared/skill-routes.ts|test/browser/*|vitest.browser.config.ts|package.json|pnpm-lock.yaml|.github/workflows/test.yml) browser=true ;;
             esac
           done <<< "$files"
           echo "harness=$harness" >> "$GITHUB_OUTPUT"
+          echo "browser=$browser" >> "$GITHUB_OUTPUT"
 
   harness-proof:
     needs: changes
@@ -66,6 +72,24 @@ jobs:
           pnpm --filter @skilld/skill-harness-worker types:check
           pnpm --filter @skilld/skill-harness-worker typecheck
           pnpm --filter @skilld/skill-harness-worker test:run
+
+  browser:
+    needs: changes
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser
 
   # .skills/skilld is a synced copy of skills/skilld in skilld-dev/skilld.
   # The check fails when the copy, its Agent links, or its declaration drift.
